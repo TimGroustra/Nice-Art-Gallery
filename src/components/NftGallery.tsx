@@ -251,11 +251,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   const createArrowMesh = useCallback((wallName: keyof typeof GALLERY_PANEL_CONFIG, type: 'arrow-prev' | 'arrow-next', position: THREE.Vector3, rotationY: number, scene: THREE.Scene) => {
     
-    // Create a simple triangle shape pointing right (for 'next')
+    // Create a simple triangle shape pointing right (default orientation)
     const shape = new THREE.Shape();
     const halfSize = ARROW_SIZE / 2;
     
-    // Define triangle vertices (pointing right)
+    // Define triangle vertices (pointing right: X increases)
     shape.moveTo(-halfSize, halfSize);
     shape.lineTo(halfSize, 0);
     shape.lineTo(-halfSize, -halfSize);
@@ -263,11 +263,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     const geo = new THREE.ShapeGeometry(shape);
     
-    // Use a consistent, slightly emissive material for visibility
+    // Use a consistent, grey, slightly emissive material
     const mat = new THREE.MeshStandardMaterial({ 
-      color: 0x00ff00, // Bright green
-      emissive: 0x00ff00,
-      emissiveIntensity: 0.5,
+      color: 0xaaaaaa, // Grey color
+      emissive: 0xaaaaaa,
+      emissiveIntensity: 0.3,
       side: THREE.DoubleSide,
       transparent: true,
       opacity: 0.8,
@@ -277,17 +277,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const mesh = new THREE.Mesh(geo, mat) as unknown as InteractiveMesh;
     mesh.position.copy(position);
     
-    // Calculate final rotation based on wall orientation and arrow direction
     let finalRotationY = rotationY;
     
     if (wallName === 'north-wall' || wallName === 'south-wall') {
-      // North/South walls: Arrows point left/right (rotation around Y axis)
+      // North/South walls: Arrows point horizontally (left/right)
       if (type === 'arrow-prev') {
-        finalRotationY += Math.PI; // Rotate 180 degrees from default right-pointing shape
+        // Rotate 180 degrees to point left
+        mesh.rotation.z = Math.PI; 
       }
+      // Apply wall rotation around Y axis
+      finalRotationY = rotationY;
     } else {
-      // East/West walls: Arrows point up/down relative to the wall (rotation around Z axis)
-      // We need to rotate the shape 90 degrees first, then apply wall rotation
+      // East/West walls: Arrows point vertically (up/down relative to the viewer)
       
       // Rotate the shape 90 degrees clockwise (to point 'up' relative to the wall)
       mesh.rotation.z = -Math.PI / 2; 
@@ -312,7 +313,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   const createPanel = useCallback((scene: THREE.Scene, wallName: keyof typeof GALLERY_PANEL_CONFIG, position: THREE.Vector3, rotationY: number) => {
     
-    const config = GALLERY_PANEL_CONFIG[wallName]; // Fixed typo here
+    const config = GALLERY_PANEL_CONFIG[wallName];
     if (config.contractAddress.startsWith('0xPlaceholder')) {
       // Skip rendering this panel if it uses a placeholder address
       return null;
@@ -613,7 +614,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       const time = performance.now();
 
       // Update disco lights rotate and move
-      for (let i = 0; i < discoLights.length; i++) {
+      for (let i = 0 => discoLights.length; i++) {
         const pl = discoLights[i];
         const props = lightProperties[i];
         
