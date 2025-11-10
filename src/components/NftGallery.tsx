@@ -250,10 +250,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     // Arrow geometry (simple triangle pointing right along the positive X axis of its local coordinate system)
     const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.2); // Increased size
-    arrowShape.lineTo(0.4, 0); // Increased size
-    arrowShape.lineTo(0, -0.2); // Increased size
-    arrowShape.lineTo(0, 0.2);
+    arrowShape.moveTo(0, 0.15);
+    arrowShape.lineTo(0.3, 0);
+    arrowShape.lineTo(0, -0.15);
+    arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
     
@@ -264,8 +264,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       { wallName: 'west-wall', position: [-roomSize / 2 + 0.01, wallHeight / 2, 0], rotation: [0, Math.PI / 2, 0] },
     ];
 
-    const arrowOffset = 1.2; // Reduced offset from 1.5 to 1.2
-
     panelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
@@ -273,6 +271,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       scene.add(mesh);
       
       // Calculate arrow positions relative to the panel (2 units wide)
+      const arrowOffset = 1.5; 
       const arrowY = config.position[1];
       const arrowZ = config.position[2];
       const arrowX = config.position[0];
@@ -280,7 +279,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Previous Arrow (Left side of panel)
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // Points right (inward)
+      // ROTATION CHANGE: No rotation (points right/inward)
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
@@ -294,7 +293,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Next Arrow (Right side of panel)
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      nextArrow.rotation.z = Math.PI; // Flip 180 degrees (points left/inward)
+      nextArrow.rotation.z = Math.PI; // ROTATION CHANGE: Flip 180 degrees (points left/inward)
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
