@@ -1,6 +1,7 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
 
 export interface NftCollection {
+  name: string;
   contractAddress: string;
   tokenIds: number[]; // Array of token IDs available in this collection
   currentIndex: number; // Index of the currently displayed token in the tokenIds array
@@ -19,21 +20,25 @@ const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
   'north-wall': {
+    name: 'Panth.art',
     contractAddress: PANTH_ART_ADDRESS,
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'south-wall': {
+    name: 'Anybodies',
     contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'east-wall': {
+    name: 'Panth.art',
     contractAddress: PANTH_ART_ADDRESS, 
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'west-wall': {
+    name: 'Panth.art',
     contractAddress: PANTH_ART_ADDRESS, 
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
@@ -44,7 +49,7 @@ let galleryConfig: PanelConfig = {
 export async function initializeGalleryConfig() {
   const collectionsToFetch = [
     { address: PANTH_ART_ADDRESS, name: 'Panth.art' },
-    { address: SECOND_COLLECTION_ADDRESS, name: 'Second Collection' },
+    { address: SECOND_COLLECTION_ADDRESS, name: 'Anybodies' },
   ];
 
   const tokenMap: { [address: string]: number[] } = {};

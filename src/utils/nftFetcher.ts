@@ -28,11 +28,17 @@ export function normalizeUrl(url: string): string {
   return url;
 }
 
+export interface NftAttribute {
+  trait_type: string;
+  value: string | number;
+}
+
 export interface NftMetadata {
   title: string;
   description: string;
   image: string;
   source: string; // Original metadata URL (resolved tokenURI)
+  attributes?: NftAttribute[];
 }
 
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
@@ -77,6 +83,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     description: json.description || '(No description)',
     image: imageUrl || '',
     source: metadataUrl,
+    attributes: json.attributes || [],
   };
 }
 
