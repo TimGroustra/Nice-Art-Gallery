@@ -7,8 +7,8 @@ export interface PanelConfig {
   [key: string]: NftSource | null; // Key is the panel identifier, value is the NFT source or null
 }
 
-// The contract address provided by the user (Electroneum Block Explorer)
-const COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+// The contract address provided by the user (Panth.art collection)
+const COLLECTION_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
 // Helper to generate NFT source objects
 const getSource = (tokenId: number): NftSource => ({
