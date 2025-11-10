@@ -283,10 +283,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
     const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load('/floor.jpg');
-    floorTexture.wrapS = THREE.RepeatWrapping;
-    floorTexture.wrapT = THREE.RepeatWrapping;
-    floorTexture.repeat.set(10, 10); // Repeat the texture
+    const floorTexture = textureLoader.load('/floor.jpg', (texture) => {
+        const imageAspect = texture.image.width / texture.image.height;
+        const planeAspect = 1; // The floor is a square (roomSize x roomSize)
+
+        // This logic implements a "cover" effect for the texture on the plane
+        if (imageAspect > planeAspect) {
+            // Image is wider than the plane, so we crop the sides
+            texture.repeat.x = planeAspect / imageAspect;
+            texture.offset.x = (1 - texture.repeat.x) / 2;
+        } else {
+            // Image is taller than or same aspect as the plane, so we crop the top/bottom
+            texture.repeat.y = imageAspect / planeAspect;
+            texture.offset.y = (1 - texture.repeat.y) / 2;
+        }
+    });
     const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), floorMaterial);
     
