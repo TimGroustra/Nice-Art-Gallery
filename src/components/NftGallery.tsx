@@ -175,6 +175,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 3. Geometry: Floor, Ceiling, Walls
     const roomSize = 10;
     const wallHeight = 4;
+    const boundary = roomSize / 2 - 0.5; // 5 - 0.5 = 4.5 units from center
 
     // Floor (Green)
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
@@ -276,7 +277,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     let moveRight = false;
     const velocity = new THREE.Vector3();
     const direction = new THREE.Vector3();
-    const speed = 10.0; // Movement speed increased from 5.0 to 10.0
+    const speed = 10.0; // Movement speed
 
     const onKeyDown = (event: KeyboardEvent) => {
       switch (event.code) {
@@ -405,6 +406,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         
         // Keep player height constant (no jumping/falling)
         camera.position.y = 1.6; 
+
+        // Boundary Check (Clamping position)
+        camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
+        camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
       }
 
       prevTime = time;
