@@ -43,9 +43,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const PANEL_H = 3.0;
   const ARROW_SIZE = 0.5;
 
-  // Fibonacci sequence F(1) through F(7): 1, 1, 2, 3, 5, 8, 13
-  const fib = useRef([1, 1, 2, 3, 5, 8, 13]); 
-
   // Define room boundaries (slightly inside the walls at +/- 8)
   const BOUNDARY = 7.5; 
 
@@ -379,7 +376,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const amb = new THREE.AmbientLight(0xaaaaaa, 0.5); 
     scene.add(amb);
 
-    // 2. Ceiling Border Downlighting (RectAreaLight)
+    // 2. Ceiling Border Downlighting (RectAreaLight) - Main white light
     const lightWidth = 15.8; 
     const lightHeight = 15.8; 
     const lightIntensity = 10; 
@@ -391,16 +388,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     rectLight.rotation.x = -Math.PI / 2; // Pointing down
     scene.add(rectLight);
 
-    // 3. Disco Lights (Kept for atmosphere, but reduced intensity)
+    // 3. Disco Lights (Increased count and varied patterns)
+    const NUM_DISCO_LIGHTS = 20;
     const discoLights: THREE.PointLight[] = [];
-    const lightColors = [0xFF0000, 0xFF8C00, 0xFFFF00, 0x00FF00, 0x0000FF, 0x4B0082, 0xEE82EE];
     const discoLightHeight = 3.8; 
+    const maxRadius = 7.0;
+
+    // Pre-calculate random properties for each light
+    const lightProperties = Array.from({ length: NUM_DISCO_LIGHTS }, () => ({
+      color: Math.random() * 0xffffff,
+      radius: Math.random() * maxRadius,
+      speedFactor: 0.0005 + Math.random() * 0.0005,
+      phaseOffset: Math.random() * Math.PI * 2,
+      verticalSpeed: 0.0001 + Math.random() * 0.0001,
+      verticalOffset: Math.random() * Math.PI * 2,
+    }));
     
-    for (let i = 0; i < 7; i++) {
-      const radiusFactor = fib.current[i] * 0.5; 
-      // Reduced intensity significantly since RectAreaLight provides main illumination
-      const pl = new THREE.PointLight(lightColors[i], 0.5, 10, 1.5); 
-      pl.position.set(Math.cos(i / 7 * Math.PI * 2) * radiusFactor, discoLightHeight, Math.sin(i / 7 * Math.PI * 2) * radiusFactor);
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const props = lightProperties[i];
+      const pl = new THREE.PointLight(props.color, 1.0, 10, 1.5); 
+      pl.position.set(0, discoLightHeight, 0); // Initial position
       scene.add(pl);
       discoLights.push(pl);
     }
@@ -493,16 +500,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       requestAnimationFrame(animate);
       const delta = clockRef.current.getDelta();
       
-      const baseSpeed = 0.0004;
+      const time = performance.now();
 
-      // Update disco lights rotate
+      // Update disco lights rotate and move
       for (let i = 0; i < discoLights.length; i++) {
-        const speedFactor = baseSpeed * (1 + i * 0.05); 
-        const a = performance.now() * speedFactor;
-        const radiusFactor = fib.current[i] * 0.5; 
+        const pl = discoLights[i];
+        const props = lightProperties[i];
         
-        discoLights[i].position.x = Math.cos(a + i) * radiusFactor;
-        discoLights[i].position.z = Math.sin(a + i) * radiusFactor;
+        const angle = time * props.speedFactor + props.phaseOffset;
+        
+        // Horizontal movement (circular/elliptical pattern)
+        pl.position.x = Math.cos(angle) * props.radius;
+        pl.position.z = Math.sin(angle * 0.8) * props.radius; // Slightly elliptical movement
+        
+        // Vertical movement (subtle bobbing)
+        pl.position.y = discoLightHeight + Math.sin(time * props.verticalSpeed + props.verticalOffset) * 0.1;
       }
 
       // Movement
