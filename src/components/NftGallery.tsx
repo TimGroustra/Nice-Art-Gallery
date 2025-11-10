@@ -32,7 +32,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const [isLocked, setIsLocked] = useState(false); 
 
   // Function to manage video playback based on lock state
-  // This function is stable and only depends on videoRef.current
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     if (videoRef.current) {
       if (shouldPlay) {
@@ -82,348 +81,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         showError(`Failed to load image: ${url.substring(0, 50)}...`);
       }
     );
-  }, [manageVideoPlayback]); // Only depends on stable manageVideoPlayback
-
-  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
-    try {
-      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      
-      const imageUrl = metadata.image;
-      const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
-      
-      // If the new content is a video, we need to ensure any currently playing video is paused first
-      if (isVideo && videoRef.current) {
-        manageVideoPlayback(false);
-      }
-
-      const texture = loadTexture(imageUrl, isVideo);
-      
-      // Dispose of old material/texture
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
-      panel.metadataUrl = metadata.source;
-      panel.isVideo = isVideo;
-
-      if (isVideo) {
-        showSuccess(`Loaded video NFT: ${metadata.title}`);
-      } else {
-        showSuccess(`Loaded image NFT: ${metadata.title}`);
-      }
-      
-    } catch (error) {
-      console.error(`Error updating panel ${panel.wallName}:`, error);
-      showError(`Failed to load NFT for ${panel.wallName}.`);
-      
-      // Fallback to placeholder
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
-      panel.metadataUrl = '';
-      panel.isVideo = false;
-    }
-  }, [loadTexture, manageVideoPlayback]);
-
-  // --- Three.js Setup Effect ---
-
-  useEffect(() => {
-    if (!mountRef.current) return;
-
-    // 1. Setup Scene, Camera, Renderer
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xaaaaaa);
-
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 4.5); // Start position adjusted from Z=5 to Z=4.5
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    mountRef.current.appendChild(renderer.domElement);
-
-    // 2. Controls (PointerLockControls)
-    const controls = new PointerLockControls(camera, renderer.domElement);
-    
-    // Expose controls for UI interaction (locking/unlocking)
-    (window as any).galleryControls = {
-      lockControls: () => controls.lock(),
-      hasVideo: () => panelsRef.current.some(p => p.isVideo),
-      isMuted: () => videoRef.current?.muted ?? true,
-      toggleMute: () => {
-        if (videoRef.current) {
-          videoRef.current.muted = !videoRef.current.muted;
-        }
-      },
-      isLocked: () => controls.isLocked, // Utility to check lock status
-      getTargetedPanel: () => currentTargetedPanel,
-    };
-
-    controls.addEventListener('lock', () => {
-      setIsLocked(true);
-      setInstructionsVisible(false);
-      // Start video playback when locked
-      if (panelsRef.current.some(p => p.isVideo)) {
-        manageVideoPlayback(true);
-      }
-    });
-    controls.addEventListener('unlock', () => {
-      setIsLocked(false);
-      setInstructionsVisible(true);
-      // Pause video playback when unlocked
-      manageVideoPlayback(false);
-    });
-
-
-    // 3. Geometry: Floor, Ceiling, Walls
-    const roomSize = 10;
-    const wallHeight = 4;
-    const panelYPosition = 1.8; // Lowered from 2.0 (wallHeight/2) to 1.8
-    const boundary = roomSize / 2 - 0.5; // 5 - 0.5 = 4.5 units from center
-
-    // Floor (Green)
-    const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x222222, side: THREE.DoubleSide });
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-    floor.rotation.x = Math.PI / 2;
-    floor.position.y = 0;
-    scene.add(floor);
-
-    // Ceiling (White)
-    const ceilingGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    const ceilingMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
-    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = wallHeight;
-    scene.add(ceiling);
-
-    // Walls (Grey)
-    const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x444444, side: THREE.DoubleSide });
-    
-    // North Wall (-Z)
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    northWall.position.set(0, wallHeight / 2, -roomSize / 2);
-    scene.add(northWall);
-
-    // South Wall (+Z)
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    southWall.rotation.y = Math.PI;
-    southWall.position.set(0, wallHeight / 2, roomSize / 2);
-    scene.add(southWall);
-
-    // East Wall (+X)
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    eastWall.rotation.y = -Math.PI / 2;
-    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    scene.add(eastWall);
-
-    // West Wall (-X)
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    westWall.rotation.y = Math.PI / 2;
-    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    scene.add(westWall);
-
-    // 4. Lights
-    const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 3;
-    const discoLightHeight = 2.5;
-    const lightColors = [0xff0066, 0x00ffd5, 0xffff00];
-
-    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const color = lightColors[i];
-      const initialX = Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3;
-      const initialZ = Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3;
-
-      const pl = new THREE.PointLight(color, 1.2, 15, 2);
-      pl.position.set(initialX, discoLightHeight, initialZ);
-      scene.add(pl);
-      lights.push(pl);
-    }
-    const amb = new THREE.AmbientLight(0x404050, 0.6);
-    scene.add(amb);
-
-    // 5. Setup initial panels and 3D arrows
-    const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-    
-    // Arrow geometry (simple triangle pointing right along the positive X axis of its local coordinate system)
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.15);
-    arrowShape.lineTo(0.3, 0);
-    arrowShape.lineTo(0, -0.15);
-    arrowShape.lineTo(0, 0.15);
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const ARROW_COLOR_DEFAULT = 0xcccccc;
-    const ARROW_COLOR_HOVER = 0x00ff00; // Bright Green Hover Color
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    
-    // Offset to ensure the arrow is slightly in front of the wall/panel
-    const ARROW_DEPTH_OFFSET = 0.02; 
-
-    const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] }, // -Z wall
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] }, // +Z wall
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] }, // +X wall
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] }, // -X wall
-    ];
-
-    panelConfigs.forEach(config => {
-      // Panel Mesh
-      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-      mesh.position.set(config.position[0], config.position[1], config.position[2]);
-      mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      scene.add(mesh);
-      
-      // Calculate arrow positions relative to the panel (2 units wide)
-      const arrowOffset = 1.5; 
-      const arrowY = config.position[1];
-      
-      // Previous Arrow (Left side of panel)
-      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      
-      // Rotate 180 degrees around the Y axis of the wall to make it point left
-      prevArrow.rotation.y += Math.PI; 
-      
-      // Position based on wall orientation
-      if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
-        // North/South walls (Z-axis walls): X changes
-        prevArrow.position.set(config.position[0] - arrowOffset, arrowY, config.position[2]);
-      } else { 
-        // East/West walls (X-axis walls): Z changes
-        prevArrow.position.set(config.position[0], arrowY, config.position[2] + arrowOffset);
-      }
-      scene.add(prevArrow);
-      
-      // Next Arrow (Right side of panel)
-      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // No extra rotation needed, as the default shape points right relative to the wall's orientation
-      
-      // Position based on wall orientation
-      if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
-        // North/South walls (Z-axis walls): X changes
-        nextArrow.position.set(config.position[0] + arrowOffset, arrowY, config.position[2]);
-      } else { 
-        // East/West walls (X-axis walls): Z changes
-        nextArrow.position.set(config.position[0], arrowY, config.position[2] - arrowOffset);
-      }
-      scene.add(nextArrow);
-
-
-      const panel: Panel = {
-        mesh,
-        wallName: config.wallName,
-        metadataUrl: '',
-        isVideo: false,
-        prevArrow,
-        nextArrow,
-      };
-      panelsRef.current.push(panel);
-      
-      // Load initial content
-      const source = getCurrentNftSource(config.wallName);
-      if (source) {
-        updatePanelContent(panel, source);
-      }
-    });
-
-    // 6. Movement Variables and Handlers
-// ... (rest of the file remains the same)
-```
-
-I have adjusted the positioning of the panels and arrows slightly using `ARROW_DEPTH_OFFSET` to ensure they are slightly in front of the main wall geometry, and crucially, I corrected the rotation and coordinate manipulation for the arrows on the East and West walls to ensure they point correctly along the wall surface.
-
-<dyad-write path="src/components/NftGallery.tsx" description="Correcting the rotation and positioning of 3D navigation arrows to ensure they are flush against the walls and point correctly.">
-import React, { useRef, useEffect, useCallback, useState } from 'react';
-import * as THREE from 'three';
-import { PointerLockControls } from 'three-stdlib';
-import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource } from '@/utils/nftFetcher';
-import { showSuccess, showError } from '@/utils/toast';
-
-// Define types for the panel objects
-interface Panel {
-  mesh: THREE.Mesh;
-  wallName: keyof PanelConfig;
-  metadataUrl: string;
-  isVideo: boolean;
-  prevArrow: THREE.Mesh; // New 3D arrow mesh
-  nextArrow: THREE.Mesh; // New 3D arrow mesh
-}
-
-interface NftGalleryProps {
-  onPanelClick: (metadataUrl: string) => void;
-  setInstructionsVisible: (visible: boolean) => void;
-}
-
-// Global state for UI interaction
-let currentTargetedPanel: Panel | null = null;
-let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
-
-const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const panelsRef = useRef<Panel[]>([]);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  // We keep isLocked state, but we must ensure it doesn't trigger the main useEffect re-run via dependencies.
-  const [isLocked, setIsLocked] = useState(false); 
-
-  // Function to manage video playback based on lock state
-  // This function is stable and only depends on videoRef.current
-  const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
-    if (videoRef.current) {
-      if (shouldPlay) {
-        // Check if controls are currently locked before attempting to play
-        const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
-        
-        if (controlsLocked) {
-          videoRef.current.play().catch(e => {
-            // Catch the error, especially if it's related to user interaction context loss (lock exit)
-            console.warn("Video playback prevented or failed:", e);
-          });
-        }
-      } else {
-        videoRef.current.pause();
-      }
-    }
-  }, []);
-
-
-  // --- Utility Functions for Three.js Content Management ---
-
-  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
-    if (isVideo) {
-      if (videoRef.current) {
-        // Prepare video element
-        videoRef.current.pause();
-        videoRef.current.src = url;
-        videoRef.current.load();
-        videoRef.current.loop = true;
-        videoRef.current.muted = true; // Always start muted
-        
-        // If controls are already locked, start playback immediately using the stable manager
-        if ((window as any).galleryControls?.isLocked?.()) {
-             manageVideoPlayback(true);
-        }
-
-        return new THREE.VideoTexture(videoRef.current);
-      }
-      // Fallback if video element is not ready
-      return new THREE.TextureLoader().load(url);
-    }
-    return new THREE.TextureLoader().load(url, 
-      () => {}, // on load
-      undefined, // on progress
-      (error) => {
-        console.error('Error loading texture:', url, error);
-        showError(`Failed to load image: ${url.substring(0, 50)}...`);
-      }
-    );
-  }, [manageVideoPlayback]); // Only depends on stable manageVideoPlayback
+  }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
@@ -615,13 +273,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     panelConfigs.forEach(config => {
       // Panel Mesh
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-      
-      // Adjust panel position to be flush with the arrows
-      if (config.wallName === 'north-wall') mesh.position.set(config.position[0], config.position[1], -roomSize / 2 + ARROW_DEPTH_OFFSET);
-      else if (config.wallName === 'south-wall') mesh.position.set(config.position[0], config.position[1], roomSize / 2 - ARROW_DEPTH_OFFSET);
-      else if (config.wallName === 'east-wall') mesh.position.set(roomSize / 2 - ARROW_DEPTH_OFFSET, config.position[1], config.position[2]);
-      else if (config.wallName === 'west-wall') mesh.position.set(-roomSize / 2 + ARROW_DEPTH_OFFSET, config.position[1], config.position[2]);
-      
+      mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
       
@@ -641,8 +293,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         // North/South walls (Z-axis walls): X changes
         prevArrow.position.set(config.position[0] - arrowOffset, arrowY, config.position[2]);
       } else { 
-        // East/West walls (X-axis walls): Z changes. Note: Rotation handles the direction.
-        prevArrow.position.set(config.position[0], arrowY, config.position[2] + arrowOffset);
+        // East/West walls (X-axis walls): Z changes
+        // Note: The rotation already handles the orientation relative to the wall.
+        // We need to adjust the Z position for East/West walls to place the arrow left of the panel.
+        // For East wall (+X, rotation -PI/2), left is +Z. For West wall (-X, rotation PI/2), left is -Z.
+        const zOffset = config.wallName === 'east-wall' ? arrowOffset : -arrowOffset;
+        prevArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
       }
       scene.add(prevArrow);
       
@@ -657,7 +313,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         nextArrow.position.set(config.position[0] + arrowOffset, arrowY, config.position[2]);
       } else { 
         // East/West walls (X-axis walls): Z changes
-        nextArrow.position.set(config.position[0], arrowY, config.position[2] - arrowOffset);
+        // For East wall (+X, rotation -PI/2), right is -Z. For West wall (-X, rotation PI/2), right is +Z.
+        const zOffset = config.wallName === 'east-wall' ? -arrowOffset : arrowOffset;
+        nextArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
       }
       scene.add(nextArrow);
 
