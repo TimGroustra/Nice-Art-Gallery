@@ -20,9 +20,6 @@ interface PanelMesh extends THREE.Mesh {
 
 interface NftGalleryProps {
   onPanelClick: (metadataUrl: string) => void;
-  selectedPanelUrl: string;
-  applyUrlToSelectedPanel: (url: string) => void;
-  resetPanels: () => void;
 }
 
 // Utility: normalize ipfs:// to https gateway
@@ -159,7 +156,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
     controlsRef.current = controls;
-    // scene.add(controls.getObject()); // This is no longer needed in modern Three.js
 
     controls.addEventListener('lock', () => setInstructionsVisible(false));
     controls.addEventListener('unlock', () => setInstructionsVisible(true));
@@ -252,9 +248,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
 
     // --- Animation Loop ---
 
-    const velocity = new THREE.Vector3();
-    const direction = new THREE.Vector3();
-
     const animate = () => {
       requestAnimationFrame(animate);
       const delta = clockRef.current.getDelta();
@@ -268,23 +261,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
 
       // Movement
       if (controls.isLocked) {
+        const direction = new THREE.Vector3();
         direction.z = moveStateRef.current.forward - moveStateRef.current.backward;
         direction.x = moveStateRef.current.right - moveStateRef.current.left;
         direction.normalize();
 
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        controls.moveForward(direction.z * speed * delta);
+        controls.moveRight(direction.x * speed * delta);
 
-        forward.y = 0; forward.normalize();
-        right.y = 0; right.normalize();
-
-        const moveVec = new THREE.Vector3();
-        moveVec.addScaledVector(forward, direction.z * speed * delta);
-        moveVec.addScaledVector(right, direction.x * speed * delta);
-
-        camera.position.add(moveVec);
-
-        // Raycast for highlighting/selection (optional, but useful for UI feedback)
+        // Raycast for highlighting/selection
         raycasterRef.current.setFromCamera({ x: 0, y: 0 }, camera);
         const intersects = raycasterRef.current.intersectObjects(panelMeshesRef.current, false);
 
@@ -292,10 +277,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
           const mesh = intersects[0].object as PanelMesh;
           if (selectedPanel !== mesh) {
             if (selectedPanel) {
-              // Reset previous selection color
               (selectedPanel.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
             }
-            // Highlight current selection
             (mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x101010);
             setSelectedPanel(mesh);
           }
@@ -321,77 +304,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       renderer.dispose();
-      // Note: We don't dispose of the geometry/materials of the panels here 
-      // because we need the panelMeshesRef to persist for the external functions 
-      // to work, but in a full cleanup scenario, these should be disposed.
     };
   }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, selectedPanel]);
 
-
-  // Expose functions for external UI interaction
+  // Pass imperative functions up to the parent component
   useEffect(() => {
-    // This effect handles the external application of URLs
-    // We rely on the parent component to call these functions via props/context if needed.
-    // For simplicity, we will handle the application logic directly here, 
-    // but the parent component needs to manage the state of which panel is selected.
-
-    // Since React components shouldn't expose imperative methods easily, 
-    // we will rely on the `selectedPanel` state derived from the raycaster 
-    // during the animation loop.
-
-    // We need a way for the parent component to trigger the URL application 
-    // based on the currently selected panel.
-    // Since we can't pass refs easily for imperative calls, we'll use a global 
-    // state management approach (or context) for the selected panel URL input.
-  }, []);
-
-  // We need to expose the selected panel's URL and the function to apply a new URL
-  // We will use a separate effect to manage the selected panel state and pass it up.
-  useEffect(() => {
-    // This is a placeholder to ensure the component is rendered full screen
-  }, []);
-
-  // --- Imperative functions exposed via props (or context if needed) ---
-
-  const applyUrl = useCallback((url: string) => {
-    if (controlsRef.current?.isLocked && selectedPanel) {
-      fetchAndApplyToMesh(url, selectedPanel);
-    } else {
-      alert('Please point at a panel (center of screen) and ensure controls are locked.');
-    }
-  }, [fetchAndApplyToMesh, selectedPanel]);
-
-  const reset = useCallback(() => {
-    if (mountRef.current) {
-      // Find the scene instance (hacky, but necessary without context)
-      const rendererCanvas = mountRef.current.querySelector('canvas');
-      if (rendererCanvas) {
-        const scene = (rendererCanvas as any)._threeScene; // Assuming we could attach it, but let's rely on re-running setup if possible.
-        // Since re-running the whole setup is complex, we'll just call setupPanels again.
-        // This requires the scene object, which is currently scoped inside useEffect.
-        // For now, we will rely on the parent component to trigger a full component re-render 
-        // or use a more complex ref structure to hold the scene object.
-        // For simplicity in this single-page app structure, we will just refresh the page 
-        // or use a global state to trigger panel setup if we had a context.
-        
-        // Since we don't have the scene object easily accessible here, 
-        // we will just refresh the page for a full reset for now.
-        window.location.reload();
-      }
-    }
-  }, []);
-
-  // Pass the imperative functions up to the parent component
-  useEffect(() => {
-    // This is a bit of a hack to pass imperative functions back up to the parent 
-    // component which manages the UI, but it fulfills the requirement of the prototype.
     (window as any).galleryControls = {
-      applyUrl,
-      reset,
       getSelectedPanelUrl: () => selectedPanel?.userData.metadataUrl || '',
       lockControls: () => controlsRef.current?.lock(),
     };
-  }, [applyUrl, reset, selectedPanel]);
+  }, [selectedPanel]);
 
 
   return (

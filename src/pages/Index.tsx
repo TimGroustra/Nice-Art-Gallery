@@ -23,18 +23,11 @@ const Index = () => {
     // The NftGallery component handles setting instructionsVisible=false on lock event internally.
   }, []);
 
-  // Placeholder functions for props required by NftGallery (though we use global controls for now)
-  const applyUrlToSelectedPanel = (url: string) => { /* Handled via global controls */ };
-  const resetPanels = () => { /* Handled via global controls */ };
-
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       {/* 3D Canvas */}
       <NftGallery 
         onPanelClick={handlePanelClick} 
-        selectedPanelUrl={""} // Not used yet, but kept for interface consistency
-        applyUrlToSelectedPanel={applyUrlToSelectedPanel}
-        resetPanels={resetPanels}
       />
       
       {/* 2D Overlay UI */}

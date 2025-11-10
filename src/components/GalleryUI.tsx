@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { X } from 'lucide-react';
 
@@ -29,21 +28,11 @@ function normalizeUrl(url: string): string {
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMetadata, setModalMetadata] = useState<Metadata | null>(null);
-  const [panelUrlInput, setPanelUrlInput] = useState('');
-  const [selectedPanelUrl, setSelectedPanelUrl] = useState('');
 
   // Function to fetch and open metadata modal
   const openMetadataModal = useCallback(async (metadataUrl: string) => {
     setIsModalOpen(true);
     setModalMetadata(null); // Clear previous data
-
-    // Try to read cached metadata from the 3D scene if available (via global hack)
-    const galleryControls = (window as any).galleryControls;
-    if (galleryControls && galleryControls.getSelectedPanelUrl) {
-        // Since we can't easily access the mesh data from the UI component, 
-        // we will just refetch the data for the modal for simplicity, 
-        // as the original JS prototype did for the fallback.
-    }
 
     const url = normalizeUrl(metadataUrl);
     try {
@@ -77,23 +66,6 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     };
   }, [openMetadataModal]);
 
-  const handleApplyUrl = () => {
-    const url = panelUrlInput.trim();
-    if (!url) return;
-    
-    const galleryControls = (window as any).galleryControls;
-    if (galleryControls && galleryControls.applyUrl) {
-      galleryControls.applyUrl(url);
-    }
-  };
-
-  const handleReset = () => {
-    const galleryControls = (window as any).galleryControls;
-    if (galleryControls && galleryControls.reset) {
-      galleryControls.reset();
-    }
-  };
-
   return (
     <>
       {/* Overlay UI */}
@@ -109,22 +81,6 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor.
           </div>
         )}
-
-        {/* Panel Config */}
-        <div id="panel-config" className="bg-black/50 p-3 rounded-md text-white pointer-events-auto flex flex-col gap-2">
-          <label className="text-sm">Selected panel URL:</label>
-          <Input 
-            id="panelUrlInput" 
-            placeholder="paste metadata URL (ipfs:// or https://)" 
-            value={panelUrlInput}
-            onChange={(e) => setPanelUrlInput(e.target.value)}
-            className="w-[380px] bg-gray-800 text-white border-gray-700"
-          />
-          <div className="flex gap-2 mt-1">
-            <Button onClick={handleApplyUrl} className="flex-1">Apply to selected panel</Button>
-            <Button onClick={handleReset} variant="secondary">Reset sample panels</Button>
-          </div>
-        </div>
       </div>
 
       {/* Metadata Modal */}
