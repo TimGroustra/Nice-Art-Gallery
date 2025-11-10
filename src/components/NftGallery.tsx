@@ -194,7 +194,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.collectionNameMesh.material instanceof THREE.MeshBasicMaterial && panel.collectionNameMesh.material.map) {
         panel.collectionNameMesh.material.map.dispose();
       }
-      const { texture: collectionNameTexture } = createTextTexture(collectionName, 2.5, 0.5, 80, 'white');
+      const { texture: collectionNameTexture } = createTextTexture(collectionName, 3, 0.75, 120, 'white');
       (panel.collectionNameMesh.material as THREE.MeshBasicMaterial).map = collectionNameTexture;
       panel.collectionNameMesh.visible = true;
 
@@ -313,7 +313,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
-    const collectionNameGeometry = new THREE.PlaneGeometry(2.5, 0.5);
+    const collectionNameGeometry = new THREE.PlaneGeometry(3, 0.75);
 
     const panelConfigs = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
