@@ -280,47 +280,48 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomWidth = 20, roomDepth = 10, wallHeight = 4, panelYPosition = 1.8;
-    const boundaryX = roomWidth / 2 - 0.5;
-    const boundaryZ = roomDepth / 2 - 0.5;
+    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
     const textureLoader = new THREE.TextureLoader();
     const floorTexture = textureLoader.load('/floor.jpg', (texture) => {
         const imageAspect = texture.image.width / texture.image.height;
-        const planeAspect = roomWidth / roomDepth;
+        const planeAspect = 1; // The floor is a square (roomSize x roomSize)
 
+        // This logic implements a "cover" effect for the texture on the plane
         if (imageAspect > planeAspect) {
+            // Image is wider than the plane, so we crop the sides
             texture.repeat.x = planeAspect / imageAspect;
             texture.offset.x = (1 - texture.repeat.x) / 2;
         } else {
+            // Image is taller than or same aspect as the plane, so we crop the top/bottom
             texture.repeat.y = imageAspect / planeAspect;
             texture.offset.y = (1 - texture.repeat.y) / 2;
         }
     });
     const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth), floorMaterial);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), floorMaterial);
     
     floor.rotation.x = Math.PI / 2;
     scene.add(floor);
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, roomDepth), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
     const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x444444, side: THREE.DoubleSide });
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, wallHeight), wallMaterial);
-    northWall.position.set(0, wallHeight / 2, -roomDepth / 2);
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    northWall.position.set(0, wallHeight / 2, -roomSize / 2);
     scene.add(northWall);
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomWidth, wallHeight), wallMaterial);
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     southWall.rotation.y = Math.PI;
-    southWall.position.set(0, wallHeight / 2, roomDepth / 2);
+    southWall.position.set(0, wallHeight / 2, roomSize / 2);
     scene.add(southWall);
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomDepth, wallHeight), wallMaterial);
+    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     eastWall.rotation.y = -Math.PI / 2;
-    eastWall.position.set(roomWidth / 2, wallHeight / 2, 0);
+    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
     scene.add(eastWall);
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomDepth, wallHeight), wallMaterial);
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     westWall.rotation.y = Math.PI / 2;
-    westWall.position.set(-roomWidth / 2, wallHeight / 2, 0);
+    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
 
     const lights: THREE.PointLight[] = [];
@@ -352,10 +353,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT);
 
     const panelConfigs = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomDepth / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, roomDepth / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomWidth / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomWidth / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
+      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
@@ -517,8 +518,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         camera.position.y = 1.6;
-        camera.position.x = Math.max(-boundaryX, Math.min(boundaryX, camera.position.x));
-        camera.position.z = Math.max(-boundaryZ, Math.min(boundaryZ, camera.position.z));
+        camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
+        camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(interactiveMeshes);
