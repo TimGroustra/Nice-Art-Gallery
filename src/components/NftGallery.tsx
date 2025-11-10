@@ -281,9 +281,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0x006400, side: THREE.DoubleSide }));
+    
+    const textureLoader = new THREE.TextureLoader();
+    const floorTexture = textureLoader.load('/floor-texture.jpg');
+    floorTexture.wrapS = THREE.RepeatWrapping;
+    floorTexture.wrapT = THREE.RepeatWrapping;
+    floorTexture.repeat.set(5, 5);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(roomSize, roomSize),
+      new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide })
+    );
     floor.rotation.x = Math.PI / 2;
     scene.add(floor);
+
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
@@ -487,6 +498,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         light.position.x = Math.cos(angle) * 3;
         light.position.z = Math.sin(angle) * 3;
       });
+
+      floorTexture.offset.y += 0.0005;
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
