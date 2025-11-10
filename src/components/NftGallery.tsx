@@ -147,6 +147,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     // Reset emissive color to black once texture is loaded
     material.emissive.setHex(0x000000);
+    material.color.setHex(0xffffff); // Set color back to white for texture display
 
     mesh.userData.loaded = true;
     mesh.userData.metadata = metadata;
@@ -187,7 +188,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 2. Set placeholder state
     mesh.userData.nftSource = nftSource;
     mesh.userData.loaded = false;
-    // Use a slightly brighter material initially so spotlights work well
+    // Set placeholder material (Grey)
     material.color.setHex(0x444444);
     material.emissive.setHex(0x000000);
     material.needsUpdate = true;
@@ -228,7 +229,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         video.onerror = (e) => {
           console.warn('Video load error for:', mediaUrl, e);
           document.body.removeChild(video);
-          // If video fails, revert to placeholder state and update arrows
+          
+          // Fallback to error state
+          material.color.setHex(0x880000); // Red error color
           mesh.userData.loaded = true;
           mesh.userData.metadata = { title: 'Error', description: 'Failed to load video', image: '', source: '' };
           updateArrowPositions(mesh, PANEL_W);
@@ -249,7 +252,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           },
           (err) => {
             console.warn('Texture load error for:', identifier, err);
-            // If texture fails, revert to placeholder state and update arrows
+            
+            // Fallback to error state
+            material.color.setHex(0x880000); // Red error color
             mesh.userData.loaded = true;
             mesh.userData.metadata = { title: 'Error', description: 'Failed to load image', image: '', source: '' };
             updateArrowPositions(mesh, PANEL_W);
@@ -259,7 +264,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     } catch (err) {
       console.warn('fetchAndApplyToMesh error for:', identifier, err);
-      // If fetch fails, keep the placeholder material but mark as loaded
+      // If fetch fails (e.g., tokenURI fails or metadata fetch fails)
+      material.color.setHex(0x880000); // Red error color
       mesh.userData.loaded = true;
       mesh.userData.metadata = { title: 'Error', description: 'Failed to load NFT', image: '', source: '' };
       
