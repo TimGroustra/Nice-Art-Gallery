@@ -217,6 +217,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
 
   const createPanel = useCallback((scene: THREE.Scene, wallName: keyof typeof GALLERY_PANEL_CONFIG, position: THREE.Vector3, rotationY: number) => {
+    
+    const config = GALLERY_PANEL_CONFIG[wallName];
+    if (config.contractAddress.startsWith('0xPlaceholder')) {
+      // Skip rendering this panel if it uses a placeholder address
+      return null;
+    }
+
     // 1. Create Main Panel
     const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H); 
     const mat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
