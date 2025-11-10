@@ -149,7 +149,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
-      const descriptionText = metadata.description.length > 150 ? metadata.description.substring(0, 147) + '...' : metadata.description;
+      const descriptionText = metadata.description; // Removed truncation
       const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, 1.5, 1.5, 40, 'lightgray');
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
