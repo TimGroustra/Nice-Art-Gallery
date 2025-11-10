@@ -312,7 +312,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   const createPanel = useCallback((scene: THREE.Scene, wallName: keyof typeof GALLERY_PANEL_CONFIG, position: THREE.Vector3, rotationY: number) => {
     
-    const config = GALLERY_PANTH_CONFIG[wallName];
+    const config = GALLERY_PANEL_CONFIG[wallName]; // Fixed typo here
     if (config.contractAddress.startsWith('0xPlaceholder')) {
       // Skip rendering this panel if it uses a placeholder address
       return null;
