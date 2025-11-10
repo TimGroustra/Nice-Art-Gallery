@@ -38,8 +38,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const selectedPanelRef = useRef<InteractiveMesh | null>(null);
   const [selectedVideoMuted, setSelectedVideoMuted] = useState(true);
   
-  // Removed galleryKey state, as it caused the scene to reset on arrow click.
-
   // Define max dimensions for the large panels
   const PANEL_W = 6.0;
   const PANEL_H = 3.0;
@@ -66,7 +64,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       mesh.parent.remove(mesh);
     }
     mesh.geometry.dispose();
-    (mesh.material as THREE.Material).dispose();
+    
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    if (material.map) {
+      material.map.dispose();
+    }
+    material.dispose();
     
     // Remove from tracking arrays
     interactiveMeshesRef.current = interactiveMeshesRef.current.filter(m => m !== mesh);
@@ -142,6 +145,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     material.map = texture;
     material.needsUpdate = true;
     
+    // Reset emissive color to black once texture is loaded
+    material.emissive.setHex(0x000000);
+
     mesh.userData.loaded = true;
     mesh.userData.metadata = metadata;
     
@@ -166,21 +172,29 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const { contractAddress, tokenId } = nftSource;
     const identifier = `${contractAddress}/${tokenId}`;
     
-    // Clean up previous video element if it exists
+    // 1. Cleanup previous media resources
     if (mesh.userData.videoElement) {
       mesh.userData.videoElement.pause();
       mesh.userData.videoElement.remove();
       delete mesh.userData.videoElement;
     }
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    if (material.map) {
+      material.map.dispose();
+      material.map = null;
+    }
 
+    // 2. Set placeholder state
     mesh.userData.nftSource = nftSource;
     mesh.userData.loaded = false;
     // Use a slightly brighter material initially so spotlights work well
-    mesh.material = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
-    (mesh.material as THREE.MeshStandardMaterial).needsUpdate = true;
+    material.color.setHex(0x444444);
+    material.emissive.setHex(0x000000);
+    material.needsUpdate = true;
+
 
     try {
-      // 1. Fetch metadata
+      // 3. Fetch metadata
       const metadata = await fetchNftMetadata(contractAddress, tokenId);
       
       let mediaUrl = metadata.image;
@@ -214,7 +228,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         video.onerror = (e) => {
           console.warn('Video load error for:', mediaUrl, e);
           document.body.removeChild(video);
-          removeMesh(mesh); // Remove mesh on video load failure
+          // If video fails, revert to placeholder state and update arrows
+          mesh.userData.loaded = true;
+          mesh.userData.metadata = { title: 'Error', description: 'Failed to load video', image: '', source: '' };
+          updateArrowPositions(mesh, PANEL_W);
         };
 
       } else {
@@ -232,7 +249,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           },
           (err) => {
             console.warn('Texture load error for:', identifier, err);
-            removeMesh(mesh); // Remove mesh on texture load failure
+            // If texture fails, revert to placeholder state and update arrows
+            mesh.userData.loaded = true;
+            mesh.userData.metadata = { title: 'Error', description: 'Failed to load image', image: '', source: '' };
+            updateArrowPositions(mesh, PANEL_W);
           }
         );
       }
@@ -711,7 +731,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, fetchAndApplyToMesh, setInstructionsVisible, removeMesh]); // Removed galleryKey dependency
+  }, [onPanelClick, setupPanels, fetchAndApplyToMesh, setInstructionsVisible, removeMesh]);
 
   // Function to toggle mute state of the currently selected video
   const toggleMute = useCallback(() => {
