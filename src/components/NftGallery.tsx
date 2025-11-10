@@ -38,8 +38,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const selectedPanelRef = useRef<InteractiveMesh | null>(null);
   const [selectedVideoMuted, setSelectedVideoMuted] = useState(true);
   
-  // State to force re-render of the gallery when an NFT changes (e.g., arrow click)
-  const [galleryKey, setGalleryKey] = useState(0); 
+  // Removed galleryKey state, as it caused the scene to reset on arrow click.
 
   // Define max dimensions for the large panels
   const PANEL_W = 6.0;
@@ -596,8 +595,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
             if (changed) {
               // Re-fetch and apply new NFT media to the panel
               fetchAndApplyToMesh(wallName, panelMesh);
-              // Force a state update to refresh UI controls (mute button)
-              setGalleryKey(k => k + 1); 
+              
+              // If the panel we just updated is the currently selected one, update mute state
+              if (selectedPanelRef.current === panelMesh) {
+                  // New video starts muted, non-video is muted
+                  setSelectedVideoMuted(true); 
+              }
             }
           }
         }
@@ -708,7 +711,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, fetchAndApplyToMesh, setInstructionsVisible, removeMesh, galleryKey]); // Added galleryKey dependency to trigger re-setup if needed, though setupPanels is only called once.
+  }, [onPanelClick, setupPanels, fetchAndApplyToMesh, setInstructionsVisible, removeMesh]); // Removed galleryKey dependency
 
   // Function to toggle mute state of the currently selected video
   const toggleMute = useCallback(() => {
