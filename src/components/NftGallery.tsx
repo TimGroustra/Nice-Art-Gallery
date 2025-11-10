@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
@@ -249,6 +249,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   useEffect(() => {
     if (!mountRef.current) return;
 
+    RectAreaLightUniformsLib.init();
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -318,7 +320,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
-    const wallMaterial = new THREE.MeshPhongMaterial({ color: 0x444444, side: THREE.DoubleSide });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     northWall.position.set(0, wallHeight / 2, -roomSize / 2);
     scene.add(northWall);
@@ -338,15 +340,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 1.2, 15, 2);
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
       pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
-    scene.add(new THREE.AmbientLight(0x404050, 0.8));
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number]
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(...rotation);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(...rotation);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [Math.PI / 2, -Math.PI / 2, 0]);
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [Math.PI / 2, Math.PI / 2, 0]);
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
