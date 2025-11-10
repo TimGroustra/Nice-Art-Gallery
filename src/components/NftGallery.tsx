@@ -250,6 +250,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     // Offset to ensure the panel and arrow are slightly in front of the wall
     const ARROW_DEPTH_OFFSET = 0.02; 
+    const ARROW_PANEL_OFFSET = 1.5; // Distance from panel center to arrow center
 
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] }, // -Z wall
@@ -265,42 +266,44 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
       
-      // Calculate arrow positions relative to the panel (2 units wide)
-      const arrowOffset = 1.5; 
       const arrowY = config.position[1];
       
-      // Previous Arrow (Left side of panel)
+      // --- Previous Arrow (Left) ---
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       
-      // Rotate 180 degrees around the Y axis of the wall to make it point left relative to the viewer
+      // Apply panel rotation
+      prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      // Rotate 180 degrees around the wall's normal axis (Y-axis in local space) to point left
       prevArrow.rotation.y += Math.PI; 
       
-      // Position based on wall orientation
+      // Calculate position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
-        // North/South walls (Z-axis walls): X changes
-        prevArrow.position.set(config.position[0] - arrowOffset, arrowY, config.position[2]);
+        // North/South walls (Z-axis walls): X changes for left/right
+        prevArrow.position.set(config.position[0] - ARROW_PANEL_OFFSET, arrowY, config.position[2]);
       } else { 
-        // East/West walls (X-axis walls): Z changes
-        // For East wall (+X, rotation -PI/2), left is +Z. For West wall (-X, rotation PI/2), left is -Z.
-        const zOffset = config.wallName === 'east-wall' ? arrowOffset : -arrowOffset;
+        // East/West walls (X-axis walls): Z changes for left/right
+        // East wall (+X, rotation -PI/2): Left is +Z
+        // West wall (-X, rotation PI/2): Left is -Z
+        const zOffset = config.wallName === 'east-wall' ? ARROW_PANEL_OFFSET : -ARROW_PANEL_OFFSET;
         prevArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
       }
       scene.add(prevArrow);
       
-      // Next Arrow (Right side of panel)
+      // --- Next Arrow (Right) ---
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // No extra rotation needed for the 'next' arrow, as the default shape points right relative to the wall's orientation
       
-      // Position based on wall orientation
+      // Apply panel rotation (default shape points right)
+      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      
+      // Calculate position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
-        // North/South walls (Z-axis walls): X changes
-        nextArrow.position.set(config.position[0] + arrowOffset, arrowY, config.position[2]);
+        // North/South walls (Z-axis walls): X changes for left/right
+        nextArrow.position.set(config.position[0] + ARROW_PANEL_OFFSET, arrowY, config.position[2]);
       } else { 
-        // East/West walls (X-axis walls): Z changes
-        // For East wall (+X, rotation -PI/2), right is -Z. For West wall (-X, rotation PI/2), right is +Z.
-        const zOffset = config.wallName === 'east-wall' ? -arrowOffset : arrowOffset;
+        // East/West walls (X-axis walls): Z changes for left/right
+        // East wall (+X, rotation -PI/2): Right is -Z
+        // West wall (-X, rotation PI/2): Right is +Z
+        const zOffset = config.wallName === 'east-wall' ? -ARROW_PANEL_OFFSET : ARROW_PANEL_OFFSET;
         nextArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
       }
       scene.add(nextArrow);
@@ -367,7 +370,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         case 'ArrowDown':
           moveBackward = false;
           break;
-        case 'KeyD':
+          case 'KeyD':
         case 'ArrowRight':
           moveRight = false;
           break;
