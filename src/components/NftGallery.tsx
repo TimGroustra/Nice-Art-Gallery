@@ -13,10 +13,11 @@ interface Panel {
   isVideo: boolean;
   prevArrow: THREE.Mesh; // New 3D arrow mesh
   nextArrow: THREE.Mesh; // New 3D arrow mesh
+  titleMesh: THREE.Mesh; // Added
+  descriptionMesh: THREE.Mesh; // Added
 }
 
 interface NftGalleryProps {
-  onPanelClick: (metadataUrl: string) => void;
   setInstructionsVisible: (visible: boolean) => void;
 }
 
@@ -24,7 +25,62 @@ interface NftGalleryProps {
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
 
-const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
+// Helper function to create a text texture using Canvas
+const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white'): THREE.CanvasTexture => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return new THREE.CanvasTexture(document.createElement('canvas'));
+
+    const resolution = 512;
+    // Calculate canvas dimensions based on desired aspect ratio (width/height)
+    canvas.width = resolution * (width / height);
+    canvas.height = resolution;
+
+    // 1. Make background transparent
+    context.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Adjust font size relative to canvas height
+    const actualFontSize = fontSize * (resolution / height);
+    context.font = `${actualFontSize}px Arial`;
+    context.fillStyle = color;
+    context.textAlign = 'center'; // Center alignment for text above the panel
+    context.textBaseline = 'top';
+
+    const padding = 10;
+    const lineHeight = actualFontSize * 1.2;
+    const maxTextWidth = canvas.width - 2 * padding;
+    
+    // Simple word wrapping
+    const words = text.split(' ');
+    let line = '';
+    let y = padding;
+    const centerX = canvas.width / 2;
+
+    for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = context.measureText(testLine);
+        const testWidth = metrics.width;
+
+        if (testWidth > maxTextWidth && n > 0) {
+            context.fillText(line, centerX, y);
+            line = words[n] + ' ';
+            y += lineHeight;
+            if (y > canvas.height - padding) break; // Prevent overflow
+        } else {
+            line = testLine;
+        }
+    }
+    if (y < canvas.height - padding) {
+        context.fillText(line, centerX, y);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+};
+
+
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -99,6 +155,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
+      // 1. Update Title Text
+      if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
+        panel.titleMesh.material.map.dispose();
+      }
+      const titleTexture = createTextTexture(metadata.title, 2.0, 0.3, 40, 'white'); // Width 2.0
+      (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
+      panel.titleMesh.visible = true;
+
+      // 2. Update Description Text
+      if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
+        panel.descriptionMesh.material.map.dispose();
+      }
+      // Limit description length for readability on the small panel
+      const descriptionText = metadata.description.length > 100 ? metadata.description.substring(0, 97) + '...' : metadata.description;
+      const descriptionTexture = createTextTexture(descriptionText, 2.0, 0.5, 20, 'lightgray'); // Width 2.0
+      (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
+      panel.descriptionMesh.visible = true;
+
+
       if (isVideo) {
         showSuccess(`Loaded video NFT: ${metadata.title}`);
       } else {
@@ -116,6 +191,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       panel.metadataUrl = '';
       panel.isVideo = false;
+      
+      // Hide text panels on error, safely checking if meshes exist
+      if (panel.titleMesh) panel.titleMesh.visible = false;
+      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
     }
   }, [loadTexture, manageVideoPlayback]);
 
@@ -169,7 +248,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 3. Geometry: Floor, Ceiling, Walls
     const roomSize = 10;
     const wallHeight = 4;
-    const panelYPosition = 1.8; 
+    const panelYPosition = 1.8; // Center of NFT panel (2 units high)
     const boundary = roomSize / 2 - 0.5; 
 
     // Floor (Green)
@@ -261,6 +340,29 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // Offset constants
     const ARROW_DEPTH_OFFSET = 0.02; 
     const ARROW_PANEL_OFFSET = 1.5; // Distance from panel center to arrow center
+    const TEXT_DEPTH_OFFSET = 0.03; // Slightly further out than the arrows/NFT panel
+
+    // Text panel constants
+    const NFT_PANEL_HEIGHT = 2.0;
+    const NFT_PANEL_WIDTH = 2.0;
+    const TITLE_HEIGHT = 0.3;
+    const DESCRIPTION_HEIGHT = 0.5;
+    const TEXT_PANEL_Y_OFFSET = (NFT_PANEL_HEIGHT / 2) + (TITLE_HEIGHT / 2) + (DESCRIPTION_HEIGHT / 2) + 0.1; // Position text block above NFT panel
+
+    
+    // Placeholder text meshes
+    // Use a transparent material for the text planes
+    const placeholderTexture = createTextTexture('Loading...', NFT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white');
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ 
+        map: placeholderTexture, 
+        transparent: true, 
+        side: THREE.DoubleSide,
+        alphaTest: 0.01, // Lower alpha test to ensure text pixels are visible
+        depthWrite: false // Crucial for transparent planes near other geometry
+    });
+    const titleGeometry = new THREE.PlaneGeometry(NFT_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(NFT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
+
 
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] }, // -Z wall
@@ -281,6 +383,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Calculate the local X vector (Right direction relative to the wall)
       const wallRotation = new THREE.Euler().set(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+      const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
+      const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation); // Vector pointing out from the wall
+      
+      // --- Text Panel Positioning (Above NFT Panel) ---
+      
+      // Base position (center of the wall panel)
+      const basePosition = new THREE.Vector3(config.position[0], panelYPosition, config.position[2]);
+      
+      // Title Mesh
+      const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
+      titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      
+      // Position title: Centered horizontally, positioned above the NFT panel
+      const titlePosition = basePosition.clone();
+      // Move up by half the NFT height + half the title height + small gap
+      titlePosition.addScaledVector(upVector, NFT_PANEL_HEIGHT / 2 + TITLE_HEIGHT / 2 + 0.05); 
+      
+      // Move slightly forward from the wall
+      titlePosition.addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      titleMesh.position.copy(titlePosition);
+      scene.add(titleMesh);
+
+      // Description Mesh
+      const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
+      descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      
+      // Position description: Centered horizontally, positioned below the title
+      const descriptionPosition = basePosition.clone();
+      // Move up by half the NFT height + small gap, then down by half the description height
+      descriptionPosition.addScaledVector(upVector, NFT_PANEL_HEIGHT / 2 + 0.05); 
+      descriptionPosition.addScaledVector(upVector, -DESCRIPTION_HEIGHT / 2); 
+      
+      // Move slightly forward from the wall
+      descriptionPosition.addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      descriptionMesh.position.copy(descriptionPosition);
+      scene.add(descriptionMesh);
       
       // --- Previous Arrow (Left) ---
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
@@ -314,6 +452,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         isVideo: false,
         prevArrow,
         nextArrow,
+        titleMesh,
+        descriptionMesh,
       };
       panelsRef.current.push(panel);
       
@@ -408,11 +548,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           }
         }
       } else if (currentTargetedPanel) {
-        console.log("Targeted Panel clicked. Opening metadata modal.");
-        // Clicked the NFT panel itself -> Open Metadata Modal
-        if (currentTargetedPanel.metadataUrl) {
-          onPanelClick(currentTargetedPanel.metadataUrl);
-        }
+        console.log("Targeted Panel clicked. Action removed.");
+        // Clicked the NFT panel itself -> NO ACTION
       }
     };
 
@@ -458,6 +595,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         
         // Raycast from center of screen to check for targeted objects
         raycaster.setFromCamera(center, camera);
+        // Note: We don't need to include title/description meshes in interactiveMeshes as they are not clickable.
         const intersects = raycaster.intersectObjects(interactiveMeshes);
         
         // Reset hover state for all arrows
@@ -534,8 +672,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();
           if (Array.isArray(object.material)) {
-            object.material.forEach(material => material.dispose());
+            object.material.forEach(material => {
+              if (material.map) material.map.dispose();
+              material.dispose();
+            });
           } else {
+            if (object.material.map) object.material.map.dispose();
             object.material.dispose();
           }
         }
@@ -550,7 +692,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       currentTargetedPanel = null; 
       currentTargetedArrow = null;
     };
-  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
