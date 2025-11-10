@@ -30,11 +30,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     if (videoRef.current) {
       if (shouldPlay) {
-        // Only attempt to play if controls are locked (user interaction context exists)
-        videoRef.current.play().catch(e => {
-          // This catch handles the "The user has exited the lock" error gracefully
-          console.warn("Video playback prevented or failed:", e);
-        });
+        // Check if controls are currently locked before attempting to play
+        const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
+        
+        if (controlsLocked) {
+          videoRef.current.play().catch(e => {
+            // Catch the error, especially if it's related to user interaction context loss (lock exit)
+            console.warn("Video playback prevented or failed:", e);
+          });
+        }
       } else {
         videoRef.current.pause();
       }
@@ -44,7 +48,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   // --- Utility Functions for Three.js Content Management ---
 
-  // loadTexture should not depend on isLocked, as playback is managed externally by manageVideoPlayback
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
       if (videoRef.current) {
@@ -55,10 +58,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         videoRef.current.loop = true;
         videoRef.current.muted = true; // Always start muted
         
-        // We rely on the lock/unlock event handlers in useEffect to call manageVideoPlayback(true/false)
-        // If controls are already locked, we manually trigger playback here too, but we must ensure manageVideoPlayback is stable.
-        // Since manageVideoPlayback is stable, we can call it.
-        if ((window as any).galleryControls?.isLocked()) {
+        // If controls are already locked, start playback immediately using the stable manager
+        if ((window as any).galleryControls?.isLocked?.()) {
              manageVideoPlayback(true);
         }
 
@@ -142,6 +143,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 2. Controls (PointerLockControls)
     const controls = new PointerLockControls(camera, renderer.domElement);
     
+    // Expose controls for UI interaction (locking/unlocking)
+    // Define this object early so it's available for loadTexture/manageVideoPlayback calls during initialization
+    (window as any).galleryControls = {
+      lockControls: () => controls.lock(),
+      hasVideo: () => panelsRef.current.some(p => p.isVideo),
+      isMuted: () => videoRef.current?.muted ?? true,
+      toggleMute: () => {
+        if (videoRef.current) {
+          videoRef.current.muted = !videoRef.current.muted;
+        }
+      },
+      isLocked: () => controls.isLocked, // Utility to check lock status
+    };
+
     controls.addEventListener('lock', () => {
       setIsLocked(true);
       setInstructionsVisible(false);
@@ -157,18 +172,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       manageVideoPlayback(false);
     });
 
-    // Expose controls for UI interaction (locking/unlocking)
-    (window as any).galleryControls = {
-      lockControls: () => controls.lock(),
-      hasVideo: () => panelsRef.current.some(p => p.isVideo),
-      isMuted: () => videoRef.current?.muted ?? true,
-      toggleMute: () => {
-        if (videoRef.current) {
-          videoRef.current.muted = !videoRef.current.muted;
-        }
-      },
-      isLocked: () => controls.isLocked, // Added utility to check lock status
-    };
 
     // 3. Geometry: Floor, Ceiling, Walls
     const roomSize = 10;
