@@ -159,9 +159,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         }
       },
       isLocked: () => controls.isLocked, // Utility to check lock status
-      // getTargetedPanelScreenPosition removed
       getTargetedPanel: () => currentTargetedPanel,
-      // cycleNft is no longer needed as interaction is handled via raycasting on 3D arrows
     };
 
     controls.addEventListener('lock', () => {
@@ -273,7 +271,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       scene.add(mesh);
       
       // Calculate arrow positions relative to the panel (2 units wide)
-      const arrowOffset = 1.2; // 1 unit from center to edge + 0.2 padding
+      // Increased offset from 1.2 to 1.5 for more padding
+      const arrowOffset = 1.5; 
       const arrowY = config.position[1];
       const arrowZ = config.position[2];
       const arrowX = config.position[0];
