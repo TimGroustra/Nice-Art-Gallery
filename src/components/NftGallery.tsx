@@ -4,6 +4,7 @@ import { PointerLockControls } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
+import { createTextSprite } from '@/utils/textSprite'; // Import the new utility
 
 // Define types for the panel objects
 interface Panel {
@@ -13,16 +14,27 @@ interface Panel {
   isVideo: boolean;
   prevArrow: THREE.Mesh; // New 3D arrow mesh
   nextArrow: THREE.Mesh; // New 3D arrow mesh
+  
+  // Text Sprites for Metadata
+  titleSprite: THREE.Sprite | null;
+  collectionSprite: THREE.Sprite | null;
+  descriptionSprite: THREE.Sprite | null;
+  attributesSprite: THREE.Sprite | null;
 }
 
 interface NftGalleryProps {
-  // Removed onPanelClick prop
   setInstructionsVisible: (visible: boolean) => void;
 }
 
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
+
+// Mapping contract addresses to display names
+const COLLECTION_NAMES: { [key: string]: string } = {
+  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23": "Panth.art Collection",
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984": "Second Collection",
+};
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -105,6 +117,77 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         showSuccess(`Loaded image NFT: ${metadata.title}`);
       }
       
+      // --- Update Text Sprites ---
+      
+      // 1. Clean up old sprites
+      const oldSprites = [panel.titleSprite, panel.collectionSprite, panel.descriptionSprite, panel.attributesSprite];
+      oldSprites.forEach(sprite => {
+        if (sprite && sprite.parent) {
+          sprite.parent.remove(sprite);
+          sprite.material.dispose();
+          sprite.geometry.dispose();
+          if (sprite.material.map) sprite.material.map.dispose();
+        }
+      });
+      
+      // 2. Get Wall Rotation and Position
+      const wallRotation = panel.mesh.rotation;
+      const wallPosition = panel.mesh.position;
+      const panelWidth = 2; // Defined by PlaneGeometry(2, 2)
+      const panelHeight = 2;
+      const textDepthOffset = 0.01; // Slightly in front of the panel
+
+      // 3. Collection Name (Top Center)
+      const collectionName = COLLECTION_NAMES[source.contractAddress] || "Unknown Collection";
+      panel.collectionSprite = createTextSprite(collectionName, { fontsize: 40, scale: 0.015, backgroundColor: 'rgba(0, 0, 0, 0.8)' });
+      
+      // Position: Top center of the panel
+      panel.collectionSprite.position.copy(wallPosition);
+      panel.collectionSprite.position.y += panelHeight / 2 + 0.2; // Above the panel
+      panel.collectionSprite.translateZ(textDepthOffset); // Move slightly forward
+      panel.collectionSprite.rotation.copy(wallRotation);
+      panel.mesh.parent?.add(panel.collectionSprite);
+
+
+      // 4. Title and Description (Left Side)
+      
+      // Title
+      panel.titleSprite = createTextSprite(`Title: ${metadata.title}`, { fontsize: 30, scale: 0.01, backgroundColor: 'rgba(0, 0, 0, 0.6)' });
+      
+      // Position: Left side, slightly above center
+      panel.titleSprite.position.copy(wallPosition);
+      panel.titleSprite.position.x -= panelWidth / 2 + 0.1; // Left of the panel
+      panel.titleSprite.position.y += 0.5;
+      panel.titleSprite.translateZ(textDepthOffset);
+      panel.titleSprite.rotation.copy(wallRotation);
+      panel.mesh.parent?.add(panel.titleSprite);
+
+      // Description (Truncated for space)
+      const descriptionText = metadata.description.length > 50 ? metadata.description.substring(0, 47) + '...' : metadata.description;
+      panel.descriptionSprite = createTextSprite(`Desc: ${descriptionText}`, { fontsize: 25, scale: 0.01, backgroundColor: 'rgba(0, 0, 0, 0.6)' });
+      
+      // Position: Left side, slightly below center
+      panel.descriptionSprite.position.copy(wallPosition);
+      panel.descriptionSprite.position.x -= panelWidth / 2 + 0.1; // Left of the panel
+      panel.descriptionSprite.position.y += 0.1;
+      panel.descriptionSprite.translateZ(textDepthOffset);
+      panel.descriptionSprite.rotation.copy(wallRotation);
+      panel.mesh.parent?.add(panel.descriptionSprite);
+
+
+      // 5. Attributes (Right Side - Placeholder)
+      // Since we don't have attribute data structure from fetchNftMetadata, we use a placeholder.
+      const attributesText = "Attributes: Not Available";
+      panel.attributesSprite = createTextSprite(attributesText, { fontsize: 25, scale: 0.01, backgroundColor: 'rgba(0, 0, 0, 0.6)', textColor: 'rgba(255, 255, 0, 1)' });
+      
+      // Position: Right side, slightly above center
+      panel.attributesSprite.position.copy(wallPosition);
+      panel.attributesSprite.position.x += panelWidth / 2 + 0.1; // Right of the panel
+      panel.attributesSprite.position.y += 0.5;
+      panel.attributesSprite.translateZ(textDepthOffset);
+      panel.attributesSprite.rotation.copy(wallRotation);
+      panel.mesh.parent?.add(panel.attributesSprite);
+      
     } catch (error) {
       console.error(`Error updating panel ${panel.wallName}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
@@ -116,6 +199,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       panel.metadataUrl = '';
       panel.isVideo = false;
+      
+      // Clear sprites on error
+      const spritesToClear = [panel.titleSprite, panel.collectionSprite, panel.descriptionSprite, panel.attributesSprite];
+      spritesToClear.forEach(sprite => {
+        if (sprite && sprite.parent) {
+          sprite.parent.remove(sprite);
+        }
+      });
+      panel.titleSprite = panel.collectionSprite = panel.descriptionSprite = panel.attributesSprite = null;
     }
   }, [loadTexture, manageVideoPlayback]);
 
@@ -314,6 +406,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         isVideo: false,
         prevArrow,
         nextArrow,
+        titleSprite: null,
+        collectionSprite: null,
+        descriptionSprite: null,
+        attributesSprite: null,
       };
       panelsRef.current.push(panel);
       
@@ -410,9 +506,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       } else if (currentTargetedPanel) {
         console.log("Targeted Panel clicked. Action removed.");
         // Clicked the NFT panel itself -> NO ACTION (Modal removed)
-        // if (currentTargetedPanel.metadataUrl) {
-        //   onPanelClick(currentTargetedPanel.metadataUrl);
-        // }
       }
     };
 
@@ -530,6 +623,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       controls.dispose();
       
       // Dispose of Three.js objects to prevent memory leaks
+      panelsRef.current.forEach(panel => {
+        const spritesToDispose = [panel.titleSprite, panel.collectionSprite, panel.descriptionSprite, panel.attributesSprite];
+        spritesToDispose.forEach(sprite => {
+          if (sprite) {
+            sprite.material.dispose();
+            sprite.geometry.dispose();
+            if (sprite.material.map) sprite.material.map.dispose();
+          }
+        });
+      });
+
       scene.traverse((object) => {
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();
