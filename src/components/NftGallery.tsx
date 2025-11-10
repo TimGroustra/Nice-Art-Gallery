@@ -248,7 +248,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const ARROW_COLOR_HOVER = 0x00ff00; // Bright Green Hover Color
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     
-    // Offset to ensure the panel and arrow are slightly in front of the wall
+    // Offset constants
     const ARROW_DEPTH_OFFSET = 0.02; 
     const ARROW_PANEL_OFFSET = 1.5; // Distance from panel center to arrow center
 
@@ -268,44 +268,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       
       const arrowY = config.position[1];
       
+      // Calculate the local X vector (Right direction relative to the wall)
+      const wallRotation = new THREE.Euler().set(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
+      const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+      
       // --- Previous Arrow (Left) ---
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       
-      // Apply panel rotation
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // Rotate 180 degrees around the wall's normal axis (Y-axis in local space) to point left
-      prevArrow.rotation.y += Math.PI; 
+      // Rotation: Panel rotation + PI (to flip the triangle to point left)
+      prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
       
-      // Calculate position based on wall orientation
-      if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
-        // North/South walls (Z-axis walls): X changes for left/right
-        prevArrow.position.set(config.position[0] - ARROW_PANEL_OFFSET, arrowY, config.position[2]);
-      } else { 
-        // East/West walls (X-axis walls): Z changes for left/right
-        // East wall (+X, rotation -PI/2): Left is +Z
-        // West wall (-X, rotation PI/2): Left is -Z
-        const zOffset = config.wallName === 'east-wall' ? ARROW_PANEL_OFFSET : -ARROW_PANEL_OFFSET;
-        prevArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
-      }
+      // Position: Panel center - (Right vector * offset) = Panel center + (Left vector * offset)
+      const prevPosition = new THREE.Vector3(config.position[0], arrowY, config.position[2]);
+      prevPosition.addScaledVector(rightVector, -ARROW_PANEL_OFFSET); // Move left
+      prevArrow.position.copy(prevPosition);
       scene.add(prevArrow);
       
       // --- Next Arrow (Right) ---
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       
-      // Apply panel rotation (default shape points right)
+      // Rotation: Panel rotation (default triangle points right)
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       
-      // Calculate position based on wall orientation
-      if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
-        // North/South walls (Z-axis walls): X changes for left/right
-        nextArrow.position.set(config.position[0] + ARROW_PANEL_OFFSET, arrowY, config.position[2]);
-      } else { 
-        // East/West walls (X-axis walls): Z changes for left/right
-        // East wall (+X, rotation -PI/2): Right is -Z
-        // West wall (-X, rotation PI/2): Right is +Z
-        const zOffset = config.wallName === 'east-wall' ? -ARROW_PANEL_OFFSET : ARROW_PANEL_OFFSET;
-        nextArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
-      }
+      // Position: Panel center + (Right vector * offset)
+      const nextPosition = new THREE.Vector3(config.position[0], arrowY, config.position[2]);
+      nextPosition.addScaledVector(rightVector, ARROW_PANEL_OFFSET); // Move right
+      nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
 
