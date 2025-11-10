@@ -248,7 +248,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
     
-    // Arrow geometry (simple triangle pointing left/right)
+    // Arrow geometry (simple triangle pointing right along the positive X axis of its local coordinate system)
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
     arrowShape.lineTo(0.3, 0);
@@ -271,7 +271,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       scene.add(mesh);
       
       // Calculate arrow positions relative to the panel (2 units wide)
-      // Increased offset from 1.2 to 1.5 for more padding
       const arrowOffset = 1.5; 
       const arrowY = config.position[1];
       const arrowZ = config.position[2];
@@ -280,6 +279,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Previous Arrow (Left side of panel)
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      prevArrow.rotation.z = Math.PI; // Rotate 180 degrees to point left/outward
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
@@ -293,7 +293,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Next Arrow (Right side of panel)
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      nextArrow.rotation.z = Math.PI; // Flip 180 degrees to point right
+      // No rotation needed here, as the default shape points right/outward
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
