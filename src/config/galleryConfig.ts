@@ -8,7 +8,7 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
 // The ElectroGems collection address
@@ -19,68 +19,28 @@ const THIRST_AND_THUNDER_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
-  // North Wall (2 displays)
-  'north-wall-1': {
+  'north-wall': {
     name: 'Loading...',
     contractAddress: ELECTGEMS_ADDRESS,
-    tokenIds: [1],
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
-  'north-wall-2': {
+  'south-wall': {
     name: 'Loading...',
-    contractAddress: THIRST_AND_THUNDER_ADDRESS,
-    tokenIds: [1],
+    contractAddress: THIRST_AND_THUNDER_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
-  // South Wall (2 displays)
-  'south-wall-1': {
+  'east-wall': {
     name: 'Loading...',
-    contractAddress: THIRST_AND_THUNDER_ADDRESS,
-    tokenIds: [1],
+    contractAddress: ELECTGEMS_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
-  'south-wall-2': {
+  'west-wall': {
     name: 'Loading...',
-    contractAddress: ELECTGEMS_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // East Wall (3 displays)
-  'east-wall-1': {
-    name: 'Loading...',
-    contractAddress: ELECTGEMS_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'east-wall-2': {
-    name: 'Loading...',
-    contractAddress: THIRST_AND_THUNDER_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'east-wall-3': {
-    name: 'Loading...',
-    contractAddress: ELECTGEMS_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // West Wall (3 displays)
-  'west-wall-1': {
-    name: 'Loading...',
-    contractAddress: THIRST_AND_THUNDER_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'west-wall-2': {
-    name: 'Loading...',
-    contractAddress: ELECTGEMS_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'west-wall-3': {
-    name: 'Loading...',
-    contractAddress: THIRST_AND_THUNDER_ADDRESS,
-    tokenIds: [1],
+    contractAddress: ELECTGEMS_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
 };
