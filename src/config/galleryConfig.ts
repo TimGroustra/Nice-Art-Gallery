@@ -20,6 +20,9 @@ const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 // The third collection address
 const THIRD_COLLECTION_ADDRESS = "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31";
 
+// The fourth collection address
+const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
+
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
   'north-wall': {
@@ -42,7 +45,7 @@ let galleryConfig: PanelConfig = {
   },
   'west-wall': {
     name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS, 
+    contractAddress: FOURTH_COLLECTION_ADDRESS, 
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
