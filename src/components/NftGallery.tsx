@@ -24,17 +24,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isLocked, setIsLocked] = useState(false);
 
+  // Function to manage video playback based on lock state
+  const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
+    if (videoRef.current) {
+      if (shouldPlay) {
+        // Only attempt to play if controls are locked (user interaction context exists)
+        videoRef.current.play().catch(e => {
+          // This catch handles the "The user has exited the lock" error gracefully
+          console.warn("Video playback prevented or failed:", e);
+        });
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, []);
+
+
   // --- Utility Functions for Three.js Content Management ---
 
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
       if (videoRef.current) {
+        // Prepare video element, but don't start playing yet.
         videoRef.current.pause();
         videoRef.current.src = url;
         videoRef.current.load();
         videoRef.current.loop = true;
-        videoRef.current.muted = true; // Start muted
-        videoRef.current.play().catch(e => console.error("Video playback failed:", e));
+        videoRef.current.muted = true; // Always start muted
+        
+        // If controls are already locked, start playback immediately
+        if (isLocked) {
+          manageVideoPlayback(true);
+        }
+
         return new THREE.VideoTexture(videoRef.current);
       }
       // Fallback if video element is not ready
@@ -48,7 +70,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         showError(`Failed to load image: ${url.substring(0, 50)}...`);
       }
     );
-  }, []);
+  }, [isLocked, manageVideoPlayback]); // Depend on isLocked and manageVideoPlayback
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
@@ -57,6 +79,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
+      // If the new content is a video, we need to ensure any currently playing video is paused first
+      if (isVideo && videoRef.current) {
+        manageVideoPlayback(false);
+      }
+
       const texture = loadTexture(imageUrl, isVideo);
       
       // Dispose of old material/texture
@@ -88,7 +115,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       panel.metadataUrl = '';
       panel.isVideo = false;
     }
-  }, [loadTexture]);
+  }, [loadTexture, manageVideoPlayback]);
 
   // --- Three.js Setup Effect ---
 
@@ -113,10 +140,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     controls.addEventListener('lock', () => {
       setIsLocked(true);
       setInstructionsVisible(false);
+      // Start video playback when locked
+      if (panelsRef.current.some(p => p.isVideo)) {
+        manageVideoPlayback(true);
+      }
     });
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
+      // Pause video playback when unlocked
+      manageVideoPlayback(false);
     });
 
     // Expose controls for UI interaction (locking/unlocking)
@@ -348,7 +381,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       }
       delete (window as any).galleryControls;
     };
-  }, [onPanelClick, setInstructionsVisible, updatePanelContent]);
+  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
