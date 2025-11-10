@@ -30,8 +30,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const controlsRef = useRef<PointerLockControls | null>(null);
   const interactiveMeshesRef = useRef<InteractiveMesh[]>([]);
   const panelMeshesRef = useRef<InteractiveMesh[]>([]); // Only the main NFT panels
-  const raycasterRef = useRef(new THREE.Raycaster());
-  const clockRef = useRef(new THREE.Clock());
+  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+  const clockRef = useRef<THREE.Clock>(new THREE.Clock());
   const moveStateRef = useRef({ forward: 0, backward: 0, left: 0, right: 0 });
   const speed = 4.0;
 
@@ -461,6 +461,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const room = new THREE.Group();
     const wallMat = new THREE.MeshStandardMaterial({ color: 0x444455, roughness: 0.6 }); 
     const wallThickness = 0.2;
+    const wallOffset = 7.89; // Define wallOffset here
+    
     function makeWall(w: number, h: number, d: number, x: number, z: number, ry = 0) {
       const g = new THREE.BoxGeometry(w, h, d);
       const m = new THREE.Mesh(g, wallMat);
@@ -468,10 +470,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       m.rotation.y = ry;
       room.add(m);
     }
-    makeWall(16, 4, wallThickness, 0, -8); // back
-    makeWall(16, 4, wallThickness, 0, 8);  // front
-    makeWall(wallThickness, 4, 16, -8, 0); // left
-    makeWall(wallThickness, 4, 16, 8, 0);  // right
+    makeWall(16, 4, wallThickness, 0, -wallOffset); // back
+    makeWall(16, 4, wallThickness, 0, wallOffset);  // front
+    makeWall(wallThickness, 4, 16, -wallOffset, 0); // left
+    makeWall(wallThickness, 4, 16, wallOffset, 0);  // right
     
     // Ceiling
     const ceilingGeo = new THREE.CircleGeometry(8, 64);
