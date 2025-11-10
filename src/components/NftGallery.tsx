@@ -247,7 +247,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // If loading fails, we still need to position the arrows based on the default size
       updateArrowPositions(mesh, PANEL_W);
     }
-  }, [PANEL_W, fetchAndApplyToMesh, removeMesh, updateArrowPositions]);
+  }, [PANEL_W, removeMesh, updateArrowPositions, applyTextureToMesh]); // Corrected dependencies
 
   const createArrowMesh = useCallback((wallName: keyof typeof GALLERY_PANEL_CONFIG, type: 'arrow-prev' | 'arrow-next', position: THREE.Vector3, rotationY: number, scene: THREE.Scene) => {
     const geo = new THREE.PlaneGeometry(ARROW_SIZE, ARROW_SIZE);
