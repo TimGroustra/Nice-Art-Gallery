@@ -153,32 +153,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     panelMeshesRef.current.forEach(m => scene.remove(m));
     panelMeshesRef.current.length = 0;
 
-    const numPanelsPerWall = 10;
-    const startZ = -6.3; // Start Z position
-    const zSpacing = 1.4; // Spacing between panel centers (10 panels * 1.4 = 14 units, covering -7 to 7)
-    const lowY = 1.2;
-    const highY = 2.4;
+    const panelCenters = [-6, -3, 0, 3, 6]; // 5 panels, 3 units spacing, 1.8m high
+    const panelY = 1.8;
     
     // Helper to get URL, cycling through the provided list
     const getUrl = (index: number) => urls[index % urls.length] || '';
+    let urlIndex = 0;
 
     // Right wall panels (facing left, x = 7.89)
-    for (let i = 0; i < numPanelsPerWall; i++) {
-      const z = startZ + i * zSpacing;
-      const y = i % 2 === 0 ? lowY : highY; // Staggered height
-      const pos = new THREE.Vector3(7.89, y, z);
+    panelCenters.forEach(z => {
+      const pos = new THREE.Vector3(7.89, panelY, z);
       const rot = Math.PI / 2; // face -x
-      createPanel(scene, pos, rot, getUrl(i));
-    }
+      createPanel(scene, pos, rot, getUrl(urlIndex++));
+    });
     
     // Left wall panels (facing right, x = -7.89)
-    for (let i = 0; i < numPanelsPerWall; i++) {
-      const z = startZ + i * zSpacing;
-      const y = i % 2 === 0 ? highY : lowY; // Opposite stagger for visual balance
-      const pos = new THREE.Vector3(-7.89, y, z);
+    panelCenters.forEach(z => {
+      const pos = new THREE.Vector3(-7.89, panelY, z);
       const rot = -Math.PI / 2; // face +x
-      createPanel(scene, pos, rot, getUrl(i + numPanelsPerWall));
-    }
+      createPanel(scene, pos, rot, getUrl(urlIndex++));
+    });
+
+    // Back wall panels (facing front, z = -7.89)
+    panelCenters.forEach(x => {
+      const pos = new THREE.Vector3(x, panelY, -7.89);
+      const rot = 0; // face +z
+      createPanel(scene, pos, rot, getUrl(urlIndex++));
+    });
+
+    // Front wall panels (facing back, z = 7.89)
+    panelCenters.forEach(x => {
+      const pos = new THREE.Vector3(x, panelY, 7.89);
+      const rot = Math.PI; // face -z
+      createPanel(scene, pos, rot, getUrl(urlIndex++));
+    });
+
   }, [createPanel]);
 
   // --- Core Three.js Setup ---
@@ -279,41 +288,57 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     // 3. Dedicated Spotlights for Art Panels (White, static)
     const panelPositions = [];
-    const numPanelsPerWall = 10;
-    const startZ = -6.3;
-    const zSpacing = 1.4;
-    const lowY = 1.2;
-    const highY = 2.4;
-    
+    const panelCenters = [-6, -3, 0, 3, 6];
+    const panelY = 1.8;
+    const lightHeightSpot = 3.5;
+    const wallOffset = 7.89;
+    const targetOffset = 0.1; // How far the target is from the wall
+
     // Right wall (x=7.89)
-    for (let i = 0; i < numPanelsPerWall; i++) {
-        const z = startZ + i * zSpacing;
-        const y = i % 2 === 0 ? lowY : highY;
+    panelCenters.forEach((z) => {
         panelPositions.push({ 
-            x: 7.89, 
+            x: wallOffset, 
             z: z, 
-            targetX: 7.89 - 0.1, 
+            targetX: wallOffset - targetOffset, 
             targetZ: z,
-            targetY: y 
+            targetY: panelY 
         });
-    }
+    });
     // Left wall (x=-7.89)
-    for (let i = 0; i < numPanelsPerWall; i++) {
-        const z = startZ + i * zSpacing;
-        const y = i % 2 === 0 ? highY : lowY;
+    panelCenters.forEach((z) => {
         panelPositions.push({ 
-            x: -7.89, 
+            x: -wallOffset, 
             z: z, 
-            targetX: -7.89 + 0.1, 
+            targetX: -wallOffset + targetOffset, 
             targetZ: z,
-            targetY: y
+            targetY: panelY
         });
-    }
+    });
+    // Back wall (z=-7.89)
+    panelCenters.forEach((x) => {
+        panelPositions.push({ 
+            x: x, 
+            z: -wallOffset, 
+            targetX: x, 
+            targetZ: -wallOffset + targetOffset,
+            targetY: panelY
+        });
+    });
+    // Front wall (z=7.89)
+    panelCenters.forEach((x) => {
+        panelPositions.push({ 
+            x: x, 
+            z: wallOffset, 
+            targetX: x, 
+            targetZ: wallOffset - targetOffset,
+            targetY: panelY
+        });
+    });
 
     panelPositions.forEach((pos) => {
       // Increased spotlight intensity slightly
       const spotLight = new THREE.SpotLight(0xffffff, 8, 5, Math.PI / 8, 0.5, 1); 
-      spotLight.position.set(pos.x, 3.5, pos.z); // Positioned high above the panel
+      spotLight.position.set(pos.x, lightHeightSpot, pos.z); // Positioned high above the panel
       
       const target = new THREE.Object3D();
       target.position.set(pos.targetX, pos.targetY, pos.targetZ); // Aimed at the panel center
