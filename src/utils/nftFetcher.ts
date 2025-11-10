@@ -5,9 +5,8 @@ const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
 const erc721Abi = [
-  "function name() view returns (string)",
   "function tokenURI(uint256 tokenId) view returns (string)",
-  "function totalSupply() view returns (uint256)"
+  "function totalSupply() view returns (uint256)" // Added totalSupply ABI
 ];
 
 // Define NftSource interface
@@ -40,24 +39,6 @@ export interface NftMetadata {
   image: string;
   source: string; // Original metadata URL (resolved tokenURI)
   attributes?: NftAttribute[];
-}
-
-export async function fetchCollectionName(contractAddress: string): Promise<string> {
-  if (!contractAddress) {
-    throw new Error("Contract address must be provided.");
-  }
-  
-  const contract = new Contract(contractAddress, erc721Abi, provider);
-  
-  try {
-    const name = await contract.name();
-    console.log(`[NFT Fetcher] Collection Name for ${contractAddress}: ${name}`);
-    return name;
-  } catch (e) {
-    console.error(`Failed to call name() for ${contractAddress}:`, e);
-    // Fallback to a generic name if the call fails
-    return "Unnamed Collection"; 
-  }
 }
 
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
