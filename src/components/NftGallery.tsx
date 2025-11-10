@@ -24,6 +24,17 @@ interface NftGalleryProps {
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
 
+// Create a static fallback texture once
+const fallbackTexture = new THREE.TextureLoader().load('/public/placeholder.svg', 
+  () => {}, 
+  undefined, 
+  (error) => {
+    console.error('Failed to load fallback texture:', error);
+  }
+);
+fallbackTexture.colorSpace = THREE.SRGBColorSpace;
+
+
 const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -65,40 +76,88 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
         return new THREE.VideoTexture(videoRef.current);
       }
-      return new THREE.TextureLoader().load(url);
+      // Fallback if video element is not ready, though it should be
+      return fallbackTexture; 
     }
-    return new THREE.TextureLoader().load(url, 
-      () => {}, 
+    
+    const loader = new THREE.TextureLoader();
+    
+    // Use a promise wrapper to handle success/error and return a texture synchronously
+    let texture: THREE.Texture | null = null;
+    
+    loader.load(url, 
+      (loadedTexture) => {
+        // Success
+        texture = loadedTexture;
+      }, 
+      undefined, 
+      (error) => {
+        // Error
+        console.error('Error loading texture:', url, error);
+        showError(`Failed to load image: ${url.substring(0, 50)}...`);
+        texture = fallbackTexture;
+      }
+    );
+    
+    // Since load is asynchronous, we must return a placeholder immediately if texture hasn't loaded yet.
+    // However, in the context of updatePanelContent, we rely on the material update happening after the texture is ready.
+    // To fix the synchronous return requirement while handling errors, we will use the synchronous fallback approach.
+    
+    // If the texture fails to load, the error callback sets the texture to fallbackTexture.
+    // We return a new texture object that will be updated asynchronously.
+    // For simplicity and to avoid complex promise chaining in this synchronous function, 
+    // we will rely on the error callback to handle the failure and the material update in updatePanelContent 
+    // to handle the success case when the texture is fully loaded.
+    
+    // To ensure we return a valid object immediately, we create a new texture and let the loader update it.
+    // If the loader fails, the error callback runs, and we rely on the material update logic in updatePanelContent.
+    
+    // Let's simplify: since updatePanelContent is async, we can handle the texture loading within it.
+    // But loadTexture is currently designed to be called inside updatePanelContent.
+    
+    // Reverting to the original structure but ensuring the error handling is robust:
+    
+    const loadedTexture = loader.load(url, 
+      (loadedTexture) => {
+        // Success callback
+        loadedTexture.colorSpace = THREE.SRGBColorSpace;
+      }, 
       undefined, 
       (error) => {
         console.error('Error loading texture:', url, error);
         showError(`Failed to load image: ${url.substring(0, 50)}...`);
+        // When an error occurs, the texture object itself might be in an invalid state.
+        // We return the fallback texture instead of the potentially broken one.
+        // However, the THREE.TextureLoader().load returns a texture object immediately, 
+        // and updates it later. We cannot change the return value here.
+        // The fix is to ensure the material is updated with a known good texture on error.
+        // We will handle the fallback logic inside updatePanelContent.
       }
     );
+    
+    loadedTexture.colorSpace = THREE.SRGBColorSpace;
+    return loadedTexture;
+
   }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+    let metadata: NftMetadata | null = null;
+    let imageUrl = '';
+    let isVideo = false;
+    let texture: THREE.Texture | THREE.VideoTexture | null = null;
+
     try {
-      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      
-      const imageUrl = metadata.image;
-      const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
+      metadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+      imageUrl = metadata.image;
+      isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
       if (isVideo && videoRef.current) {
         manageVideoPlayback(false);
       }
 
-      const texture = loadTexture(imageUrl, isVideo);
+      // Load texture (this function handles video setup if needed)
+      texture = loadTexture(imageUrl, isVideo);
       
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
-      panel.metadataUrl = metadata.source;
-      panel.isVideo = isVideo;
-
       if (isVideo) {
         showSuccess(`Loaded video NFT: ${metadata.title}`);
       } else {
@@ -106,9 +165,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       }
       
     } catch (error) {
-      console.error(`Error updating panel ${panel.wallName}:`, error);
+      console.error(`Error fetching metadata or preparing content for panel ${panel.wallName}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
+      // Fallback to a solid color material if metadata/fetch fails
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
@@ -116,8 +176,75 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       panel.metadataUrl = '';
       panel.isVideo = false;
+      return; // Stop execution here if fetch failed
     }
-  }, [loadTexture, manageVideoPlayback]);
+    
+    // Apply the loaded texture (or video texture)
+    if (texture) {
+      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+        panel.mesh.material.map?.dispose();
+        panel.mesh.material.dispose();
+      }
+      
+      // Create a new material with the texture.
+      // Note: If the texture loading fails asynchronously inside loadTexture, 
+      // the material will still be created with the initial (empty) texture object, 
+      // which might lead to the original error.
+      
+      // To fix the asynchronous texture loading issue causing the gl.texImage2D error, 
+      // we must ensure the texture is fully loaded or failed before assigning it to the material.
+      // Since THREE.TextureLoader().load is asynchronous but returns a texture object immediately, 
+      // we need to use a custom loader or rely on the loader's internal update mechanism.
+      
+      // Let's use a temporary material and replace it on success/error.
+      
+      const loader = new THREE.TextureLoader();
+      loader.load(
+        imageUrl,
+        (loadedTexture) => {
+          // Success: Apply the loaded texture
+          loadedTexture.colorSpace = THREE.SRGBColorSpace;
+          if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+            panel.mesh.material.map?.dispose();
+            panel.mesh.material.dispose();
+          }
+          panel.mesh.material = new THREE.MeshBasicMaterial({ map: loadedTexture, side: THREE.DoubleSide });
+          panel.metadataUrl = metadata!.source;
+          panel.isVideo = isVideo;
+        },
+        undefined, // Progress
+        (error) => {
+          // Error: Apply fallback texture
+          console.error('Error loading texture asynchronously:', imageUrl, error);
+          showError(`Failed to load image: ${imageUrl.substring(0, 50)}...`);
+          if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+            panel.mesh.material.map?.dispose();
+            panel.mesh.material.dispose();
+          }
+          panel.mesh.material = new THREE.MeshBasicMaterial({ map: fallbackTexture, side: THREE.DoubleSide });
+          panel.metadataUrl = metadata!.source; // Keep metadata URL for debugging/link
+          panel.isVideo = false;
+        }
+      );
+      
+      // If it's a video, we use the VideoTexture created in loadTexture
+      if (isVideo && videoRef.current) {
+        const videoTexture = new THREE.VideoTexture(videoRef.current);
+        videoTexture.colorSpace = THREE.SRGBColorSpace;
+        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+          panel.mesh.material.map?.dispose();
+          panel.mesh.material.dispose();
+        }
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
+        panel.metadataUrl = metadata!.source;
+        panel.isVideo = isVideo;
+      } else if (!isVideo) {
+        // Set a temporary loading material while the image loads asynchronously
+        panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide });
+      }
+    }
+    
+  }, [manageVideoPlayback]);
 
   // --- Three.js Setup Effect ---
 
