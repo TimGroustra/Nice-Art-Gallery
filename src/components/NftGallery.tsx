@@ -181,6 +181,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 3. Geometry: Floor, Ceiling, Walls
     const roomSize = 10;
     const wallHeight = 4;
+    const panelYPosition = 1.8; // Lowered from 2.0 (wallHeight/2) to 1.8
     const boundary = roomSize / 2 - 0.5; // 5 - 0.5 = 4.5 units from center
 
     // Floor (Green)
@@ -258,10 +259,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
     
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
-      { wallName: 'north-wall', position: [0, wallHeight / 2, -roomSize / 2 + 0.01], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, wallHeight / 2, roomSize / 2 - 0.01], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomSize / 2 - 0.01, wallHeight / 2, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomSize / 2 + 0.01, wallHeight / 2, 0], rotation: [0, Math.PI / 2, 0] },
+      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + 0.01], rotation: [0, 0, 0] },
+      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - 0.01], rotation: [0, Math.PI, 0] },
+      { wallName: 'east-wall', position: [roomSize / 2 - 0.01, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'west-wall', position: [-roomSize / 2 + 0.01, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
