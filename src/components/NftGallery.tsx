@@ -146,6 +146,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 2. Controls (PointerLockControls)
     const controls = new PointerLockControls(camera, renderer.domElement);
     
+    // Function to calculate screen coordinates of the targeted panel's bounding box
+    const getTargetedPanelScreenPosition = () => {
+      if (!currentTargetedPanel) return null;
+
+      const mesh = currentTargetedPanel.mesh;
+      
+      // Calculate bounding box in world space
+      const box = new THREE.Box3().setFromObject(mesh);
+      
+      // Get the 8 corners of the box
+      const corners = [
+        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.min.z),
+        new THREE.Vector3(box.min.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.min.y, box.max.z),
+        new THREE.Vector3(box.min.x, box.max.y, box.max.z),
+        new THREE.Vector3(box.max.x, box.max.y, box.max.z),
+      ];
+
+      let minX = Infinity, minY = Infinity;
+      let maxX = -Infinity, maxY = -Infinity;
+      
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+
+      // Project all corners to screen space
+      corners.forEach(corner => {
+        corner.project(camera);
+        
+        // Convert normalized device coordinates (-1 to 1) to pixel coordinates (0 to width/height)
+        const screenX = (corner.x * 0.5 + 0.5) * width;
+        const screenY = (-corner.y * 0.5 + 0.5) * height;
+
+        minX = Math.min(minX, screenX);
+        minY = Math.min(minY, screenY);
+        maxX = Math.max(maxX, screenX);
+        maxY = Math.max(maxY, screenY);
+      });
+
+      return { minX, minY, maxX, maxY };
+    };
+
     // Expose controls for UI interaction (locking/unlocking)
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
@@ -159,6 +203,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       isLocked: () => controls.isLocked, // Utility to check lock status
       // New functions for UI interaction
       getTargetedPanel: () => currentTargetedPanel,
+      getTargetedPanelScreenPosition, // Expose the new function
       cycleNft: (direction: 'next' | 'prev') => {
         if (currentTargetedPanel) {
           const panel = currentTargetedPanel;
@@ -362,16 +407,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         const intersectedMesh = intersects[0].object as THREE.Mesh;
         const panel = panelsRef.current.find(p => p.mesh === intersectedMesh);
 
-        if (panel) {
-          // Check if the click is near the center (to open metadata) or near the edges (to cycle)
-          const intersectionPoint = intersects[0].point;
-          const localPoint = intersectedMesh.worldToLocal(intersectionPoint.clone());
-          
-          // We are simplifying the click interaction now that we have UI arrows for cycling.
+        if (panel && panel.metadataUrl) {
           // Clicking anywhere on the panel opens the metadata.
-          if (panel.metadataUrl) {
-            onPanelClick(panel.metadataUrl);
-          }
+          onPanelClick(panel.metadataUrl);
         }
       }
     };

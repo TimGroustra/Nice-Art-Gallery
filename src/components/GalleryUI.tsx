@@ -11,6 +11,13 @@ interface Metadata {
   source: string;
 }
 
+interface PanelPosition {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
 interface GalleryUIProps {
   instructionsVisible: boolean;
   onLockClick: () => void;
@@ -21,7 +28,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
   const [modalMetadata, setModalMetadata] = useState<Metadata | null>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [hasVideo, setHasVideo] = useState(false);
-  const [isPanelTargeted, setIsPanelTargeted] = useState(false);
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
 
   // Function to fetch and open metadata modal
   const openMetadataModal = useCallback(async (metadataUrl: string) => {
@@ -76,9 +83,9 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           setIsMuted(galleryControls.isMuted());
         }
         
-        // Targeted panel check
-        const targetedPanel = galleryControls.getTargetedPanel();
-        setIsPanelTargeted(!!targetedPanel);
+        // Targeted panel position check
+        const position = galleryControls.getTargetedPanelScreenPosition();
+        setPanelPosition(position);
       }
     }, 200); // Check state every 200ms
 
@@ -101,7 +108,26 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     }
   };
 
-  const showNavigation = !instructionsVisible && isPanelTargeted;
+  const showNavigation = !instructionsVisible && panelPosition;
+  
+  // Calculate button positions based on panelPosition
+  const buttonSize = 48; // h-12 w-12
+  const padding = 10; // Padding between panel edge and button
+
+  const leftButtonStyles = showNavigation ? {
+    position: 'fixed' as const,
+    top: panelPosition.minY + (panelPosition.maxY - panelPosition.minY) / 2 - buttonSize / 2,
+    left: panelPosition.minX - buttonSize - padding,
+    zIndex: 20,
+  } : {};
+
+  const rightButtonStyles = showNavigation ? {
+    position: 'fixed' as const,
+    top: panelPosition.minY + (panelPosition.maxY - panelPosition.minY) / 2 - buttonSize / 2,
+    left: panelPosition.maxX + padding,
+    zIndex: 20,
+  } : {};
+
 
   return (
     <>
@@ -133,13 +159,14 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         )}
       </div>
       
-      {/* Navigation Arrows (Center Left/Right) */}
+      {/* Navigation Arrows (Positioned relative to the targeted panel) */}
       {showNavigation && (
-        <div className="fixed inset-0 flex items-center justify-between px-4 z-10 pointer-events-none">
+        <>
           <Button 
             variant="secondary" 
             size="icon" 
             className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700 h-12 w-12"
+            style={leftButtonStyles}
             onClick={() => handleCycleNft('prev')}
             title="Previous NFT"
           >
@@ -150,12 +177,13 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             variant="secondary" 
             size="icon" 
             className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700 h-12 w-12"
+            style={rightButtonStyles}
             onClick={() => handleCycleNft('next')}
             title="Next NFT"
           >
             <ChevronRight className="h-6 w-6" />
           </Button>
-        </div>
+        </>
       )}
 
       {/* Metadata Modal */}
