@@ -22,9 +22,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const [isLocked, setIsLocked] = useState(false);
+  // We keep isLocked state, but we must ensure it doesn't trigger the main useEffect re-run via dependencies.
+  const [isLocked, setIsLocked] = useState(false); 
 
   // Function to manage video playback based on lock state
+  // This function is stable and only depends on videoRef.current
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     if (videoRef.current) {
       if (shouldPlay) {
@@ -42,19 +44,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   // --- Utility Functions for Three.js Content Management ---
 
+  // loadTexture should not depend on isLocked, as playback is managed externally by manageVideoPlayback
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
       if (videoRef.current) {
-        // Prepare video element, but don't start playing yet.
+        // Prepare video element
         videoRef.current.pause();
         videoRef.current.src = url;
         videoRef.current.load();
         videoRef.current.loop = true;
         videoRef.current.muted = true; // Always start muted
         
-        // If controls are already locked, start playback immediately
-        if (isLocked) {
-          manageVideoPlayback(true);
+        // We rely on the lock/unlock event handlers in useEffect to call manageVideoPlayback(true/false)
+        // If controls are already locked, we manually trigger playback here too, but we must ensure manageVideoPlayback is stable.
+        // Since manageVideoPlayback is stable, we can call it.
+        if ((window as any).galleryControls?.isLocked()) {
+             manageVideoPlayback(true);
         }
 
         return new THREE.VideoTexture(videoRef.current);
@@ -70,7 +75,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         showError(`Failed to load image: ${url.substring(0, 50)}...`);
       }
     );
-  }, [isLocked, manageVideoPlayback]); // Depend on isLocked and manageVideoPlayback
+  }, [manageVideoPlayback]); // Only depends on stable manageVideoPlayback
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
@@ -161,7 +166,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         if (videoRef.current) {
           videoRef.current.muted = !videoRef.current.muted;
         }
-      }
+      },
+      isLocked: () => controls.isLocked, // Added utility to check lock status
     };
 
     // 3. Geometry: Floor, Ceiling, Walls
@@ -266,7 +272,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const mouse = new THREE.Vector2();
 
     const onDocumentMouseDown = (event: MouseEvent) => {
-      if (!isLocked) return;
+      if (!controls.isLocked) return; // Use controls.isLocked directly
 
       // Calculate mouse position in normalized device coordinates (-1 to +1)
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -316,12 +322,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
       const delta = (time - lastTime) / 1000;
       lastTime = time;
-
-      // Movement logic (simplified for now, PointerLockControls handles camera movement)
-      if (controls.isLocked) {
-        // Update controls (handles WASD movement)
-        // Note: PointerLockControls handles movement internally based on key presses
-      }
 
       // Disco light animation
       lights.forEach((light, index) => {
