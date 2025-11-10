@@ -207,9 +207,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const color = type === 'arrow-next' ? 0x00ff00 : 0xff0000;
     const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
     
-    // For simplicity, we'll use a basic plane and rely on color/position for now.
-    // In a real app, we'd use a custom geometry or texture for a proper arrow shape.
-    const mesh = new THREE.Mesh(geo, mat) as InteractiveMesh;
+    // Fix TS2352: Convert to unknown first
+    const mesh = new THREE.Mesh(geo, mat) as unknown as InteractiveMesh;
     mesh.position.copy(position);
     mesh.rotation.y = rotationY;
     mesh.userData = { wallName, type };
@@ -223,7 +222,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 1. Create Main Panel
     const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H); 
     const mat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geo, mat) as InteractiveMesh;
+    // Fix TS2352: Convert to unknown first
+    const mesh = new THREE.Mesh(geo, mat) as unknown as InteractiveMesh;
     mesh.position.copy(position);
     mesh.rotation.y = rotationY;
     mesh.userData = { wallName, type: 'panel' };
@@ -382,6 +382,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     }
     
     // Dedicated Spotlights for Art Panels (4 spots, one per panel)
+    const wallOffset = 7.89; // Define wallOffset here
     const panelPositions = [
       { x: wallOffset, z: 0, targetX: wallOffset - 0.1, targetZ: 0 }, // East
       { x: -wallOffset, z: 0, targetX: -wallOffset + 0.1, targetZ: 0 }, // West

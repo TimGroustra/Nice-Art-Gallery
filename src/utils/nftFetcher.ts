@@ -8,6 +8,12 @@ const erc721Abi = [
   "function tokenURI(uint256 tokenId) view returns (string)"
 ];
 
+// Define NftSource interface
+export interface NftSource {
+  contractAddress: string;
+  tokenId: number;
+}
+
 // Utility: normalize ipfs:// to https gateway
 export function normalizeUrl(url: string): string {
   if (!url) return url;
