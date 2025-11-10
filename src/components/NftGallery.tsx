@@ -153,17 +153,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     panelMeshesRef.current.forEach(m => scene.remove(m));
     panelMeshesRef.current.length = 0;
 
-    // Right wall panels (facing left)
-    for (let i = 0; i < 3; i++) {
-      const pos = new THREE.Vector3(7.89, 1.8, -2 + i * 2);
+    const numPanelsPerWall = 10;
+    const startZ = -6.3; // Start Z position
+    const zSpacing = 1.4; // Spacing between panel centers (10 panels * 1.4 = 14 units, covering -7 to 7)
+    const lowY = 1.2;
+    const highY = 2.4;
+    
+    // Helper to get URL, cycling through the provided list
+    const getUrl = (index: number) => urls[index % urls.length] || '';
+
+    // Right wall panels (facing left, x = 7.89)
+    for (let i = 0; i < numPanelsPerWall; i++) {
+      const z = startZ + i * zSpacing;
+      const y = i % 2 === 0 ? lowY : highY; // Staggered height
+      const pos = new THREE.Vector3(7.89, y, z);
       const rot = Math.PI / 2; // face -x
-      createPanel(scene, pos, rot, urls[i] || '');
+      createPanel(scene, pos, rot, getUrl(i));
     }
-    // Left wall panels (facing right)
-    for (let i = 0; i < 3; i++) {
-      const pos = new THREE.Vector3(-7.89, 1.8, -2 + i * 2);
+    
+    // Left wall panels (facing right, x = -7.89)
+    for (let i = 0; i < numPanelsPerWall; i++) {
+      const z = startZ + i * zSpacing;
+      const y = i % 2 === 0 ? highY : lowY; // Opposite stagger for visual balance
+      const pos = new THREE.Vector3(-7.89, y, z);
       const rot = -Math.PI / 2; // face +x
-      createPanel(scene, pos, rot, urls[i + 3] || '');
+      createPanel(scene, pos, rot, getUrl(i + numPanelsPerWall));
     }
   }, [createPanel]);
 
@@ -264,16 +278,37 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     }
     
     // 3. Dedicated Spotlights for Art Panels (White, static)
-    const panelPositions = [
-      // Right wall (x=7.89, z=-2, 0, 2)
-      { x: 7.89, z: -2, targetX: 7.89 - 0.1, targetZ: -2 },
-      { x: 7.89, z: 0, targetX: 7.89 - 0.1, targetZ: 0 },
-      { x: 7.89, z: 2, targetX: 7.89 - 0.1, targetZ: 2 },
-      // Left wall (x=-7.89, z=-2, 0, 2)
-      { x: -7.89, z: -2, targetX: -7.89 + 0.1, targetZ: -2 },
-      { x: -7.89, z: 0, targetX: -7.89 + 0.1, targetZ: 0 },
-      { x: -7.89, z: 2, targetX: -7.89 + 0.1, targetZ: 2 },
-    ];
+    const panelPositions = [];
+    const numPanelsPerWall = 10;
+    const startZ = -6.3;
+    const zSpacing = 1.4;
+    const lowY = 1.2;
+    const highY = 2.4;
+    
+    // Right wall (x=7.89)
+    for (let i = 0; i < numPanelsPerWall; i++) {
+        const z = startZ + i * zSpacing;
+        const y = i % 2 === 0 ? lowY : highY;
+        panelPositions.push({ 
+            x: 7.89, 
+            z: z, 
+            targetX: 7.89 - 0.1, 
+            targetZ: z,
+            targetY: y 
+        });
+    }
+    // Left wall (x=-7.89)
+    for (let i = 0; i < numPanelsPerWall; i++) {
+        const z = startZ + i * zSpacing;
+        const y = i % 2 === 0 ? highY : lowY;
+        panelPositions.push({ 
+            x: -7.89, 
+            z: z, 
+            targetX: -7.89 + 0.1, 
+            targetZ: z,
+            targetY: y
+        });
+    }
 
     panelPositions.forEach((pos) => {
       // Increased spotlight intensity slightly
@@ -281,7 +316,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       spotLight.position.set(pos.x, 3.5, pos.z); // Positioned high above the panel
       
       const target = new THREE.Object3D();
-      target.position.set(pos.targetX, 1.8, pos.targetZ); // Aimed slightly in front of the panel center
+      target.position.set(pos.targetX, pos.targetY, pos.targetZ); // Aimed at the panel center
       scene.add(target);
       spotLight.target = target;
       
