@@ -54,6 +54,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   const selectedPanelRef = useRef<PanelMesh | null>(null);
 
+  // Define max dimensions for the panels
+  const MAX_W = 1.8;
+  const MAX_H = 1.2;
+
   // --- Panel Logic ---
 
   const fetchAndApplyToMesh = useCallback(async (metadataUrl: string, mesh: PanelMesh) => {
@@ -78,9 +82,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       loader.load(imageUrl,
         (tex) => {
           tex.colorSpace = THREE.SRGBColorSpace;
+          
+          // 1. Calculate Aspect Ratio
+          const imageAspect = tex.image.width / tex.image.height;
+          
+          let newW = MAX_W;
+          let newH = MAX_H;
+
+          // 2. Determine new dimensions based on constraints
+          if (imageAspect > MAX_W / MAX_H) {
+            // Image is wider than the max frame aspect ratio (constrained by MAX_W)
+            newH = MAX_W / imageAspect;
+          } else {
+            // Image is taller than the max frame aspect ratio (constrained by MAX_H)
+            newW = MAX_H * imageAspect;
+          }
+
+          // 3. Update Geometry
+          mesh.geometry.dispose();
+          mesh.geometry = new THREE.PlaneGeometry(newW, newH);
+          
+          // 4. Apply Texture
           const material = mesh.material as THREE.MeshStandardMaterial;
           material.map = tex;
           material.needsUpdate = true;
+          
           mesh.userData.loaded = true;
           mesh.userData.metadata = {
             title: json.name || '',
@@ -100,11 +126,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     } catch (err) {
       console.warn('fetchAndApplyToMesh error for:', metadataUrl, err);
     }
-  }, []);
+  }, [MAX_W, MAX_H]);
 
   const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, metadataUrl: string) => {
-    const w = 1.8, h = 1.2;
-    const geo = new THREE.PlaneGeometry(w, h);
+    // Start with max dimensions, they will be resized upon texture load
+    const geo = new THREE.PlaneGeometry(MAX_W, MAX_H); 
     const mat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(geo, mat) as unknown as PanelMesh;
     mesh.position.copy(position);
@@ -114,7 +140,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     panelMeshesRef.current.push(mesh);
     if (metadataUrl) fetchAndApplyToMesh(metadataUrl, mesh);
     return mesh;
-  }, [fetchAndApplyToMesh]);
+  }, [fetchAndApplyToMesh, MAX_W, MAX_H]);
 
   const setupPanels = useCallback((scene: THREE.Scene, urls: string[]) => {
     // Clear existing
