@@ -43,10 +43,10 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     const actualFontSize = fontSize * (resolution / height);
     context.font = `${actualFontSize}px Arial`;
     context.fillStyle = color;
-    context.textAlign = 'center'; // Center alignment for text above the panel
+    context.textAlign = 'left';
     context.textBaseline = 'top';
 
-    const padding = 10;
+    const padding = 20;
     const lineHeight = actualFontSize * 1.2;
     const maxTextWidth = canvas.width - 2 * padding;
     
@@ -54,7 +54,6 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     const words = text.split(' ');
     let line = '';
     let y = padding;
-    const centerX = canvas.width / 2;
 
     for (let n = 0; n < words.length; n++) {
         const testLine = line + words[n] + ' ';
@@ -62,7 +61,7 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
         const testWidth = metrics.width;
 
         if (testWidth > maxTextWidth && n > 0) {
-            context.fillText(line, centerX, y);
+            context.fillText(line, padding, y);
             line = words[n] + ' ';
             y += lineHeight;
             if (y > canvas.height - padding) break; // Prevent overflow
@@ -71,7 +70,7 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
         }
     }
     if (y < canvas.height - padding) {
-        context.fillText(line, centerX, y);
+        context.fillText(line, padding, y);
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -159,7 +158,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      const titleTexture = createTextTexture(metadata.title, 2.0, 0.3, 40, 'white'); // Width 2.0
+      const titleTexture = createTextTexture(metadata.title, 1.5, 0.5, 40, 'white');
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
@@ -168,8 +167,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.descriptionMesh.material.map.dispose();
       }
       // Limit description length for readability on the small panel
-      const descriptionText = metadata.description.length > 100 ? metadata.description.substring(0, 97) + '...' : metadata.description;
-      const descriptionTexture = createTextTexture(descriptionText, 2.0, 0.5, 20, 'lightgray'); // Width 2.0
+      const descriptionText = metadata.description.length > 150 ? metadata.description.substring(0, 147) + '...' : metadata.description;
+      const descriptionTexture = createTextTexture(descriptionText, 1.5, 1.5, 20, 'lightgray');
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
@@ -248,7 +247,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // 3. Geometry: Floor, Ceiling, Walls
     const roomSize = 10;
     const wallHeight = 4;
-    const panelYPosition = 1.8; // Center of NFT panel (2 units high)
+    const panelYPosition = 1.8; 
     const boundary = roomSize / 2 - 0.5; 
 
     // Floor (Green)
@@ -343,16 +342,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_DEPTH_OFFSET = 0.03; // Slightly further out than the arrows/NFT panel
 
     // Text panel constants
-    const NFT_PANEL_HEIGHT = 2.0;
-    const NFT_PANEL_WIDTH = 2.0;
-    const TITLE_HEIGHT = 0.3;
-    const DESCRIPTION_HEIGHT = 0.5;
-    const TEXT_PANEL_Y_OFFSET = (NFT_PANEL_HEIGHT / 2) + (TITLE_HEIGHT / 2) + (DESCRIPTION_HEIGHT / 2) + 0.1; // Position text block above NFT panel
-
+    const TEXT_PANEL_WIDTH = 1.5;
+    const TITLE_HEIGHT = 0.5;
+    const DESCRIPTION_HEIGHT = 1.5;
+    const TEXT_PANEL_X_OFFSET = 1.75; // Distance from center of NFT panel to center of text panel (1 + 1.5/2 = 1.75)
     
     // Placeholder text meshes
     // Use a transparent material for the text planes
-    const placeholderTexture = createTextTexture('Loading...', NFT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white');
+    const placeholderTexture = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white');
     const placeholderMaterial = new THREE.MeshBasicMaterial({ 
         map: placeholderTexture, 
         transparent: true, 
@@ -360,8 +357,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         alphaTest: 0.01, // Lower alpha test to ensure text pixels are visible
         depthWrite: false // Crucial for transparent planes near other geometry
     });
-    const titleGeometry = new THREE.PlaneGeometry(NFT_PANEL_WIDTH, TITLE_HEIGHT);
-    const descriptionGeometry = new THREE.PlaneGeometry(NFT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
+    const titleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
 
 
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
@@ -386,19 +383,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation); // Vector pointing out from the wall
       
-      // --- Text Panel Positioning (Above NFT Panel) ---
+      // --- Text Panel Positioning ---
       
       // Base position (center of the wall panel)
       const basePosition = new THREE.Vector3(config.position[0], panelYPosition, config.position[2]);
       
+      // Text Panel Group Position (1.75 units to the left of the NFT panel center)
+      const textGroupPosition = basePosition.clone();
+      textGroupPosition.addScaledVector(rightVector, -TEXT_PANEL_X_OFFSET); 
+      
       // Title Mesh
+      // Clone the material to ensure each text panel can have a unique texture map
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
       titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       
-      // Position title: Centered horizontally, positioned above the NFT panel
-      const titlePosition = basePosition.clone();
-      // Move up by half the NFT height + half the title height + small gap
-      titlePosition.addScaledVector(upVector, NFT_PANEL_HEIGHT / 2 + TITLE_HEIGHT / 2 + 0.05); 
+      // Position title: centered horizontally in the text group, top of the text group area
+      const titlePosition = textGroupPosition.clone();
+      // Move up to position the title correctly relative to the center (panelYPosition)
+      titlePosition.addScaledVector(upVector, (DESCRIPTION_HEIGHT / 2) - (TITLE_HEIGHT / 2)); 
       
       // Move slightly forward from the wall
       titlePosition.addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
@@ -409,11 +411,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       
-      // Position description: Centered horizontally, positioned below the title
-      const descriptionPosition = basePosition.clone();
-      // Move up by half the NFT height + small gap, then down by half the description height
-      descriptionPosition.addScaledVector(upVector, NFT_PANEL_HEIGHT / 2 + 0.05); 
-      descriptionPosition.addScaledVector(upVector, -DESCRIPTION_HEIGHT / 2); 
+      // Position description: centered horizontally in the text group, bottom of the text group area
+      const descriptionPosition = textGroupPosition.clone();
+      // Move down below the title
+      descriptionPosition.addScaledVector(upVector, -(TITLE_HEIGHT / 2)); 
       
       // Move slightly forward from the wall
       descriptionPosition.addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
