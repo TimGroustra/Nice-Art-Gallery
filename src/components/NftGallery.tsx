@@ -392,7 +392,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const NUM_DISCO_LIGHTS = 20;
     const discoLights: THREE.PointLight[] = [];
     const discoLightHeight = 3.8; 
-    const maxRadius = 7.0;
+    const maxRadius = 7.5; // Increased radius to cover more area
 
     // Pre-calculate random properties for each light
     const lightProperties = Array.from({ length: NUM_DISCO_LIGHTS }, () => ({
@@ -406,7 +406,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const props = lightProperties[i];
-      const pl = new THREE.PointLight(props.color, 1.0, 10, 1.5); 
+      // Increased intensity and distance significantly to fill the space
+      const pl = new THREE.PointLight(props.color, 5.0, 20, 1.5); 
       pl.position.set(0, discoLightHeight, 0); // Initial position
       scene.add(pl);
       discoLights.push(pl);
