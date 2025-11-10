@@ -228,8 +228,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const floorGeo = new THREE.CircleGeometry(8, 64);
     const floorMat = new THREE.MeshStandardMaterial({ 
       color: 0x111111, 
-      metalness: 0.7, 
-      roughness: 0.3, 
+      metalness: 1.0, // Max metalness for mirror effect
+      roughness: 0.1, // Low roughness for mirror effect
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -286,6 +286,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // 2. Disco Point Lights (Rotating Mood Lights)
     const discoLights: THREE.PointLight[] = [];
+    // Rainbow colors (7 total: R, O, Y, G, B, I, V)
+    const lightColors = [0xFF0000, 0xFF8C00, 0xFFFF00, 0x00FF00, 0x0000FF, 0x4B0082, 0xEE82EE];
     const lightHeight = 3.8; 
     
     // Use a larger scale factor (0.5) to spread lights out more
