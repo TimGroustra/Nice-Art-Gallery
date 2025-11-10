@@ -382,7 +382,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const mouse = new THREE.Vector2();
     const center = new THREE.Vector2(0, 0); // Center of the screen for targeting
 
-    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
+    // Only include arrows in interactive meshes. NFT panels are excluded.
+    const interactiveMeshes = panelsRef.current.flatMap(p => [p.prevArrow, p.nextArrow]);
 
     const onDocumentMouseDown = (event: MouseEvent) => {
       if (!controls.isLocked) return; // Use controls.isLocked directly
@@ -396,15 +397,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
       if (intersects.length > 0) {
         const intersectedMesh = intersects[0].object as THREE.Mesh;
-        const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
+        // Find the panel associated with the clicked arrow
+        const panel = panelsRef.current.find(p => p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
 
         if (panel) {
-          if (intersectedMesh === panel.mesh) {
-            // Clicked the NFT panel itself -> Open Metadata Modal
-            if (panel.metadataUrl) {
-              onPanelClick(panel.metadataUrl);
-            }
-          } else if (intersectedMesh === panel.prevArrow) {
+          // Since only arrows are in interactiveMeshes, we only check which arrow was hit
+          if (intersectedMesh === panel.prevArrow) {
             // Clicked Previous Arrow
             const updated = updatePanelIndex(panel.wallName, 'prev');
             if (updated) {
