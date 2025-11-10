@@ -86,6 +86,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     }
     
     const loader = new THREE.TextureLoader();
+    loader.crossOrigin = 'anonymous'; // Crucial for external resources
     
     return new Promise((resolve) => {
       loader.load(url, 
