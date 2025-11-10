@@ -52,7 +52,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
   const speed = 4.0;
 
   const [instructionsVisible, setInstructionsVisible] = useState(true);
-  const [selectedPanel, setSelectedPanel] = useState<PanelMesh | null>(null);
+  const selectedPanelRef = useRef<PanelMesh | null>(null);
 
   // --- Panel Logic ---
 
@@ -276,17 +276,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
 
         if (intersects.length > 0) {
           const mesh = intersects[0].object as PanelMesh;
-          if (selectedPanel !== mesh) {
-            if (selectedPanel) {
-              (selectedPanel.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
+          if (selectedPanelRef.current !== mesh) {
+            if (selectedPanelRef.current) {
+              (selectedPanelRef.current.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
             }
             (mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x101010);
-            setSelectedPanel(mesh);
+            selectedPanelRef.current = mesh;
           }
         } else {
-          if (selectedPanel) {
-            (selectedPanel.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
-            setSelectedPanel(null);
+          if (selectedPanelRef.current) {
+            (selectedPanelRef.current.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
+            selectedPanelRef.current = null;
           }
         }
       }
@@ -306,15 +306,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, selectedPanel]);
+  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh]);
 
   // Pass imperative functions up to the parent component
   useEffect(() => {
     (window as any).galleryControls = {
-      getSelectedPanelUrl: () => selectedPanel?.userData.metadataUrl || '',
+      getSelectedPanelUrl: () => selectedPanelRef.current?.userData.metadataUrl || '',
       lockControls: () => controlsRef.current?.lock(),
     };
-  }, [selectedPanel]);
+  }, []);
 
 
   return (
