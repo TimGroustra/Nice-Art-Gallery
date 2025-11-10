@@ -69,6 +69,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const speed = 4.0;
 
   const selectedPanelRef = useRef<PanelMesh | null>(null);
+  const [selectedVideoMuted, setSelectedVideoMuted] = useState(true);
 
   // Define max dimensions for the panels
   const MAX_W = 1.8;
@@ -459,16 +460,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       if (intersects.length > 0) {
         const mesh = intersects[0].object as PanelMesh;
         const meta = mesh.userData.metadataUrl;
-        if (meta) {
-          // If it's a video, attempt to toggle play/pause on click
-          if (mesh.userData.videoElement) {
-            const video = mesh.userData.videoElement;
-            if (video.paused) {
-              video.play().catch(e => console.warn("Video play failed on click:", e));
-            } else {
-              video.pause();
-            }
+        
+        // Update selected video state
+        if (mesh.userData.videoElement) {
+          const video = mesh.userData.videoElement;
+          // Toggle play/pause on click
+          if (video.paused) {
+            video.play().catch(e => console.warn("Video play failed on click:", e));
+          } else {
+            video.pause();
           }
+          setSelectedVideoMuted(video.muted);
+        } else {
+          setSelectedVideoMuted(true); // Default to muted state if not a video
+        }
+
+        if (meta) {
           onPanelClick(meta);
         }
       }
@@ -527,11 +534,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
             }
             (mesh.material as THREE.MeshStandardMaterial).emissive.setHex(0x101010);
             selectedPanelRef.current = mesh;
+            
+            // Update UI state based on new selection
+            if (mesh.userData.videoElement) {
+              setSelectedVideoMuted(mesh.userData.videoElement.muted);
+            } else {
+              setSelectedVideoMuted(true);
+            }
           }
         } else {
           if (selectedPanelRef.current) {
             (selectedPanelRef.current.material as THREE.MeshStandardMaterial).emissive.setHex(0x000000);
             selectedPanelRef.current = null;
+            setSelectedVideoMuted(true); // Hide controls when nothing is selected
           }
         }
       }
@@ -569,13 +584,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     };
   }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, setInstructionsVisible]);
 
+  // Function to toggle mute state of the currently selected video
+  const toggleMute = useCallback(() => {
+    const video = selectedPanelRef.current?.userData.videoElement;
+    if (video) {
+      const newMutedState = !video.muted;
+      video.muted = newMutedState;
+      setSelectedVideoMuted(newMutedState);
+    }
+  }, []);
+
   // Pass imperative functions up to the parent component
   useEffect(() => {
     (window as any).galleryControls = {
       getSelectedPanelUrl: () => selectedPanelRef.current?.userData.metadataUrl || '',
       lockControls: () => controlsRef.current?.lock(),
+      toggleMute: toggleMute,
+      isMuted: () => selectedVideoMuted,
+      hasVideo: () => !!selectedPanelRef.current?.userData.videoElement,
     };
-  }, []);
+  }, [toggleMute, selectedVideoMuted]);
 
 
   return (

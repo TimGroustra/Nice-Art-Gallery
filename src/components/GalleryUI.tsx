@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { X } from 'lucide-react';
+import { X, Volume2, VolumeX } from 'lucide-react';
 
 interface Metadata {
   title: string;
@@ -28,6 +28,8 @@ function normalizeUrl(url: string): string {
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMetadata, setModalMetadata] = useState<Metadata | null>(null);
+  const [isMuted, setIsMuted] = useState(true);
+  const [hasVideo, setHasVideo] = useState(false);
 
   // Function to fetch and open metadata modal
   const openMetadataModal = useCallback(async (metadataUrl: string) => {
@@ -66,6 +68,31 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     };
   }, [openMetadataModal]);
 
+  // Polling/Interval to check video state from NftGallery
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const galleryControls = (window as any).galleryControls;
+      if (galleryControls) {
+        const videoPresent = galleryControls.hasVideo();
+        setHasVideo(videoPresent);
+        if (videoPresent) {
+          setIsMuted(galleryControls.isMuted());
+        }
+      }
+    }, 200); // Check state every 200ms
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMuteToggle = () => {
+    const galleryControls = (window as any).galleryControls;
+    if (galleryControls && galleryControls.toggleMute) {
+      galleryControls.toggleMute();
+      // State update happens via the polling interval, but we can optimistically update it too
+      setIsMuted(prev => !prev);
+    }
+  };
+
   return (
     <>
       {/* Overlay UI */}
@@ -80,6 +107,19 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           >
             Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor.
           </div>
+        )}
+        
+        {/* Mute Toggle Button (Visible only when a video panel is selected and controls are locked) */}
+        {!instructionsVisible && hasVideo && (
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700"
+            onClick={handleMuteToggle}
+            title={isMuted ? "Unmute Video" : "Mute Video"}
+          >
+            {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </Button>
         )}
       </div>
 
