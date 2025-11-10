@@ -383,20 +383,28 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     // Dedicated Spotlights for Art Panels (4 spots, one per panel)
     const wallOffset = 7.89; // Define wallOffset here
-    const panelPositions = [
-      { x: wallOffset, z: 0, targetX: wallOffset - 0.1, targetZ: 0 }, // East
-      { x: -wallOffset, z: 0, targetX: -wallOffset + 0.1, targetZ: 0 }, // West
-      { x: 0, z: -wallOffset, targetX: 0, targetZ: -wallOffset + 0.1 }, // South
-      { x: 0, z: wallOffset, targetX: 0, targetZ: wallOffset - 0.1 }, // North
-    ];
-    const lightHeightSpot = 3.5;
     const panelY = 1.8;
+    const lightZOffset = 1.0; // Distance from the wall towards the center of the room
 
-    panelPositions.forEach((pos) => {
-      const spotLight = new THREE.SpotLight(0xffffff, 8, 5, Math.PI / 8, 0.5, 1); 
+    const panelLightPositions = [
+      // East Wall (X = 7.89, Light at X=7.89 - lightZOffset)
+      { x: wallOffset - lightZOffset, z: 0, targetX: wallOffset, targetZ: 0, rotation: -Math.PI / 2 }, 
+      // West Wall (X = -7.89, Light at X=-7.89 + lightZOffset)
+      { x: -wallOffset + lightZOffset, z: 0, targetX: -wallOffset, targetZ: 0, rotation: Math.PI / 2 }, 
+      // South Wall (Z = -7.89, Light at Z=-7.89 + lightZOffset)
+      { x: 0, z: -wallOffset + lightZOffset, targetX: 0, targetZ: -wallOffset, rotation: 0 }, 
+      // North Wall (Z = 7.89, Light at Z=7.89 - lightZOffset)
+      { x: 0, z: wallOffset - lightZOffset, targetX: 0, targetZ: wallOffset, rotation: Math.PI }, 
+    ];
+    const lightHeightSpot = 3.5; // Positioned high on the ceiling
+
+    panelLightPositions.forEach((pos) => {
+      // Use a narrow cone angle for focused downlighting
+      const spotLight = new THREE.SpotLight(0xffffff, 15, 10, Math.PI / 16, 0.5, 1); 
       spotLight.position.set(pos.x, lightHeightSpot, pos.z); 
       
       const target = new THREE.Object3D();
+      // Target the center of the panel
       target.position.set(pos.targetX, panelY, pos.targetZ); 
       scene.add(target);
       spotLight.target = target;
