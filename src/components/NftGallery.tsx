@@ -358,18 +358,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const createCoveLighting = (
         position: [number, number, number],
-        rotation: [number, number, number]
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
     ) => {
         const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
         rectLight.position.set(...position);
-        rectLight.rotation.set(...rotation);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
         scene.add(rectLight);
 
         const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
         const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
         const glowMesh = new THREE.Mesh(glowGeo, glowMat);
         glowMesh.position.set(...position);
-        glowMesh.rotation.set(...rotation);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
         scene.add(glowMesh);
     };
 
@@ -381,9 +382,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // South
     createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
     // East
-    createCoveLighting([roomSize / 2 - offset, yPos, 0], [Math.PI / 2, -Math.PI / 2, 0]);
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     // West
-    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [Math.PI / 2, Math.PI / 2, 0]);
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
