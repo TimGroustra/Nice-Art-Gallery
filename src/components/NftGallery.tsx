@@ -61,7 +61,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
     mesh.userData.metadataUrl = metadataUrl;
     mesh.userData.loaded = false;
     mesh.material = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x000000, side: THREE.DoubleSide });
-    mesh.material.needsUpdate = true;
+    (mesh.material as THREE.MeshStandardMaterial).needsUpdate = true;
 
     try {
       const res = await fetch(url);
@@ -77,8 +77,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
       loader.load(imageUrl,
         (tex) => {
           tex.colorSpace = THREE.SRGBColorSpace;
-          mesh.material.map = tex;
-          mesh.material.needsUpdate = true;
+          const material = mesh.material as THREE.MeshStandardMaterial;
+          material.map = tex;
+          material.needsUpdate = true;
           mesh.userData.loaded = true;
           mesh.userData.metadata = {
             title: json.name || '',
@@ -104,7 +105,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
     const w = 1.8, h = 1.2;
     const geo = new THREE.PlaneGeometry(w, h);
     const mat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x000000, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geo, mat) as PanelMesh;
+    const mesh = new THREE.Mesh(geo, mat) as unknown as PanelMesh;
     mesh.position.copy(position);
     mesh.rotation.y = rotationY;
     mesh.userData = { metadataUrl: metadataUrl, loaded: false };
@@ -233,7 +234,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
     const onDocumentClick = () => {
       if (controls.isLocked === false) return;
 
-      raycasterRef.current.setFromCamera({ x: 0, y: 0 }, camera);
+      raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
       const intersects = raycasterRef.current.intersectObjects(panelMeshesRef.current, false);
 
       if (intersects.length > 0) {
@@ -270,7 +271,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
         controls.moveRight(direction.x * speed * delta);
 
         // Raycast for highlighting/selection
-        raycasterRef.current.setFromCamera({ x: 0, y: 0 }, camera);
+        raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
         const intersects = raycasterRef.current.intersectObjects(panelMeshesRef.current, false);
 
         if (intersects.length > 0) {
