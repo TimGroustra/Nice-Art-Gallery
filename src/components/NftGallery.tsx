@@ -167,8 +167,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const floorGeo = new THREE.CircleGeometry(8, 64);
     const floorMat = new THREE.MeshStandardMaterial({ 
       color: 0x111111, 
-      metalness: 0.9, // High metalness
-      roughness: 0.1, // Low roughness for mirror effect
+      metalness: 0.7, // Slightly reduced metalness
+      roughness: 0.3, // Slightly increased roughness for dispersed reflection
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -194,9 +194,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const ceilingGeo = new THREE.CircleGeometry(8, 64);
     const ceilingMat = new THREE.MeshStandardMaterial({ 
       color: 0x111111, 
-      metalness: 0.9, 
-      roughness: 0.1, 
-      side: THREE.DoubleSide // Ensure it renders from below
+      metalness: 0.7, 
+      roughness: 0.3, 
+      side: THREE.DoubleSide 
     });
     const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
     ceiling.position.y = 4; // Assuming room height is 4
@@ -209,13 +209,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const lights: THREE.PointLight[] = [];
     const lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     const lightHeight = 3.8; // Close to the ceiling
+    
+    // Softer Point Lights
     for (let i = 0; i < 3; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 5.0, 15, 2); // Increased intensity
+      const pl = new THREE.PointLight(lightColors[i], 1.5, 10, 1.5); // Reduced intensity, increased decay
       pl.position.set(Math.cos(i / 3 * Math.PI * 2) * 3, lightHeight, Math.sin(i / 3 * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
-    const amb = new THREE.AmbientLight(0xaaaaaa, 0.5); // Reduced ambient light to emphasize point lights
+    
+    // Increased Ambient Light for general glow
+    const amb = new THREE.AmbientLight(0xaaaaaa, 1.5); 
     scene.add(amb);
 
     // Setup initial panels
