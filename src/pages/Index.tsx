@@ -1,6 +1,5 @@
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
-import { MadeWithDyad } from "@/components/made-with-dyad";
 import React, { useState, useCallback } from "react";
 
 const Index = () => {
@@ -28,11 +27,6 @@ const Index = () => {
         instructionsVisible={instructionsVisible} 
         onLockClick={handleLockClick}
       />
-      
-      {/* Footer/Attribution */}
-      <div className="fixed bottom-0 right-0 z-10">
-        <MadeWithDyad />
-      </div>
     </div>
   );
 };
