@@ -20,7 +20,9 @@ export function normalizeUrl(url: string): string {
   url = url.trim();
   if (url.startsWith('ipfs://')) {
     // Using a common public gateway
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    const normalized = url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    console.log(`[NFT Fetcher] Normalized IPFS URL: ${normalized}`);
+    return normalized;
   }
   return url;
 }
@@ -43,6 +45,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   try {
     // Call tokenURI(tokenId)
     tokenUri = await contract.tokenURI(tokenId);
+    console.log(`[NFT Fetcher] Token URI for ${tokenId}: ${tokenUri}`);
   } catch (e) {
     console.error(`Failed to call tokenURI for ${contractAddress}/${tokenId}:`, e);
     throw new Error("Failed to retrieve token URI from contract.");
@@ -56,6 +59,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
 
   const res = await fetch(metadataUrl);
   if (!res.ok) {
+    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
     throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
   }
   
@@ -63,6 +67,9 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
 
   let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
   imageUrl = normalizeUrl(imageUrl);
+  
+  console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
+
 
   return {
     title: json.name || `Token #${tokenId}`,
