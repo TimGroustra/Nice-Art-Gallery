@@ -14,6 +14,9 @@ interface InteractiveMesh extends THREE.Mesh {
     loaded?: boolean;
     metadata?: NftMetadata;
     videoElement?: HTMLVideoElement;
+    // New properties for panel mesh to hold arrow references
+    arrowPrev?: InteractiveMesh;
+    arrowNext?: InteractiveMesh;
   };
 }
 
@@ -42,6 +45,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const PANEL_W = 6.0;
   const PANEL_H = 3.0;
   const ARROW_SIZE = 0.5;
+  const ARROW_PADDING = 0.2; // Padding between panel edge and arrow
 
   // Define room boundaries (slightly inside the walls at +/- 8)
   const BOUNDARY = 7.5; 
@@ -77,6 +81,45 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   // --- Panel Logic ---
 
+  const updateArrowPositions = useCallback((panelMesh: InteractiveMesh, newW: number) => {
+    const { wallName, arrowPrev, arrowNext } = panelMesh.userData;
+    if (!arrowPrev || !arrowNext) return;
+
+    const arrowOffset = newW / 2 + ARROW_PADDING + ARROW_SIZE / 2; // Distance from center of panel to center of arrow
+    const arrowY = panelMesh.position.y;
+    const arrowZOffset = 0.01; 
+    const rotationY = panelMesh.rotation.y;
+
+    let prevPos = new THREE.Vector3();
+    let nextPos = new THREE.Vector3();
+
+    if (wallName === 'east-wall' || wallName === 'west-wall') {
+      // East/West walls: Z is the horizontal axis
+      prevPos.set(panelMesh.position.x, arrowY, panelMesh.position.z - arrowOffset);
+      nextPos.set(panelMesh.position.x, arrowY, panelMesh.position.z + arrowOffset);
+      
+      // Adjust X position slightly forward based on rotation
+      const forwardDir = new THREE.Vector3(Math.cos(rotationY - Math.PI / 2), 0, Math.sin(rotationY - Math.PI / 2));
+      prevPos.add(forwardDir.multiplyScalar(arrowZOffset));
+      nextPos.add(forwardDir.multiplyScalar(arrowZOffset));
+
+    } else {
+      // North/South walls: X is the horizontal axis
+      prevPos.set(panelMesh.position.x - arrowOffset, arrowY, panelMesh.position.z);
+      nextPos.set(panelMesh.position.x + arrowOffset, arrowY, panelMesh.position.z);
+      
+      // Adjust Z position slightly forward based on rotation
+      const forwardDir = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
+      prevPos.add(forwardDir.multiplyScalar(arrowZOffset));
+      nextPos.add(forwardDir.multiplyScalar(arrowZOffset));
+    }
+
+    arrowPrev.position.copy(prevPos);
+    arrowNext.position.copy(nextPos);
+
+  }, [ARROW_PADDING, ARROW_SIZE]);
+
+
   const applyTextureToMesh = useCallback((mesh: InteractiveMesh, texture: THREE.Texture, imageAspect: number, metadata: NftMetadata, videoElement?: HTMLVideoElement) => {
     
     let newW = PANEL_W;
@@ -106,7 +149,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     if (videoElement) {
       mesh.userData.videoElement = videoElement;
     }
-  }, [PANEL_W, PANEL_H]);
+
+    // IMPORTANT: Update arrow positions based on the new calculated width (newW)
+    updateArrowPositions(mesh, newW);
+
+  }, [PANEL_W, PANEL_H, updateArrowPositions]);
 
 
   const fetchAndApplyToMesh = useCallback(async (wallName: keyof typeof GALLERY_PANEL_CONFIG, mesh: InteractiveMesh) => {
@@ -196,8 +243,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // If fetch fails, keep the placeholder material but mark as loaded
       mesh.userData.loaded = true;
       mesh.userData.metadata = { title: 'Error', description: 'Failed to load NFT', image: '', source: '' };
+      
+      // If loading fails, we still need to position the arrows based on the default size
+      updateArrowPositions(mesh, PANEL_W);
     }
-  }, [PANEL_W, PANEL_H, applyTextureToMesh, removeMesh]);
+  }, [PANEL_W, fetchAndApplyToMesh, removeMesh, updateArrowPositions]);
 
   const createArrowMesh = useCallback((wallName: keyof typeof GALLERY_PANEL_CONFIG, type: 'arrow-prev' | 'arrow-next', position: THREE.Vector3, rotationY: number, scene: THREE.Scene) => {
     const geo = new THREE.PlaneGeometry(ARROW_SIZE, ARROW_SIZE);
@@ -224,7 +274,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       return null;
     }
 
-    // 1. Create Main Panel
+    // 1. Create Main Panel (Use default size initially)
     const geo = new THREE.PlaneGeometry(PANEL_W, PANEL_H); 
     const mat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
     // Fix TS2352: Convert to unknown first
@@ -236,41 +286,40 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     interactiveMeshesRef.current.push(mesh);
     panelMeshesRef.current.push(mesh);
     
-    // 2. Create Arrows
-    const arrowOffset = PANEL_W / 2 + 0.5; // Distance from center of panel
+    // 2. Create Arrows (Position them temporarily, they will be updated in applyTextureToMesh)
+    // We use a large temporary offset so they don't overlap the panel before loading
+    const tempOffset = PANEL_W / 2 + 2.0; 
     const arrowY = position.y;
-    const arrowZOffset = 0.01; // Push arrows slightly forward so they are clickable
+    const arrowZOffset = 0.01; 
 
-    // Calculate arrow positions relative to the wall
     let prevPos = new THREE.Vector3();
     let nextPos = new THREE.Vector3();
 
     if (wallName === 'east-wall' || wallName === 'west-wall') {
-      // East/West walls: Z is the horizontal axis
-      prevPos.set(position.x, arrowY, position.z - arrowOffset);
-      nextPos.set(position.x, arrowY, position.z + arrowOffset);
-      
-      // Adjust X position slightly forward based on rotation
-      const forwardDir = new THREE.Vector3(Math.cos(rotationY - Math.PI / 2), 0, Math.sin(rotationY - Math.PI / 2));
-      prevPos.add(forwardDir.multiplyScalar(arrowZOffset));
-      nextPos.add(forwardDir.multiplyScalar(arrowZOffset));
-
+      prevPos.set(position.x, arrowY, position.z - tempOffset);
+      nextPos.set(position.x, arrowY, position.z + tempOffset);
     } else {
-      // North/South walls: X is the horizontal axis
-      prevPos.set(position.x - arrowOffset, arrowY, position.z);
-      nextPos.set(position.x + arrowOffset, arrowY, position.z);
-      
-      // Adjust Z position slightly forward based on rotation
-      const forwardDir = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
-      prevPos.add(forwardDir.multiplyScalar(arrowZOffset));
-      nextPos.add(forwardDir.multiplyScalar(arrowZOffset));
+      prevPos.set(position.x - tempOffset, arrowY, position.z);
+      nextPos.set(position.x + tempOffset, arrowY, position.z);
     }
     
-    // Create the arrows
-    createArrowMesh(wallName, 'arrow-prev', prevPos, rotationY, scene);
-    createArrowMesh(wallName, 'arrow-next', nextPos, rotationY, scene);
+    // Adjust Z/X position slightly forward based on rotation (using the same logic as before)
+    const forwardDir = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
+    if (wallName === 'east-wall' || wallName === 'west-wall') {
+      forwardDir.set(Math.cos(rotationY - Math.PI / 2), 0, Math.sin(rotationY - Math.PI / 2));
+    }
+    prevPos.add(forwardDir.clone().multiplyScalar(arrowZOffset));
+    nextPos.add(forwardDir.clone().multiplyScalar(arrowZOffset));
 
-    // 3. Fetch and apply initial NFT
+
+    const arrowPrev = createArrowMesh(wallName, 'arrow-prev', prevPos, rotationY, scene);
+    const arrowNext = createArrowMesh(wallName, 'arrow-next', nextPos, rotationY, scene);
+    
+    // Store references on the panel mesh
+    mesh.userData.arrowPrev = arrowPrev;
+    mesh.userData.arrowNext = arrowNext;
+
+    // 3. Fetch and apply initial NFT (This will trigger the final arrow positioning)
     fetchAndApplyToMesh(wallName, mesh);
     
     return mesh;
