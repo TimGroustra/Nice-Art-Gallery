@@ -16,6 +16,7 @@ interface Panel {
   titleMesh: THREE.Mesh;
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
+  wallTitleMesh: THREE.Mesh;
   // New properties for scrolling description
   currentDescription: string;
   descriptionScrollY: number;
@@ -47,8 +48,8 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     const actualFontSize = fontSize;
     context.font = `bold ${actualFontSize}px Arial`;
     context.fillStyle = color;
-    context.textAlign = 'left';
-    context.textBaseline = 'top';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
 
     const padding = 40; // Increased from 20 to 40 for more breathing room
     const lineHeight = actualFontSize * 1.2;
@@ -56,22 +57,30 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     
     const words = text.split(' ');
     let line = '';
-    let y = padding;
+    let y = canvas.height / 2; // Start in the middle for single line text
 
-    for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = context.measureText(testLine);
-        const testWidth = metrics.width;
+    // This simplified version is for single-line centered text, good for titles
+    if (text.includes(' ')) { // Basic multi-line logic for descriptions
+        context.textAlign = 'left';
+        context.textBaseline = 'top';
+        y = padding;
+        for (let n = 0; n < words.length; n++) {
+            const testLine = line + words[n] + ' ';
+            const metrics = context.measureText(testLine);
+            const testWidth = metrics.width;
 
-        if (testWidth > maxTextWidth && n > 0) {
-            context.fillText(line, padding, y - scrollY);
-            line = words[n] + ' ';
-            y += lineHeight;
-        } else {
-            line = testLine;
+            if (testWidth > maxTextWidth && n > 0) {
+                context.fillText(line, padding, y - scrollY);
+                line = words[n] + ' ';
+                y += lineHeight;
+            } else {
+                line = testLine;
+            }
         }
+        context.fillText(line, padding, y - scrollY);
+    } else {
+        context.fillText(text, canvas.width / 2, y);
     }
-    context.fillText(line, padding, y - scrollY);
     
     const totalHeight = y + lineHeight - padding;
 
@@ -161,6 +170,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
       const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+      const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
@@ -208,6 +218,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
+      // Update wall title
+      if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
+        panel.wallTitleMesh.material.map.dispose();
+      }
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 100, 'white');
+      (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
+      panel.wallTitleMesh.visible = true;
+
       showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
@@ -224,6 +242,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh) panel.titleMesh.visible = false;
       if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
       if (panel.attributesMesh) panel.attributesMesh.visible = false;
+      if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
     }
   }, [loadTexture, manageVideoPlayback]);
 
@@ -368,9 +387,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
+      const wallTitleGeometry = new THREE.PlaneGeometry(4, 0.75);
+      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
+      wallTitleMesh.rotation.set(...config.rotation);
+      const wallTitlePosition = new THREE.Vector3(...config.position);
+      wallTitlePosition.y = 3.2; // Position it above the main panel
+      wallTitleMesh.position.copy(wallTitlePosition);
+      scene.add(wallTitleMesh);
+
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-        attributesMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+        attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
       };
       panelsRef.current.push(panel);
       
