@@ -34,7 +34,8 @@ let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
 
 // Helper function to create a text texture using Canvas
-const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white', scrollY: number = 0): { texture: THREE.CanvasTexture, totalHeight: number } => {
+const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
+    const { scrollY = 0, wordWrap = false } = options;
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
     if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')), totalHeight: 0 };
@@ -48,22 +49,19 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     const actualFontSize = fontSize;
     context.font = `bold ${actualFontSize}px Arial`;
     context.fillStyle = color;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-
-    const padding = 40; // Increased from 20 to 40 for more breathing room
-    const lineHeight = actualFontSize * 1.2;
-    const maxTextWidth = canvas.width - 2 * padding;
     
-    const words = text.split(' ');
-    let line = '';
-    let y = canvas.height / 2; // Start in the middle for single line text
+    const padding = 40;
+    const lineHeight = actualFontSize * 1.2;
+    let totalHeight = 0;
 
-    // This simplified version is for single-line centered text, good for titles
-    if (text.includes(' ')) { // Basic multi-line logic for descriptions
+    if (wordWrap) {
         context.textAlign = 'left';
         context.textBaseline = 'top';
-        y = padding;
+        let y = padding;
+        const words = text.split(' ');
+        let line = '';
+        const maxTextWidth = canvas.width - 2 * padding;
+
         for (let n = 0; n < words.length; n++) {
             const testLine = line + words[n] + ' ';
             const metrics = context.measureText(testLine);
@@ -78,11 +76,13 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
             }
         }
         context.fillText(line, padding, y - scrollY);
+        totalHeight = y + lineHeight - padding;
     } else {
-        context.fillText(text, canvas.width / 2, y);
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(text, canvas.width / 2, canvas.height / 2);
+        totalHeight = lineHeight;
     }
-    
-    const totalHeight = y + lineHeight - padding;
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
@@ -191,7 +191,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      const { texture: titleTexture } = createTextTexture(metadata.title, 1.5, 0.5, 80, 'white');
+      const { texture: titleTexture } = createTextTexture(metadata.title, 1.5, 0.5, 80, 'white', { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
@@ -199,7 +199,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.descriptionMesh.material.map.dispose();
       }
       const descriptionText = metadata.description; // Removed truncation
-      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, 1.5, 1.5, 40, 'lightgray');
+      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, 1.5, 1.5, 40, 'lightgray', { wordWrap: true });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
@@ -222,7 +222,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 100, 'white');
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 100, 'white', { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
@@ -327,7 +327,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
     const TEXT_PANEL_WIDTH = 1.5, TITLE_HEIGHT = 0.5, DESCRIPTION_HEIGHT = 1.5, TEXT_BLOCK_OFFSET_X = 3;
-    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white');
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
@@ -450,7 +450,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
-      const { texture } = createTextTexture(panel.currentDescription, 1.5, 1.5, 40, 'lightgray', panel.descriptionScrollY);
+      const { texture } = createTextTexture(panel.currentDescription, 1.5, 1.5, 40, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
     };
 
