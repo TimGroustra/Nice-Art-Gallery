@@ -283,7 +283,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
     // Create the outer floor for padding
-    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
     scene.add(outerFloor);
