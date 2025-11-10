@@ -383,76 +383,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // 7. Interaction (Raycasting)
     const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
     const center = new THREE.Vector2(0, 0); // Center of the screen for targeting
 
     const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
 
     const onDocumentMouseDown = (event: MouseEvent) => {
-      if (!controls.isLocked) return; // Use controls.isLocked directly
+      if (!controls.isLocked) return; 
 
-      // We use the center raycast result (currentTargetedArrow or currentTargetedPanel)
-      // if the user clicks while locked, as the mouse position is irrelevant.
+      console.log("Click detected while controls are locked.");
       
       if (currentTargetedArrow) {
+        console.log("Targeted Arrow clicked. Cycling NFT.");
         const panel = panelsRef.current.find(p => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow);
         if (panel) {
           const direction = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
           const updated = updatePanelIndex(panel.wallName, direction);
+          
           if (updated) {
+            console.log(`Successfully updated index for ${panel.wallName}. Loading new content.`);
             const newSource = getCurrentNftSource(panel.wallName);
             if (newSource) {
               updatePanelContent(panel, newSource);
             }
+          } else {
+            console.log(`Index update failed for ${panel.wallName}. (Maybe only one token available?)`);
           }
         }
       } else if (currentTargetedPanel) {
+        console.log("Targeted Panel clicked. Opening metadata modal.");
         // Clicked the NFT panel itself -> Open Metadata Modal
         if (currentTargetedPanel.metadataUrl) {
           onPanelClick(currentTargetedPanel.metadataUrl);
         }
       }
-      
-      // Original mouse-based raycasting logic (kept for reference, but center raycasting is better for PointerLockControls)
-      /*
-      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(interactiveMeshes);
-
-      if (intersects.length > 0) {
-        const intersectedMesh = intersects[0].object as THREE.Mesh;
-        const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
-
-        if (panel) {
-          if (intersectedMesh === panel.mesh) {
-            // Clicked the NFT panel itself -> Open Metadata Modal
-            if (panel.metadataUrl) {
-              onPanelClick(panel.metadataUrl);
-            }
-          } else if (intersectedMesh === panel.prevArrow) {
-            // Clicked Previous Arrow
-            const updated = updatePanelIndex(panel.wallName, 'prev');
-            if (updated) {
-              const newSource = getCurrentNftSource(panel.wallName);
-              if (newSource) {
-                updatePanelContent(panel, newSource);
-              }
-            }
-          } else if (intersectedMesh === panel.nextArrow) {
-            // Clicked Next Arrow
-            const updated = updatePanelIndex(panel.wallName, 'next');
-            if (updated) {
-              const newSource = getCurrentNftSource(panel.wallName);
-              if (newSource) {
-                updatePanelContent(panel, newSource);
-              }
-            }
-          }
-        }
-      }
-      */
     };
 
     document.addEventListener('mousedown', onDocumentMouseDown, false);
