@@ -47,10 +47,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     }
   }, []);
 
+  // Utility to create a fallback texture
+  const createFallbackTexture = useCallback((): THREE.Texture => {
+    const fallbackTexture = new THREE.Texture();
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 1;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#FF0000'; // Red color for error visibility
+      ctx.fillRect(0, 0, 1, 1);
+    }
+    fallbackTexture.image = canvas;
+    fallbackTexture.needsUpdate = true;
+    return fallbackTexture;
+  }, []);
+
 
   // --- Utility Functions for Three.js Content Management ---
 
-  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
+  const loadNftTexture = useCallback(async (url: string, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
     if (isVideo) {
       if (videoRef.current) {
         videoRef.current.pause();
@@ -65,39 +81,28 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
         return new THREE.VideoTexture(videoRef.current);
       }
-      // Fallback if video element is not ready, though unlikely
-      return new THREE.TextureLoader().load(url);
+      // Fallback if video element is not ready
+      return createFallbackTexture();
     }
     
     const loader = new THREE.TextureLoader();
     
-    // Create a simple 1x1 white texture as a fallback
-    const fallbackTexture = new THREE.Texture();
-    const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = '#FF0000'; // Red color for error visibility
-      ctx.fillRect(0, 0, 1, 1);
-    }
-    fallbackTexture.image = canvas;
-    fallbackTexture.needsUpdate = true;
-
-    return loader.load(url, 
-      (texture) => {
-        // Success
-        return texture;
-      }, 
-      undefined, 
-      (error) => {
-        console.error('Error loading texture:', url, error);
-        showError(`Failed to load image: ${url.substring(0, 50)}...`);
-        // Return the fallback texture on error
-        return fallbackTexture;
-      }
-    );
-  }, [manageVideoPlayback]);
+    return new Promise((resolve) => {
+      loader.load(url, 
+        (texture) => {
+          // Success
+          resolve(texture);
+        }, 
+        undefined, // onProgress
+        (error) => {
+          // Error
+          console.error('Error loading texture:', url, error);
+          showError(`Failed to load image: ${url.substring(0, 50)}...`);
+          resolve(createFallbackTexture());
+        }
+      );
+    });
+  }, [manageVideoPlayback, createFallbackTexture]);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
@@ -110,7 +115,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         manageVideoPlayback(false);
       }
 
-      const texture = loadTexture(imageUrl, isVideo);
+      // Await the texture loading
+      const texture = await loadNftTexture(imageUrl, isVideo);
       
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
@@ -140,7 +146,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       panel.metadataUrl = '';
       panel.isVideo = false;
     }
-  }, [loadTexture, manageVideoPlayback]);
+  }, [loadNftTexture, manageVideoPlayback]);
 
   // --- Three.js Setup Effect ---
 
@@ -573,7 +579,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       currentTargetedPanel = null; 
       currentTargetedArrow = null;
     };
-  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback, createFallbackTexture]);
 
   return (
     <>
