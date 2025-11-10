@@ -290,7 +290,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(roomSize, roomSize),
-      new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ map: floorTexture, side: THREE.DoubleSide })
     );
     floor.rotation.x = Math.PI / 2;
     scene.add(floor);
