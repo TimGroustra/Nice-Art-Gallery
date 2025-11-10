@@ -163,9 +163,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // --- Scene Elements ---
 
-    // Floor
+    // Floor (Highly reflective material for mirror effect)
     const floorGeo = new THREE.CircleGeometry(8, 64);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.2, roughness: 0.6 });
+    const floorMat = new THREE.MeshStandardMaterial({ 
+      color: 0x111111, 
+      metalness: 0.9, // High metalness
+      roughness: 0.1, // Low roughness for mirror effect
+    });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
@@ -185,18 +189,33 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     makeWall(16, 4, wallThickness, 0, 8);  // front
     makeWall(wallThickness, 4, 16, -8, 0); // left
     makeWall(wallThickness, 4, 16, 8, 0);  // right
+    
+    // Ceiling (Highly reflective material)
+    const ceilingGeo = new THREE.CircleGeometry(8, 64);
+    const ceilingMat = new THREE.MeshStandardMaterial({ 
+      color: 0x111111, 
+      metalness: 0.9, 
+      roughness: 0.1, 
+      side: THREE.DoubleSide // Ensure it renders from below
+    });
+    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.position.y = 4; // Assuming room height is 4
+    ceiling.rotation.x = Math.PI / 2;
+    room.add(ceiling);
+    
     scene.add(room);
 
     // Lights
     const lights: THREE.PointLight[] = [];
     const lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    const lightHeight = 3.8; // Close to the ceiling
     for (let i = 0; i < 3; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 2.5, 15, 2);
-      pl.position.set(Math.cos(i / 3 * Math.PI * 2) * 3, 2.5, Math.sin(i / 3 * Math.PI * 2) * 3);
+      const pl = new THREE.PointLight(lightColors[i], 5.0, 15, 2); // Increased intensity
+      pl.position.set(Math.cos(i / 3 * Math.PI * 2) * 3, lightHeight, Math.sin(i / 3 * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
-    const amb = new THREE.AmbientLight(0xaaaaaa, 1.0);
+    const amb = new THREE.AmbientLight(0xaaaaaa, 0.5); // Reduced ambient light to emphasize point lights
     scene.add(amb);
 
     // Setup initial panels
