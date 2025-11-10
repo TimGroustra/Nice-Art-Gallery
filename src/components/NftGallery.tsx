@@ -39,8 +39,8 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     // 1. Make background transparent
     context.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Adjust font size relative to canvas height
-    const actualFontSize = fontSize * (resolution / height);
+    // Use the provided fontSize directly as a pixel value for the canvas context
+    const actualFontSize = fontSize;
     context.font = `bold ${actualFontSize}px Arial`; // Set font to bold
     context.fillStyle = color;
     context.textAlign = 'left';
@@ -154,21 +154,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
-      // 1. Update Title Text (Increased size to 60)
+      // 1. Update Title Text (Using large, bold font)
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      const titleTexture = createTextTexture(metadata.title, 1.5, 0.5, 60, 'white');
+      const titleTexture = createTextTexture(metadata.title, 1.5, 0.5, 80, 'white');
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
-      // 2. Update Description Text (Increased size to 30)
+      // 2. Update Description Text (Using large, bold font)
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
       // Limit description length for readability on the small panel
       const descriptionText = metadata.description.length > 150 ? metadata.description.substring(0, 147) + '...' : metadata.description;
-      const descriptionTexture = createTextTexture(descriptionText, 1.5, 1.5, 30, 'lightgray');
+      const descriptionTexture = createTextTexture(descriptionText, 1.5, 1.5, 40, 'lightgray');
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
