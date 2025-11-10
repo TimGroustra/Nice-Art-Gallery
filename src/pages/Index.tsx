@@ -6,7 +6,14 @@ import React, { useState, useCallback } from "react";
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
 
-  // Removed handlePanelClick as the modal is gone
+  const handlePanelClick = useCallback((metadataUrl: string) => {
+    // The NftGallery component calls window.openMetadataModal directly, 
+    // but we keep this handler structure for future state management if needed.
+    const openModal = (window as any).openMetadataModal;
+    if (openModal) {
+      openModal(metadataUrl);
+    }
+  }, []);
 
   const handleLockClick = useCallback(() => {
     const galleryControls = (window as any).galleryControls;
@@ -20,6 +27,7 @@ const Index = () => {
     <div className="relative w-screen h-screen overflow-hidden">
       {/* 3D Canvas */}
       <NftGallery 
+        onPanelClick={handlePanelClick} 
         setInstructionsVisible={setInstructionsVisible}
       />
       
