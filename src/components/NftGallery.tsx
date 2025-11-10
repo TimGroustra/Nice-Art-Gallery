@@ -164,14 +164,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
 
     // Floor
     const floorGeo = new THREE.CircleGeometry(8, 64);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x111122, metalness: 0.2, roughness: 0.6 });
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x222233, metalness: 0.2, roughness: 0.6 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
     // Walls
     const room = new THREE.Group();
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x11111f, roughness: 0.7 });
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x22222f, roughness: 0.7 });
     const wallThickness = 0.2;
     function makeWall(w: number, h: number, d: number, x: number, z: number, ry = 0) {
       const g = new THREE.BoxGeometry(w, h, d);
@@ -190,12 +190,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
     const lights: THREE.PointLight[] = [];
     const lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < 3; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 1.2, 15, 2);
+      const pl = new THREE.PointLight(lightColors[i], 2.5, 15, 2);
       pl.position.set(Math.cos(i / 3 * Math.PI * 2) * 3, 2.5, Math.sin(i / 3 * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
-    const amb = new THREE.AmbientLight(0x404050, 0.6);
+    const amb = new THREE.AmbientLight(0xaaaaaa, 1.0);
     scene.add(amb);
 
     // Setup initial panels
