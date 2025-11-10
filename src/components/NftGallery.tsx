@@ -20,6 +20,7 @@ interface PanelMesh extends THREE.Mesh {
 
 interface NftGalleryProps {
   onPanelClick: (metadataUrl: string) => void;
+  setInstructionsVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 // Utility: normalize ipfs:// to https gateway
@@ -42,7 +43,7 @@ const initialSamplePanels = [
   "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
 ];
 
-const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   const panelMeshesRef = useRef<PanelMesh[]>([]);
@@ -51,7 +52,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
   const moveStateRef = useRef({ forward: 0, backward: 0, left: 0, right: 0 });
   const speed = 4.0;
 
-  const [instructionsVisible, setInstructionsVisible] = useState(true);
   const selectedPanelRef = useRef<PanelMesh | null>(null);
 
   // --- Panel Logic ---
@@ -306,7 +306,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh]);
+  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, setInstructionsVisible]);
 
   // Pass imperative functions up to the parent component
   useEffect(() => {

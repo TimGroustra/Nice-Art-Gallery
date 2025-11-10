@@ -28,6 +28,7 @@ const Index = () => {
       {/* 3D Canvas */}
       <NftGallery 
         onPanelClick={handlePanelClick} 
+        setInstructionsVisible={setInstructionsVisible}
       />
       
       {/* 2D Overlay UI */}
