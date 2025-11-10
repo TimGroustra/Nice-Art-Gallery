@@ -1,21 +1,14 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig';
-
-// Define types for the panel mesh userData
-interface PanelMetadata {
-  title: string;
-  description: string;
-  image: string;
-  source: string;
-}
+import { GALLERY_PANEL_CONFIG, NftSource } from '@/config/galleryConfig';
+import { fetchNftMetadata, NftMetadata } from '@/utils/nftFetcher';
 
 interface PanelMesh extends THREE.Mesh {
   userData: {
-    metadataUrl: string;
+    nftSource: NftSource;
     loaded: boolean;
-    metadata?: PanelMetadata;
+    metadata?: NftMetadata;
     videoElement?: HTMLVideoElement; // Added for video handling
   };
 }
@@ -23,16 +16,6 @@ interface PanelMesh extends THREE.Mesh {
 interface NftGalleryProps {
   onPanelClick: (metadataUrl: string) => void;
   setInstructionsVisible: React.Dispatch<React.SetStateAction<boolean>>;
-}
-
-// Utility: normalize ipfs:// to https gateway
-function normalizeUrl(url: string): string {
-  if (!url) return url;
-  url = url.trim();
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  }
-  return url;
 }
 
 // Define position names for mapping
@@ -89,7 +72,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   // --- Panel Logic ---
 
-  const applyTextureToMesh = useCallback((mesh: PanelMesh, texture: THREE.Texture, imageAspect: number, metadataUrl: string, json: any, videoElement?: HTMLVideoElement) => {
+  const applyTextureToMesh = useCallback((mesh: PanelMesh, texture: THREE.Texture, imageAspect: number, metadata: NftMetadata, videoElement?: HTMLVideoElement) => {
     // 1. Calculate Aspect Ratio
     
     let newW = MAX_W;
@@ -114,34 +97,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     material.needsUpdate = true;
     
     mesh.userData.loaded = true;
-    mesh.userData.metadata = {
-      title: json.name || '',
-      description: json.description || '',
-      image: json.image || json.image_url || json.imageURI || json.gif,
-      source: metadataUrl
-    };
+    mesh.userData.metadata = metadata;
+    
     if (videoElement) {
       mesh.userData.videoElement = videoElement;
     }
   }, [MAX_W, MAX_H]);
 
 
-  const fetchAndApplyToMesh = useCallback(async (metadataUrl: string, mesh: PanelMesh) => {
-    const url = normalizeUrl(metadataUrl);
-    mesh.userData.metadataUrl = metadataUrl;
+  const fetchAndApplyToMesh = useCallback(async (nftSource: NftSource, mesh: PanelMesh) => {
+    const { contractAddress, tokenId } = nftSource;
+    const identifier = `${contractAddress}/${tokenId}`;
+    
+    mesh.userData.nftSource = nftSource;
     mesh.userData.loaded = false;
     // Use a slightly brighter material initially so spotlights work well
     mesh.material = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
     (mesh.material as THREE.MeshStandardMaterial).needsUpdate = true;
 
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error('Metadata fetch failed ' + res.status);
-      const json = await res.json();
-
-      let mediaUrl = json.image || json.image_url || json.imageURI || json.gif;
-      mediaUrl = normalizeUrl(mediaUrl);
-      if (!mediaUrl) throw new Error('No media field in metadata');
+      // 1. Fetch metadata using the new utility
+      const metadata = await fetchNftMetadata(contractAddress, tokenId);
+      
+      let mediaUrl = metadata.image;
+      if (!mediaUrl) throw new Error('No media URL found in metadata');
 
       const isVideo = isVideoUrl(mediaUrl);
 
@@ -163,7 +142,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           texture.colorSpace = THREE.SRGBColorSpace;
           const imageAspect = video.videoWidth / video.videoHeight;
           
-          applyTextureToMesh(mesh, texture, imageAspect, metadataUrl, json, video);
+          applyTextureToMesh(mesh, texture, imageAspect, metadata, video);
           video.play().catch(e => console.warn("Video autoplay failed:", e));
         };
         
@@ -182,35 +161,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           (tex) => {
             tex.colorSpace = THREE.SRGBColorSpace;
             const imageAspect = tex.image.width / tex.image.height;
-            applyTextureToMesh(mesh, tex, imageAspect, metadataUrl, json);
+            applyTextureToMesh(mesh, tex, imageAspect, metadata);
           },
           (xhr) => {
             // console.log((xhr.loaded / xhr.total * 100) + '% loaded');
           },
           (err) => {
-            console.warn('Texture load error for:', metadataUrl, err);
+            console.warn('Texture load error for:', identifier, err);
             removeMesh(mesh); // Remove mesh on texture load failure
           }
         );
       }
 
     } catch (err) {
-      console.warn('fetchAndApplyToMesh error for:', metadataUrl, err);
+      console.warn('fetchAndApplyToMesh error for:', identifier, err);
       removeMesh(mesh); // Remove mesh on metadata fetch failure
     }
   }, [MAX_W, MAX_H, applyTextureToMesh, removeMesh]);
 
-  const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, metadataUrl: string) => {
+  const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, nftSource: NftSource) => {
     // Start with max dimensions, they will be resized upon texture load
     const geo = new THREE.PlaneGeometry(MAX_W, MAX_H); 
     const mat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(geo, mat) as unknown as PanelMesh;
     mesh.position.copy(position);
     mesh.rotation.y = rotationY;
-    mesh.userData = { metadataUrl: metadataUrl, loaded: false };
+    mesh.userData = { nftSource: nftSource, loaded: false };
     scene.add(mesh);
+    if (nftSource) fetchAndApplyToMesh(nftSource, mesh);
     panelMeshesRef.current.push(mesh);
-    if (metadataUrl) fetchAndApplyToMesh(metadataUrl, mesh);
     return mesh;
   }, [fetchAndApplyToMesh, MAX_W, MAX_H]);
 
@@ -228,8 +207,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const panelCenters = [-6, -3, 0, 3, 6]; // 5 positions
     const panelY = 1.8;
     
-    // Helper to get URL based on wall name and index (0-4)
-    const getUrl = (wallName: string, index: number) => {
+    // Helper to get NFT source config based on wall name and index (0-4)
+    const getSourceConfig = (wallName: string, index: number): NftSource | null => {
       let positionKey: string;
       
       // East and South walls iterate from Left-to-Right relative to the wall face.
@@ -242,46 +221,46 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       }
       
       const key = `${wallName}-${positionKey}`;
-      return GALLERY_PANEL_CONFIG[key] || '';
+      return GALLERY_PANEL_CONFIG[key] || null;
     };
 
     // 1. East Wall (Right wall, X = 7.89, Rot = PI/2)
     panelCenters.forEach((z, index) => {
-      const url = getUrl('east-wall', index);
-      if (url) {
+      const sourceConfig = getSourceConfig('east-wall', index);
+      if (sourceConfig) {
         const pos = new THREE.Vector3(7.89, panelY, z);
         const rot = Math.PI / 2; // face -x
-        createPanel(scene, pos, rot, url);
+        createPanel(scene, pos, rot, sourceConfig);
       }
     });
     
     // 2. West Wall (Left wall, X = -7.89, Rot = -PI/2)
     panelCenters.forEach((z, index) => {
-      const url = getUrl('west-wall', index);
-      if (url) {
+      const sourceConfig = getSourceConfig('west-wall', index);
+      if (sourceConfig) {
         const pos = new THREE.Vector3(-7.89, panelY, z);
         const rot = -Math.PI / 2; // face +x
-        createPanel(scene, pos, rot, url);
+        createPanel(scene, pos, rot, sourceConfig);
       }
     });
 
     // 3. South Wall (Back wall, Z = -7.89, Rot = 0)
     panelCenters.forEach((x, index) => {
-      const url = getUrl('south-wall', index);
-      if (url) {
+      const sourceConfig = getSourceConfig('south-wall', index);
+      if (sourceConfig) {
         const pos = new THREE.Vector3(x, panelY, -7.89);
         const rot = 0; // face +z
-        createPanel(scene, pos, rot, url);
+        createPanel(scene, pos, rot, sourceConfig);
       }
     });
 
     // 4. North Wall (Front wall, Z = 7.89, Rot = PI)
     panelCenters.forEach((x, index) => {
-      const url = getUrl('north-wall', index);
-      if (url) {
+      const sourceConfig = getSourceConfig('north-wall', index);
+      if (sourceConfig) {
         const pos = new THREE.Vector3(x, panelY, 7.89);
         const rot = Math.PI; // face -z
-        createPanel(scene, pos, rot, url);
+        createPanel(scene, pos, rot, sourceConfig);
       }
     });
 
@@ -486,7 +465,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
       if (intersects.length > 0) {
         const mesh = intersects[0].object as PanelMesh;
-        const meta = mesh.userData.metadataUrl;
+        
+        // We now pass the metadata source URL (tokenURI resolved) to the UI
+        const metaSourceUrl = mesh.userData.metadata?.source;
         
         // Update selected video state
         if (mesh.userData.videoElement) {
@@ -502,8 +483,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           setSelectedVideoMuted(true); // Default to muted state if not a video
         }
 
-        if (meta) {
-          onPanelClick(meta);
+        if (metaSourceUrl) {
+          onPanelClick(metaSourceUrl);
         }
       }
     };
@@ -619,7 +600,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   // Pass imperative functions up to the parent component
   useEffect(() => {
     (window as any).galleryControls = {
-      getSelectedPanelUrl: () => selectedPanelRef.current?.userData.metadataUrl || '',
+      // We now return the metadata source URL, which is the resolved tokenURI
+      getSelectedPanelUrl: () => selectedPanelRef.current?.userData.metadata?.source || '',
       lockControls: () => controlsRef.current?.lock(),
       toggleMute: toggleMute,
       isMuted: () => selectedVideoMuted,

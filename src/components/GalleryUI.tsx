@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { X, Volume2, VolumeX } from 'lucide-react';
+import { normalizeUrl } from '@/utils/nftFetcher'; // Import shared utility
 
 interface Metadata {
   title: string;
@@ -15,16 +16,6 @@ interface GalleryUIProps {
   onLockClick: () => void;
 }
 
-// Utility: normalize ipfs:// to https gateway (duplicated from NftGallery for standalone fetch)
-function normalizeUrl(url: string): string {
-  if (!url) return url;
-  url = url.trim();
-  if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
-  }
-  return url;
-}
-
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMetadata, setModalMetadata] = useState<Metadata | null>(null);
@@ -36,10 +27,14 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     setIsModalOpen(true);
     setModalMetadata(null); // Clear previous data
 
-    const url = normalizeUrl(metadataUrl);
+    // metadataUrl is now expected to be the resolved HTTP/HTTPS URL (passed from NftGallery)
+    const url = metadataUrl; 
+    
     try {
       const res = await fetch(url);
       const json = await res.json();
+      
+      // We still need to normalize the image URL found inside the metadata JSON
       let imageUrl = normalizeUrl(json.image || json.image_url || json.gif || '');
 
       setModalMetadata({

@@ -1,46 +1,50 @@
-export interface PanelConfig {
-  [key: string]: string; // Key is the panel identifier (e.g., 'north-wall-center-center'), value is the metadata URL
+export interface NftSource {
+  contractAddress: string;
+  tokenId: number;
 }
 
-// Sample metadata URLs used to populate the gallery initially
-const SAMPLE_URLS = [
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample3.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
-];
+export interface PanelConfig {
+  [key: string]: NftSource | null; // Key is the panel identifier, value is the NFT source or null
+}
 
-// Helper to cycle through sample URLs to ensure all 20 panels have content
-const getSampleUrl = (index: number) => SAMPLE_URLS[index % SAMPLE_URLS.length];
+// The contract address provided by the user (Electroneum Block Explorer)
+const COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+
+// Helper to generate NFT source objects
+const getSource = (tokenId: number): NftSource => ({
+  contractAddress: COLLECTION_ADDRESS,
+  tokenId: tokenId,
+});
+
+// Helper to cycle through token IDs (1 to 20)
+const getTokenId = (index: number) => index + 1;
 
 export const GALLERY_PANEL_CONFIG: PanelConfig = {
-  // --- East Wall (Right side of the room, Z increases from Left-to-Right when facing the wall) ---
-  'east-wall-left-left': getSampleUrl(0),
-  'east-wall-left-center': getSampleUrl(1),
-  'east-wall-center-center': getSampleUrl(2),
-  'east-wall-right-center': getSampleUrl(3),
-  'east-wall-right-right': getSampleUrl(4),
+  // --- East Wall (Right side of the room) ---
+  'east-wall-left-left': getSource(getTokenId(0)),
+  'east-wall-left-center': getSource(getTokenId(1)),
+  'east-wall-center-center': getSource(getTokenId(2)),
+  'east-wall-right-center': getSource(getTokenId(3)),
+  'east-wall-right-right': getSource(getTokenId(4)),
 
-  // --- West Wall (Left side of the room, Z increases from Right-to-Left when facing the wall) ---
-  'west-wall-right-right': getSampleUrl(5), // Z=-6
-  'west-wall-right-center': getSampleUrl(6), // Z=-3
-  'west-wall-center-center': getSampleUrl(7), // Z=0
-  'west-wall-left-center': getSampleUrl(8), // Z=3
-  'west-wall-left-left': getSampleUrl(9), // Z=6
+  // --- West Wall (Left side of the room) ---
+  'west-wall-right-right': getSource(getTokenId(5)),
+  'west-wall-right-center': getSource(getTokenId(6)),
+  'west-wall-center-center': getSource(getTokenId(7)),
+  'west-wall-left-center': getSource(getTokenId(8)),
+  'west-wall-left-left': getSource(getTokenId(9)),
 
-  // --- South Wall (Back wall, X increases from Left-to-Right when facing the wall) ---
-  'south-wall-left-left': getSampleUrl(10),
-  'south-wall-left-center': getSampleUrl(11),
-  'south-wall-center-center': getSampleUrl(12),
-  'south-wall-right-center': getSampleUrl(13),
-  'south-wall-right-right': getSampleUrl(14),
+  // --- South Wall (Back wall) ---
+  'south-wall-left-left': getSource(getTokenId(10)),
+  'south-wall-left-center': getSource(getTokenId(11)),
+  'south-wall-center-center': getSource(getTokenId(12)),
+  'south-wall-right-center': getSource(getTokenId(13)),
+  'south-wall-right-right': getSource(getTokenId(14)),
 
-  // --- North Wall (Front wall, X increases from Right-to-Left when facing the wall) ---
-  'north-wall-right-right': getSampleUrl(15), // X=-6
-  'north-wall-right-center': getSampleUrl(16), // X=-3
-  'north-wall-center-center': getSampleUrl(17), // X=0
-  'north-wall-left-center': getSampleUrl(18), // X=3
-  'north-wall-left-left': getSampleUrl(19), // X=6
+  // --- North Wall (Front wall) ---
+  'north-wall-right-right': getSource(getTokenId(15)),
+  'north-wall-right-center': getSource(getTokenId(16)),
+  'north-wall-center-center': getSource(getTokenId(17)),
+  'north-wall-left-center': getSource(getTokenId(18)),
+  'north-wall-left-left': getSource(getTokenId(19)),
 };
