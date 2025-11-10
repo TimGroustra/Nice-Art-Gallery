@@ -15,6 +15,7 @@ interface PanelMesh extends THREE.Mesh {
     metadataUrl: string;
     loaded: boolean;
     metadata?: PanelMetadata;
+    videoElement?: HTMLVideoElement; // Added for video handling
   };
 }
 
@@ -41,6 +42,21 @@ const initialSamplePanels = [
   "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
   "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
   "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
+  // Adding more samples to fill the 20 slots, cycling through existing ones
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample3.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample3.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
+  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
 ];
 
 const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
@@ -64,7 +80,51 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   // Define room boundaries (slightly inside the walls at +/- 8)
   const BOUNDARY = 7.5; 
 
+  // Utility to check if a URL points to a video file
+  const isVideoUrl = (url: string): boolean => {
+    if (!url) return false;
+    const lowerUrl = url.toLowerCase();
+    return lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.webm') || lowerUrl.endsWith('.ogg');
+  };
+
   // --- Panel Logic ---
+
+  const applyTextureToMesh = useCallback((mesh: PanelMesh, texture: THREE.Texture, imageAspect: number, metadataUrl: string, json: any, videoElement?: HTMLVideoElement) => {
+    // 1. Calculate Aspect Ratio
+    
+    let newW = MAX_W;
+    let newH = MAX_H;
+
+    // 2. Determine new dimensions based on constraints
+    if (imageAspect > MAX_W / MAX_H) {
+      // Image is wider than the max frame aspect ratio (constrained by MAX_W)
+      newH = MAX_W / imageAspect;
+    } else {
+      // Image is taller than the max frame aspect ratio (constrained by MAX_H)
+      newW = MAX_H * imageAspect;
+    }
+
+    // 3. Update Geometry
+    mesh.geometry.dispose();
+    mesh.geometry = new THREE.PlaneGeometry(newW, newH);
+    
+    // 4. Apply Texture
+    const material = mesh.material as THREE.MeshStandardMaterial;
+    material.map = texture;
+    material.needsUpdate = true;
+    
+    mesh.userData.loaded = true;
+    mesh.userData.metadata = {
+      title: json.name || '',
+      description: json.description || '',
+      image: json.image || json.image_url || json.imageURI || json.gif,
+      source: metadataUrl
+    };
+    if (videoElement) {
+      mesh.userData.videoElement = videoElement;
+    }
+  }, [MAX_W, MAX_H]);
+
 
   const fetchAndApplyToMesh = useCallback(async (metadataUrl: string, mesh: PanelMesh) => {
     const url = normalizeUrl(metadataUrl);
@@ -79,60 +139,63 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       if (!res.ok) throw new Error('Metadata fetch failed ' + res.status);
       const json = await res.json();
 
-      let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
-      imageUrl = normalizeUrl(imageUrl);
-      if (!imageUrl) throw new Error('No image field in metadata');
+      let mediaUrl = json.image || json.image_url || json.imageURI || json.gif;
+      mediaUrl = normalizeUrl(mediaUrl);
+      if (!mediaUrl) throw new Error('No media field in metadata');
 
-      const loader = new THREE.TextureLoader();
-      loader.crossOrigin = '';
-      loader.load(imageUrl,
-        (tex) => {
-          tex.colorSpace = THREE.SRGBColorSpace;
-          
-          // 1. Calculate Aspect Ratio
-          const imageAspect = tex.image.width / tex.image.height;
-          
-          let newW = MAX_W;
-          let newH = MAX_H;
+      const isVideo = isVideoUrl(mediaUrl);
 
-          // 2. Determine new dimensions based on constraints
-          if (imageAspect > MAX_W / MAX_H) {
-            // Image is wider than the max frame aspect ratio (constrained by MAX_W)
-            newH = MAX_W / imageAspect;
-          } else {
-            // Image is taller than the max frame aspect ratio (constrained by MAX_H)
-            newW = MAX_H * imageAspect;
+      if (isVideo) {
+        // Handle Video
+        const video = document.createElement('video');
+        video.src = mediaUrl;
+        video.loop = true;
+        video.muted = true; // Muted is required for autoplay in most browsers
+        video.autoplay = true;
+        video.playsInline = true;
+        video.crossOrigin = 'anonymous';
+        video.style.display = 'none'; // Keep it hidden
+        document.body.appendChild(video);
+
+        // Wait for video metadata to load to get dimensions
+        video.onloadedmetadata = () => {
+          const texture = new THREE.VideoTexture(video);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          const imageAspect = video.videoWidth / video.videoHeight;
+          
+          applyTextureToMesh(mesh, texture, imageAspect, metadataUrl, json, video);
+          video.play().catch(e => console.warn("Video autoplay failed:", e));
+        };
+        
+        // Handle cleanup if loading fails or component unmounts
+        video.onerror = (e) => {
+          console.warn('Video load error for:', mediaUrl, e);
+          document.body.removeChild(video);
+        };
+
+      } else {
+        // Handle Image (including GIFs, which will load as static textures)
+        const loader = new THREE.TextureLoader();
+        loader.crossOrigin = '';
+        loader.load(mediaUrl,
+          (tex) => {
+            tex.colorSpace = THREE.SRGBColorSpace;
+            const imageAspect = tex.image.width / tex.image.height;
+            applyTextureToMesh(mesh, tex, imageAspect, metadataUrl, json);
+          },
+          (xhr) => {
+            // console.log((xhr.loaded / xhr.total * 100) + '% loaded');
+          },
+          (err) => {
+            console.warn('Texture load error for:', metadataUrl, err);
           }
-
-          // 3. Update Geometry
-          mesh.geometry.dispose();
-          mesh.geometry = new THREE.PlaneGeometry(newW, newH);
-          
-          // 4. Apply Texture
-          const material = mesh.material as THREE.MeshStandardMaterial;
-          material.map = tex;
-          material.needsUpdate = true;
-          
-          mesh.userData.loaded = true;
-          mesh.userData.metadata = {
-            title: json.name || '',
-            description: json.description || '',
-            image: imageUrl,
-            source: metadataUrl
-          };
-        },
-        (xhr) => {
-          // console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-        },
-        (err) => {
-          console.warn('Texture load error for:', metadataUrl, err);
-        }
-      );
+        );
+      }
 
     } catch (err) {
       console.warn('fetchAndApplyToMesh error for:', metadataUrl, err);
     }
-  }, [MAX_W, MAX_H]);
+  }, [MAX_W, MAX_H, applyTextureToMesh]);
 
   const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, metadataUrl: string) => {
     // Start with max dimensions, they will be resized upon texture load
@@ -149,11 +212,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   }, [fetchAndApplyToMesh, MAX_W, MAX_H]);
 
   const setupPanels = useCallback((scene: THREE.Scene, urls: string[]) => {
-    // Clear existing
-    panelMeshesRef.current.forEach(m => scene.remove(m));
+    // Clear existing and clean up video elements
+    panelMeshesRef.current.forEach(m => {
+      if (m.userData.videoElement) {
+        m.userData.videoElement.pause();
+        m.userData.videoElement.remove();
+      }
+      scene.remove(m);
+    });
     panelMeshesRef.current.length = 0;
 
-    const panelCenters = [-6, -3, 0, 3, 6]; // 5 panels, 3 units spacing, 1.8m high
+    const panelCenters = [-6, -3, 0, 3, 6]; // 5 panels, 3 units spacing
     const panelY = 1.8;
     
     // Helper to get URL, cycling through the provided list
@@ -391,6 +460,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         const mesh = intersects[0].object as PanelMesh;
         const meta = mesh.userData.metadataUrl;
         if (meta) {
+          // If it's a video, attempt to toggle play/pause on click
+          if (mesh.userData.videoElement) {
+            const video = mesh.userData.videoElement;
+            if (video.paused) {
+              video.play().catch(e => console.warn("Video play failed on click:", e));
+            } else {
+              video.pause();
+            }
+          }
           onPanelClick(meta);
         }
       }
@@ -458,6 +536,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         }
       }
 
+      // Update video textures
+      panelMeshesRef.current.forEach(mesh => {
+        if (mesh.userData.videoElement && mesh.material instanceof THREE.MeshStandardMaterial && mesh.material.map instanceof THREE.VideoTexture) {
+          mesh.material.map.needsUpdate = true;
+        }
+      });
+
       renderer.render(scene, camera);
     };
 
@@ -469,6 +554,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       document.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', onWindowResize);
       document.removeEventListener('click', onDocumentClick);
+      
+      // Clean up video elements
+      panelMeshesRef.current.forEach(m => {
+        if (m.userData.videoElement) {
+          m.userData.videoElement.pause();
+          m.userData.videoElement.remove();
+        }
+      });
+
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       renderer.dispose();
