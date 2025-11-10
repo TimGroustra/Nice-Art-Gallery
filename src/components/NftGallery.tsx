@@ -277,7 +277,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     let moveRight = false;
     const velocity = new THREE.Vector3();
     const direction = new THREE.Vector3();
-    const speed = 10.0; // Movement speed
+    const speed = 20.0; // Movement speed increased to 20.0
 
     const onKeyDown = (event: KeyboardEvent) => {
       switch (event.code) {
