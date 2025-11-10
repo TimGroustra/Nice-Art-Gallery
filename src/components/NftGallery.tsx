@@ -53,7 +53,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const speed = 4.0;
 
   const selectedPanelRef = useRef<PanelMesh | null>(null);
-  const ceilingBlocksRef = useRef<THREE.Mesh[]>([]);
 
   // Define max dimensions for the panels
   const MAX_W = 1.8;
@@ -64,10 +63,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   // Define room boundaries (slightly inside the walls at +/- 8)
   const BOUNDARY = 7.5; 
-
-  // Disco colors (used for both point lights and ceiling blocks)
-  const lightColors = [0xFF0000, 0xFF8C00, 0xFFFF00, 0x00FF00, 0x0000FF, 0x4B0082, 0xEE82EE];
-  const colorObjects = lightColors.map(c => new THREE.Color(c));
 
   // --- Panel Logic ---
 
@@ -158,7 +153,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     panelMeshesRef.current.forEach(m => scene.remove(m));
     panelMeshesRef.current.length = 0;
 
-    const panelCenters = [-6, -3, 0, 3, 6]; // 5 panels
+    const panelCenters = [-6, -3, 0, 3, 6]; // 5 panels, 3 units spacing, 1.8m high
     const panelY = 1.8;
     
     // Helper to get URL, cycling through the provided list
@@ -228,8 +223,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const floorGeo = new THREE.CircleGeometry(8, 64);
     const floorMat = new THREE.MeshStandardMaterial({ 
       color: 0x111111, 
-      metalness: 1.0, // Max metalness for mirror effect
-      roughness: 0.1, // Low roughness for mirror effect
+      metalness: 0.7, 
+      roughness: 0.3, 
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -252,29 +247,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     makeWall(wallThickness, 4, 16, -8, 0); // left
     makeWall(wallThickness, 4, 16, 8, 0);  // right
     
-    // Ceiling Grid (Disco Floor Effect)
-    const gridSize = 16; // 16x16 grid
-    const blockSize = 16 / gridSize; // 1 unit per block
-    const blockHeight = 0.1;
-    const ceilingY = 4 - blockHeight / 2; // Positioned just below the top edge of the room (y=4)
-    
-    const blockGeo = new THREE.BoxGeometry(blockSize, blockHeight, blockSize);
-    const baseCeilingMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.7, roughness: 0.3 });
-
-    for (let i = 0; i < gridSize; i++) {
-      for (let j = 0; j < gridSize; j++) {
-        const mat = baseCeilingMat.clone();
-        mat.emissive = new THREE.Color(0x000000); // Start dark
-        
-        const block = new THREE.Mesh(blockGeo, mat);
-        block.position.x = (i - gridSize / 2 + 0.5) * blockSize;
-        block.position.y = ceilingY;
-        block.position.z = (j - gridSize / 2 + 0.5) * blockSize;
-        
-        room.add(block);
-        ceilingBlocksRef.current.push(block);
-      }
-    }
+    // Ceiling (Highly reflective material)
+    const ceilingGeo = new THREE.CircleGeometry(8, 64);
+    const ceilingMat = new THREE.MeshStandardMaterial({ 
+      color: 0x111111, 
+      metalness: 0.7, 
+      roughness: 0.3, 
+      side: THREE.DoubleSide 
+    });
+    const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+    ceiling.position.y = 4; // Assuming room height is 4
+    ceiling.rotation.x = Math.PI / 2;
+    room.add(ceiling);
     
     scene.add(room);
 
@@ -414,10 +398,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     document.addEventListener('click', onDocumentClick);
 
     // --- Animation Loop ---
-    let lastFlashTime = 0;
-    const flashInterval = 100; // Flash every 100ms
 
-    const animate = (time: number) => {
+    const animate = () => {
       requestAnimationFrame(animate);
       const delta = clockRef.current.getDelta();
       
@@ -433,24 +415,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         discoLights[i].position.x = Math.cos(a + i) * radiusFactor;
         discoLights[i].position.z = Math.sin(a + i) * radiusFactor;
       }
-      
-      // Disco Ceiling Flash Logic
-      if (time - lastFlashTime > flashInterval) {
-        lastFlashTime = time;
-        ceilingBlocksRef.current.forEach(block => {
-          const material = block.material as THREE.MeshStandardMaterial;
-          
-          // 10% chance to flash a color, otherwise turn off
-          if (Math.random() < 0.1) {
-            const randomColor = colorObjects[Math.floor(Math.random() * colorObjects.length)];
-            material.emissive.copy(randomColor).multiplyScalar(0.5); // Emit color
-          } else {
-            material.emissive.setHex(0x000000); // Turn off
-          }
-          material.needsUpdate = true;
-        });
-      }
-
 
       // Movement
       if (controls.isLocked) {
@@ -497,7 +461,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       renderer.render(scene, camera);
     };
 
-    animate(performance.now());
+    animate();
 
     // --- Cleanup ---
     return () => {
@@ -509,7 +473,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, setInstructionsVisible, colorObjects]);
+  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, setInstructionsVisible]);
 
   // Pass imperative functions up to the parent component
   useEffect(() => {
