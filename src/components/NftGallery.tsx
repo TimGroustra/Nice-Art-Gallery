@@ -23,6 +23,10 @@ interface NftGalleryProps {
   setInstructionsVisible: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+// Define max dimensions for the panels
+const MAX_W = 1.8;
+const MAX_H = 1.2;
+
 // Utility: normalize ipfs:// to https gateway
 function normalizeUrl(url: string): string {
   if (!url) return url;
@@ -53,10 +57,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const speed = 4.0;
 
   const selectedPanelRef = useRef<PanelMesh | null>(null);
-
-  // Define max dimensions for the panels
-  const MAX_W = 1.8;
-  const MAX_H = 1.2;
 
   // --- Panel Logic ---
 
@@ -126,7 +126,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     } catch (err) {
       console.warn('fetchAndApplyToMesh error for:', metadataUrl, err);
     }
-  }, [MAX_W, MAX_H]);
+  }, []);
 
   const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, metadataUrl: string) => {
     // Start with max dimensions, they will be resized upon texture load
@@ -140,7 +140,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     panelMeshesRef.current.push(mesh);
     if (metadataUrl) fetchAndApplyToMesh(metadataUrl, mesh);
     return mesh;
-  }, [fetchAndApplyToMesh, MAX_W, MAX_H]);
+  }, [fetchAndApplyToMesh]);
 
   const setupPanels = useCallback((scene: THREE.Scene, urls: string[]) => {
     // Clear existing
@@ -275,6 +275,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       spotLight.target = target;
       
       scene.add(spotLight);
+    });
+    
+    // 4. Additional Static Ceiling Lights (White)
+    const ceilingLightPositions = [
+      new THREE.Vector3(4, 3.9, 4),
+      new THREE.Vector3(-4, 3.9, 4),
+      new THREE.Vector3(4, 3.9, -4),
+      new THREE.Vector3(-4, 3.9, -4),
+      new THREE.Vector3(0, 3.9, 2),
+      new THREE.Vector3(0, 3.9, -2),
+    ];
+
+    ceilingLightPositions.forEach(pos => {
+      // Using a moderate intensity white light
+      const ceilingLight = new THREE.PointLight(0xffffff, 1.5, 10, 2); 
+      ceilingLight.position.copy(pos);
+      scene.add(ceilingLight);
     });
 
 
