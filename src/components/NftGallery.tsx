@@ -69,17 +69,53 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const loadNftTexture = useCallback(async (url: string, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
     if (isVideo) {
       if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.src = url;
-        videoRef.current.load();
-        videoRef.current.loop = true;
-        videoRef.current.muted = true; 
+        const video = videoRef.current;
         
+        // 1. Pause and set source
+        video.pause();
+        video.src = url;
+        video.load();
+        video.loop = true;
+        video.muted = true; 
+        
+        // 2. Wait for video to be ready to play (have valid frame data)
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              console.warn(`Video load timeout for ${url}`);
+              reject(new Error("Video load timeout"));
+            }, 5000); // 5 second timeout
+
+            const onCanPlay = () => {
+              clearTimeout(timeout);
+              video.removeEventListener('canplay', onCanPlay);
+              video.removeEventListener('error', onError);
+              resolve();
+            };
+            
+            const onError = (e: Event) => {
+              clearTimeout(timeout);
+              video.removeEventListener('canplay', onCanPlay);
+              video.removeEventListener('error', onError);
+              console.error("Video loading error:", e);
+              reject(new Error("Video loading failed"));
+            };
+
+            video.addEventListener('canplay', onCanPlay);
+            video.addEventListener('error', onError);
+          });
+        } catch (e) {
+          showError(`Failed to load video: ${url.substring(0, 50)}...`);
+          return createFallbackTexture();
+        }
+
+        // 3. Start playback if controls are locked
         if ((window as any).galleryControls?.isLocked?.()) {
              manageVideoPlayback(true);
         }
 
-        return new THREE.VideoTexture(videoRef.current);
+        // 4. Create and return texture only after video is ready
+        return new THREE.VideoTexture(video);
       }
       // Fallback if video element is not ready
       return createFallbackTexture();
