@@ -60,7 +60,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const url = normalizeUrl(metadataUrl);
     mesh.userData.metadataUrl = metadataUrl;
     mesh.userData.loaded = false;
-    mesh.material = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x000000, side: THREE.DoubleSide });
+    // Use a slightly brighter material initially so spotlights work well
+    mesh.material = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
     (mesh.material as THREE.MeshStandardMaterial).needsUpdate = true;
 
     try {
@@ -104,7 +105,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, metadataUrl: string) => {
     const w = 1.8, h = 1.2;
     const geo = new THREE.PlaneGeometry(w, h);
-    const mat = new THREE.MeshStandardMaterial({ color: 0x222222, emissive: 0x000000, side: THREE.DoubleSide });
+    const mat = new THREE.MeshStandardMaterial({ color: 0x444444, emissive: 0x000000, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(geo, mat) as unknown as PanelMesh;
     mesh.position.copy(position);
     mesh.rotation.y = rotationY;
@@ -167,8 +168,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const floorGeo = new THREE.CircleGeometry(8, 64);
     const floorMat = new THREE.MeshStandardMaterial({ 
       color: 0x111111, 
-      metalness: 0.7, // Slightly reduced metalness
-      roughness: 0.3, // Slightly increased roughness for dispersed reflection
+      metalness: 0.7, 
+      roughness: 0.3, 
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -205,22 +206,49 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     scene.add(room);
 
-    // Lights
-    const lights: THREE.PointLight[] = [];
-    const lightColors = [0xff0066, 0x00ffd5, 0xffff00];
-    const lightHeight = 3.8; // Close to the ceiling
+    // --- Lighting ---
     
-    // Softer Point Lights
+    // 1. Ambient Light (General Glow)
+    const amb = new THREE.AmbientLight(0xaaaaaa, 0.5); 
+    scene.add(amb);
+
+    // 2. Disco Point Lights (Rotating Mood Lights)
+    const discoLights: THREE.PointLight[] = [];
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    const lightHeight = 3.8; 
+    
     for (let i = 0; i < 3; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 1.5, 10, 1.5); // Reduced intensity, increased decay
+      // Reduced intensity further to make them mood lights, not primary illumination
+      const pl = new THREE.PointLight(lightColors[i], 1.0, 10, 1.5); 
       pl.position.set(Math.cos(i / 3 * Math.PI * 2) * 3, lightHeight, Math.sin(i / 3 * Math.PI * 2) * 3);
       scene.add(pl);
-      lights.push(pl);
+      discoLights.push(pl);
     }
     
-    // Increased Ambient Light for general glow
-    const amb = new THREE.AmbientLight(0xaaaaaa, 1.5); 
-    scene.add(amb);
+    // 3. Dedicated Spotlights for Art Panels (White, static)
+    const panelPositions = [
+      // Right wall (x=7.89, z=-2, 0, 2)
+      { x: 7.89, z: -2, targetX: 7.89 - 0.1, targetZ: -2 },
+      { x: 7.89, z: 0, targetX: 7.89 - 0.1, targetZ: 0 },
+      { x: 7.89, z: 2, targetX: 7.89 - 0.1, targetZ: 2 },
+      // Left wall (x=-7.89, z=-2, 0, 2)
+      { x: -7.89, z: -2, targetX: -7.89 + 0.1, targetZ: -2 },
+      { x: -7.89, z: 0, targetX: -7.89 + 0.1, targetZ: 0 },
+      { x: -7.89, z: 2, targetX: -7.89 + 0.1, targetZ: 2 },
+    ];
+
+    panelPositions.forEach((pos) => {
+      const spotLight = new THREE.SpotLight(0xffffff, 5, 5, Math.PI / 8, 0.5, 1);
+      spotLight.position.set(pos.x, 3.5, pos.z); // Positioned high above the panel
+      
+      const target = new THREE.Object3D();
+      target.position.set(pos.targetX, 1.8, pos.targetZ); // Aimed slightly in front of the panel center
+      scene.add(target);
+      spotLight.target = target;
+      
+      scene.add(spotLight);
+    });
+
 
     // Setup initial panels
     setupPanels(scene, initialSamplePanels);
@@ -277,10 +305,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       const delta = clockRef.current.getDelta();
 
       // Update disco lights rotate
-      for (let i = 0; i < lights.length; i++) {
+      for (let i = 0; i < discoLights.length; i++) {
         const a = performance.now() * 0.0004 * (i + 1);
-        lights[i].position.x = Math.cos(a + i) * 3;
-        lights[i].position.z = Math.sin(a + i) * 3;
+        discoLights[i].position.x = Math.cos(a + i) * 3;
+        discoLights[i].position.z = Math.sin(a + i) * 3;
       }
 
       // Movement
