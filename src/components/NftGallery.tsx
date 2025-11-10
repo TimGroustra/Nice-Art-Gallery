@@ -248,8 +248,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const lightColors = [0xFF0000, 0xFF8C00, 0xFFFF00, 0x00FF00, 0x0000FF, 0x4B0082, 0xEE82EE];
     const lightHeight = 3.8; 
     
+    // Use a larger scale factor (0.5) to spread lights out more
     for (let i = 0; i < 7; i++) {
-      const radiusFactor = fib.current[i] * 0.3; // Scale factor for radius
+      const radiusFactor = fib.current[i] * 0.5; // Scale factor increased to 0.5
       // Slightly increased intensity for better reflection
       const pl = new THREE.PointLight(lightColors[i], 2.0, 10, 1.5); 
       
@@ -346,7 +347,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         // Use a slightly varied speed based on index, but keep it close to the base speed
         const speedFactor = baseSpeed * (1 + i * 0.05); 
         const a = performance.now() * speedFactor;
-        const radiusFactor = fib.current[i] * 0.3;
+        const radiusFactor = fib.current[i] * 0.5; // Radius scale factor is now 0.5
         
         discoLights[i].position.x = Math.cos(a + i) * radiusFactor;
         discoLights[i].position.z = Math.sin(a + i) * radiusFactor;
