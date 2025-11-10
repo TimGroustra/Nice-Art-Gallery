@@ -159,7 +159,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
     controlsRef.current = controls;
-    scene.add(controls.getObject());
+    // scene.add(controls.getObject()); // This is no longer needed in modern Three.js
 
     controls.addEventListener('lock', () => setInstructionsVisible(false));
     controls.addEventListener('unlock', () => setInstructionsVisible(true));
@@ -282,7 +282,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
         moveVec.addScaledVector(forward, direction.z * speed * delta);
         moveVec.addScaledVector(right, direction.x * speed * delta);
 
-        controls.getObject().position.add(moveVec);
+        camera.position.add(moveVec);
 
         // Raycast for highlighting/selection (optional, but useful for UI feedback)
         raycasterRef.current.setFromCamera({ x: 0, y: 0 }, camera);
