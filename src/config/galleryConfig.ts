@@ -18,34 +18,24 @@ const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
-  'north-wall-left': {
+  'north-wall': {
     contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
-  'north-wall-center': {
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
+  'south-wall': {
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
-  'north-wall-right': {
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
+  'east-wall': {
+    contractAddress: PANTH_ART_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
-  'south-wall-left': {
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'south-wall-center': {
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'south-wall-right': {
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
+  'west-wall': {
+    contractAddress: PANTH_ART_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
 };
