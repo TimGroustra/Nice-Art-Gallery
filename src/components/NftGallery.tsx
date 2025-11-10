@@ -339,6 +339,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Offset constants
     const ARROW_DEPTH_OFFSET = 0.02; 
     const ARROW_PANEL_OFFSET = 1.5; // Distance from panel center to arrow center
+    const TEXT_DEPTH_OFFSET = 0.03; // Slightly further out than the arrows/NFT panel
 
     // Text panel constants
     const TEXT_PANEL_WIDTH = 1.5;
@@ -353,8 +354,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         map: placeholderTexture, 
         transparent: true, 
         side: THREE.DoubleSide,
-        // Set alphaTest to a small value to ensure transparent parts of the texture don't block raycasting/rendering
-        alphaTest: 0.1 
+        alphaTest: 0.01, // Lower alpha test to ensure text pixels are visible
+        depthWrite: false // Crucial for transparent planes near other geometry
     });
     const titleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
@@ -380,6 +381,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const wallRotation = new THREE.Euler().set(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
+      const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation); // Vector pointing out from the wall
       
       // --- Text Panel Positioning ---
       
@@ -399,6 +401,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const titlePosition = textGroupPosition.clone();
       // Move up to position the title correctly relative to the center (panelYPosition)
       titlePosition.addScaledVector(upVector, (DESCRIPTION_HEIGHT / 2) - (TITLE_HEIGHT / 2)); 
+      
+      // Move slightly forward from the wall
+      titlePosition.addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       titleMesh.position.copy(titlePosition);
       scene.add(titleMesh);
 
@@ -410,6 +415,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const descriptionPosition = textGroupPosition.clone();
       // Move down below the title
       descriptionPosition.addScaledVector(upVector, -(TITLE_HEIGHT / 2)); 
+      
+      // Move slightly forward from the wall
+      descriptionPosition.addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
       
