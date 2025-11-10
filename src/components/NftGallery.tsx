@@ -247,18 +247,62 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // If loading fails, we still need to position the arrows based on the default size
       updateArrowPositions(mesh, PANEL_W);
     }
-  }, [PANEL_W, removeMesh, updateArrowPositions, applyTextureToMesh]); // Corrected dependencies
+  }, [PANEL_W, removeMesh, updateArrowPositions, applyTextureToMesh]);
 
   const createArrowMesh = useCallback((wallName: keyof typeof GALLERY_PANEL_CONFIG, type: 'arrow-prev' | 'arrow-next', position: THREE.Vector3, rotationY: number, scene: THREE.Scene) => {
-    const geo = new THREE.PlaneGeometry(ARROW_SIZE, ARROW_SIZE);
-    // Use a simple texture or color for the arrow
-    const color = type === 'arrow-next' ? 0x00ff00 : 0xff0000;
-    const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+    
+    // Create a simple triangle shape pointing right (for 'next')
+    const shape = new THREE.Shape();
+    const halfSize = ARROW_SIZE / 2;
+    
+    // Define triangle vertices (pointing right)
+    shape.moveTo(-halfSize, halfSize);
+    shape.lineTo(halfSize, 0);
+    shape.lineTo(-halfSize, -halfSize);
+    shape.lineTo(-halfSize, halfSize);
+
+    const geo = new THREE.ShapeGeometry(shape);
+    
+    // Use a consistent, slightly emissive material for visibility
+    const mat = new THREE.MeshStandardMaterial({ 
+      color: 0x00ff00, // Bright green
+      emissive: 0x00ff00,
+      emissiveIntensity: 0.5,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.8,
+    });
     
     // Fix TS2352: Convert to unknown first
     const mesh = new THREE.Mesh(geo, mat) as unknown as InteractiveMesh;
     mesh.position.copy(position);
-    mesh.rotation.y = rotationY;
+    
+    // Calculate final rotation based on wall orientation and arrow direction
+    let finalRotationY = rotationY;
+    
+    if (wallName === 'north-wall' || wallName === 'south-wall') {
+      // North/South walls: Arrows point left/right (rotation around Y axis)
+      if (type === 'arrow-prev') {
+        finalRotationY += Math.PI; // Rotate 180 degrees from default right-pointing shape
+      }
+    } else {
+      // East/West walls: Arrows point up/down relative to the wall (rotation around Z axis)
+      // We need to rotate the shape 90 degrees first, then apply wall rotation
+      
+      // Rotate the shape 90 degrees clockwise (to point 'up' relative to the wall)
+      mesh.rotation.z = -Math.PI / 2; 
+      
+      if (type === 'arrow-prev') {
+        // If 'prev', rotate 180 degrees from 'up' position (to point 'down')
+        mesh.rotation.z += Math.PI; 
+      }
+      
+      // Apply wall rotation around Y axis
+      finalRotationY = rotationY;
+    }
+    
+    mesh.rotation.y = finalRotationY;
+
     mesh.userData = { wallName, type };
     scene.add(mesh);
     interactiveMeshesRef.current.push(mesh);
@@ -268,7 +312,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   const createPanel = useCallback((scene: THREE.Scene, wallName: keyof typeof GALLERY_PANEL_CONFIG, position: THREE.Vector3, rotationY: number) => {
     
-    const config = GALLERY_PANEL_CONFIG[wallName];
+    const config = GALLERY_PANTH_CONFIG[wallName];
     if (config.contractAddress.startsWith('0xPlaceholder')) {
       // Skip rendering this panel if it uses a placeholder address
       return null;
