@@ -329,10 +329,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // Floor
     const floorGeo = new THREE.CircleGeometry(8, 64);
-    const floorMat = new THREE.MeshStandardMaterial({ 
+    const floorMat = new THREE.MeshPhysicalMaterial({ 
       color: 0x111111, 
-      metalness: 0.7, 
-      roughness: 0.3, 
+      metalness: 0.9, 
+      roughness: 0.1, 
+      reflectivity: 0.5,
+      clearcoat: 0.5,
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
@@ -356,10 +358,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     
     // Ceiling
     const ceilingGeo = new THREE.CircleGeometry(8, 64);
-    const ceilingMat = new THREE.MeshStandardMaterial({ 
+    const ceilingMat = new THREE.MeshPhysicalMaterial({ 
       color: 0x111111, 
-      metalness: 0.7, 
-      roughness: 0.3, 
+      metalness: 0.9, 
+      roughness: 0.1, 
+      reflectivity: 0.5,
+      clearcoat: 0.5,
       side: THREE.DoubleSide 
     });
     const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
@@ -376,17 +380,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     scene.add(amb);
 
     // 2. Ceiling Border Downlighting (RectAreaLight)
-    // RectAreaLight is best for simulating light sources like ceiling panels or windows.
-    // We will create a large light source just below the ceiling.
-    
-    // Note: RectAreaLight only works with MeshStandardMaterial or MeshPhysicalMaterial.
-    // We need to ensure the renderer supports it (which it does by default, but we added tone mapping above).
-    
-    const lightWidth = 15.8; // Slightly less than room width (16)
-    const lightHeight = 15.8; // Slightly less than room depth (16)
-    const lightIntensity = 10; // Adjust intensity for brightness
+    const lightWidth = 15.8; 
+    const lightHeight = 15.8; 
+    const lightIntensity = 10; 
     const lightColor = 0xffffff;
-    const lightY = 3.9; // Just below the ceiling (y=4)
+    const lightY = 3.9; 
 
     const rectLight = new THREE.RectAreaLight(lightColor, lightIntensity, lightWidth, lightHeight);
     rectLight.position.set(0, lightY, 0);
