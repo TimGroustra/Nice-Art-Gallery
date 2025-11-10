@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
 import { GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex } from '@/config/galleryConfig';
 import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
+import { RectAreaLightHelper } from 'three-stdlib'; // Import helper for RectAreaLight
 
 // Define a type for interactive meshes (Panel or Arrow)
 interface InteractiveMesh extends THREE.Mesh {
@@ -311,6 +312,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
+    // RectAreaLight requires WebGLRenderer.physicallyCorrectLights = true
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.2;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     mountRef.current.appendChild(renderer.domElement);
 
@@ -366,53 +370,43 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     scene.add(room);
 
     // Lighting
-    const amb = new THREE.AmbientLight(0xaaaaaa, 2.0); 
+    
+    // 1. Ambient Light (low intensity)
+    const amb = new THREE.AmbientLight(0xaaaaaa, 0.5); 
     scene.add(amb);
 
+    // 2. Ceiling Border Downlighting (RectAreaLight)
+    // RectAreaLight is best for simulating light sources like ceiling panels or windows.
+    // We will create a large light source just below the ceiling.
+    
+    // Note: RectAreaLight only works with MeshStandardMaterial or MeshPhysicalMaterial.
+    // We need to ensure the renderer supports it (which it does by default, but we added tone mapping above).
+    
+    const lightWidth = 15.8; // Slightly less than room width (16)
+    const lightHeight = 15.8; // Slightly less than room depth (16)
+    const lightIntensity = 10; // Adjust intensity for brightness
+    const lightColor = 0xffffff;
+    const lightY = 3.9; // Just below the ceiling (y=4)
+
+    const rectLight = new THREE.RectAreaLight(lightColor, lightIntensity, lightWidth, lightHeight);
+    rectLight.position.set(0, lightY, 0);
+    rectLight.rotation.x = -Math.PI / 2; // Pointing down
+    scene.add(rectLight);
+
+    // 3. Disco Lights (Kept for atmosphere, but reduced intensity)
     const discoLights: THREE.PointLight[] = [];
     const lightColors = [0xFF0000, 0xFF8C00, 0xFFFF00, 0x00FF00, 0x0000FF, 0x4B0082, 0xEE82EE];
-    const lightHeight = 3.8; 
+    const discoLightHeight = 3.8; 
     
     for (let i = 0; i < 7; i++) {
       const radiusFactor = fib.current[i] * 0.5; 
-      const pl = new THREE.PointLight(lightColors[i], 2.0, 10, 1.5); 
-      pl.position.set(Math.cos(i / 7 * Math.PI * 2) * radiusFactor, lightHeight, Math.sin(i / 7 * Math.PI * 2) * radiusFactor);
+      // Reduced intensity significantly since RectAreaLight provides main illumination
+      const pl = new THREE.PointLight(lightColors[i], 0.5, 10, 1.5); 
+      pl.position.set(Math.cos(i / 7 * Math.PI * 2) * radiusFactor, discoLightHeight, Math.sin(i / 7 * Math.PI * 2) * radiusFactor);
       scene.add(pl);
       discoLights.push(pl);
     }
     
-    // Dedicated Spotlights for Art Panels (4 spots, one per panel)
-    const wallOffset = 7.89; // Define wallOffset here
-    const panelY = 1.8;
-    const lightZOffset = 1.0; // Distance from the wall towards the center of the room
-
-    const panelLightPositions = [
-      // East Wall (X = 7.89, Light at X=7.89 - lightZOffset)
-      { x: wallOffset - lightZOffset, z: 0, targetX: wallOffset, targetZ: 0, rotation: -Math.PI / 2 }, 
-      // West Wall (X = -7.89, Light at X=-7.89 + lightZOffset)
-      { x: -wallOffset + lightZOffset, z: 0, targetX: -wallOffset, targetZ: 0, rotation: Math.PI / 2 }, 
-      // South Wall (Z = -7.89, Light at Z=-7.89 + lightZOffset)
-      { x: 0, z: -wallOffset + lightZOffset, targetX: 0, targetZ: -wallOffset, rotation: 0 }, 
-      // North Wall (Z = 7.89, Light at Z=7.89 - lightZOffset)
-      { x: 0, z: wallOffset - lightZOffset, targetX: 0, targetZ: wallOffset, rotation: Math.PI }, 
-    ];
-    const lightHeightSpot = 3.5; // Positioned high on the ceiling
-
-    panelLightPositions.forEach((pos) => {
-      // Use a narrow cone angle for focused downlighting
-      const spotLight = new THREE.SpotLight(0xffffff, 15, 10, Math.PI / 16, 0.5, 1); 
-      spotLight.position.set(pos.x, lightHeightSpot, pos.z); 
-      
-      const target = new THREE.Object3D();
-      // Target the center of the panel
-      target.position.set(pos.targetX, panelY, pos.targetZ); 
-      scene.add(target);
-      spotLight.target = target;
-      
-      scene.add(spotLight);
-    });
-
-
     // Setup initial panels
     setupPanels(scene);
 
