@@ -345,7 +345,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_PANEL_WIDTH = 1.5;
     const TITLE_HEIGHT = 0.5;
     const DESCRIPTION_HEIGHT = 1.5;
-    const TEXT_PANEL_X_OFFSET = 1.75; // Distance from center of NFT panel to center of text panel (1 + 1.5/2 = 1.75)
+    const TEXT_BLOCK_OFFSET_X = 3; // Distance from center of NFT panel to center of text block.
     
     // Placeholder text meshes
     // Use a transparent material for the text planes
@@ -388,9 +388,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Base position (center of the wall panel)
       const basePosition = new THREE.Vector3(config.position[0], panelYPosition, config.position[2]);
       
-      // Text Panel Group Position (1.75 units to the left of the NFT panel center)
+      // Text Panel Group Position (centered in the space to the left of the NFT panel)
       const textGroupPosition = basePosition.clone();
-      textGroupPosition.addScaledVector(rightVector, -TEXT_PANEL_X_OFFSET); 
+      textGroupPosition.addScaledVector(rightVector, -TEXT_BLOCK_OFFSET_X); 
       
       // Title Mesh
       // Clone the material to ensure each text panel can have a unique texture map
