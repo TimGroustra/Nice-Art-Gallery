@@ -172,9 +172,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const panelYPosition = 1.8; 
     const boundary = roomSize / 2 - 0.5; 
 
-    // Floor (Green)
+    // Floor (Dark Green)
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    // Changed color from 0x222222 to 0x006400 (Dark Green)
     const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x006400, side: THREE.DoubleSide });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = Math.PI / 2;
@@ -214,6 +213,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     westWall.rotation.y = Math.PI / 2;
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
+    
+    // Ceiling Border (Ambient Glow)
+    const borderThickness = 0.05;
+    const borderHeight = wallHeight - borderThickness / 2;
+    const borderMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, emissive: 0xffffff, emissiveIntensity: 0.5 });
+    
+    const borderGeometryZ = new THREE.PlaneGeometry(roomSize, borderThickness);
+    const borderGeometryX = new THREE.PlaneGeometry(roomSize, borderThickness);
+
+    // North Border (-Z)
+    const northBorder = new THREE.Mesh(borderGeometryZ, borderMaterial);
+    northBorder.rotation.x = Math.PI / 2;
+    northBorder.position.set(0, borderHeight, -roomSize / 2 + borderThickness / 2);
+    scene.add(northBorder);
+
+    // South Border (+Z)
+    const southBorder = new THREE.Mesh(borderGeometryZ, borderMaterial);
+    southBorder.rotation.x = Math.PI / 2;
+    southBorder.position.set(0, borderHeight, roomSize / 2 - borderThickness / 2);
+    scene.add(southBorder);
+
+    // East Border (+X)
+    const eastBorder = new THREE.Mesh(borderGeometryX, borderMaterial);
+    eastBorder.rotation.y = Math.PI / 2;
+    eastBorder.rotation.x = Math.PI / 2;
+    eastBorder.position.set(roomSize / 2 - borderThickness / 2, borderHeight, 0);
+    scene.add(eastBorder);
+
+    // West Border (-X)
+    const westBorder = new THREE.Mesh(borderGeometryX, borderMaterial);
+    westBorder.rotation.y = Math.PI / 2;
+    westBorder.rotation.x = Math.PI / 2;
+    westBorder.position.set(-roomSize / 2 + borderThickness / 2, borderHeight, 0);
+    scene.add(westBorder);
+
 
     // 4. Lights
     const lights: THREE.PointLight[] = [];
@@ -231,7 +265,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       scene.add(pl);
       lights.push(pl);
     }
-    const amb = new THREE.AmbientLight(0x404050, 0.6);
+    // Increased ambient light intensity slightly to complement the border glow
+    const amb = new THREE.AmbientLight(0x404050, 0.8); 
     scene.add(amb);
 
     // 5. Setup initial panels and 3D arrows
