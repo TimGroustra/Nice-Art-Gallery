@@ -36,8 +36,8 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     canvas.width = resolution * (width / height);
     canvas.height = resolution;
 
-    context.fillStyle = 'rgba(0, 0, 0, 0.5)'; // Semi-transparent background
-    context.fillRect(0, 0, canvas.width, canvas.height);
+    // 1. Make background transparent
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
     // Adjust font size relative to canvas height
     const actualFontSize = fontSize * (resolution / height);
@@ -191,9 +191,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.metadataUrl = '';
       panel.isVideo = false;
       
-      // Hide text panels on error
-      panel.titleMesh.visible = false;
-      panel.descriptionMesh.visible = false;
+      // Hide text panels on error, safely checking if meshes exist
+      if (panel.titleMesh) panel.titleMesh.visible = false;
+      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
     }
   }, [loadTexture, manageVideoPlayback]);
 
@@ -347,8 +347,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_PANEL_X_OFFSET = 1.75; // Distance from center of NFT panel to center of text panel (1 + 1.5/2 = 1.75)
     
     // Placeholder text meshes
+    // Use a transparent material for the text planes
     const placeholderTexture = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white');
-    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ 
+        map: placeholderTexture, 
+        transparent: true, 
+        side: THREE.DoubleSide,
+        // Set alphaTest to a small value to ensure transparent parts of the texture don't block raycasting/rendering
+        alphaTest: 0.1 
+    });
     const titleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
 
@@ -384,6 +391,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       textGroupPosition.addScaledVector(rightVector, -TEXT_PANEL_X_OFFSET); 
       
       // Title Mesh
+      // Clone the material to ensure each text panel can have a unique texture map
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
       titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       
