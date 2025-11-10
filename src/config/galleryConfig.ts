@@ -21,21 +21,18 @@ let galleryConfig: PanelConfig = {
     currentIndex: 0,
   },
   'south-wall': {
-    // Placeholder collection 2
-    contractAddress: "0xPlaceholderSouth", 
-    tokenIds: [1, 2, 3, 4, 5],
+    contractAddress: PANTH_ART_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'east-wall': {
-    // Placeholder collection 3
-    contractAddress: "0xPlaceholderEast", 
-    tokenIds: [101, 102, 103],
+    contractAddress: PANTH_ART_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'west-wall': {
-    // Placeholder collection 4
-    contractAddress: "0xPlaceholderWest", 
-    tokenIds: [201, 202, 203, 204],
+    contractAddress: PANTH_ART_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
 };

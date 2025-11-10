@@ -28,19 +28,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  // We keep isLocked state, but we must ensure it doesn't trigger the main useEffect re-run via dependencies.
   const [isLocked, setIsLocked] = useState(false); 
 
   // Function to manage video playback based on lock state
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     if (videoRef.current) {
       if (shouldPlay) {
-        // Check if controls are currently locked before attempting to play
         const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
         
         if (controlsLocked) {
           videoRef.current.play().catch(e => {
-            // Catch the error, especially if it's related to user interaction context loss (lock exit)
             console.warn("Video playback prevented or failed:", e);
           });
         }
@@ -56,26 +53,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
       if (videoRef.current) {
-        // Prepare video element
         videoRef.current.pause();
         videoRef.current.src = url;
         videoRef.current.load();
         videoRef.current.loop = true;
-        videoRef.current.muted = true; // Always start muted
+        videoRef.current.muted = true; 
         
-        // If controls are already locked, start playback immediately using the stable manager
         if ((window as any).galleryControls?.isLocked?.()) {
              manageVideoPlayback(true);
         }
 
         return new THREE.VideoTexture(videoRef.current);
       }
-      // Fallback if video element is not ready
       return new THREE.TextureLoader().load(url);
     }
     return new THREE.TextureLoader().load(url, 
-      () => {}, // on load
-      undefined, // on progress
+      () => {}, 
+      undefined, 
       (error) => {
         console.error('Error loading texture:', url, error);
         showError(`Failed to load image: ${url.substring(0, 50)}...`);
@@ -90,14 +84,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
-      // If the new content is a video, we need to ensure any currently playing video is paused first
       if (isVideo && videoRef.current) {
         manageVideoPlayback(false);
       }
 
       const texture = loadTexture(imageUrl, isVideo);
       
-      // Dispose of old material/texture
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
@@ -117,7 +109,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       console.error(`Error updating panel ${panel.wallName}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
-      // Fallback to placeholder
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
@@ -138,7 +129,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     scene.background = new THREE.Color(0xaaaaaa);
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 4.5); // Start position adjusted from Z=5 to Z=4.5
+    camera.position.set(0, 1.6, 4.5); 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -148,7 +139,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 2. Controls (PointerLockControls)
     const controls = new PointerLockControls(camera, renderer.domElement);
     
-    // Expose controls for UI interaction (locking/unlocking)
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
       hasVideo: () => panelsRef.current.some(p => p.isVideo),
@@ -158,14 +148,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           videoRef.current.muted = !videoRef.current.muted;
         }
       },
-      isLocked: () => controls.isLocked, // Utility to check lock status
+      isLocked: () => controls.isLocked, 
       getTargetedPanel: () => currentTargetedPanel,
     };
 
     controls.addEventListener('lock', () => {
       setIsLocked(true);
       setInstructionsVisible(false);
-      // Start video playback when locked
       if (panelsRef.current.some(p => p.isVideo)) {
         manageVideoPlayback(true);
       }
@@ -173,7 +162,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
-      // Pause video playback when unlocked
       manageVideoPlayback(false);
     });
 
@@ -181,8 +169,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 3. Geometry: Floor, Ceiling, Walls
     const roomSize = 10;
     const wallHeight = 4;
-    const panelYPosition = 1.8; // Lowered from 2.0 (wallHeight/2) to 1.8
-    const boundary = roomSize / 2 - 0.5; // 5 - 0.5 = 4.5 units from center
+    const panelYPosition = 1.8; 
+    const boundary = roomSize / 2 - 0.5; 
 
     // Floor (Green)
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
@@ -294,8 +282,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         prevArrow.position.set(config.position[0] - arrowOffset, arrowY, config.position[2]);
       } else { 
         // East/West walls (X-axis walls): Z changes
-        // Note: The rotation already handles the orientation relative to the wall.
-        // We need to adjust the Z position for East/West walls to place the arrow left of the panel.
         // For East wall (+X, rotation -PI/2), left is +Z. For West wall (-X, rotation PI/2), left is -Z.
         const zOffset = config.wallName === 'east-wall' ? arrowOffset : -arrowOffset;
         prevArrow.position.set(config.position[0], arrowY, config.position[2] + zOffset);
@@ -560,7 +546,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         videoRef.current.load();
       }
       delete (window as any).galleryControls;
-      currentTargetedPanel = null; // Reset global state on cleanup
+      currentTargetedPanel = null; 
       currentTargetedArrow = null;
     };
   }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
