@@ -135,16 +135,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
-    
-    // Setup Cube Camera for reflections
-    const cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
-      format: THREE.RGBFormat,
-      generateMipmaps: true,
-      minFilter: THREE.LinearMipmapLinearFilter,
-    });
-    const cubeCamera = new THREE.CubeCamera(0.1, 100, cubeRenderTarget);
-    scene.add(cubeCamera);
-
 
     // 2. Controls (PointerLockControls)
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -182,18 +172,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const panelYPosition = 1.8; 
     const boundary = roomSize / 2 - 0.5; 
 
-    // Floor (Silvery Mirror)
+    // Floor (Green)
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    
-    // Use MeshStandardMaterial for reflection effects
-    const floorMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xaaaaaa, // Silvery color
-      metalness: 1.0,
-      roughness: 0.05, // Low roughness for mirror effect
-      envMap: cubeRenderTarget.texture,
-      side: THREE.DoubleSide 
-    });
-    
+    const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x222222, side: THREE.DoubleSide });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = Math.PI / 2;
     floor.position.y = 0;
@@ -433,11 +414,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const animate = () => {
       requestAnimationFrame(animate);
 
-      // Update Cube Camera for reflections
-      floor.visible = false; // Hide floor while rendering environment map
-      cubeCamera.update(renderer, scene);
-      floor.visible = true; // Show floor again
-
       const time = performance.now();
       const delta = (time - prevTime) / 1000;
 
@@ -555,7 +531,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         }
       });
       renderer.dispose();
-      cubeRenderTarget.dispose();
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.removeAttribute('src');
