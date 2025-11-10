@@ -371,10 +371,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
       const panel = currentTargetedDescriptionPanel;
       const scrollAmount = event.deltaY * 0.5;
+      
       const canvasHeight = 512;
-      const maxScroll = Math.max(0, panel.descriptionTextHeight - canvasHeight);
+      const padding = 40; // Must match padding in createTextTexture
+      const effectiveViewportHeight = canvasHeight - 2 * padding;
+      const maxScroll = Math.max(0, panel.descriptionTextHeight - effectiveViewportHeight);
+
       let newScrollY = panel.descriptionScrollY + scrollAmount;
       newScrollY = Math.max(0, Math.min(newScrollY, maxScroll));
+      
       if (panel.descriptionScrollY !== newScrollY) {
         panel.descriptionScrollY = newScrollY;
         updateDescriptionTexture(panel);
