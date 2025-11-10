@@ -71,51 +71,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       if (videoRef.current) {
         const video = videoRef.current;
         
-        // 1. Pause and set source
+        // 1. Set source and properties
         video.pause();
         video.src = url;
         video.load();
         video.loop = true;
         video.muted = true; 
         
-        // 2. Wait for video to be ready to play (have valid frame data)
-        try {
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              console.warn(`Video load timeout for ${url}`);
-              reject(new Error("Video load timeout"));
-            }, 5000); // 5 second timeout
+        // 2. Create texture immediately. Three.js VideoTexture handles updates internally.
+        const texture = new THREE.VideoTexture(video);
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.format = THREE.RGBFormat; // Use RGB format for video
 
-            const onCanPlay = () => {
-              clearTimeout(timeout);
-              video.removeEventListener('canplay', onCanPlay);
-              video.removeEventListener('error', onError);
-              resolve();
-            };
-            
-            const onError = (e: Event) => {
-              clearTimeout(timeout);
-              video.removeEventListener('canplay', onCanPlay);
-              video.removeEventListener('error', onError);
-              console.error("Video loading error:", e);
-              reject(new Error("Video loading failed"));
-            };
-
-            video.addEventListener('canplay', onCanPlay);
-            video.addEventListener('error', onError);
-          });
-        } catch (e) {
-          showError(`Failed to load video: ${url.substring(0, 50)}...`);
-          return createFallbackTexture();
-        }
-
-        // 3. Start playback if controls are locked
+        // 3. Start playback if controls are locked (this will start the texture update)
         if ((window as any).galleryControls?.isLocked?.()) {
              manageVideoPlayback(true);
         }
 
-        // 4. Create and return texture only after video is ready
-        return new THREE.VideoTexture(video);
+        return texture;
       }
       // Fallback if video element is not ready
       return createFallbackTexture();
