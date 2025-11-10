@@ -124,13 +124,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick }) => {
 
     // Right wall panels (facing left)
     for (let i = 0; i < 3; i++) {
-      const pos = new THREE.Vector3(7.9, 1.8, -2 + i * 2);
+      const pos = new THREE.Vector3(7.89, 1.8, -2 + i * 2);
       const rot = Math.PI / 2; // face -x
       createPanel(scene, pos, rot, urls[i] || '');
     }
     // Left wall panels (facing right)
     for (let i = 0; i < 3; i++) {
-      const pos = new THREE.Vector3(-7.9, 1.8, -2 + i * 2);
+      const pos = new THREE.Vector3(-7.89, 1.8, -2 + i * 2);
       const rot = -Math.PI / 2; // face +x
       createPanel(scene, pos, rot, urls[i + 3] || '');
     }
