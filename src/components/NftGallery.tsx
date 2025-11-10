@@ -11,6 +11,8 @@ interface Panel {
   wallName: keyof PanelConfig;
   metadataUrl: string;
   isVideo: boolean;
+  prevArrow: THREE.Mesh; // New 3D arrow mesh
+  nextArrow: THREE.Mesh; // New 3D arrow mesh
 }
 
 interface NftGalleryProps {
@@ -146,50 +148,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 2. Controls (PointerLockControls)
     const controls = new PointerLockControls(camera, renderer.domElement);
     
-    // Function to calculate screen coordinates of the targeted panel's bounding box
-    const getTargetedPanelScreenPosition = () => {
-      if (!currentTargetedPanel) return null;
-
-      const mesh = currentTargetedPanel.mesh;
-      
-      // Calculate bounding box in world space
-      const box = new THREE.Box3().setFromObject(mesh);
-      
-      // Get the 8 corners of the box
-      const corners = [
-        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
-        new THREE.Vector3(box.max.x, box.min.y, box.min.z),
-        new THREE.Vector3(box.min.x, box.max.y, box.min.z),
-        new THREE.Vector3(box.max.x, box.max.y, box.min.z),
-        new THREE.Vector3(box.min.x, box.min.y, box.max.z),
-        new THREE.Vector3(box.max.x, box.min.y, box.max.z),
-        new THREE.Vector3(box.min.x, box.max.y, box.max.z),
-        new THREE.Vector3(box.max.x, box.max.y, box.max.z),
-      ];
-
-      let minX = Infinity, minY = Infinity;
-      let maxX = -Infinity, maxY = -Infinity;
-      
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      // Project all corners to screen space
-      corners.forEach(corner => {
-        corner.project(camera);
-        
-        // Convert normalized device coordinates (-1 to 1) to pixel coordinates (0 to width/height)
-        const screenX = (corner.x * 0.5 + 0.5) * width;
-        const screenY = (-corner.y * 0.5 + 0.5) * height;
-
-        minX = Math.min(minX, screenX);
-        minY = Math.min(minY, screenY);
-        maxX = Math.max(maxX, screenX);
-        maxY = Math.max(maxY, screenY);
-      });
-
-      return { minX, minY, maxX, maxY };
-    };
-
     // Expose controls for UI interaction (locking/unlocking)
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
@@ -201,22 +159,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         }
       },
       isLocked: () => controls.isLocked, // Utility to check lock status
-      // New functions for UI interaction
+      // getTargetedPanelScreenPosition removed
       getTargetedPanel: () => currentTargetedPanel,
-      getTargetedPanelScreenPosition, // Expose the new function
-      cycleNft: (direction: 'next' | 'prev') => {
-        if (currentTargetedPanel) {
-          const panel = currentTargetedPanel;
-          const updated = updatePanelIndex(panel.wallName, direction);
-          
-          if (updated) {
-            const newSource = getCurrentNftSource(panel.wallName);
-            if (newSource) {
-              updatePanelContent(panel, newSource);
-            }
-          }
-        }
-      }
+      // cycleNft is no longer needed as interaction is handled via raycasting on 3D arrows
     };
 
     controls.addEventListener('lock', () => {
@@ -301,9 +246,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const amb = new THREE.AmbientLight(0x404050, 0.6);
     scene.add(amb);
 
-    // 5. Setup initial panels
+    // 5. Setup initial panels and 3D arrows
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    
+    // Arrow geometry (simple triangle pointing left/right)
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15);
+    arrowShape.lineTo(0.3, 0);
+    arrowShape.lineTo(0, -0.15);
+    arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
     
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
       { wallName: 'north-wall', position: [0, wallHeight / 2, -roomSize / 2 + 0.01], rotation: [0, 0, 0] },
@@ -317,12 +271,48 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
+      
+      // Calculate arrow positions relative to the panel (2 units wide)
+      const arrowOffset = 1.2; // 1 unit from center to edge + 0.2 padding
+      const arrowY = config.position[1];
+      const arrowZ = config.position[2];
+      const arrowX = config.position[0];
+      
+      // Previous Arrow (Left side of panel)
+      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      
+      // Position based on wall orientation
+      if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
+        prevArrow.position.set(arrowX - arrowOffset, arrowY, arrowZ);
+      } else { // East/West walls
+        prevArrow.rotation.y += Math.PI / 2; // Rotate arrow to point along the wall
+        prevArrow.position.set(arrowX, arrowY, arrowZ - arrowOffset);
+      }
+      scene.add(prevArrow);
+      
+      // Next Arrow (Right side of panel)
+      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      nextArrow.rotation.z = Math.PI; // Flip 180 degrees to point right
+      
+      // Position based on wall orientation
+      if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
+        nextArrow.position.set(arrowX + arrowOffset, arrowY, arrowZ);
+      } else { // East/West walls
+        nextArrow.rotation.y -= Math.PI / 2; // Rotate arrow to point along the wall
+        nextArrow.position.set(arrowX, arrowY, arrowZ + arrowOffset);
+      }
+      scene.add(nextArrow);
+
 
       const panel: Panel = {
         mesh,
         wallName: config.wallName,
         metadataUrl: '',
         isVideo: false,
+        prevArrow,
+        nextArrow,
       };
       panelsRef.current.push(panel);
       
@@ -393,6 +383,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const mouse = new THREE.Vector2();
     const center = new THREE.Vector2(0, 0); // Center of the screen for targeting
 
+    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
+
     const onDocumentMouseDown = (event: MouseEvent) => {
       if (!controls.isLocked) return; // Use controls.isLocked directly
 
@@ -401,15 +393,37 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(panelsRef.current.map(p => p.mesh));
+      const intersects = raycaster.intersectObjects(interactiveMeshes);
 
       if (intersects.length > 0) {
         const intersectedMesh = intersects[0].object as THREE.Mesh;
-        const panel = panelsRef.current.find(p => p.mesh === intersectedMesh);
+        const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
 
-        if (panel && panel.metadataUrl) {
-          // Clicking anywhere on the panel opens the metadata.
-          onPanelClick(panel.metadataUrl);
+        if (panel) {
+          if (intersectedMesh === panel.mesh) {
+            // Clicked the NFT panel itself -> Open Metadata Modal
+            if (panel.metadataUrl) {
+              onPanelClick(panel.metadataUrl);
+            }
+          } else if (intersectedMesh === panel.prevArrow) {
+            // Clicked Previous Arrow
+            const updated = updatePanelIndex(panel.wallName, 'prev');
+            if (updated) {
+              const newSource = getCurrentNftSource(panel.wallName);
+              if (newSource) {
+                updatePanelContent(panel, newSource);
+              }
+            }
+          } else if (intersectedMesh === panel.nextArrow) {
+            // Clicked Next Arrow
+            const updated = updatePanelIndex(panel.wallName, 'next');
+            if (updated) {
+              const newSource = getCurrentNftSource(panel.wallName);
+              if (newSource) {
+                updatePanelContent(panel, newSource);
+              }
+            }
+          }
         }
       }
     };
@@ -454,7 +468,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
-        // Raycast from center of screen to check for targeted panel
+        // Raycast from center of screen to check for targeted panel (for UI crosshair/feedback if needed)
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(panelsRef.current.map(p => p.mesh));
         
