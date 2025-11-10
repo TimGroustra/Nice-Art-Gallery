@@ -48,7 +48,7 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     context.textAlign = 'left';
     context.textBaseline = 'top';
 
-    const padding = 20;
+    const padding = 40; // Increased from 20 to 40 for more breathing room
     const lineHeight = actualFontSize * 1.2;
     const maxTextWidth = canvas.width - 2 * padding;
     
