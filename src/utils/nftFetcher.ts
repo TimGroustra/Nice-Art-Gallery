@@ -1,8 +1,8 @@
-import { ethers } from "ethers";
+import { JsonRpcProvider, Contract } from "ethers";
 
 // Ankr RPC endpoint for Electroneum
 const RPC_URL = "https://rpc.ankr.com/electroneum";
-const provider = new ethers.providers.JsonRpcProvider(RPC_URL);
+const provider = new JsonRpcProvider(RPC_URL);
 
 const erc721Abi = [
   "function tokenURI(uint256 tokenId) view returns (string)"
@@ -31,7 +31,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     throw new Error("Contract address and token ID must be provided.");
   }
 
-  const contract = new ethers.Contract(contractAddress, erc721Abi, provider);
+  const contract = new Contract(contractAddress, erc721Abi, provider);
   
   let tokenUri: string;
   try {
