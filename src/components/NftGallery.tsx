@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
+import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Define types for the panel objects
@@ -23,17 +23,6 @@ interface NftGalleryProps {
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
-
-// Create a static fallback texture once
-const fallbackTexture = new THREE.TextureLoader().load('/public/placeholder.svg', 
-  () => {}, 
-  undefined, 
-  (error) => {
-    console.error('Failed to load fallback texture:', error);
-  }
-);
-fallbackTexture.colorSpace = THREE.SRGBColorSpace;
-
 
 const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -61,104 +50,74 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   // --- Utility Functions for Three.js Content Management ---
 
-  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
-    let metadata: NftMetadata | null = null;
-    let imageUrl = '';
-    let isVideo = false;
-
-    // 1. Fetch Metadata
-    try {
-      metadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      imageUrl = metadata.image;
-      isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
-      
-      // Set temporary loading material
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x555555, side: THREE.DoubleSide });
-      panel.metadataUrl = metadata.source;
-      panel.isVideo = isVideo;
-
-    } catch (error) {
-      console.error(`Error fetching metadata or preparing content for panel ${panel.wallName}:`, error);
-      showError(`Failed to load NFT for ${panel.wallName}.`);
-      
-      // Fallback to a solid color material if metadata/fetch fails
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-      panel.metadataUrl = '';
-      panel.isVideo = false;
-      return; // Stop execution here if fetch failed
-    }
-    
-    // 2. Handle Video Content
+  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
       if (videoRef.current) {
-        manageVideoPlayback(false); // Pause existing video
-        videoRef.current.src = imageUrl;
+        videoRef.current.pause();
+        videoRef.current.src = url;
         videoRef.current.load();
         videoRef.current.loop = true;
         videoRef.current.muted = true; 
         
         if ((window as any).galleryControls?.isLocked?.()) {
-             manageVideoPlayback(true); // Attempt to play if controls are locked
+             manageVideoPlayback(true);
         }
 
-        const videoTexture = new THREE.VideoTexture(videoRef.current);
-        videoTexture.colorSpace = THREE.SRGBColorSpace;
-        
-        // Apply video texture
-        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          panel.mesh.material.map?.dispose();
-          panel.mesh.material.dispose();
-        }
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: videoTexture, side: THREE.DoubleSide });
-        
-        showSuccess(`Loaded video NFT: ${metadata.title}`);
+        return new THREE.VideoTexture(videoRef.current);
       }
-      return;
+      return new THREE.TextureLoader().load(url);
     }
-
-    // 3. Handle Image Content (Asynchronous Loading)
-    const loader = new THREE.TextureLoader();
-    
-    loader.load(
-      imageUrl,
-      (loadedTexture) => {
-        // Success: Apply the loaded texture
-        loadedTexture.colorSpace = THREE.SRGBColorSpace;
-        
-        // Dispose of the temporary material map if it exists
-        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          panel.mesh.material.map?.dispose();
-          panel.mesh.material.dispose();
-        }
-        
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: loadedTexture, side: THREE.DoubleSide });
-        showSuccess(`Loaded image NFT: ${metadata!.title}`);
-      },
-      undefined, // Progress
+    return new THREE.TextureLoader().load(url, 
+      () => {}, 
+      undefined, 
       (error) => {
-        // Error: Apply fallback texture
-        console.error('Error loading texture asynchronously:', imageUrl, error);
-        showError(`Failed to load image: ${imageUrl.substring(0, 50)}...`);
-        
-        // Dispose of the temporary material map if it exists
-        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          panel.mesh.material.map?.dispose();
-          panel.mesh.material.dispose();
-        }
-        
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: fallbackTexture, side: THREE.DoubleSide });
+        console.error('Error loading texture:', url, error);
+        showError(`Failed to load image: ${url.substring(0, 50)}...`);
       }
     );
-    
   }, [manageVideoPlayback]);
+
+  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+    try {
+      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+      
+      const imageUrl = metadata.image;
+      const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
+      
+      if (isVideo && videoRef.current) {
+        manageVideoPlayback(false);
+      }
+
+      const texture = loadTexture(imageUrl, isVideo);
+      
+      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+        panel.mesh.material.map?.dispose();
+        panel.mesh.material.dispose();
+      }
+
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      panel.metadataUrl = metadata.source;
+      panel.isVideo = isVideo;
+
+      if (isVideo) {
+        showSuccess(`Loaded video NFT: ${metadata.title}`);
+      } else {
+        showSuccess(`Loaded image NFT: ${metadata.title}`);
+      }
+      
+    } catch (error) {
+      console.error(`Error updating panel ${panel.wallName}:`, error);
+      showError(`Failed to load NFT for ${panel.wallName}.`);
+      
+      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+        panel.mesh.material.map?.dispose();
+        panel.mesh.material.dispose();
+      }
+      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+      panel.metadataUrl = '';
+      panel.isVideo = false;
+    }
+  }, [loadTexture, manageVideoPlayback]);
 
   // --- Three.js Setup Effect ---
 
@@ -599,6 +558,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       <video ref={videoRef} style={{ display: 'none' }} playsInline autoPlay muted />
       <div ref={mountRef} className="w-full h-full" />
     </>
+  );
 };
 
 export default NftGallery;
