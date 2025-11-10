@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
+import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig';
 
 // Define types for the panel mesh userData
 interface PanelMetadata {
@@ -34,30 +35,8 @@ function normalizeUrl(url: string): string {
   return url;
 }
 
-// Sample metadata URLs
-const initialSamplePanels = [
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample3.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
-  // Adding more samples to fill the 20 slots, cycling through existing ones
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample3.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample3.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample4.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample5.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample6.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample1.json",
-  "https://raw.githubusercontent.com/dyad-sh/dyad-assets/main/nft-gallery-samples/sample2.json",
-];
+// Define position names for mapping
+const POSITION_NAMES = ['left-left', 'left-center', 'center-center', 'right-center', 'right-right'];
 
 const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -212,7 +191,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     return mesh;
   }, [fetchAndApplyToMesh, MAX_W, MAX_H]);
 
-  const setupPanels = useCallback((scene: THREE.Scene, urls: string[]) => {
+  const setupPanels = useCallback((scene: THREE.Scene) => {
     // Clear existing and clean up video elements
     panelMeshesRef.current.forEach(m => {
       if (m.userData.videoElement) {
@@ -223,39 +202,52 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     });
     panelMeshesRef.current.length = 0;
 
-    const panelCenters = [-6, -3, 0, 3, 6]; // 5 panels, 3 units spacing
+    const panelCenters = [-6, -3, 0, 3, 6]; // 5 positions
     const panelY = 1.8;
     
-    // Helper to get URL, cycling through the provided list
-    const getUrl = (index: number) => urls[index % urls.length] || '';
-    let urlIndex = 0;
+    // Helper to get URL based on wall name and index (0-4)
+    const getUrl = (wallName: string, index: number) => {
+      let positionKey: string;
+      
+      // East and South walls iterate from Left-to-Right relative to the wall face.
+      if (wallName === 'east-wall' || wallName === 'south-wall') {
+        positionKey = POSITION_NAMES[index];
+      } 
+      // West and North walls iterate from Right-to-Left relative to the wall face (due to coordinate system).
+      else { 
+        positionKey = POSITION_NAMES[4 - index]; // Reverse index mapping
+      }
+      
+      const key = `${wallName}-${positionKey}`;
+      return GALLERY_PANEL_CONFIG[key] || '';
+    };
 
-    // Right wall panels (facing left, x = 7.89)
-    panelCenters.forEach(z => {
+    // 1. East Wall (Right wall, X = 7.89, Rot = PI/2)
+    panelCenters.forEach((z, index) => {
       const pos = new THREE.Vector3(7.89, panelY, z);
       const rot = Math.PI / 2; // face -x
-      createPanel(scene, pos, rot, getUrl(urlIndex++));
+      createPanel(scene, pos, rot, getUrl('east-wall', index));
     });
     
-    // Left wall panels (facing right, x = -7.89)
-    panelCenters.forEach(z => {
+    // 2. West Wall (Left wall, X = -7.89, Rot = -PI/2)
+    panelCenters.forEach((z, index) => {
       const pos = new THREE.Vector3(-7.89, panelY, z);
       const rot = -Math.PI / 2; // face +x
-      createPanel(scene, pos, rot, getUrl(urlIndex++));
+      createPanel(scene, pos, rot, getUrl('west-wall', index));
     });
 
-    // Back wall panels (facing front, z = -7.89)
-    panelCenters.forEach(x => {
+    // 3. South Wall (Back wall, Z = -7.89, Rot = 0)
+    panelCenters.forEach((x, index) => {
       const pos = new THREE.Vector3(x, panelY, -7.89);
       const rot = 0; // face +z
-      createPanel(scene, pos, rot, getUrl(urlIndex++));
+      createPanel(scene, pos, rot, getUrl('south-wall', index));
     });
 
-    // Front wall panels (facing back, z = 7.89)
-    panelCenters.forEach(x => {
+    // 4. North Wall (Front wall, Z = 7.89, Rot = PI)
+    panelCenters.forEach((x, index) => {
       const pos = new THREE.Vector3(x, panelY, 7.89);
       const rot = Math.PI; // face -z
-      createPanel(scene, pos, rot, getUrl(urlIndex++));
+      createPanel(scene, pos, rot, getUrl('north-wall', index));
     });
 
   }, [createPanel]);
@@ -420,7 +412,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
 
     // Setup initial panels
-    setupPanels(scene, initialSamplePanels);
+    setupPanels(scene);
 
     // --- Event Handlers ---
 
@@ -539,7 +531,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
             if (mesh.userData.videoElement) {
               setSelectedVideoMuted(mesh.userData.videoElement.muted);
             } else {
-              setSelectedVideoMuted(true);
+              setSelectedVideoMuted(true); // Hide controls when nothing is selected
             }
           }
         } else {
