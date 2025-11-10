@@ -392,23 +392,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const NUM_DISCO_LIGHTS = 20;
     const discoLights: THREE.PointLight[] = [];
     const discoLightHeight = 3.8; 
-    const maxRadius = 7.5; // Increased radius to cover more area
+    const maxRadius = 7.5; // Use full radius
 
     // Pre-calculate random properties for each light
-    const lightProperties = Array.from({ length: NUM_DISCO_LIGHTS }, () => ({
-      color: Math.random() * 0xffffff,
-      radius: Math.random() * maxRadius,
-      speedFactor: 0.0005 + Math.random() * 0.0005,
-      phaseOffset: Math.random() * Math.PI * 2,
-      verticalSpeed: 0.0001 + Math.random() * 0.0001,
-      verticalOffset: Math.random() * Math.PI * 2,
-    }));
+    const lightProperties = Array.from({ length: NUM_DISCO_LIGHTS }, () => {
+      // Calculate initial position using polar coordinates for even spread
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * maxRadius; // Random radius up to max
+      
+      return {
+        color: Math.random() * 0xffffff,
+        radius: radius, // Use this as the base radius for movement
+        speedFactor: 0.0005 + Math.random() * 0.0005,
+        phaseOffset: Math.random() * Math.PI * 2,
+        verticalSpeed: 0.0001 + Math.random() * 0.0001,
+        verticalOffset: Math.random() * Math.PI * 2,
+        initialX: Math.cos(angle) * radius,
+        initialZ: Math.sin(angle) * radius,
+      };
+    });
     
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const props = lightProperties[i];
       // Increased intensity and distance significantly to fill the space
       const pl = new THREE.PointLight(props.color, 5.0, 20, 1.5); 
-      pl.position.set(0, discoLightHeight, 0); // Initial position
+      // Set initial position based on pre-calculated spread
+      pl.position.set(props.initialX, discoLightHeight, props.initialZ); 
       scene.add(pl);
       discoLights.push(pl);
     }
@@ -510,9 +519,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         
         const angle = time * props.speedFactor + props.phaseOffset;
         
-        // Horizontal movement (circular/elliptical pattern)
-        pl.position.x = Math.cos(angle) * props.radius;
-        pl.position.z = Math.sin(angle * 0.8) * props.radius; // Slightly elliptical movement
+        // Horizontal movement: Oscillate around the initial spread position
+        // We use the initial position (props.initialX/Z) as the center of oscillation
+        // and props.radius (which is up to 7.5) to define the oscillation magnitude.
+        const oscillationMagnitude = 1.5; // Max distance the light moves from its initial point
+        
+        pl.position.x = props.initialX + Math.cos(angle) * oscillationMagnitude;
+        pl.position.z = props.initialZ + Math.sin(angle * 0.8) * oscillationMagnitude; 
         
         // Vertical movement (subtle bobbing)
         pl.position.y = discoLightHeight + Math.sin(time * props.verticalSpeed + props.verticalOffset) * 0.1;
