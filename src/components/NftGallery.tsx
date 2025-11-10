@@ -47,73 +47,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     }
   }, []);
 
-  // Utility to create a fallback texture
-  const createFallbackTexture = useCallback((): THREE.Texture => {
-    const fallbackTexture = new THREE.Texture();
-    const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.fillStyle = '#FF0000'; // Red color for error visibility
-      ctx.fillRect(0, 0, 1, 1);
-    }
-    fallbackTexture.image = canvas;
-    fallbackTexture.needsUpdate = true;
-    return fallbackTexture;
-  }, []);
-
 
   // --- Utility Functions for Three.js Content Management ---
 
-  const loadNftTexture = useCallback(async (url: string, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
+  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
       if (videoRef.current) {
-        const video = videoRef.current;
+        videoRef.current.pause();
+        videoRef.current.src = url;
+        videoRef.current.load();
+        videoRef.current.loop = true;
+        videoRef.current.muted = true; 
         
-        // 1. Set source and properties
-        video.pause();
-        video.src = url;
-        video.load();
-        video.loop = true;
-        video.muted = true; 
-        
-        // 2. Create texture immediately. Three.js VideoTexture handles updates internally.
-        const texture = new THREE.VideoTexture(video);
-        texture.minFilter = THREE.LinearFilter;
-        texture.magFilter = THREE.LinearFilter;
-        texture.format = THREE.RGBFormat; // Use RGB format for video
-
-        // 3. Start playback if controls are locked (this will start the texture update)
         if ((window as any).galleryControls?.isLocked?.()) {
              manageVideoPlayback(true);
         }
 
-        return texture;
+        return new THREE.VideoTexture(videoRef.current);
       }
-      // Fallback if video element is not ready
-      return createFallbackTexture();
+      return new THREE.TextureLoader().load(url);
     }
-    
-    const loader = new THREE.TextureLoader();
-    loader.crossOrigin = 'anonymous'; // Crucial for external resources
-    
-    return new Promise((resolve) => {
-      loader.load(url, 
-        (texture) => {
-          // Success
-          resolve(texture);
-        }, 
-        undefined, // onProgress
-        (error) => {
-          // Error
-          console.error('Error loading texture:', url, error);
-          showError(`Failed to load image: ${url.substring(0, 50)}...`);
-          resolve(createFallbackTexture());
-        }
-      );
-    });
-  }, [manageVideoPlayback, createFallbackTexture]);
+    return new THREE.TextureLoader().load(url, 
+      () => {}, 
+      undefined, 
+      (error) => {
+        console.error('Error loading texture:', url, error);
+        showError(`Failed to load image: ${url.substring(0, 50)}...`);
+      }
+    );
+  }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
@@ -126,8 +88,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         manageVideoPlayback(false);
       }
 
-      // Await the texture loading
-      const texture = await loadNftTexture(imageUrl, isVideo);
+      const texture = loadTexture(imageUrl, isVideo);
       
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
@@ -152,12 +113,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
       }
-      // Fallback to solid color material on metadata fetch failure
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       panel.metadataUrl = '';
       panel.isVideo = false;
     }
-  }, [loadNftTexture, manageVideoPlayback]);
+  }, [loadTexture, manageVideoPlayback]);
 
   // --- Three.js Setup Effect ---
 
@@ -590,7 +550,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       currentTargetedPanel = null; 
       currentTargetedArrow = null;
     };
-  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback, createFallbackTexture]);
+  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>

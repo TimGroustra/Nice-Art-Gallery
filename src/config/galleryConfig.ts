@@ -16,9 +16,6 @@ const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 // The second collection address
 const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
-// The third collection address
-const THIRD_COLLECTION_ADDRESS = "0xe6db26D4F86108D2E9C21924dEf563fA393B8469";
-
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
   'north-wall': {
@@ -32,7 +29,7 @@ let galleryConfig: PanelConfig = {
     currentIndex: 0,
   },
   'east-wall': {
-    contractAddress: THIRD_COLLECTION_ADDRESS, // Assigned the third collection
+    contractAddress: PANTH_ART_ADDRESS, 
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
@@ -48,7 +45,6 @@ export async function initializeGalleryConfig() {
   const collectionsToFetch = [
     { address: PANTH_ART_ADDRESS, name: 'Panth.art' },
     { address: SECOND_COLLECTION_ADDRESS, name: 'Second Collection' },
-    { address: THIRD_COLLECTION_ADDRESS, name: 'Third Collection' }, // Added third collection
   ];
 
   const tokenMap: { [address: string]: number[] } = {};
