@@ -614,7 +614,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       const time = performance.now();
 
       // Update disco lights rotate and move
-      for (let i = 0 => discoLights.length; i++) {
+      for (let i = 0; i < discoLights.length; i++) {
         const pl = discoLights[i];
         const props = lightProperties[i];
         
