@@ -15,7 +15,6 @@ interface Panel {
   nextArrow: THREE.Mesh;
   titleMesh: THREE.Mesh;
   descriptionMesh: THREE.Mesh;
-  collectionTitleMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
   // New properties for scrolling description
   currentDescription: string;
@@ -162,8 +161,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
       const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
-      const collectionName = collectionConfig ? collectionConfig.name : 'Unknown Collection';
       
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
@@ -201,14 +198,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
 
-      // Update collection title
-      if (panel.collectionTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.collectionTitleMesh.material.map) {
-          panel.collectionTitleMesh.material.map.dispose();
-      }
-      const { texture: collectionTitleTexture } = createTextTexture(collectionName, 1.5, 0.5, 80, 'white');
-      (panel.collectionTitleMesh.material as THREE.MeshBasicMaterial).map = collectionTitleTexture;
-      panel.collectionTitleMesh.visible = true;
-
       // Update attributes
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
@@ -234,7 +223,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.isVideo = false;
       if (panel.titleMesh) panel.titleMesh.visible = false;
       if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-      if (panel.collectionTitleMesh) panel.collectionTitleMesh.visible = false;
       if (panel.attributesMesh) panel.attributesMesh.visible = false;
     }
   }, [loadTexture, manageVideoPlayback]);
@@ -372,24 +360,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       const COLLECTION_INFO_OFFSET_X = 3;
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, COLLECTION_INFO_OFFSET_X);
-      const COLLECTION_TITLE_HEIGHT = 0.5;
       const ATTRIBUTES_HEIGHT = 1.5;
-      const collectionTitleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, COLLECTION_TITLE_HEIGHT);
-      const collectionTitleMesh = new THREE.Mesh(collectionTitleGeometry, placeholderMaterial.clone());
-      collectionTitleMesh.rotation.set(...config.rotation);
-      const collectionTitlePosition = collectionInfoGroupPosition.clone().addScaledVector(upVector, (ATTRIBUTES_HEIGHT / 2) - (COLLECTION_TITLE_HEIGHT / 2)).addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-      collectionTitleMesh.position.copy(collectionTitlePosition);
-      scene.add(collectionTitleMesh);
       const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
       attributesMesh.rotation.set(...config.rotation);
-      const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(upVector, -(COLLECTION_TITLE_HEIGHT / 2)).addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-        collectionTitleMesh, attributesMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+        attributesMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
       };
       panelsRef.current.push(panel);
       
