@@ -279,7 +279,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Previous Arrow (Left side of panel)
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      prevArrow.rotation.z = Math.PI; // Rotate 180 degrees to point left/outward
+      // ROTATION CHANGE: No rotation (points right/inward)
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
@@ -293,7 +293,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       // Next Arrow (Right side of panel)
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // No rotation needed here, as the default shape points right/outward
+      nextArrow.rotation.z = Math.PI; // ROTATION CHANGE: Flip 180 degrees (points left/inward)
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
