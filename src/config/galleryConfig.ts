@@ -1,4 +1,4 @@
-import { fetchTotalSupply } from '@/utils/nftFetcher';
+import { fetchTotalSupply, fetchCollectionName } from '@/utils/nftFetcher';
 
 export interface NftCollection {
   name: string;
@@ -11,35 +11,35 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
-// The Panth.art collection address
-const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
+// The ElectroGems collection address
+const ELECTGEMS_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// The second collection address
-const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+// The Thirst & Thunder collection address
+const THIRST_AND_THUNDER_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
   'north-wall': {
-    name: 'Panth.art',
-    contractAddress: PANTH_ART_ADDRESS,
+    name: 'Loading...',
+    contractAddress: ELECTGEMS_ADDRESS,
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'south-wall': {
-    name: 'Anybodies',
-    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    name: 'Loading...',
+    contractAddress: THIRST_AND_THUNDER_ADDRESS, // Assigned the new collection
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'east-wall': {
-    name: 'Panth.art',
-    contractAddress: PANTH_ART_ADDRESS, 
+    name: 'Loading...',
+    contractAddress: ELECTGEMS_ADDRESS, 
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'west-wall': {
-    name: 'Panth.art',
-    contractAddress: PANTH_ART_ADDRESS, 
+    name: 'Loading...',
+    contractAddress: ELECTGEMS_ADDRESS, 
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
@@ -47,34 +47,36 @@ let galleryConfig: PanelConfig = {
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  const collectionsToFetch = [
-    { address: PANTH_ART_ADDRESS, name: 'Panth.art' },
-    { address: SECOND_COLLECTION_ADDRESS, name: 'Anybodies' },
-  ];
+  // Get unique contract addresses from the initial config
+  const uniqueAddresses = [...new Set(Object.values(galleryConfig).map(c => c.contractAddress))];
 
-  const tokenMap: { [address: string]: number[] } = {};
+  const collectionDataCache: { [address: string]: { name: string; tokens: number[] } } = {};
 
-  for (const { address, name } of collectionsToFetch) {
+  // Use Promise.all to fetch data for all unique collections concurrently
+  await Promise.all(uniqueAddresses.map(async (address) => {
     try {
-      const totalSupply = await fetchTotalSupply(address);
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      console.log(`Collection ${name} initialized with ${totalSupply} tokens.`);
+      const [name, totalSupply] = await Promise.all([
+        fetchCollectionName(address),
+        fetchTotalSupply(address)
+      ]);
+      
+      const tokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      collectionDataCache[address] = { name, tokens };
+      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
     } catch (error) {
-      console.error(`Failed to initialize collection ${name}:`, error);
-      // Fallback to placeholder if fetching fails
-      tokenMap[address] = [1];
+      console.error(`Failed to initialize collection at ${address}:`, error);
+      collectionDataCache[address] = { name: "Unnamed Collection", tokens: [1] };
     }
-  }
+  }));
 
-  // Update all panels using the fetched token lists
+  // Update all panels using the fetched data from the cache
   for (const wallName in galleryConfig) {
     const config = galleryConfig[wallName];
-    const tokens = tokenMap[config.contractAddress];
+    const data = collectionDataCache[config.contractAddress];
     
-    if (tokens && tokens.length > 0) {
-      config.tokenIds = tokens;
-      // Ensure currentIndex is valid (it should be 0 initially)
+    if (data) {
+      config.name = data.name;
+      config.tokenIds = data.tokens;
       config.currentIndex = 0; 
     }
   }
