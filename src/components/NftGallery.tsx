@@ -177,7 +177,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // Walls
     const room = new THREE.Group();
-    const wallMat = new THREE.MeshStandardMaterial({ color: 0x22222f, roughness: 0.7 });
+    // Brightened wall color and reduced roughness slightly
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x444455, roughness: 0.6 }); 
     const wallThickness = 0.2;
     function makeWall(w: number, h: number, d: number, x: number, z: number, ry = 0) {
       const g = new THREE.BoxGeometry(w, h, d);
@@ -208,8 +209,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // --- Lighting ---
     
-    // 1. Ambient Light (General Glow)
-    const amb = new THREE.AmbientLight(0xaaaaaa, 0.5); 
+    // 1. Ambient Light (General Glow) - Increased intensity significantly
+    const amb = new THREE.AmbientLight(0xaaaaaa, 2.0); 
     scene.add(amb);
 
     // 2. Disco Point Lights (Rotating Mood Lights)
@@ -218,8 +219,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const lightHeight = 3.8; 
     
     for (let i = 0; i < 3; i++) {
-      // Reduced intensity further to make them mood lights, not primary illumination
-      const pl = new THREE.PointLight(lightColors[i], 1.0, 10, 1.5); 
+      // Slightly increased intensity for better reflection
+      const pl = new THREE.PointLight(lightColors[i], 2.0, 10, 1.5); 
       pl.position.set(Math.cos(i / 3 * Math.PI * 2) * 3, lightHeight, Math.sin(i / 3 * Math.PI * 2) * 3);
       scene.add(pl);
       discoLights.push(pl);
@@ -238,7 +239,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     ];
 
     panelPositions.forEach((pos) => {
-      const spotLight = new THREE.SpotLight(0xffffff, 5, 5, Math.PI / 8, 0.5, 1);
+      // Increased spotlight intensity slightly
+      const spotLight = new THREE.SpotLight(0xffffff, 8, 5, Math.PI / 8, 0.5, 1); 
       spotLight.position.set(pos.x, 3.5, pos.z); // Positioned high above the panel
       
       const target = new THREE.Object3D();
