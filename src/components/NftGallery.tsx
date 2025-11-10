@@ -67,6 +67,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     return lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.webm') || lowerUrl.endsWith('.ogg');
   };
 
+  // Helper to remove a mesh and clean up resources
+  const removeMesh = useCallback((mesh: PanelMesh) => {
+    if (mesh.userData.videoElement) {
+      mesh.userData.videoElement.pause();
+      mesh.userData.videoElement.remove();
+    }
+    if (mesh.parent) {
+      mesh.parent.remove(mesh);
+    }
+    mesh.geometry.dispose();
+    (mesh.material as THREE.Material).dispose();
+    
+    // Remove from the tracking array
+    panelMeshesRef.current = panelMeshesRef.current.filter(m => m !== mesh);
+    if (selectedPanelRef.current === mesh) {
+      selectedPanelRef.current = null;
+      setSelectedVideoMuted(true);
+    }
+  }, []);
+
   // --- Panel Logic ---
 
   const applyTextureToMesh = useCallback((mesh: PanelMesh, texture: THREE.Texture, imageAspect: number, metadataUrl: string, json: any, videoElement?: HTMLVideoElement) => {
@@ -151,6 +171,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         video.onerror = (e) => {
           console.warn('Video load error for:', mediaUrl, e);
           document.body.removeChild(video);
+          removeMesh(mesh); // Remove mesh on video load failure
         };
 
       } else {
@@ -168,14 +189,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           },
           (err) => {
             console.warn('Texture load error for:', metadataUrl, err);
+            removeMesh(mesh); // Remove mesh on texture load failure
           }
         );
       }
 
     } catch (err) {
       console.warn('fetchAndApplyToMesh error for:', metadataUrl, err);
+      removeMesh(mesh); // Remove mesh on metadata fetch failure
     }
-  }, [MAX_W, MAX_H, applyTextureToMesh]);
+  }, [MAX_W, MAX_H, applyTextureToMesh, removeMesh]);
 
   const createPanel = useCallback((scene: THREE.Scene, position: THREE.Vector3, rotationY: number, metadataUrl: string) => {
     // Start with max dimensions, they will be resized upon texture load
@@ -224,30 +247,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // 1. East Wall (Right wall, X = 7.89, Rot = PI/2)
     panelCenters.forEach((z, index) => {
-      const pos = new THREE.Vector3(7.89, panelY, z);
-      const rot = Math.PI / 2; // face -x
-      createPanel(scene, pos, rot, getUrl('east-wall', index));
+      const url = getUrl('east-wall', index);
+      if (url) {
+        const pos = new THREE.Vector3(7.89, panelY, z);
+        const rot = Math.PI / 2; // face -x
+        createPanel(scene, pos, rot, url);
+      }
     });
     
     // 2. West Wall (Left wall, X = -7.89, Rot = -PI/2)
     panelCenters.forEach((z, index) => {
-      const pos = new THREE.Vector3(-7.89, panelY, z);
-      const rot = -Math.PI / 2; // face +x
-      createPanel(scene, pos, rot, getUrl('west-wall', index));
+      const url = getUrl('west-wall', index);
+      if (url) {
+        const pos = new THREE.Vector3(-7.89, panelY, z);
+        const rot = -Math.PI / 2; // face +x
+        createPanel(scene, pos, rot, url);
+      }
     });
 
     // 3. South Wall (Back wall, Z = -7.89, Rot = 0)
     panelCenters.forEach((x, index) => {
-      const pos = new THREE.Vector3(x, panelY, -7.89);
-      const rot = 0; // face +z
-      createPanel(scene, pos, rot, getUrl('south-wall', index));
+      const url = getUrl('south-wall', index);
+      if (url) {
+        const pos = new THREE.Vector3(x, panelY, -7.89);
+        const rot = 0; // face +z
+        createPanel(scene, pos, rot, url);
+      }
     });
 
     // 4. North Wall (Front wall, Z = 7.89, Rot = PI)
     panelCenters.forEach((x, index) => {
-      const pos = new THREE.Vector3(x, panelY, 7.89);
-      const rot = Math.PI; // face -z
-      createPanel(scene, pos, rot, getUrl('north-wall', index));
+      const url = getUrl('north-wall', index);
+      if (url) {
+        const pos = new THREE.Vector3(x, panelY, 7.89);
+        const rot = Math.PI; // face -z
+        createPanel(scene, pos, rot, url);
+      }
     });
 
   }, [createPanel]);
@@ -562,19 +597,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       window.removeEventListener('resize', onWindowResize);
       document.removeEventListener('click', onDocumentClick);
       
-      // Clean up video elements
-      panelMeshesRef.current.forEach(m => {
-        if (m.userData.videoElement) {
-          m.userData.videoElement.pause();
-          m.userData.videoElement.remove();
-        }
-      });
+      // Clean up video elements and meshes
+      panelMeshesRef.current.forEach(m => removeMesh(m));
 
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, setInstructionsVisible]);
+  }, [onPanelClick, setupPanels, createPanel, fetchAndApplyToMesh, setInstructionsVisible, removeMesh]);
 
   // Function to toggle mute state of the currently selected video
   const toggleMute = useCallback(() => {
