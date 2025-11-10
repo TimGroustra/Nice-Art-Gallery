@@ -1,12 +1,9 @@
-import { fetchTotalSupply, fetchCollectionMetadata } from '@/utils/nftFetcher';
+import { fetchTotalSupply } from '@/utils/nftFetcher';
 
 export interface NftCollection {
   contractAddress: string;
   tokenIds: number[]; // Array of token IDs available in this collection
   currentIndex: number; // Index of the currently displayed token in the tokenIds array
-  collectionName?: string;
-  collectionDescription?: string;
-  totalSupply?: number;
 }
 
 export interface PanelConfig {
@@ -45,44 +42,35 @@ let galleryConfig: PanelConfig = {
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  const collectionDataCache = new Map<string, { name: string; description: string; supply: number; tokens: number[] }>();
-  const uniqueContractAddresses = [...new Set(Object.values(GALLERY_PANEL_CONFIG).map(c => c.contractAddress))];
+  const collectionsToFetch = [
+    { address: PANTH_ART_ADDRESS, name: 'Panth.art' },
+    { address: SECOND_COLLECTION_ADDRESS, name: 'Second Collection' },
+  ];
 
-  for (const address of uniqueContractAddresses) {
+  const tokenMap: { [address: string]: number[] } = {};
+
+  for (const { address, name } of collectionsToFetch) {
     try {
-      const [metadata, supply] = await Promise.all([
-        fetchCollectionMetadata(address),
-        fetchTotalSupply(address)
-      ]);
-      const tokens = Array.from({ length: supply }, (_, i) => i + 1);
-      collectionDataCache.set(address, {
-        name: metadata.name,
-        description: metadata.description,
-        supply: supply,
-        tokens: tokens,
-      });
-      console.log(`Collection ${metadata.name} initialized with ${supply} tokens.`);
+      const totalSupply = await fetchTotalSupply(address);
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      console.log(`Collection ${name} initialized with ${totalSupply} tokens.`);
     } catch (error) {
-      console.error(`Failed to initialize collection at ${address}:`, error);
-      collectionDataCache.set(address, {
-        name: `Collection ${address.slice(0, 6)}...`,
-        description: 'Could not load collection details.',
-        supply: 1,
-        tokens: [1],
-      });
+      console.error(`Failed to initialize collection ${name}:`, error);
+      // Fallback to placeholder if fetching fails
+      tokenMap[address] = [1];
     }
   }
 
-  for (const wallName in GALLERY_PANEL_CONFIG) {
-    const config = GALLERY_PANEL_CONFIG[wallName];
-    const data = collectionDataCache.get(config.contractAddress);
+  // Update all panels using the fetched token lists
+  for (const wallName in galleryConfig) {
+    const config = galleryConfig[wallName];
+    const tokens = tokenMap[config.contractAddress];
     
-    if (data) {
-      config.tokenIds = data.tokens;
-      config.currentIndex = 0;
-      config.collectionName = data.name;
-      config.collectionDescription = data.description;
-      config.totalSupply = data.supply;
+    if (tokens && tokens.length > 0) {
+      config.tokenIds = tokens;
+      // Ensure currentIndex is valid (it should be 0 initially)
+      config.currentIndex = 0; 
     }
   }
   console.log(`Gallery configuration fully initialized.`);
