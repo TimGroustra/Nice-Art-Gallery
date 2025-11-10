@@ -258,6 +258,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
     
+    // Base rotation to make the arrow stand up vertically (around X)
+    const baseRotationX = -Math.PI / 2; 
+
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + 0.01], rotation: [0, 0, 0] },
       { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - 0.01], rotation: [0, Math.PI, 0] },
@@ -279,28 +282,43 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       
       // Previous Arrow (Left side of panel)
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      prevArrow.rotation.z = Math.PI; // Rotate 180 degrees to point left/outward
+      
+      // 1. Make the arrow stand up vertically (rotate around X axis)
+      prevArrow.rotation.x = baseRotationX; 
+      
+      // 2. Apply wall rotation (Y rotation)
+      prevArrow.rotation.y = config.rotation[1]; 
+      
+      // 3. Apply 180 degree flip for 'prev' direction (around Z axis of the arrow's local space)
+      prevArrow.rotation.z = Math.PI; 
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
         prevArrow.position.set(arrowX - arrowOffset, arrowY, arrowZ);
       } else { // East/West walls
-        prevArrow.rotation.y += Math.PI / 2; // Rotate arrow to point along the wall
+        // For East/West walls, the arrow needs an additional 90 degree rotation around Y
+        prevArrow.rotation.y += Math.PI / 2; 
         prevArrow.position.set(arrowX, arrowY, arrowZ - arrowOffset);
       }
       scene.add(prevArrow);
       
       // Next Arrow (Right side of panel)
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // No rotation needed here, as the default shape points right/outward
+      
+      // 1. Make the arrow stand up vertically (rotate around X axis)
+      nextArrow.rotation.x = baseRotationX; 
+      
+      // 2. Apply wall rotation (Y rotation)
+      nextArrow.rotation.y = config.rotation[1]; 
+      
+      // 3. No Z rotation needed for 'next' direction (it points right by default)
       
       // Position based on wall orientation
       if (config.wallName === 'north-wall' || config.wallName === 'south-wall') {
         nextArrow.position.set(arrowX + arrowOffset, arrowY, arrowZ);
       } else { // East/West walls
-        nextArrow.rotation.y -= Math.PI / 2; // Rotate arrow to point along the wall
+        // For East/West walls, the arrow needs an additional -90 degree rotation around Y
+        nextArrow.rotation.y -= Math.PI / 2; 
         nextArrow.position.set(arrowX, arrowY, arrowZ + arrowOffset);
       }
       scene.add(nextArrow);
@@ -346,7 +364,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         case 'ArrowDown':
           moveBackward = true;
           break;
-        case 'KeyD':
+          case 'KeyD':
         case 'ArrowRight':
           moveRight = true;
           break;
