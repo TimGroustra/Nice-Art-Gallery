@@ -315,11 +315,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
     const collectionNameGeometry = new THREE.PlaneGeometry(3, 0.75);
 
+    const PANEL_SPACING = 3.5; // Spacing between panel centers
+
     const panelConfigs = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
+      // North Wall (2 displays)
+      { wallName: 'north-wall-1', position: [-PANEL_SPACING / 2, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      { wallName: 'north-wall-2', position: [PANEL_SPACING / 2, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      
+      // South Wall (2 displays)
+      { wallName: 'south-wall-1', position: [-PANEL_SPACING / 2, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      { wallName: 'south-wall-2', position: [PANEL_SPACING / 2, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+
+      // East Wall (3 displays)
+      { wallName: 'east-wall-1', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, -PANEL_SPACING], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'east-wall-2', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'east-wall-3', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, PANEL_SPACING], rotation: [0, -Math.PI / 2, 0] },
+
+      // West Wall (3 displays)
+      { wallName: 'west-wall-1', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -PANEL_SPACING], rotation: [0, Math.PI / 2, 0] },
+      { wallName: 'west-wall-2', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
+      { wallName: 'west-wall-3', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, PANEL_SPACING], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
