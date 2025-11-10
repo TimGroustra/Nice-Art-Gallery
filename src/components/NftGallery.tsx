@@ -16,7 +16,7 @@ interface Panel {
 }
 
 interface NftGalleryProps {
-  onPanelClick: (metadataUrl: string) => void;
+  // Removed onPanelClick prop
   setInstructionsVisible: (visible: boolean) => void;
 }
 
@@ -24,7 +24,7 @@ interface NftGalleryProps {
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
 
-const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -408,11 +408,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           }
         }
       } else if (currentTargetedPanel) {
-        console.log("Targeted Panel clicked. Opening metadata modal.");
-        // Clicked the NFT panel itself -> Open Metadata Modal
-        if (currentTargetedPanel.metadataUrl) {
-          onPanelClick(currentTargetedPanel.metadataUrl);
-        }
+        console.log("Targeted Panel clicked. Action removed.");
+        // Clicked the NFT panel itself -> NO ACTION (Modal removed)
+        // if (currentTargetedPanel.metadataUrl) {
+        //   onPanelClick(currentTargetedPanel.metadataUrl);
+        // }
       }
     };
 
@@ -550,7 +550,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       currentTargetedPanel = null; 
       currentTargetedArrow = null;
     };
-  }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
