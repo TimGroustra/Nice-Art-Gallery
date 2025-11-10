@@ -16,6 +16,7 @@ interface Panel {
   titleMesh: THREE.Mesh;
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
+  collectionNameMesh: THREE.Mesh;
   // New properties for scrolling description
   currentDescription: string;
   descriptionScrollY: number;
@@ -47,33 +48,22 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     const actualFontSize = fontSize;
     context.font = `bold ${actualFontSize}px Arial`;
     context.fillStyle = color;
-    context.textAlign = 'left';
-    context.textBaseline = 'top';
+    context.textAlign = 'center'; // Center align the text
+    context.textBaseline = 'middle'; // Middle align the text
 
-    const padding = 40; // Increased from 20 to 40 for more breathing room
+    const padding = 40;
     const lineHeight = actualFontSize * 1.2;
     const maxTextWidth = canvas.width - 2 * padding;
     
     const words = text.split(' ');
     let line = '';
-    let y = padding;
+    let y = canvas.height / 2; // Start in the middle for single lines
 
-    for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + ' ';
-        const metrics = context.measureText(testLine);
-        const testWidth = metrics.width;
-
-        if (testWidth > maxTextWidth && n > 0) {
-            context.fillText(line, padding, y - scrollY);
-            line = words[n] + ' ';
-            y += lineHeight;
-        } else {
-            line = testLine;
-        }
-    }
-    context.fillText(line, padding, y - scrollY);
+    // This simplified logic is for single-line, centered text.
+    // For multi-line centered text, more complex logic would be needed.
+    context.fillText(text, canvas.width / 2, y - scrollY);
     
-    const totalHeight = y + lineHeight - padding;
+    const totalHeight = lineHeight;
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.needsUpdate = true;
@@ -161,6 +151,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
       const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+      const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+      const collectionName = collectionConfig ? collectionConfig.name : 'Unknown Collection';
       
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
@@ -198,6 +190,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
 
+      // Update collection name
+      if (panel.collectionNameMesh.material instanceof THREE.MeshBasicMaterial && panel.collectionNameMesh.material.map) {
+        panel.collectionNameMesh.material.map.dispose();
+      }
+      const { texture: collectionNameTexture } = createTextTexture(collectionName, 2.5, 0.5, 80, 'white');
+      (panel.collectionNameMesh.material as THREE.MeshBasicMaterial).map = collectionNameTexture;
+      panel.collectionNameMesh.visible = true;
+
       // Update attributes
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
@@ -224,6 +224,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh) panel.titleMesh.visible = false;
       if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
       if (panel.attributesMesh) panel.attributesMesh.visible = false;
+      if (panel.collectionNameMesh) panel.collectionNameMesh.visible = false;
     }
   }, [loadTexture, manageVideoPlayback]);
 
@@ -312,6 +313,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_HEIGHT);
+    const collectionNameGeometry = new THREE.PlaneGeometry(2.5, 0.5);
 
     const panelConfigs = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
@@ -368,9 +370,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
+      const collectionNameMesh = new THREE.Mesh(collectionNameGeometry, placeholderMaterial.clone());
+      collectionNameMesh.rotation.set(...config.rotation);
+      const collectionNamePosition = new THREE.Vector3(config.position[0], panelYPosition + 1.5, config.position[2]);
+      collectionNameMesh.position.copy(collectionNamePosition);
+      scene.add(collectionNameMesh);
+
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-        attributesMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+        attributesMesh, collectionNameMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
       };
       panelsRef.current.push(panel);
       
