@@ -282,18 +282,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
-    const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load('/floor-texture.jpg');
-    floorTexture.wrapS = THREE.RepeatWrapping;
-    floorTexture.wrapT = THREE.RepeatWrapping;
-    floorTexture.repeat.set(5, 5);
-
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(roomSize, roomSize),
-      new THREE.MeshBasicMaterial({ map: floorTexture, side: THREE.DoubleSide })
+      new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide }) // Placeholder
     );
     floor.rotation.x = Math.PI / 2;
     scene.add(floor);
+
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('/floor-texture.jpg', (texture) => {
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(5, 5);
+      if (floor.material instanceof THREE.MeshBasicMaterial) {
+        floor.material.map = texture;
+        floor.material.needsUpdate = true;
+      }
+    }, undefined, (error) => {
+      console.error("Failed to load floor texture:", error);
+    });
 
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
@@ -499,7 +506,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         light.position.z = Math.sin(angle) * 3;
       });
 
-      floorTexture.offset.y += 0.0005;
+      if (floor.material instanceof THREE.MeshBasicMaterial && floor.material.map) {
+        floor.material.map.offset.y += 0.0005;
+      }
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
