@@ -61,6 +61,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   // Fibonacci sequence F(1) through F(7): 1, 1, 2, 3, 5, 8, 13
   const fib = useRef([1, 1, 2, 3, 5, 8, 13]); 
 
+  // Define room boundaries (slightly inside the walls at +/- 8)
+  const BOUNDARY = 7.5; 
+
   // --- Panel Logic ---
 
   const fetchAndApplyToMesh = useCallback(async (metadataUrl: string, mesh: PanelMesh) => {
@@ -347,7 +350,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         // Use a slightly varied speed based on index, but keep it close to the base speed
         const speedFactor = baseSpeed * (1 + i * 0.05); 
         const a = performance.now() * speedFactor;
-        const radiusFactor = fib.current[i] * 0.5; // Radius scale factor is now 0.5
+        const radiusFactor = fib.current[i] * 0.5; 
         
         discoLights[i].position.x = Math.cos(a + i) * radiusFactor;
         discoLights[i].position.z = Math.sin(a + i) * radiusFactor;
@@ -355,6 +358,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
       // Movement
       if (controls.isLocked) {
+        const previousPosition = camera.position.clone();
+
         const direction = new THREE.Vector3();
         direction.z = moveStateRef.current.forward - moveStateRef.current.backward;
         direction.x = moveStateRef.current.right - moveStateRef.current.left;
@@ -362,6 +367,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
         controls.moveForward(direction.z * speed * delta);
         controls.moveRight(direction.x * speed * delta);
+
+        // Boundary Check
+        // We use the previous position to restore if the new position is outside the boundary
+        if (camera.position.x > BOUNDARY || camera.position.x < -BOUNDARY) {
+          camera.position.x = previousPosition.x;
+        }
+        if (camera.position.z > BOUNDARY || camera.position.z < -BOUNDARY) {
+          camera.position.z = previousPosition.z;
+        }
 
         // Raycast for highlighting/selection
         raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
