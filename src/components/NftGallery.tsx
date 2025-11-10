@@ -174,7 +174,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     // Floor (Green)
     const floorGeometry = new THREE.PlaneGeometry(roomSize, roomSize);
-    // Changed color from 0x222222 to 0x006400 (Dark Green)
     const floorMaterial = new THREE.MeshPhongMaterial({ color: 0x006400, side: THREE.DoubleSide });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = Math.PI / 2;
@@ -231,8 +230,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       scene.add(pl);
       lights.push(pl);
     }
-    const amb = new THREE.AmbientLight(0x404050, 0.6);
+    
+    // Ambient Light (Increased intensity slightly)
+    const amb = new THREE.AmbientLight(0x404050, 0.8); 
     scene.add(amb);
+
+    // Hemisphere Light for even ceiling illumination
+    // Sky color (ceiling): white/light grey (0xffffff)
+    // Ground color (floor): dark grey/black (0x000000)
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
+    hemiLight.position.set(0, wallHeight, 0); // Positioned at the ceiling height
+    scene.add(hemiLight);
+
 
     // 5. Setup initial panels and 3D arrows
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
