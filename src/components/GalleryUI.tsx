@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { X, Volume2, VolumeX } from 'lucide-react';
+import { X, Volume2, VolumeX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { normalizeUrl } from '@/utils/nftFetcher'; // Import shared utility
 
 interface Metadata {
@@ -21,6 +21,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
   const [modalMetadata, setModalMetadata] = useState<Metadata | null>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [hasVideo, setHasVideo] = useState(false);
+  const [isPanelTargeted, setIsPanelTargeted] = useState(false);
 
   // Function to fetch and open metadata modal
   const openMetadataModal = useCallback(async (metadataUrl: string) => {
@@ -63,16 +64,21 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     };
   }, [openMetadataModal]);
 
-  // Polling/Interval to check video state from NftGallery
+  // Polling/Interval to check video state and targeted panel state from NftGallery
   useEffect(() => {
     const interval = setInterval(() => {
       const galleryControls = (window as any).galleryControls;
       if (galleryControls) {
+        // Video state check
         const videoPresent = galleryControls.hasVideo();
         setHasVideo(videoPresent);
         if (videoPresent) {
           setIsMuted(galleryControls.isMuted());
         }
+        
+        // Targeted panel check
+        const targetedPanel = galleryControls.getTargetedPanel();
+        setIsPanelTargeted(!!targetedPanel);
       }
     }, 200); // Check state every 200ms
 
@@ -87,10 +93,19 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
       setIsMuted(prev => !prev);
     }
   };
+  
+  const handleCycleNft = (direction: 'next' | 'prev') => {
+    const galleryControls = (window as any).galleryControls;
+    if (galleryControls && galleryControls.cycleNft) {
+      galleryControls.cycleNft(direction);
+    }
+  };
+
+  const showNavigation = !instructionsVisible && isPanelTargeted;
 
   return (
     <>
-      {/* Overlay UI */}
+      {/* Overlay UI (Top Left) */}
       <div className="fixed top-0 left-0 p-4 z-10 flex flex-col gap-3 pointer-events-none">
         
         {/* Instructions */}
@@ -104,7 +119,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </div>
         )}
         
-        {/* Mute Toggle Button (Visible only when a video panel is selected and controls are locked) */}
+        {/* Mute Toggle Button */}
         {!instructionsVisible && hasVideo && (
           <Button 
             variant="secondary" 
@@ -117,6 +132,31 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </Button>
         )}
       </div>
+      
+      {/* Navigation Arrows (Center Left/Right) */}
+      {showNavigation && (
+        <div className="fixed inset-0 flex items-center justify-between px-4 z-10 pointer-events-none">
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700 h-12 w-12"
+            onClick={() => handleCycleNft('prev')}
+            title="Previous NFT"
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </Button>
+          
+          <Button 
+            variant="secondary" 
+            size="icon" 
+            className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700 h-12 w-12"
+            onClick={() => handleCycleNft('next')}
+            title="Next NFT"
+          >
+            <ChevronRight className="h-6 w-6" />
+          </Button>
+        </div>
+      )}
 
       {/* Metadata Modal */}
       <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>

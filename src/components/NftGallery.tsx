@@ -18,6 +18,9 @@ interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
 }
 
+// Global state for UI interaction
+let currentTargetedPanel: Panel | null = null;
+
 const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -154,6 +157,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         }
       },
       isLocked: () => controls.isLocked, // Utility to check lock status
+      // New functions for UI interaction
+      getTargetedPanel: () => currentTargetedPanel,
+      cycleNft: (direction: 'next' | 'prev') => {
+        if (currentTargetedPanel) {
+          const panel = currentTargetedPanel;
+          const updated = updatePanelIndex(panel.wallName, direction);
+          
+          if (updated) {
+            const newSource = getCurrentNftSource(panel.wallName);
+            if (newSource) {
+              updatePanelContent(panel, newSource);
+            }
+          }
+        }
+      }
     };
 
     controls.addEventListener('lock', () => {
@@ -277,7 +295,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     let moveRight = false;
     const velocity = new THREE.Vector3();
     const direction = new THREE.Vector3();
-    const speed = 20.0; // Movement speed increased to 20.0
+    const speed = 20.0; // Movement speed
 
     const onKeyDown = (event: KeyboardEvent) => {
       switch (event.code) {
@@ -328,6 +346,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     // 7. Interaction (Raycasting)
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
+    const center = new THREE.Vector2(0, 0); // Center of the screen for targeting
 
     const onDocumentMouseDown = (event: MouseEvent) => {
       if (!controls.isLocked) return; // Use controls.isLocked directly
@@ -348,24 +367,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           const intersectionPoint = intersects[0].point;
           const localPoint = intersectedMesh.worldToLocal(intersectionPoint.clone());
           
-          const isNearEdge = Math.abs(localPoint.x) > 0.8 || Math.abs(localPoint.y) > 0.8;
-
-          if (isNearEdge) {
-            // Cycle NFT
-            const direction = localPoint.x > 0 ? 'next' : 'prev';
-            const updated = updatePanelIndex(panel.wallName, direction);
-            
-            if (updated) {
-              const newSource = getCurrentNftSource(panel.wallName);
-              if (newSource) {
-                updatePanelContent(panel, newSource);
-              }
-            }
-          } else {
-            // Open Metadata Modal
-            if (panel.metadataUrl) {
-              onPanelClick(panel.metadataUrl);
-            }
+          // We are simplifying the click interaction now that we have UI arrows for cycling.
+          // Clicking anywhere on the panel opens the metadata.
+          if (panel.metadataUrl) {
+            onPanelClick(panel.metadataUrl);
           }
         }
       }
@@ -410,6 +415,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         // Boundary Check (Clamping position)
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
+        
+        // Raycast from center of screen to check for targeted panel
+        raycaster.setFromCamera(center, camera);
+        const intersects = raycaster.intersectObjects(panelsRef.current.map(p => p.mesh));
+        
+        if (intersects.length > 0 && intersects[0].distance < 5) { // Check if panel is within 5 units
+          const intersectedMesh = intersects[0].object as THREE.Mesh;
+          const panel = panelsRef.current.find(p => p.mesh === intersectedMesh);
+          currentTargetedPanel = panel || null;
+        } else {
+          currentTargetedPanel = null;
+        }
+      } else {
+        currentTargetedPanel = null;
       }
 
       prevTime = time;
@@ -465,6 +484,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         videoRef.current.load();
       }
       delete (window as any).galleryControls;
+      currentTargetedPanel = null; // Reset global state on cleanup
     };
   }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
