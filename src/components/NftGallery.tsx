@@ -144,7 +144,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const controls = new PointerLockControls(camera, renderer.domElement);
     
     // Expose controls for UI interaction (locking/unlocking)
-    // Define this object early so it's available for loadTexture/manageVideoPlayback calls during initialization
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
       hasVideo: () => panelsRef.current.some(p => p.isVideo),
@@ -270,7 +269,62 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       }
     });
 
-    // 6. Interaction (Raycasting)
+    // 6. Movement Variables and Handlers
+    let moveForward = false;
+    let moveBackward = false;
+    let moveLeft = false;
+    let moveRight = false;
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const speed = 5.0; // Movement speed
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      switch (event.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          moveForward = true;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          moveLeft = true;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          moveBackward = true;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          moveRight = true;
+          break;
+      }
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      switch (event.code) {
+        case 'KeyW':
+        case 'ArrowUp':
+          moveForward = false;
+          break;
+        case 'KeyA':
+        case 'ArrowLeft':
+          moveLeft = false;
+          break;
+        case 'KeyS':
+        case 'ArrowDown':
+          moveBackward = false;
+          break;
+        case 'KeyD':
+        case 'ArrowRight':
+          moveRight = false;
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+
+    // 7. Interaction (Raycasting)
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
@@ -318,13 +372,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     document.addEventListener('mousedown', onDocumentMouseDown, false);
 
-    // 7. Animation Loop
-    let lastTime = 0;
-    const animate = (time: number) => {
+    // 8. Animation Loop
+    let prevTime = performance.now();
+    
+    const animate = () => {
       requestAnimationFrame(animate);
 
-      const delta = (time - lastTime) / 1000;
-      lastTime = time;
+      const time = performance.now();
+      const delta = (time - prevTime) / 1000;
 
       // Disco light animation
       lights.forEach((light, index) => {
@@ -333,10 +388,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         light.position.z = Math.sin(angle) * 3;
       });
 
+      if (controls.isLocked) {
+        // Movement logic
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
+        direction.normalize(); // ensures consistent movements in all directions
+
+        if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+        if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+        
+        // Keep player height constant (no jumping/falling)
+        camera.position.y = 1.6; 
+      }
+
+      prevTime = time;
       renderer.render(scene, camera);
     };
 
-    // 8. Handle Resize
+    // 9. Handle Resize
     const onWindowResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
@@ -345,7 +420,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
     window.addEventListener('resize', onWindowResize);
 
-    // 9. Initialization
+    // 10. Initialization
     initializeGalleryConfig().then(() => {
       // Re-load content after config is initialized (especially for Panth.art)
       panelsRef.current.forEach(panel => {
@@ -356,11 +431,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       });
     });
 
-    animate(0);
+    animate();
 
-    // 10. Cleanup
+    // 11. Cleanup
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown, false);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', onWindowResize);
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
