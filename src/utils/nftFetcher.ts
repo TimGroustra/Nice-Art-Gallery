@@ -5,7 +5,8 @@ const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
 const erc721Abi = [
-  "function tokenURI(uint256 tokenId) view returns (string)"
+  "function tokenURI(uint256 tokenId) view returns (string)",
+  "function totalSupply() view returns (uint256)" // Added totalSupply ABI
 ];
 
 // Define NftSource interface
@@ -77,4 +78,23 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     image: imageUrl || '',
     source: metadataUrl,
   };
+}
+
+export async function fetchTotalSupply(contractAddress: string): Promise<number> {
+  if (!contractAddress) {
+    throw new Error("Contract address must be provided.");
+  }
+  
+  const contract = new Contract(contractAddress, erc721Abi, provider);
+  
+  try {
+    const supply = await contract.totalSupply();
+    const total = Number(supply);
+    console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${total}`);
+    return total;
+  } catch (e) {
+    console.error(`Failed to call totalSupply for ${contractAddress}:`, e);
+    // Fallback to a reasonable default if the call fails
+    return 100; 
+  }
 }

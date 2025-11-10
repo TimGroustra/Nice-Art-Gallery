@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls } from 'three/examples/jsm/controls/PointerLockControls.js';
-import { GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex } from '@/config/galleryConfig';
+import { GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, initializeGalleryConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { RectAreaLightHelper } from 'three-stdlib'; // Import helper for RectAreaLight
 
@@ -37,6 +37,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
 
   const selectedPanelRef = useRef<InteractiveMesh | null>(null);
   const [selectedVideoMuted, setSelectedVideoMuted] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false); // New state to track config initialization
   
   // Define max dimensions for the large panels
   const PANEL_W = 6.0;
@@ -423,6 +424,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   useEffect(() => {
     if (!mountRef.current) return;
 
+    // Initialize configuration asynchronously
+    initializeGalleryConfig().then(() => {
+      setIsInitialized(true);
+    }).catch(e => {
+      console.error("Failed to initialize gallery config:", e);
+      setIsInitialized(true); // Proceed even if failed, using defaults
+    });
+
+    // Only proceed with Three.js setup once initialized
+    if (!isInitialized) return;
+
     const width = window.innerWidth;
     const height = window.innerHeight;
 
@@ -539,8 +551,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     });
     
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const props = lightProperties[i];
-      // Increased intensity and distance significantly to fill the space
       const pl = new THREE.PointLight(props.color, 5.0, 20, 1.5); 
       // Set initial position based on pre-calculated spread
       pl.position.set(props.initialX, discoLightHeight, props.initialZ); 
@@ -548,7 +558,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       discoLights.push(pl);
     }
     
-    // Setup initial panels
+    // Setup initial panels (now using dynamically sized token lists)
     setupPanels(scene);
 
     // --- Event Handlers ---
@@ -737,7 +747,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       controls.dispose();
       renderer.dispose();
     };
-  }, [onPanelClick, setupPanels, fetchAndApplyToMesh, setInstructionsVisible, removeMesh]);
+  }, [onPanelClick, setupPanels, fetchAndApplyToMesh, setInstructionsVisible, removeMesh, isInitialized]);
+
 
   // Function to toggle mute state of the currently selected video
   const toggleMute = useCallback(() => {

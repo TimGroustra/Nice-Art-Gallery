@@ -1,3 +1,5 @@
+import { fetchTotalSupply } from '@/utils/nftFetcher';
+
 export interface NftCollection {
   contractAddress: string;
   tokenIds: number[]; // Array of token IDs available in this collection
@@ -11,13 +13,11 @@ export interface PanelConfig {
 // The Panth.art collection address
 const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// Define token IDs for each collection (using 1-20 for Panth.art for simplicity)
-const panthArtTokens = Array.from({ length: 20 }, (_, i) => i + 1);
-
-export const GALLERY_PANEL_CONFIG: PanelConfig = {
+// Initial configuration structure (will be populated dynamically)
+let galleryConfig: PanelConfig = {
   'north-wall': {
     contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: panthArtTokens,
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'south-wall': {
@@ -40,6 +40,34 @@ export const GALLERY_PANEL_CONFIG: PanelConfig = {
   },
 };
 
+// Function to initialize the gallery configuration
+export async function initializeGalleryConfig() {
+  try {
+    const totalSupply = await fetchTotalSupply(PANTH_ART_ADDRESS);
+    
+    // Assuming token IDs are 1-indexed (1 to totalSupply)
+    const panthArtTokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
+
+    // Update all panels using the Panth.art collection
+    for (const wallName in galleryConfig) {
+      const config = galleryConfig[wallName];
+      if (config.contractAddress === PANTH_ART_ADDRESS) {
+        config.tokenIds = panthArtTokens;
+        // Ensure currentIndex is valid (it should be 0 initially)
+        config.currentIndex = 0; 
+      }
+    }
+    console.log(`Gallery configuration initialized with ${totalSupply} tokens.`);
+  } catch (error) {
+    console.error("Failed to initialize gallery configuration:", error);
+    // Keep using the default placeholder tokens if initialization fails
+  }
+}
+
+// Export the configuration object reference
+export const GALLERY_PANEL_CONFIG = galleryConfig;
+
+
 // Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
@@ -54,7 +82,7 @@ export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
 // Utility function to update the current index (used by NftGallery)
 export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config) return false;
+  if (!config || config.tokenIds.length === 0) return false;
 
   let newIndex = config.currentIndex;
   const maxIndex = config.tokenIds.length - 1;
