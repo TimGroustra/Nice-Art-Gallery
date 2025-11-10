@@ -13,6 +13,9 @@ export interface PanelConfig {
 // The Panth.art collection address
 const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
+// The second collection address
+const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
   'north-wall': {
@@ -21,7 +24,7 @@ let galleryConfig: PanelConfig = {
     currentIndex: 0,
   },
   'south-wall': {
-    contractAddress: PANTH_ART_ADDRESS, 
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
@@ -39,26 +42,38 @@ let galleryConfig: PanelConfig = {
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  try {
-    const totalSupply = await fetchTotalSupply(PANTH_ART_ADDRESS);
-    
-    // Assuming token IDs are 1-indexed (1 to totalSupply)
-    const panthArtTokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
+  const collectionsToFetch = [
+    { address: PANTH_ART_ADDRESS, name: 'Panth.art' },
+    { address: SECOND_COLLECTION_ADDRESS, name: 'Second Collection' },
+  ];
 
-    // Update all panels using the Panth.art collection
-    for (const wallName in galleryConfig) {
-      const config = galleryConfig[wallName];
-      if (config.contractAddress === PANTH_ART_ADDRESS) {
-        config.tokenIds = panthArtTokens;
-        // Ensure currentIndex is valid (it should be 0 initially)
-        config.currentIndex = 0; 
-      }
+  const tokenMap: { [address: string]: number[] } = {};
+
+  for (const { address, name } of collectionsToFetch) {
+    try {
+      const totalSupply = await fetchTotalSupply(address);
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      console.log(`Collection ${name} initialized with ${totalSupply} tokens.`);
+    } catch (error) {
+      console.error(`Failed to initialize collection ${name}:`, error);
+      // Fallback to placeholder if fetching fails
+      tokenMap[address] = [1];
     }
-    console.log(`Gallery configuration initialized with ${totalSupply} tokens.`);
-  } catch (error) {
-    console.error("Failed to initialize gallery configuration:", error);
-    // Keep using the default placeholder tokens if initialization fails
   }
+
+  // Update all panels using the fetched token lists
+  for (const wallName in galleryConfig) {
+    const config = galleryConfig[wallName];
+    const tokens = tokenMap[config.contractAddress];
+    
+    if (tokens && tokens.length > 0) {
+      config.tokenIds = tokens;
+      // Ensure currentIndex is valid (it should be 0 initially)
+      config.currentIndex = 0; 
+    }
+  }
+  console.log(`Gallery configuration fully initialized.`);
 }
 
 // Export the configuration object reference
