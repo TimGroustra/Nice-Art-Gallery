@@ -1,50 +1,73 @@
-export interface NftSource {
+export interface NftCollection {
   contractAddress: string;
-  tokenId: number;
+  tokenIds: number[]; // Array of token IDs available in this collection
+  currentIndex: number; // Index of the currently displayed token in the tokenIds array
 }
 
 export interface PanelConfig {
-  [key: string]: NftSource | null; // Key is the panel identifier, value is the NFT source or null
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
-// The contract address provided by the user (Panth.art collection)
-const COLLECTION_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
+// The Panth.art collection address
+const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// Helper to generate NFT source objects
-const getSource = (tokenId: number): NftSource => ({
-  contractAddress: COLLECTION_ADDRESS,
-  tokenId: tokenId,
-});
-
-// Helper to cycle through token IDs (1 to 20)
-const getTokenId = (index: number) => index + 1;
+// Define token IDs for each collection (using 1-20 for Panth.art for simplicity)
+const panthArtTokens = Array.from({ length: 20 }, (_, i) => i + 1);
 
 export const GALLERY_PANEL_CONFIG: PanelConfig = {
-  // --- East Wall (Right side of the room) ---
-  'east-wall-left-left': getSource(getTokenId(0)),
-  'east-wall-left-center': getSource(getTokenId(1)),
-  'east-wall-center-center': getSource(getTokenId(2)),
-  'east-wall-right-center': getSource(getTokenId(3)),
-  'east-wall-right-right': getSource(getTokenId(4)),
+  'north-wall': {
+    contractAddress: PANTH_ART_ADDRESS,
+    tokenIds: panthArtTokens,
+    currentIndex: 0,
+  },
+  'south-wall': {
+    // Placeholder collection 2
+    contractAddress: "0xPlaceholderSouth", 
+    tokenIds: [1, 2, 3, 4, 5],
+    currentIndex: 0,
+  },
+  'east-wall': {
+    // Placeholder collection 3
+    contractAddress: "0xPlaceholderEast", 
+    tokenIds: [101, 102, 103],
+    currentIndex: 0,
+  },
+  'west-wall': {
+    // Placeholder collection 4
+    contractAddress: "0xPlaceholderWest", 
+    tokenIds: [201, 202, 203, 204],
+    currentIndex: 0,
+  },
+};
 
-  // --- West Wall (Left side of the room) ---
-  'west-wall-right-right': getSource(getTokenId(5)),
-  'west-wall-right-center': getSource(getTokenId(6)),
-  'west-wall-center-center': getSource(getTokenId(7)),
-  'west-wall-left-center': getSource(getTokenId(8)),
-  'west-wall-left-left': getSource(getTokenId(9)),
+// Utility function to get the current NFT source for a wall
+export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
+  const config = GALLERY_PANEL_CONFIG[wallName];
+  if (!config) return null;
+  const tokenId = config.tokenIds[config.currentIndex];
+  return {
+    contractAddress: config.contractAddress,
+    tokenId: tokenId,
+  };
+};
 
-  // --- South Wall (Back wall) ---
-  'south-wall-left-left': getSource(getTokenId(10)),
-  'south-wall-left-center': getSource(getTokenId(11)),
-  'south-wall-center-center': getSource(getTokenId(12)),
-  'south-wall-right-center': getSource(getTokenId(13)),
-  'south-wall-right-right': getSource(getTokenId(14)),
+// Utility function to update the current index (used by NftGallery)
+export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
+  const config = GALLERY_PANEL_CONFIG[wallName];
+  if (!config) return false;
 
-  // --- North Wall (Front wall) ---
-  'north-wall-right-right': getSource(getTokenId(15)),
-  'north-wall-right-center': getSource(getTokenId(16)),
-  'north-wall-center-center': getSource(getTokenId(17)),
-  'north-wall-left-center': getSource(getTokenId(18)),
-  'north-wall-left-left': getSource(getTokenId(19)),
+  let newIndex = config.currentIndex;
+  const maxIndex = config.tokenIds.length - 1;
+
+  if (direction === 'next') {
+    newIndex = (newIndex + 1) % config.tokenIds.length;
+  } else if (direction === 'prev') {
+    newIndex = (newIndex - 1 + config.tokenIds.length) % config.tokenIds.length;
+  }
+
+  if (newIndex !== config.currentIndex) {
+    config.currentIndex = newIndex;
+    return true;
+  }
+  return false;
 };
