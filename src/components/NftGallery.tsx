@@ -58,6 +58,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
   const MAX_W = 1.8;
   const MAX_H = 1.2;
 
+  // Fibonacci sequence F(1) through F(7): 1, 1, 2, 3, 5, 8, 13
+  const fib = useRef([1, 1, 2, 3, 5, 8, 13]); 
+
   // --- Panel Logic ---
 
   const fetchAndApplyToMesh = useCallback(async (metadataUrl: string, mesh: PanelMesh) => {
@@ -243,12 +246,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const discoLights: THREE.PointLight[] = [];
     // Rainbow colors (7 total: R, O, Y, G, B, I, V)
     const lightColors = [0xFF0000, 0xFF8C00, 0xFFFF00, 0x00FF00, 0x0000FF, 0x4B0082, 0xEE82EE];
-    // Fibonacci sequence F(1) through F(7): 1, 1, 2, 3, 5, 8, 13
-    const fib = [1, 1, 2, 3, 5, 8, 13]; 
     const lightHeight = 3.8; 
     
     for (let i = 0; i < 7; i++) {
-      const radiusFactor = fib[i] * 0.3; // Scale factor for radius
+      const radiusFactor = fib.current[i] * 0.3; // Scale factor for radius
       // Slightly increased intensity for better reflection
       const pl = new THREE.PointLight(lightColors[i], 2.0, 10, 1.5); 
       
@@ -337,11 +338,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const animate = () => {
       requestAnimationFrame(animate);
       const delta = clockRef.current.getDelta();
+      
+      const baseSpeed = 0.0004;
 
       // Update disco lights rotate using Fibonacci radii
       for (let i = 0; i < discoLights.length; i++) {
-        const a = performance.now() * 0.0004 * (i + 1);
-        const radiusFactor = fib[i] * 0.3;
+        // Use a slightly varied speed based on index, but keep it close to the base speed
+        const speedFactor = baseSpeed * (1 + i * 0.05); 
+        const a = performance.now() * speedFactor;
+        const radiusFactor = fib.current[i] * 0.3;
+        
         discoLights[i].position.x = Math.cos(a + i) * radiusFactor;
         discoLights[i].position.z = Math.sin(a + i) * radiusFactor;
       }
