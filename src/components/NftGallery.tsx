@@ -22,6 +22,7 @@ interface NftGalleryProps {
 
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
+let currentTargetedArrow: THREE.Mesh | null = null; // Track targeted arrow for visual feedback
 
 const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -256,7 +257,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     arrowShape.lineTo(0, -0.15);
     arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
+    const ARROW_COLOR_DEFAULT = 0xcccccc;
+    const ARROW_COLOR_HOVER = 0xffffff;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     
     const panelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + 0.01], rotation: [0, 0, 0] },
@@ -388,7 +391,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
     const onDocumentMouseDown = (event: MouseEvent) => {
       if (!controls.isLocked) return; // Use controls.isLocked directly
 
-      // Calculate mouse position in normalized device coordinates (-1 to +1)
+      // We use the center raycast result (currentTargetedArrow or currentTargetedPanel)
+      // if the user clicks while locked, as the mouse position is irrelevant.
+      
+      if (currentTargetedArrow) {
+        const panel = panelsRef.current.find(p => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow);
+        if (panel) {
+          const direction = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
+          const updated = updatePanelIndex(panel.wallName, direction);
+          if (updated) {
+            const newSource = getCurrentNftSource(panel.wallName);
+            if (newSource) {
+              updatePanelContent(panel, newSource);
+            }
+          }
+        }
+      } else if (currentTargetedPanel) {
+        // Clicked the NFT panel itself -> Open Metadata Modal
+        if (currentTargetedPanel.metadataUrl) {
+          onPanelClick(currentTargetedPanel.metadataUrl);
+        }
+      }
+      
+      // Original mouse-based raycasting logic (kept for reference, but center raycasting is better for PointerLockControls)
+      /*
       mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -426,6 +452,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
           }
         }
       }
+      */
     };
 
     document.addEventListener('mousedown', onDocumentMouseDown, false);
@@ -468,19 +495,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
-        // Raycast from center of screen to check for targeted panel (for UI crosshair/feedback if needed)
+        // Raycast from center of screen to check for targeted objects
         raycaster.setFromCamera(center, camera);
-        const intersects = raycaster.intersectObjects(panelsRef.current.map(p => p.mesh));
+        const intersects = raycaster.intersectObjects(interactiveMeshes);
         
-        if (intersects.length > 0 && intersects[0].distance < 5) { // Check if panel is within 5 units
+        // Reset hover state for all arrows
+        panelsRef.current.forEach(panel => {
+          if (panel.prevArrow.material instanceof THREE.MeshBasicMaterial) {
+            panel.prevArrow.material.color.setHex(ARROW_COLOR_DEFAULT);
+          }
+          if (panel.nextArrow.material instanceof THREE.MeshBasicMaterial) {
+            panel.nextArrow.material.color.setHex(ARROW_COLOR_DEFAULT);
+          }
+        });
+        
+        currentTargetedPanel = null;
+        currentTargetedArrow = null;
+
+        if (intersects.length > 0 && intersects[0].distance < 5) { // Check if object is within 5 units
           const intersectedMesh = intersects[0].object as THREE.Mesh;
-          const panel = panelsRef.current.find(p => p.mesh === intersectedMesh);
-          currentTargetedPanel = panel || null;
-        } else {
-          currentTargetedPanel = null;
+          const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
+
+          if (panel) {
+            if (intersectedMesh === panel.mesh) {
+              currentTargetedPanel = panel;
+            } else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
+              currentTargetedArrow = intersectedMesh;
+              // Apply hover color
+              if (intersectedMesh.material instanceof THREE.MeshBasicMaterial) {
+                intersectedMesh.material.color.setHex(ARROW_COLOR_HOVER);
+              }
+            }
+          }
         }
       } else {
         currentTargetedPanel = null;
+        currentTargetedArrow = null;
       }
 
       prevTime = time;
@@ -537,6 +587,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ onPanelClick, setInstructionsVi
       }
       delete (window as any).galleryControls;
       currentTargetedPanel = null; // Reset global state on cleanup
+      currentTargetedArrow = null;
     };
   }, [onPanelClick, setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
