@@ -282,27 +282,38 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
-    const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load('/floor.jpg', (texture) => {
-        const imageAspect = texture.image.width / texture.image.height;
-        const planeAspect = 1; // The floor is a square (roomSize x roomSize)
+    // Create the outer floor for padding
+    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
+    outerFloor.rotation.x = Math.PI / 2;
+    scene.add(outerFloor);
 
-        // This logic implements a "cover" effect for the texture on the plane
-        if (imageAspect > planeAspect) {
-            // Image is wider than the plane, so we crop the sides
-            texture.repeat.x = planeAspect / imageAspect;
-            texture.offset.x = (1 - texture.repeat.x) / 2;
-        } else {
-            // Image is taller than or same aspect as the plane, so we crop the top/bottom
-            texture.repeat.y = imageAspect / planeAspect;
-            texture.offset.y = (1 - texture.repeat.y) / 2;
+    // Create the inner floor with the image
+    const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('/floor.jpg', (texture) => {
+        // Calculate inner plane dimensions based on texture aspect ratio
+        const padding = 1.0; // 1 unit of padding on each side
+        const maxInnerSize = roomSize - 2 * padding;
+        const imageAspect = texture.image.width / texture.image.height;
+
+        let innerPlaneWidth, innerPlaneHeight;
+        if (imageAspect >= 1) { // Landscape or square
+            innerPlaneWidth = maxInnerSize;
+            innerPlaneHeight = maxInnerSize / imageAspect;
+        } else { // Portrait
+            innerPlaneHeight = maxInnerSize;
+            innerPlaneWidth = maxInnerSize * imageAspect;
         }
+
+        const innerFloorGeometry = new THREE.PlaneGeometry(innerPlaneWidth, innerPlaneHeight);
+        const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
+        const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
+        
+        innerFloor.rotation.x = Math.PI / 2;
+        innerFloor.position.y = 0.01; // Place slightly above the outer floor to prevent z-fighting
+        scene.add(innerFloor);
     });
-    const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide });
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), floorMaterial);
-    
-    floor.rotation.x = Math.PI / 2;
-    scene.add(floor);
+
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
