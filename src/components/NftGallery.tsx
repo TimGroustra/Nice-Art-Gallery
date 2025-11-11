@@ -767,9 +767,27 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
       panelsRef.current.push(panel);
       
-      const source = getCurrentNftSource(panel.wallName as keyof PanelConfig);
-      if (source) updatePanelContent(panel, source);
+      // Initial content is set to 'Loading...' placeholder.
+      // The actual content loading will happen sequentially below.
     });
+
+    // --- Sequential Loading Logic ---
+    const loadAllPanelsSequentially = async () => {
+      await initializeGalleryConfig();
+      
+      for (const panel of panelsRef.current) {
+        const source = getCurrentNftSource(panel.wallName);
+        if (source) {
+          // Use await here to ensure sequential loading
+          await updatePanelContent(panel, source);
+        }
+      }
+      console.log("All gallery panels initialized.");
+    };
+    
+    loadAllPanelsSequentially();
+    // --- End Sequential Loading Logic ---
+
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
@@ -949,13 +967,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       renderer.setSize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', onWindowResize);
-
-    initializeGalleryConfig().then(() => {
-      panelsRef.current.forEach(panel => {
-        const source = getCurrentNftSource(panel.wallName);
-        if (source) updatePanelContent(panel, source);
-      });
-    });
 
     animate();
 
