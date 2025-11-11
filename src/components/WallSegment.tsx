@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { NftMetadata, NftAttribute } from '@/utils/nftFetcher';
 import type { PanelConfig } from '@/config/galleryConfig';
-import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig'; // <-- FIX 1: Import GALLERY_PANEL_CONFIG
+import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig';
 
 // ----------------------
 // Helpers (text textures)
@@ -146,14 +146,14 @@ export const createAttributesTextTexture = (attributes: NftAttribute[], width: n
 // Types
 // ----------------------
 export type PanelDescriptor = {
-  id: string;
+  id: string; // This is now the panelId, e.g., 'panel-1'
   offsetX: number;
   offsetY?: number;
   offsetZ?: number;
 };
 
 export type WallSegmentOptions = {
-  wallName: keyof PanelConfig; // Added wallName here for easy lookup
+  wallName: string; // Descriptive name for the wall segment
   width?: number;
   height?: number;
   panelDescriptors?: PanelDescriptor[];
@@ -164,7 +164,7 @@ export type WallSegmentOptions = {
 };
 
 export type PanelHandles = {
-  id: string;
+  id: string; // panelId, e.g., 'panel-1'
   mesh: THREE.Mesh;
   prevArrow: THREE.Mesh;
   nextArrow: THREE.Mesh;
@@ -189,7 +189,7 @@ export class WallSegment {
   public group: THREE.Group;
   public panels: PanelHandles[] = [];
   public interactiveMeshes: THREE.Mesh[] = [];
-  public wallName: keyof PanelConfig;
+  public wallName: string;
   private options: WallSegmentOptions;
   private resourcesToDispose: any[] = [];
 
@@ -197,7 +197,7 @@ export class WallSegment {
     this.options = {
       width: 10,
       height: 4,
-      panelDescriptors: [{ id: 'main', offsetX: 0 }],
+      panelDescriptors: [],
       panelSize: { w: 2, h: 2 },
       baseColor: 0x333333,
       coveLightColor: 0x87CEEB,
@@ -248,31 +248,26 @@ export class WallSegment {
     const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
     const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
 
-    // New width for Title/Name panels (2.4 * 2 = 4.8)
     const TITLE_NAME_WIDTH = panelSize!.w * 2.4; 
     const TITLE_NAME_HEIGHT = 0.6;
     const TITLE_NAME_FONT_SIZE = 120;
 
-    // FIX 1: Use a positive Z offset to ensure panels are in front of the wall (z=0)
     const FRONT_OFFSET = 0.03; 
 
     const panelGeom = new THREE.PlaneGeometry(panelSize!.w, panelSize!.h);
-    // FIX 2: Use MeshBasicMaterial for NFT display to prevent lighting/tone mapping interference
     const panelMat = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff, // White color ensures texture is displayed without tint
+      color: 0xffffff,
       side: THREE.DoubleSide,
-      toneMapped: false, // Crucial for accurate color display
+      toneMapped: false,
     });
     const mesh = new THREE.Mesh(panelGeom, panelMat);
     
-    // FIX 1: Set positive Z position and renderOrder
     mesh.position.set(desc.offsetX, panelCenterY, FRONT_OFFSET + (desc.offsetZ || 0));
     mesh.renderOrder = 1; 
 
-    // Attach wallName and panelId to meshes for easy raycasting lookup
-    (mesh.userData as any).wallName = this.wallName;
+    // Attach panelId to meshes for easy raycasting lookup
     (mesh.userData as any).panelId = desc.id;
-    mesh.name = 'nft-panel'; // Ensure the main panel is identifiable
+    mesh.name = 'nft-panel';
 
     // Title Mesh (Collection Name)
     const titleGeom = new THREE.PlaneGeometry(TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT); 
@@ -280,7 +275,6 @@ export class WallSegment {
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
     
-    // Position title centered above the NFT panel
     const titleY = panelCenterY + (panelSize!.h / 2) + TITLE_NAME_HEIGHT / 2 + 0.1; 
     titleMesh.position.set(desc.offsetX, titleY, FRONT_OFFSET + 0.01);
     titleMesh.renderOrder = 1;
@@ -291,7 +285,6 @@ export class WallSegment {
     const nameMat = new THREE.MeshBasicMaterial({ map: placeholderNameTex, transparent: true });
     const nameMesh = new THREE.Mesh(nameGeom, nameMat);
 
-    // Position name centered below the NFT panel
     const nameY = panelCenterY - (panelSize!.h / 2) - TITLE_NAME_HEIGHT / 2 - 0.1; 
     nameMesh.position.set(desc.offsetX, nameY, FRONT_OFFSET + 0.01);
     nameMesh.renderOrder = 1;
@@ -304,20 +297,18 @@ export class WallSegment {
     const descriptionMesh = new THREE.Mesh(descGeom, descMat);
     descriptionMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_LEFT, panelCenterY, FRONT_OFFSET + 0.01);
     descriptionMesh.renderOrder = 1;
-    (descriptionMesh.userData as any).wallName = this.wallName;
     (descriptionMesh.userData as any).panelId = desc.id;
-    descriptionMesh.name = 'description'; // Add name for easier identification
+    descriptionMesh.name = 'description';
 
     // Attributes Panel (Right)
     const attrGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT);
     const attrPlace = createAttributesTextTexture([], TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_ATTR);
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
-    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, FRONT_OFFSET + 0.01); // Centered vertically
+    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, FRONT_OFFSET + 0.01);
     attributesMesh.renderOrder = 1;
-    (attributesMesh.userData as any).wallName = this.wallName;
     (attributesMesh.userData as any).panelId = desc.id;
-    attributesMesh.name = 'attributes'; // Unique name for raycasting
+    attributesMesh.name = 'attributes';
 
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
@@ -325,18 +316,16 @@ export class WallSegment {
     const arrowMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
     const prevArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
     prevArrow.rotation.z = Math.PI;
-    prevArrow.position.set(desc.offsetX - 1.6, panelCenterY, FRONT_OFFSET + 0.02); // Slightly further out
-    (prevArrow.userData as any).wallName = this.wallName;
+    prevArrow.position.set(desc.offsetX - 1.6, panelCenterY, FRONT_OFFSET + 0.02);
     (prevArrow.userData as any).panelId = desc.id;
     (prevArrow.userData as any).direction = 'prev';
-    prevArrow.renderOrder = 2; // Arrows should render last
+    prevArrow.renderOrder = 2;
 
     const nextArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
-    nextArrow.position.set(desc.offsetX + 1.6, panelCenterY, FRONT_OFFSET + 0.02); // Slightly further out
-    (nextArrow.userData as any).wallName = this.wallName;
+    nextArrow.position.set(desc.offsetX + 1.6, panelCenterY, FRONT_OFFSET + 0.02);
     (nextArrow.userData as any).panelId = desc.id;
     (nextArrow.userData as any).direction = 'next';
-    nextArrow.renderOrder = 2; // Arrows should render last
+    nextArrow.renderOrder = 2;
 
     const panelHandle: PanelHandles = {
       id: desc.id,
@@ -359,17 +348,16 @@ export class WallSegment {
           const isVideo = !!imageUrl && /\.(mp4|webm|ogg)$/i.test(imageUrl);
           const tex = textureLoader(imageUrl, isVideo);
           
-          // Ensure material is MeshBasicMaterial (it should be, but check)
           if (mesh.material instanceof THREE.MeshBasicMaterial) {
             if (mesh.material.map) mesh.material.map.dispose();
             mesh.material.map = tex;
-            mesh.material.color.setHex(0xffffff); // Ensure no tint
+            mesh.material.color.setHex(0xffffff);
             mesh.material.toneMapped = false;
             mesh.material.needsUpdate = true;
           }
 
-          // Update title (Collection Name only)
-          const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
+          // Update title (Collection Name)
+          const collectionName = GALLERY_PANEL_CONFIG[desc.id]?.name || 'Unknown Collection';
           const titleText = collectionName;
           
           const titleTex = createTextTexture(titleText, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
