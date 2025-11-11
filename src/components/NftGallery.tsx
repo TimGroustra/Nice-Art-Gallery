@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
+import { fetchNftMetadata, normalizeUrl, NftMetadata, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
@@ -329,11 +329,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     southWall.position.set(0, wallHeight / 2, roomSize / 2);
     scene.add(southWall);
     const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    eastWall.rotation.y = -Math.PI / 2;
+    eastWall.rotation.y = Math.PI / 2;
     eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
     scene.add(eastWall);
     const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    westWall.rotation.y = Math.PI / 2;
+    westWall.rotation.y = -Math.PI / 2;
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
 
@@ -366,21 +366,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // East Inner Wall
     const eastInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
     eastInnerWall1.position.set(innerRoomSize / 2, wallHeight / 2, -segmentOffset);
-    eastInnerWall1.rotation.y = -Math.PI / 2;
+    eastInnerWall1.rotation.y = Math.PI / 2;
     scene.add(eastInnerWall1);
     const eastInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
     eastInnerWall2.position.set(innerRoomSize / 2, wallHeight / 2, segmentOffset);
-    eastInnerWall2.rotation.y = -Math.PI / 2;
+    eastInnerWall2.rotation.y = Math.PI / 2;
     scene.add(eastInnerWall2);
 
     // West Inner Wall
     const westInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
     westInnerWall1.position.set(-innerRoomSize / 2, wallHeight / 2, -segmentOffset);
-    westInnerWall1.rotation.y = Math.PI / 2;
+    westInnerWall1.rotation.y = -Math.PI / 2;
     scene.add(westInnerWall1);
     const westInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
     westInnerWall2.position.set(-innerRoomSize / 2, wallHeight / 2, segmentOffset);
-    westInnerWall2.rotation.y = Math.PI / 2;
+    westInnerWall2.rotation.y = -Math.PI / 2;
     scene.add(westInnerWall2);
     // --- End Inner Room ---
 
@@ -413,21 +413,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // East Innermost Wall
     const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
     eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
-    eastInnermostWall1.rotation.y = -Math.PI / 2;
+    eastInnermostWall1.rotation.y = Math.PI / 2;
     scene.add(eastInnermostWall1);
     const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
     eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
-    eastInnermostWall2.rotation.y = -Math.PI / 2;
+    eastInnermostWall2.rotation.y = Math.PI / 2;
     scene.add(eastInnermostWall2);
 
     // West Innermost Wall
     const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
     westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
-    westInnermostWall1.rotation.y = Math.PI / 2;
+    westInnermostWall1.rotation.y = -Math.PI / 2;
     scene.add(westInnermostWall1);
     const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
     westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
-    westInnermostWall2.rotation.y = Math.PI / 2;
+    westInnermostWall2.rotation.y = -Math.PI / 2;
     scene.add(westInnermostWall2);
     // --- End Innermost Room ---
 

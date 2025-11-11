@@ -1,7 +1,7 @@
 import { JsonRpcProvider, Contract } from "ethers";
 
-// Ankr RPC endpoint for Electroneum
-const RPC_URL = "https://rpc.etny.io/";
+// Public RPC endpoint for Ethereum Mainnet
+const RPC_URL = "https://cloudflare-eth.com";
 const provider = new JsonRpcProvider(RPC_URL);
 
 const erc721Abi = [
