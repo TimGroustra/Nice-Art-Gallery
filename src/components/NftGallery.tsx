@@ -263,79 +263,92 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Removed showError call
   }, []);
 
+  // Utility function for delay
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
-    
-    try {
-      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      
-      const imageUrl = metadata.image;
-      
-      if (!imageUrl) {
-          throw new Error("Image URL is missing in metadata.");
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 1000;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+        
+        const imageUrl = metadata.image;
+        
+        if (!imageUrl) {
+            throw new Error("Image URL is missing in metadata.");
+        }
+
+        const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
+        
+        if (isVideo && videoRef.current) manageVideoPlayback(false);
+
+        const texture = loadTexture(imageUrl, isVideo);
+        
+        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+          panel.mesh.material.map?.dispose();
+          panel.mesh.material.dispose();
+        }
+
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+        panel.metadataUrl = metadata.source;
+        panel.isVideo = isVideo;
+
+        if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
+          panel.titleMesh.material.map.dispose();
+        }
+        // Increased font size from 100 to 120
+        const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
+        (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
+        panel.titleMesh.visible = true;
+
+        if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
+          panel.descriptionMesh.material.map.dispose();
+        }
+        const descriptionText = metadata.description;
+        const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true });
+        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
+        panel.descriptionMesh.visible = true;
+
+        // Update panel state for scrolling
+        panel.currentDescription = descriptionText;
+        panel.descriptionTextHeight = totalHeight;
+        panel.descriptionScrollY = 0;
+
+        // Update attributes
+        if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
+            panel.attributesMesh.material.map.dispose();
+        }
+        const attributes = metadata.attributes || [];
+        panel.currentAttributes = attributes;
+        const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
+        (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
+        panel.attributesMesh.visible = true;
+
+        // Update wall title
+        if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
+          panel.wallTitleMesh.material.map.dispose();
+        }
+        // Increased font size from 100 to 120
+        const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
+        (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
+        panel.wallTitleMesh.visible = true;
+
+        // Success, break the retry loop
+        return;
+        
+      } catch (error) {
+        console.warn(`Attempt ${attempt}/${MAX_RETRIES} failed for panel ${panel.wallName}:`, error);
+        if (attempt === MAX_RETRIES) {
+          console.error(`Final failure for panel ${panel.wallName}.`);
+          applyFallbackContent(panel, collectionName, "LOAD FAILED");
+        } else {
+          // Wait before retrying
+          await delay(RETRY_DELAY_MS * attempt); // Exponential backoff delay
+        }
       }
-
-      const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
-      
-      if (isVideo && videoRef.current) manageVideoPlayback(false);
-
-      const texture = loadTexture(imageUrl, isVideo);
-      
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
-      panel.metadataUrl = metadata.source;
-      panel.isVideo = isVideo;
-
-      if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
-        panel.titleMesh.material.map.dispose();
-      }
-      // Increased font size from 100 to 120
-      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
-      (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
-      panel.titleMesh.visible = true;
-
-      if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
-        panel.descriptionMesh.material.map.dispose();
-      }
-      const descriptionText = metadata.description;
-      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true });
-      (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
-      panel.descriptionMesh.visible = true;
-
-      // Update panel state for scrolling
-      panel.currentDescription = descriptionText;
-      panel.descriptionTextHeight = totalHeight;
-      panel.descriptionScrollY = 0;
-
-      // Update attributes
-      if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
-          panel.attributesMesh.material.map.dispose();
-      }
-      const attributes = metadata.attributes || [];
-      panel.currentAttributes = attributes;
-      const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
-      (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
-      panel.attributesMesh.visible = true;
-
-      // Update wall title
-      if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
-        panel.wallTitleMesh.material.map.dispose();
-      }
-      // Increased font size from 100 to 120
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
-      (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
-      panel.wallTitleMesh.visible = true;
-
-      // Removed showSuccess call
-      
-    } catch (error) {
-      console.error(`Error updating panel ${panel.wallName}:`, error);
-      applyFallbackContent(panel, collectionName, "LOAD FAILED");
     }
   }, [loadTexture, manageVideoPlayback, applyFallbackContent]);
 
@@ -446,7 +459,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westInnerWall1.rotation.y = -Math.PI / 2;
     scene.add(westInnerWall1);
     const westInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
-    westInnerWall2.position.set(-innerRoomSize / 2, wallHeight / 2, segmentOffset);
+    westInnerWall2.position.set(-innerRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
     westInnerWall2.rotation.y = -Math.PI / 2;
     scene.add(westInnerWall2);
     // --- End Inner Room ---
