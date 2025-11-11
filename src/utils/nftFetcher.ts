@@ -88,7 +88,8 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   
   const json = await res.json();
 
-  let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
+  // Prioritize animation_url for dynamic content (videos, GIFs), then fall back to image fields.
+  let imageUrl = json.animation_url || json.image || json.image_url || json.imageURI || json.gif;
   imageUrl = normalizeUrl(imageUrl);
   
   console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
