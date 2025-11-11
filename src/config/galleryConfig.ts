@@ -71,7 +71,6 @@ let galleryConfig: PanelConfig = generateGalleryConfig();
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  // Removed loadingToastId = showLoading(...)
   
   try {
     const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
@@ -109,11 +108,8 @@ export async function initializeGalleryConfig() {
         config.name = name;
       }
     }
-    // Removed dismissToast(loadingToastId);
     console.log(`[Gallery Config] Gallery configuration fully initialized.`);
   } catch (error) {
-    // Removed dismissToast(loadingToastId);
-    // Removed showError(...)
     console.error("[Gallery Config] Critical failure during initialization:", error);
   }
 }

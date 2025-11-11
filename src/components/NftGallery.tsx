@@ -179,6 +179,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const panelsRef = useRef<Panel[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isLocked, setIsLocked] = useState(false); 
+  const [isGalleryInitialized, setIsGalleryInitialized] = useState(false);
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     if (videoRef.current) {
@@ -356,6 +357,49 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
   }, [loadTexture, manageVideoPlayback, applyFallbackContent]);
 
+  // --- Initialization and Data Loading Logic ---
+  const loadAllPanelsConcurrently = useCallback(async () => {
+    await initializeGalleryConfig();
+    
+    const panelsToLoad = panelsRef.current.map(panel => ({
+      panel,
+      source: getCurrentNftSource(panel.wallName),
+    })).filter(item => item.source !== null) as { panel: Panel, source: NftSource }[];
+
+    const CONCURRENCY_LIMIT = 5;
+    const queue = [...panelsToLoad];
+    const activePromises: Promise<void>[] = [];
+
+    const runNext = async () => {
+      if (queue.length === 0) return;
+
+      const { panel, source } = queue.shift()!;
+      
+      const promise = updatePanelContent(panel, source).finally(() => {
+        const index = activePromises.indexOf(promise);
+        if (index > -1) activePromises.splice(index, 1);
+        runNext();
+      });
+      
+      activePromises.push(promise);
+    };
+
+    // Start initial batch
+    for (let i = 0; i < CONCURRENCY_LIMIT && queue.length > 0; i++) {
+      runNext();
+    }
+
+    // Wait for all promises to finish
+    while (activePromises.length > 0) {
+      await Promise.race(activePromises);
+    }
+    
+    console.log("All gallery panels initialized.");
+    setIsGalleryInitialized(true);
+  }, [updatePanelContent]);
+
+
+  // --- Three.js Setup Effect ---
   useEffect(() => {
     if (!mountRef.current) return;
 
@@ -667,62 +711,2066 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const panelsPerInnermostSegment = 1;
     const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
     
-    // The variables for innermost geometry are already defined above in the construction block.
-    // We only need to ensure they are used correctly here.
-    innermostWalls.forEach(wall => {
-      for (let i = 0; i < panelsPerInnermostSegment * 2; i++) {
-        const wallName = `${wall}-wall-${i + 1}`;
-        const segmentIndex = i; // 0 or 1
-        const finalOffset = (segmentIndex === 0 ? -1 : 1) * innermostSegmentOffset;
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
 
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
         let position: [number, number, number] = [0, 0, 0];
         let rotation: [number, number, number] = [0, 0, 0];
         switch (wall) {
-          case 'north-innermost':
-            position = [finalOffset, panelYPosition, -innermostRoomSize / 2 + ARROW_DEPTH_OFFSET];
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
             rotation = [0, 0, 0];
             break;
-          case 'south-innermost':
-            position = [-finalOffset, panelYPosition, innermostRoomSize / 2 - ARROW_DEPTH_OFFSET];
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
             rotation = [0, Math.PI, 0];
             break;
-          case 'east-innermost':
-            position = [innermostRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
             rotation = [0, -Math.PI / 2, 0];
             break;
-          case 'west-innermost':
-            position = [-innermostRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
             rotation = [0, Math.PI / 2, 0];
             break;
         }
         panelConfigs.push({ wallName, position, rotation });
       }
     });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
     
-    // Central Pillar Walls (4 panels)
-    const centralPillarHalf = centralPillarSize / 2;
-    panelConfigs.push({ 
-      wallName: 'center-pillar-1', 
-      position: [0, panelYPosition, -centralPillarHalf - ARROW_DEPTH_OFFSET], 
-      rotation: [0, Math.PI, 0] // Facing -Z (North side of pillar)
-    });
-    panelConfigs.push({ 
-      wallName: 'center-pillar-2', 
-      position: [0, panelYPosition, centralPillarHalf + ARROW_DEPTH_OFFSET], 
-      rotation: [0, 0, 0] // Facing +Z (South side of pillar)
-    });
-    panelConfigs.push({ 
-      wallName: 'center-pillar-3', 
-      position: [centralPillarHalf + ARROW_DEPTH_OFFSET, panelYPosition, 0], 
-      rotation: [0, Math.PI / 2, 0] // Facing +X (East side of pillar)
-    });
-    panelConfigs.push({ 
-      wallName: 'center-pillar-4', 
-      position: [-centralPillarHalf - ARROW_DEPTH_OFFSET, panelYPosition, 0], 
-      rotation: [0, -Math.PI / 2, 0] // Facing -X (West side of pillar)
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
     });
 
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
 
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
+
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
+
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    const coveLightIntensity = 10;
+    const coveLightWidth = roomSize;
+    const coveLightHeight = 0.1;
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        scene.add(glowMesh);
+    };
+
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
+
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+    const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
+    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+
+    const panelSpacing = 15; // Distance between centers of panels
+
+    // --- Panel Creation Loop ---
     panelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(...config.position);
@@ -747,7 +2795,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Description Panel (Left side)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
-      const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
       descriptionMesh.rotation.set(...config.rotation);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
@@ -791,62 +2838,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       // Initial content is set to 'Loading...' placeholder.
     });
-
-    // --- Concurrent Loading Logic with Throttling ---
-    const CONCURRENCY_LIMIT = 5;
-
-    const loadAllPanelsConcurrently = async () => {
-      await initializeGalleryConfig();
-      
-      const panelsToLoad = panelsRef.current.map(panel => ({
-        panel,
-        source: getCurrentNftSource(panel.wallName),
-      })).filter(item => item.source !== null) as { panel: Panel, source: NftSource }[];
-
-      const queue = [...panelsToLoad];
-      const activePromises: Promise<void>[] = [];
-
-      const runNext = async () => {
-        if (queue.length === 0) return;
-
-        const { panel, source } = queue.shift()!;
-        
-        const promise = updatePanelContent(panel, source).finally(() => {
-          // Remove this promise from activePromises when it resolves/rejects
-          const index = activePromises.indexOf(promise);
-          if (index > -1) activePromises.splice(index, 1);
-          
-          // Immediately try to run the next item in the queue
-          runNext();
-        });
-        
-        activePromises.push(promise);
-      };
-
-      // Start initial batch
-      for (let i = 0; i < CONCURRENCY_LIMIT && queue.length > 0; i++) {
-        runNext();
-      }
-
-      // Wait for all promises (active and queued) to complete
-      // We need a way to wait for the entire queue to drain.
-      // Since runNext recursively calls itself until the queue is empty, 
-      // we just need to wait for the initial batch of promises to finish, 
-      // and then wait for the activePromises array to empty out.
-      
-      // Wait for the initial batch to start processing
-      await Promise.all(activePromises);
-
-      // Wait for the remaining promises to finish (activePromises array will empty out)
-      while (activePromises.length > 0) {
-        await Promise.race(activePromises);
-      }
-      
-      console.log("All gallery panels initialized.");
-    };
-    
-    loadAllPanelsConcurrently();
-    // --- End Concurrent Loading Logic with Throttling ---
+    // --- End Panel Creation Loop ---
 
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
@@ -873,6 +2865,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
+    // We need to update interactiveMeshes reference if panelsRef.current changes, 
+    // but since panelsRef.current is only populated once here, this is fine.
     const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]);
 
     const onDocumentMouseDown = () => {
@@ -1028,8 +3022,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     window.addEventListener('resize', onWindowResize);
 
-    loadAllPanelsConcurrently();
-    
     // START THE ANIMATION LOOP
     animate();
 
@@ -1059,7 +3051,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, applyFallbackContent]);
+  }, [setInstructionsVisible, manageVideoPlayback, updatePanelContent]); // Dependencies updated
+
+  // --- Data Loading Effect (Runs once after setup) ---
+  useEffect(() => {
+    // Only run data loading once the component is mounted and setup is complete
+    if (panelsRef.current.length > 0 && !isGalleryInitialized) {
+        loadAllPanelsConcurrently();
+    }
+  }, [loadAllPanelsConcurrently, isGalleryInitialized]);
+
 
   return (
     <>
