@@ -337,6 +337,53 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
 
+    // --- Create Inner Room ---
+    const innerRoomSize = 85;
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const doorwayWidth = 10;
+    const wallSegmentWidth = (innerRoomSize - doorwayWidth) / 2;
+    const wallSegmentGeometry = new THREE.PlaneGeometry(wallSegmentWidth, wallHeight);
+    const segmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2;
+
+    // North Inner Wall
+    const northInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    northInnerWall1.position.set(-segmentOffset, wallHeight / 2, -innerRoomSize / 2);
+    scene.add(northInnerWall1);
+    const northInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    northInnerWall2.position.set(segmentOffset, wallHeight / 2, -innerRoomSize / 2);
+    scene.add(northInnerWall2);
+
+    // South Inner Wall
+    const southInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    southInnerWall1.position.set(-segmentOffset, wallHeight / 2, innerRoomSize / 2);
+    southInnerWall1.rotation.y = Math.PI;
+    scene.add(southInnerWall1);
+    const southInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    southInnerWall2.position.set(segmentOffset, wallHeight / 2, innerRoomSize / 2);
+    southInnerWall2.rotation.y = Math.PI;
+    scene.add(southInnerWall2);
+
+    // East Inner Wall
+    const eastInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    eastInnerWall1.position.set(innerRoomSize / 2, wallHeight / 2, -segmentOffset);
+    eastInnerWall1.rotation.y = -Math.PI / 2;
+    scene.add(eastInnerWall1);
+    const eastInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    eastInnerWall2.position.set(innerRoomSize / 2, wallHeight / 2, segmentOffset);
+    eastInnerWall2.rotation.y = -Math.PI / 2;
+    scene.add(eastInnerWall2);
+
+    // West Inner Wall
+    const westInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    westInnerWall1.position.set(-innerRoomSize / 2, wallHeight / 2, -segmentOffset);
+    westInnerWall1.rotation.y = Math.PI / 2;
+    scene.add(westInnerWall1);
+    const westInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    westInnerWall2.position.set(-innerRoomSize / 2, wallHeight / 2, segmentOffset);
+    westInnerWall2.rotation.y = Math.PI / 2;
+    scene.add(westInnerWall2);
+    // --- End Inner Room ---
+
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
