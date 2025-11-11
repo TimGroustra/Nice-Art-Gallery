@@ -5,6 +5,13 @@ import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, upd
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
+// Constants for geometry
+const TEXT_PANEL_WIDTH = 2.5;
+const TITLE_HEIGHT = 0.5;
+const DESCRIPTION_HEIGHT = 1.5;
+const ATTRIBUTES_HEIGHT = 1.5;
+const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
+
 // Define types for the panel objects
 interface Panel {
   mesh: THREE.Mesh;
@@ -108,6 +115,7 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     const padding = 40;
     const lineHeight = fontSize * 1.2;
     let y = padding;
+    const maxTextWidth = canvas.width - 2 * padding;
 
     if (!attributes || attributes.length === 0) {
         context.fillText('No attributes found.', padding, y);
@@ -115,7 +123,23 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
         attributes.forEach(attr => {
             if (attr.trait_type && attr.value) {
                 const line = `${attr.trait_type}: ${attr.value}`;
-                context.fillText(line, padding, y);
+                
+                // Word wrapping logic
+                const words = line.split(' ');
+                let currentLine = '';
+                for (let n = 0; n < words.length; n++) {
+                    const testLine = currentLine + words[n] + ' ';
+                    const metrics = context.measureText(testLine);
+                    const testWidth = metrics.width;
+                    if (testWidth > maxTextWidth && n > 0) {
+                        context.fillText(currentLine, padding, y);
+                        currentLine = words[n] + ' ';
+                        y += lineHeight;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                context.fillText(currentLine, padding, y);
                 y += lineHeight;
             }
         });
@@ -199,7 +223,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.descriptionMesh.material.map.dispose();
       }
       const descriptionText = metadata.description;
-      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, 1.5, 2.0, 40, 'lightgray', { wordWrap: true });
+      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 40, 'lightgray', { wordWrap: true });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
@@ -214,7 +238,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
       const attributes = metadata.attributes || [];
       panel.currentAttributes = attributes;
-      const { texture: attributesTexture } = createAttributesTextTexture(attributes, 1.5, 1.5, 40, 'lightgray');
+      const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
@@ -394,12 +418,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
-    const TEXT_PANEL_WIDTH = 1.5, TITLE_HEIGHT = 0.5, DESCRIPTION_HEIGHT = 1.5, TEXT_BLOCK_OFFSET_X = 3;
+    const TEXT_BLOCK_OFFSET_X = 3;
     const TITLE_PANEL_WIDTH = 2.0;
-    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white', { wordWrap: false });
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
-    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
     const panelConfigs = [
       { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
@@ -451,7 +475,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       const COLLECTION_INFO_OFFSET_X = 3;
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, COLLECTION_INFO_OFFSET_X);
-      const ATTRIBUTES_HEIGHT = 1.5;
       const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
       attributesMesh.rotation.set(...config.rotation);
@@ -522,7 +545,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
-      const { texture } = createTextTexture(panel.currentDescription, 1.5, 2.0, 40, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
+      const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 40, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
     };
 
