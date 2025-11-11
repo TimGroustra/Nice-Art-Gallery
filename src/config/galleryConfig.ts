@@ -1,4 +1,5 @@
 import { fetchTotalSupply, fetchCollectionName } from '@/utils/nftFetcher';
+import { showLoading, dismissToast, showError } from '@/utils/toast';
 
 export interface NftCollection {
   name: string;
@@ -70,42 +71,51 @@ let galleryConfig: PanelConfig = generateGalleryConfig();
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
+  const loadingToastId = showLoading("Initializing gallery collections...");
+  
+  try {
+    const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
 
-  const tokenMap: { [address: string]: number[] } = {};
-  const nameMap: { [address: string]: string } = {};
+    const tokenMap: { [address: string]: number[] } = {};
+    const nameMap: { [address: string]: string } = {};
 
-  for (const address of uniqueContracts) {
-    try {
-      const totalSupply = await fetchTotalSupply(address);
-      const name = await fetchCollectionName(address);
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      nameMap[address] = name;
-      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
-    } catch (error) {
-      console.error(`Failed to initialize collection at ${address}:`, error);
-      // Fallback to placeholder if fetching fails
-      tokenMap[address] = [1];
-      nameMap[address] = "Unknown Collection";
+    for (const address of uniqueContracts) {
+      try {
+        const totalSupply = await fetchTotalSupply(address);
+        const name = await fetchCollectionName(address);
+        // Assuming token IDs are 1-indexed (1 to totalSupply)
+        tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+        nameMap[address] = name;
+        console.log(`[Gallery Config] Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+      } catch (error) {
+        console.error(`[Gallery Config] Failed to initialize collection at ${address}:`, error);
+        // Fallback to placeholder if fetching fails
+        tokenMap[address] = [1];
+        nameMap[address] = "Unknown Collection (Failed)";
+      }
     }
+
+    // Update all panels using the fetched token lists and names
+    for (const wallName in galleryConfig) {
+      const config = galleryConfig[wallName];
+      const tokens = tokenMap[config.contractAddress];
+      const name = nameMap[config.contractAddress];
+      
+      if (tokens && tokens.length > 0) {
+        config.tokenIds = tokens;
+        config.currentIndex = 0; 
+      }
+      if (name) {
+        config.name = name;
+      }
+    }
+    dismissToast(loadingToastId);
+    console.log(`[Gallery Config] Gallery configuration fully initialized.`);
+  } catch (error) {
+    dismissToast(loadingToastId);
+    showError("Failed to initialize gallery configuration.");
+    console.error("[Gallery Config] Critical failure during initialization:", error);
   }
-
-  // Update all panels using the fetched token lists and names
-  for (const wallName in galleryConfig) {
-    const config = galleryConfig[wallName];
-    const tokens = tokenMap[config.contractAddress];
-    const name = nameMap[config.contractAddress];
-    
-    if (tokens && tokens.length > 0) {
-      config.tokenIds = tokens;
-      config.currentIndex = 0; 
-    }
-    if (name) {
-      config.name = name;
-    }
-  }
-  console.log(`Gallery configuration fully initialized.`);
 }
 
 // Export the configuration object reference
