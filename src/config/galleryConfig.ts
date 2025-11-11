@@ -37,13 +37,11 @@ const generateGalleryConfig = (): PanelConfig => {
     { prefix: 'south-innermost', count: 2 },
     { prefix: 'east-innermost', count: 2 },
     { prefix: 'west-innermost', count: 2 },
-    // New: Central structure (4 panels)
-    { prefix: 'center', count: 4 },
   ];
 
   wallLayouts.forEach(layout => {
     for (let i = 1; i <= layout.count; i++) {
-      const wallName = `${layout.prefix}-${layout.prefix === 'center' ? 'pillar' : 'wall'}-${i}`;
+      const wallName = `${layout.prefix}-wall-${i}`;
       config[wallName] = {
         name: 'Loading...',
         contractAddress: contractAddresses[contractIndex % contractAddresses.length],
