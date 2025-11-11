@@ -310,6 +310,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     document.addEventListener('mousedown', onDocumentMouseDown);
 
+    // Constants for text panel dimensions (matching WallSegment.tsx)
+    const TEXT_PANEL_WIDTH = 2.25; 
+    const TEXT_PANEL_HEIGHT = 1.8;
+    const TEXT_FONT_SIZE_DESC = 28;
+    const TEXT_FONT_SIZE_ATTR = 40;
+
     const updateScrollTexture = (wallName: keyof PanelConfig, panelId: string, type: 'description' | 'attributes') => {
       const wall = wallsRef.current.find(w => w.wallName === wallName);
       if (!wall) return;
@@ -320,13 +326,27 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
           panel.descriptionMesh.material.map.dispose();
         }
-        const { texture } = createTextTexture(panel.currentDescription, 1.5, 1.8, 28, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
+        const { texture } = createTextTexture(
+          panel.currentDescription, 
+          TEXT_PANEL_WIDTH, 
+          TEXT_PANEL_HEIGHT, 
+          TEXT_FONT_SIZE_DESC, 
+          'lightgray', 
+          { wordWrap: true, scrollY: panel.descriptionScrollY }
+        );
         (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
       } else if (type === 'attributes') {
         if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
         }
-        const { texture } = createAttributesTextTexture(panel.currentAttributes, 1.5, 1.8, 60, 'lightgray', { scrollY: panel.attributesScrollY });
+        const { texture } = createAttributesTextTexture(
+          panel.currentAttributes, 
+          TEXT_PANEL_WIDTH, 
+          TEXT_PANEL_HEIGHT, 
+          TEXT_FONT_SIZE_ATTR, 
+          'lightgray', 
+          { scrollY: panel.attributesScrollY }
+        );
         (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = texture;
       }
     };
@@ -340,8 +360,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (!panel) return;
 
       const scrollAmount = event.deltaY * 0.5;
-      const canvasHeight = 512;
-      const padding = 40;
+      const canvasHeight = 512; // Fixed canvas height used in createTextTexture
+      const padding = 40; // Fixed padding used in createTextTexture
       const effectiveViewportHeight = canvasHeight - 2 * padding;
 
       if (type === 'description') {
