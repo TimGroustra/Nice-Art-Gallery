@@ -13,10 +13,7 @@ export interface PanelConfig {
 
 // Collection addresses to be cycled through for the panels
 const contractAddresses = [
-  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // Panth.art
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984",
-  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31",
-  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4",
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // Electrogems
 ];
 
 // Generate the gallery configuration dynamically
