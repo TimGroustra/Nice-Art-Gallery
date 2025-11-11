@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import gifler from 'gifler';
 
 // This type helps manage textures that need updates in the animation loop
 export interface AnimatedTexture {
@@ -58,7 +57,10 @@ export const createNftTexture = async (
         }
 
         if (isGif) {
-            return await new Promise((resolve) => {
+            return await new Promise(async (resolve) => {
+                const mod = await import('gifler');
+                const gifler = mod.default ?? mod;
+
                 gifler(url).get((anim: any) => {
                     const canvas = anim.canvas;
                     const texture = new THREE.CanvasTexture(canvas);
