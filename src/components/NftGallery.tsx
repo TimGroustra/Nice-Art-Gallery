@@ -110,7 +110,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (wall: WallSegment, panelId: string, source: NftSource) => {
-    const loadingToastId = showLoading(`Loading NFT ${source.tokenId}...`);
+    // showLoading now returns undefined, so we don't need to track the ID
+    showLoading(`Loading NFT ${source.tokenId}...`); 
     try {
         const metadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
         wall.setPanelMetadataById(panelId, metadata, loadTexture);
@@ -127,8 +128,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             attributes: [],
         }, loadTexture);
     } finally {
-        // Ensure loadingToastId is treated as a string before dismissing
-        dismissToast(String(loadingToastId));
+        // No toast to dismiss
     }
   }, [loadTexture]);
 
