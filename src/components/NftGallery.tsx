@@ -186,13 +186,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, boundary = roomSize / 2 - 0.5;
+    const WORLD_SIZE = 100, wallHeight = 4, boundary = WORLD_SIZE / 2 - 0.5;
 
     // --- Scene Setup (Floors/Ceiling/Lights) ---
     // Note: Using MeshPhongMaterial for floor/ceiling/walls allows them to react to scene lighting, 
     // but the NFT panels themselves will use MeshBasicMaterial to preserve color accuracy.
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
+    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
     scene.add(outerFloor);
 
@@ -202,7 +202,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       texture.colorSpace = THREE.NoColorSpace; 
       
       const padding = 1.0;
-      const maxInnerSize = roomSize - 2 * padding;
+      const maxInnerSize = WORLD_SIZE - 2 * padding;
       const imageAspect = texture.image.width / texture.image.height;
       let innerPlaneWidth, innerPlaneHeight;
       if (imageAspect >= 1) {
@@ -220,7 +220,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(innerFloor);
     });
 
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
@@ -249,7 +249,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     GALLERY_LAYOUT.forEach(config => {
       const ws = new WallSegment({ 
         wallName: config.wallName, 
-        width: roomSize, 
+        width: 10, // Each segment is 10 units wide
         height: wallHeight, 
         panelDescriptors: config.panelDescriptors 
       });
@@ -296,18 +296,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const center = new THREE.Vector2(0, 0);
 
     const onDocumentMouseDown = () => {
-      if (!controls.isLocked) return;
-      if (currentTargetedArrow) {
-        const wallName = (currentTargetedArrow.userData as any).wallName as keyof PanelConfig;
-        const panelId = (currentTargetedArrow.userData as any).panelId as string;
-        const direction = (currentTargetedArrow.userData as any).direction as 'next' | 'prev';
-        
-        if (updatePanelIndex(wallName, direction)) {
-          const newSource = getCurrentNftSource(wallName);
-          const wall = wallsRef.current.find(w => w.wallName === wallName);
-          if (newSource && wall) {
-            updatePanelContent(wall, panelId, newSource);
-          }
+      if (!controls.isLocked || !currentTargetedArrow) return;
+      
+      const wallName = (currentTargetedArrow.userData as any).wallName as keyof PanelConfig;
+      const direction = (currentTargetedArrow.userData as any).direction as 'next' | 'prev';
+      
+      if (updatePanelIndex(wallName, direction)) {
+        const newSource = getCurrentNftSource(wallName);
+        if (newSource) {
+          const wallsToUpdate = wallsRef.current.filter(w => w.wallName === wallName);
+          wallsToUpdate.forEach(wall => {
+            // Assuming each WallSegment has one panel as per the new layout
+            if (wall.panels.length > 0) {
+              const panelId = wall.panels[0].id;
+              updatePanelContent(wall, panelId, newSource);
+            }
+          });
         }
       }
     };
