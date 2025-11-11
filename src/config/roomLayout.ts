@@ -9,48 +9,32 @@ export interface WallLayoutConfig {
   panelDescriptors: PanelDescriptor[];
 }
 
-const UNIT_SIZE = 10; // The size of a single wall segment
-const GRID_DIMENSION = 10; // The number of segments per side
-const WORLD_OFFSET = (GRID_DIMENSION - 1) / 2; // Used to center the grid around origin (0,0)
+const roomSize = 10;
+const wallHeight = 4;
 
-export const GALLERY_LAYOUT: WallLayoutConfig[] = [];
-
-// Generate North Wall (top boundary)
-for (let i = 0; i < GRID_DIMENSION; i++) {
-  GALLERY_LAYOUT.push({
+export const GALLERY_LAYOUT: WallLayoutConfig[] = [
+  {
     wallName: 'north-wall',
-    position: [(i - WORLD_OFFSET) * UNIT_SIZE, 0, -WORLD_OFFSET * UNIT_SIZE - UNIT_SIZE / 2],
+    position: [0, 0, -roomSize / 2],
     rotationY: 0,
-    panelDescriptors: [{ id: `main-n-${i}`, offsetX: 0 }],
-  });
-}
-
-// Generate South Wall (bottom boundary)
-for (let i = 0; i < GRID_DIMENSION; i++) {
-  GALLERY_LAYOUT.push({
+    panelDescriptors: [{ id: 'main', offsetX: 0 }],
+  },
+  {
     wallName: 'south-wall',
-    position: [(i - WORLD_OFFSET) * UNIT_SIZE, 0, WORLD_OFFSET * UNIT_SIZE + UNIT_SIZE / 2],
+    position: [0, 0, roomSize / 2],
     rotationY: Math.PI,
-    panelDescriptors: [{ id: `main-s-${i}`, offsetX: 0 }],
-  });
-}
-
-// Generate West Wall (left boundary)
-for (let j = 0; j < GRID_DIMENSION; j++) {
-  GALLERY_LAYOUT.push({
-    wallName: 'west-wall',
-    position: [-WORLD_OFFSET * UNIT_SIZE - UNIT_SIZE / 2, 0, (j - WORLD_OFFSET) * UNIT_SIZE],
-    rotationY: Math.PI / 2,
-    panelDescriptors: [{ id: `main-w-${j}`, offsetX: 0 }],
-  });
-}
-
-// Generate East Wall (right boundary)
-for (let j = 0; j < GRID_DIMENSION; j++) {
-  GALLERY_LAYOUT.push({
+    panelDescriptors: [{ id: 'main', offsetX: 0 }],
+  },
+  {
     wallName: 'east-wall',
-    position: [WORLD_OFFSET * UNIT_SIZE + UNIT_SIZE / 2, 0, (j - WORLD_OFFSET) * UNIT_SIZE],
+    position: [roomSize / 2, 0, 0],
     rotationY: -Math.PI / 2,
-    panelDescriptors: [{ id: `main-e-${j}`, offsetX: 0 }],
-  });
-}
+    panelDescriptors: [{ id: 'main', offsetX: 0 }],
+  },
+  {
+    wallName: 'west-wall',
+    position: [-roomSize / 2, 0, 0],
+    rotationY: Math.PI / 2,
+    panelDescriptors: [{ id: 'main', offsetX: 0 }],
+  },
+];
