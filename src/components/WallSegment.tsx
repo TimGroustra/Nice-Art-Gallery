@@ -200,12 +200,17 @@ export class WallSegment {
     // Attach wallName and panelId to meshes for easy raycasting lookup
     (mesh.userData as any).wallName = this.wallName;
     (mesh.userData as any).panelId = desc.id;
+    mesh.name = 'nft-panel'; // Ensure the main panel is identifiable
 
-    const titleGeom = new THREE.PlaneGeometry(2.0, 0.45);
-    const placeholderTex = createTextTexture('Loading...', 2.0, 0.5, 40).texture;
+    // Title Mesh (Collection Name + Token ID)
+    const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.45);
+    const placeholderTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.45, 40).texture;
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
-    titleMesh.position.set(desc.offsetX, panelCenterY - (panelSize!.h / 2) - 0.45 / 2 - 0.1, 0.02);
+    
+    // Position title centered above the NFT panel
+    const titleY = panelCenterY + (panelSize!.h / 2) + 0.45 / 2 + 0.1;
+    titleMesh.position.set(desc.offsetX, titleY, 0.02);
 
     const descGeom = new THREE.PlaneGeometry(1.5, 1.8);
     const descPlace = createTextTexture('', 1.5, 1.8, 28);
@@ -263,7 +268,11 @@ export class WallSegment {
             mesh.material.needsUpdate = true;
           }
 
-          const titleTex = createTextTexture(metadata.title || 'Untitled', 2.0, 0.5, 48).texture;
+          // Update title to show Collection Name + Token ID
+          const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
+          const titleText = `${collectionName} | Token #${metadata.title.replace('Token #', '')}`;
+          
+          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.45, 40).texture;
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
@@ -318,7 +327,7 @@ export class WallSegment {
       const m = (obj as any).material;
       if (m) {
         if (Array.isArray(m)) m.forEach(mi => { mi.map?.dispose?.(); mi.dispose?.(); });
-        else { m.map?.dispose?.(); m.dispose?.(); }
+        else { if ((obj.material as any).map) (obj.material as any).map.dispose(); (obj.material as any).dispose(); }
       }
     });
   }

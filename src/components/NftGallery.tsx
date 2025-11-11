@@ -17,15 +17,15 @@ export interface TargetedPanelInfo {
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
-  setTargetedPanelInfo: (info: TargetedPanelInfo | null) => void;
+  // setTargetedPanelInfo removed as metadata is now displayed in 3D space
 }
 
-// Global state for UI interaction (now storing wallName and panelId)
+// Global state for UI interaction (now only tracking interaction targets)
 let currentTargetedPanel: { wallName: keyof PanelConfig; panelId: string } | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: { wallName: keyof PanelConfig; panelId: string } | null = null;
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTargetedPanelInfo }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const wallsRef = useRef<WallSegment[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -313,35 +313,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
         currentTargetedPanel = null;
         currentTargetedArrow = null;
         currentTargetedDescriptionPanel = null;
-        setTargetedPanelInfo(null); // Clear UI info
+        // setTargetedPanelInfo(null); // Removed UI state update
 
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
           const { wallName, panelId } = intersectedMesh.userData as { wallName: keyof PanelConfig, panelId: string };
           
           if (wallName && panelId) {
-            const wallConfig = GALLERY_PANEL_CONFIG[wallName];
-            const currentTokenId = wallConfig.tokenIds[wallConfig.currentIndex];
+            // const wallConfig = GALLERY_PANEL_CONFIG[wallName]; // Not needed for 3D interaction logic
             
             if (intersectedMesh.userData.direction) { // Arrow
               currentTargetedArrow = intersectedMesh;
               (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00);
-            } else if (intersectedMesh.name !== 'description') { // Panel (mesh)
+            } else if (intersectedMesh.name === 'nft-panel') { // Panel (mesh)
               currentTargetedPanel = { wallName, panelId };
             }
             
             if (intersectedMesh.name === 'description') {
                  currentTargetedDescriptionPanel = { wallName, panelId };
-            }
-            
-            // Update UI info if we are targeting a panel or description
-            if (currentTargetedPanel || currentTargetedDescriptionPanel) {
-              setTargetedPanelInfo({
-                wallName,
-                panelId,
-                collectionName: wallConfig.name,
-                tokenId: currentTokenId,
-              });
             }
           }
         }
@@ -397,9 +386,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
       currentTargetedPanel = null;
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
-      setTargetedPanelInfo(null);
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, setTargetedPanelInfo]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>

@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { X, Volume2, VolumeX, MousePointer2 } from 'lucide-react';
-import { TargetedPanelInfo } from './NftGallery';
+import { X, Volume2, VolumeX } from 'lucide-react';
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
   onLockClick: () => void;
-  targetedPanelInfo: TargetedPanelInfo | null;
 }
 
-const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick, targetedPanelInfo }) => {
+const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   const [isMuted, setIsMuted] = useState(true);
   const [hasVideo, setHasVideo] = useState(false);
 
@@ -70,28 +66,6 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick,
           </Button>
         )}
       </div>
-
-      {/* Targeted Panel Info (Top Right) */}
-      {targetedPanelInfo && (
-        <Card className="fixed top-4 right-4 z-10 w-72 pointer-events-none bg-background/80 backdrop-blur-sm">
-          <CardHeader className="p-3 pb-2 flex flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-sm font-semibold text-primary flex items-center gap-2">
-              <MousePointer2 className="h-4 w-4" /> Targeted NFT
-            </CardTitle>
-            <Badge variant="secondary" className="text-xs">
-              {targetedPanelInfo.wallName.replace('-', ' ').toUpperCase()}
-            </Badge>
-          </CardHeader>
-          <CardContent className="p-3 pt-0">
-            <p className="text-lg font-bold leading-none mb-1 truncate">
-              {targetedPanelInfo.collectionName}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Token ID: #{targetedPanelInfo.tokenId}
-            </p>
-          </CardContent>
-        </Card>
-      )}
     </>
   );
 };

@@ -1,10 +1,9 @@
-import NftGallery, { TargetedPanelInfo } from "@/components/NftGallery";
+import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import React, { useState, useCallback } from "react";
 
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
-  const [targetedPanelInfo, setTargetedPanelInfo] = useState<TargetedPanelInfo | null>(null);
 
   const handleLockClick = useCallback(() => {
     const galleryControls = (window as any).galleryControls;
@@ -18,14 +17,12 @@ const Index = () => {
       {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
-        setTargetedPanelInfo={setTargetedPanelInfo}
       />
       
       {/* 2D Overlay UI */}
       <GalleryUI 
         instructionsVisible={instructionsVisible} 
         onLockClick={handleLockClick}
-        targetedPanelInfo={targetedPanelInfo}
       />
     </div>
   );
