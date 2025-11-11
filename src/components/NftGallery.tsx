@@ -528,11 +528,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             break;
           case 'east':
             position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
-            rotation = [0, -Math.PI / 2, 0];
+            rotation = [0, Math.PI / 2, 0];
             break;
           case 'west':
             position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
-            rotation = [0, Math.PI / 2, 0];
+            rotation = [0, -Math.PI / 2, 0];
             break;
         }
         panelConfigs.push({ wallName, position, rotation });
@@ -566,11 +566,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             break;
           case 'east-inner':
             position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
-            rotation = [0, -Math.PI / 2, 0];
+            rotation = [0, Math.PI / 2, 0];
             break;
           case 'west-inner':
             position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
-            rotation = [0, Math.PI / 2, 0];
+            rotation = [0, -Math.PI / 2, 0];
             break;
         }
         panelConfigs.push({ wallName, position, rotation });
@@ -599,11 +599,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             break;
           case 'east-innermost':
             position = [innermostRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
-            rotation = [0, -Math.PI / 2, 0];
+            rotation = [0, Math.PI / 2, 0];
             break;
           case 'west-innermost':
             position = [-innermostRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
-            rotation = [0, Math.PI / 2, 0];
+            rotation = [0, -Math.PI / 2, 0];
             break;
         }
         panelConfigs.push({ wallName, position, rotation });
@@ -615,22 +615,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panelConfigs.push({ 
       wallName: 'center-pillar-1', 
       position: [0, panelYPosition, -centralPillarHalf - ARROW_DEPTH_OFFSET], 
-      rotation: [0, 0, 0] // Facing Z+ (North side of pillar)
+      rotation: [0, Math.PI, 0] // Facing -Z (North side of pillar)
     });
     panelConfigs.push({ 
       wallName: 'center-pillar-2', 
       position: [0, panelYPosition, centralPillarHalf + ARROW_DEPTH_OFFSET], 
-      rotation: [0, Math.PI, 0] // Facing Z- (South side of pillar)
+      rotation: [0, 0, 0] // Facing +Z (South side of pillar)
     });
     panelConfigs.push({ 
       wallName: 'center-pillar-3', 
       position: [centralPillarHalf + ARROW_DEPTH_OFFSET, panelYPosition, 0], 
-      rotation: [0, -Math.PI / 2, 0] // Facing X- (East side of pillar)
+      rotation: [0, -Math.PI / 2, 0] // Facing +X (East side of pillar)
     });
     panelConfigs.push({ 
       wallName: 'center-pillar-4', 
       position: [-centralPillarHalf - ARROW_DEPTH_OFFSET, panelYPosition, 0], 
-      rotation: [0, Math.PI / 2, 0] // Facing X+ (West side of pillar)
+      rotation: [0, Math.PI / 2, 0] // Facing -X (West side of pillar)
     });
 
 
