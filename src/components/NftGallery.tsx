@@ -215,7 +215,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      const { texture: titleTexture } = createTextTexture(metadata.title, 2.0, 0.5, 100, 'white', { wordWrap: false });
+      // Increased font size from 100 to 120
+      const { texture: titleTexture } = createTextTexture(metadata.title, 2.0, 0.5, 120, 'white', { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
@@ -246,7 +247,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 100, 'white', { wordWrap: false });
+      // Increased font size from 100 to 120
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 120, 'white', { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
