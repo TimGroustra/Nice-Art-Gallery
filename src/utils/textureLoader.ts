@@ -1,9 +1,5 @@
 import * as THREE from 'three';
-import * as gifler_namespace from 'gifler';
-
-// This is a common workaround for libraries that don't export a standard default module.
-// It checks for a 'default' property and falls back to the namespace itself.
-const gifler: (url: string) => any = (gifler_namespace as any).default || gifler_namespace;
+import gifler from 'gifler';
 
 // This type helps manage textures that need updates in the animation loop
 export interface AnimatedTexture {
