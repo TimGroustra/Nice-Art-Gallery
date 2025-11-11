@@ -1,18 +1,16 @@
-import NftGallery from "@/components/NftGallery";
+import NftGallery, { TargetedPanelInfo } from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import React, { useState, useCallback } from "react";
 
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
-
-  // Removed handlePanelClick as the modal is gone
+  const [targetedPanelInfo, setTargetedPanelInfo] = useState<TargetedPanelInfo | null>(null);
 
   const handleLockClick = useCallback(() => {
     const galleryControls = (window as any).galleryControls;
     if (galleryControls && galleryControls.lockControls) {
       galleryControls.lockControls();
     }
-    // The NftGallery component handles setting instructionsVisible=false on lock event internally.
   }, []);
 
   return (
@@ -20,12 +18,14 @@ const Index = () => {
       {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
+        setTargetedPanelInfo={setTargetedPanelInfo}
       />
       
       {/* 2D Overlay UI */}
       <GalleryUI 
         instructionsVisible={instructionsVisible} 
         onLockClick={handleLockClick}
+        targetedPanelInfo={targetedPanelInfo}
       />
     </div>
   );
