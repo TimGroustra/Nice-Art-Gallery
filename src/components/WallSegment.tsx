@@ -205,7 +205,7 @@ export class WallSegment {
     const TEXT_PANEL_WIDTH = 2.25; // Description/Attributes panel width
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 20; // Updated to 20
+    const TEXT_FONT_SIZE_ATTR = 30; // Updated to 30
     const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
     const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
 

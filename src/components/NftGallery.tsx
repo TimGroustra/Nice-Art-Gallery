@@ -314,7 +314,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_PANEL_WIDTH = 2.25; 
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 50; // Updated to 50
+    const TEXT_FONT_SIZE_ATTR = 30; // Updated to 30
     
     const updateScrollTexture = (wallName: keyof PanelConfig, panelId: string, type: 'description' | 'attributes') => {
       const wall = wallsRef.current.find(w => w.wallName === wallName);
