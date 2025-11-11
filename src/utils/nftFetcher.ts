@@ -1,6 +1,6 @@
 import { JsonRpcProvider, Contract } from "ethers";
 
-// Switched to different public endpoints to improve reliability
+// Public RPC endpoint for Ethereum Mainnet
 const RPC_URL = "https://cloudflare-eth.com";
 const provider = new JsonRpcProvider(RPC_URL);
 
@@ -21,8 +21,8 @@ export function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
   if (url.startsWith('ipfs://')) {
-    // Switched to a different public IPFS gateway
-    const normalized = url.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
+    // Using a common public gateway
+    const normalized = url.replace('ipfs://', 'https://ipfs.io/ipfs/');
     console.log(`[NFT Fetcher] Normalized IPFS URL: ${normalized}`);
     return normalized;
   }
@@ -77,7 +77,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   const metadataUrl = normalizeUrl(tokenUri);
   
   if (!metadataUrl) {
-    throw new Error("Token URI resolved to an empty. URL");
+    throw new Error("Token URI resolved to an empty URL.");
   }
 
   const res = await fetch(metadataUrl);
