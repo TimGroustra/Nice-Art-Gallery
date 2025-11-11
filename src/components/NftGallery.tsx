@@ -308,7 +308,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 40, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
+    const roomSize = 280, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
     // Create the outer floor for padding
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
@@ -366,7 +366,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
       pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
@@ -428,7 +428,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
     const panelsPerWall = 7;
-    const panelSpacing = 5; // Distance between centers of panels
+    const panelSpacing = 35; // Distance between centers of panels
 
     const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
     const walls = ['north', 'south', 'east', 'west'];
