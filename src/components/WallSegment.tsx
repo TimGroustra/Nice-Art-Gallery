@@ -245,7 +245,7 @@ export class WallSegment {
 
     // Attributes Panel (Right)
     const attrGeom = new THREE.PlaneGeometry(1.5, 1.8); // Increased height to 1.8
-    const attrPlace = createAttributesTextTexture([], 1.5, 1.8, 60); // Updated font size to 60
+    const attrPlace = createAttributesTextTexture([], 1.5, 1.8, 58); // Updated font size to 58
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
     const attrBlockOffsetX = 3;
@@ -324,7 +324,7 @@ export class WallSegment {
           // Update Attributes
           const attributes = metadata.attributes || [];
           panelHandle.currentAttributes = attributes;
-          const attrTexObj = createAttributesTextTexture(attributes, 1.5, 1.8, 60, 'lightgray', { scrollY: 0 });
+          const attrTexObj = createAttributesTextTexture(attributes, 1.5, 1.8, 58, 'lightgray', { scrollY: 0 });
           (attributesMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTexObj.texture;
           
