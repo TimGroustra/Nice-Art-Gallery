@@ -768,28 +768,63 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panelsRef.current.push(panel);
       
       // Initial content is set to 'Loading...' placeholder.
-      // The actual content loading will happen concurrently below.
     });
 
-    // --- Concurrent Loading Logic ---
+    // --- Concurrent Loading Logic with Throttling ---
+    const CONCURRENCY_LIMIT = 5;
+
     const loadAllPanelsConcurrently = async () => {
       await initializeGalleryConfig();
       
-      const loadPromises = panelsRef.current.map(panel => {
-        const source = getCurrentNftSource(panel.wallName);
-        if (source) {
-          return updatePanelContent(panel, source);
-        }
-        return Promise.resolve(); // Resolve immediately if no source
-      });
+      const panelsToLoad = panelsRef.current.map(panel => ({
+        panel,
+        source: getCurrentNftSource(panel.wallName),
+      })).filter(item => item.source !== null) as { panel: Panel, source: NftSource }[];
+
+      const queue = [...panelsToLoad];
+      const activePromises: Promise<void>[] = [];
+
+      const runNext = async () => {
+        if (queue.length === 0) return;
+
+        const { panel, source } = queue.shift()!;
+        
+        const promise = updatePanelContent(panel, source).finally(() => {
+          // Remove this promise from activePromises when it resolves/rejects
+          const index = activePromises.indexOf(promise);
+          if (index > -1) activePromises.splice(index, 1);
+          
+          // Immediately try to run the next item in the queue
+          runNext();
+        });
+        
+        activePromises.push(promise);
+      };
+
+      // Start initial batch
+      for (let i = 0; i < CONCURRENCY_LIMIT && queue.length > 0; i++) {
+        runNext();
+      }
+
+      // Wait for all promises (active and queued) to complete
+      // We need a way to wait for the entire queue to drain.
+      // Since runNext recursively calls itself until the queue is empty, 
+      // we just need to wait for the initial batch of promises to finish, 
+      // and then wait for the activePromises array to empty out.
       
-      await Promise.all(loadPromises);
+      // Wait for the initial batch to start processing
+      await Promise.all(activePromises);
+
+      // Wait for the remaining promises to finish (activePromises array will empty out)
+      while (activePromises.length > 0) {
+        await Promise.race(activePromises);
+      }
       
       console.log("All gallery panels initialized.");
     };
     
     loadAllPanelsConcurrently();
-    // --- End Concurrent Loading Logic ---
+    // --- End Concurrent Loading Logic with Throttling ---
 
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
@@ -972,8 +1007,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     window.addEventListener('resize', onWindowResize);
 
     loadAllPanelsConcurrently();
-
-    animate();
 
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
