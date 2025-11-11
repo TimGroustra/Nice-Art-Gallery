@@ -59,7 +59,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         ctx.fillText('No Image URL', 128, 128);
       }
       const placeholderTex = new THREE.CanvasTexture(canvas);
-      placeholderTex.colorSpace = THREE.NoColorSpace;
+      placeholderTex.colorSpace = THREE.SRGBColorSpace;
       return placeholderTex;
     }
     
@@ -75,7 +75,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           manageVideoPlayback(true);
         }
         const vTex = new THREE.VideoTexture(videoRef.current);
-        vTex.colorSpace = THREE.NoColorSpace;
+        vTex.colorSpace = THREE.SRGBColorSpace;
         vTex.minFilter = THREE.LinearFilter;
         vTex.magFilter = THREE.LinearFilter;
         vTex.generateMipmaps = false;
@@ -84,13 +84,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
       // Fallback if video element is somehow missing
       const fallback = new THREE.TextureLoader().load(url);
-      fallback.colorSpace = THREE.NoColorSpace;
+      fallback.colorSpace = THREE.SRGBColorSpace;
       return fallback;
     }
     
     // 3. Handle Image Texture with Error Callback
     const tex = new THREE.TextureLoader().load(url, (t) => {
-      t.colorSpace = THREE.NoColorSpace; // important
+      t.colorSpace = THREE.SRGBColorSpace; // important
       t.minFilter = THREE.LinearFilter;
       t.magFilter = THREE.LinearFilter;
       t.generateMipmaps = false;
@@ -101,7 +101,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // Set colorSpace immediately as precaution
-    tex.colorSpace = THREE.NoColorSpace;
+    tex.colorSpace = THREE.SRGBColorSpace;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
@@ -149,8 +149,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // FIX: Ensure accurate color display for NFTs using modern color space properties
     renderer.toneMapping = THREE.NoToneMapping;
-    renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Use LinearSRGBColorSpace for linear output
-    // renderer.physicallyCorrectLights is deprecated and removed
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     
     mountRef.current.appendChild(renderer.domElement);
 
@@ -186,23 +185,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, boundary = roomSize / 2 - 0.5;
+    const WORLD_SIZE = 100, wallHeight = 4, boundary = WORLD_SIZE / 2 - 0.5;
 
     // --- Scene Setup (Floors/Ceiling/Lights) ---
     // Note: Using MeshPhongMaterial for floor/ceiling/walls allows them to react to scene lighting, 
     // but the NFT panels themselves will use MeshBasicMaterial to preserve color accuracy.
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
+    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
     scene.add(outerFloor);
 
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
-      // Ensure floor texture is also linear if we disabled tone mapping globally
-      texture.colorSpace = THREE.NoColorSpace; 
+      texture.colorSpace = THREE.SRGBColorSpace; 
       
       const padding = 1.0;
-      const maxInnerSize = roomSize - 2 * padding;
+      const maxInnerSize = WORLD_SIZE - 2 * padding;
       const imageAspect = texture.image.width / texture.image.height;
       let innerPlaneWidth, innerPlaneHeight;
       if (imageAspect >= 1) {
@@ -220,7 +218,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(innerFloor);
     });
 
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(WORLD_SIZE, WORLD_SIZE), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
@@ -249,7 +247,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     GALLERY_LAYOUT.forEach(config => {
       const ws = new WallSegment({ 
         wallName: config.wallName, 
-        width: roomSize, 
+        width: 10, // Each segment is 10 units wide
         height: wallHeight, 
         panelDescriptors: config.panelDescriptors 
       });
@@ -296,18 +294,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const center = new THREE.Vector2(0, 0);
 
     const onDocumentMouseDown = () => {
-      if (!controls.isLocked) return;
-      if (currentTargetedArrow) {
-        const wallName = (currentTargetedArrow.userData as any).wallName as keyof PanelConfig;
-        const panelId = (currentTargetedArrow.userData as any).panelId as string;
-        const direction = (currentTargetedArrow.userData as any).direction as 'next' | 'prev';
-        
-        if (updatePanelIndex(wallName, direction)) {
-          const newSource = getCurrentNftSource(wallName);
-          const wall = wallsRef.current.find(w => w.wallName === wallName);
-          if (newSource && wall) {
-            updatePanelContent(wall, panelId, newSource);
-          }
+      if (!controls.isLocked || !currentTargetedArrow) return;
+      
+      const wallName = (currentTargetedArrow.userData as any).wallName as keyof PanelConfig;
+      const direction = (currentTargetedArrow.userData as any).direction as 'next' | 'prev';
+      
+      if (updatePanelIndex(wallName, direction)) {
+        const newSource = getCurrentNftSource(wallName);
+        if (newSource) {
+          const wallsToUpdate = wallsRef.current.filter(w => w.wallName === wallName);
+          wallsToUpdate.forEach(wall => {
+            // Assuming each WallSegment has one panel as per the new layout
+            if (wall.panels.length > 0) {
+              const panelId = wall.panels[0].id;
+              updatePanelContent(wall, panelId, newSource);
+            }
+          });
         }
       }
     };
