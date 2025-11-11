@@ -205,23 +205,23 @@ export class WallSegment {
     mesh.name = 'nft-panel'; // Ensure the main panel is identifiable
 
     // Title Mesh (Collection Name)
-    const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 1.2); // Increased height to 1.2
-    const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 1.2, 160).texture; // Increased font size to 160
+    const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.6); // Increased height
+    const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.6, 80).texture; // Increased font size
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
     
     // Position title centered above the NFT panel
-    const titleY = panelCenterY + (panelSize!.h / 2) + 1.2 / 2 + 0.1; // Adjusted position based on new height 1.2
+    const titleY = panelCenterY + (panelSize!.h / 2) + 0.6 / 2 + 0.1; // Adjusted position based on new height
     titleMesh.position.set(desc.offsetX, titleY, 0.02);
 
     // Name Mesh (NFT Name/Metadata Title)
-    const nameGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 1.2); // Increased height to 1.2
-    const placeholderNameTex = createTextTexture('NFT Name', panelSize!.w * 1.2, 1.2, 160).texture; // Increased font size to 160
+    const nameGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.6); // Increased height
+    const placeholderNameTex = createTextTexture('NFT Name', panelSize!.w * 1.2, 0.6, 80).texture; // Increased font size
     const nameMat = new THREE.MeshBasicMaterial({ map: placeholderNameTex, transparent: true });
     const nameMesh = new THREE.Mesh(nameGeom, nameMat);
 
     // Position name centered below the NFT panel
-    const nameY = panelCenterY - (panelSize!.h / 2) - 1.2 / 2 - 0.1; // Adjusted position based on new height 1.2
+    const nameY = panelCenterY - (panelSize!.h / 2) - 0.6 / 2 - 0.1; // Adjusted position based on new height
     nameMesh.position.set(desc.offsetX, nameY, 0.02);
 
 
@@ -235,8 +235,8 @@ export class WallSegment {
     (descriptionMesh.userData as any).panelId = desc.id;
     descriptionMesh.name = 'description'; // Add name for easier identification
 
-    const attrGeom = new THREE.PlaneGeometry(1.5, 2.4); // Increased height to 2.4
-    const attrPlace = createTextTexture('Attributes', 1.5, 2.4, 56); // Increased font size to 56
+    const attrGeom = new THREE.PlaneGeometry(1.5, 1.2);
+    const attrPlace = createTextTexture('Attributes', 1.5, 1.2, 28);
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
     attributesMesh.position.set(desc.offsetX + 3, panelCenterY, 0.02);
@@ -286,13 +286,13 @@ export class WallSegment {
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
           const titleText = collectionName;
           
-          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 1.2, 160).texture; // 160px font
+          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.6, 80).texture; // 80px font
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
           // Update name (NFT Name/Metadata Title)
           const nftNameText = metadata.title;
-          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 1.2, 160).texture; // 160px font
+          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.6, 80).texture; // 80px font
           (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
 
@@ -307,7 +307,7 @@ export class WallSegment {
 
           const attributes = metadata.attributes || [];
           panelHandle.currentAttributes = attributes;
-          const attrTex = createAttributesTextTexture(attributes, 1.5, 2.4, 56).texture; // 56px font
+          const attrTex = createAttributesTextTexture(attributes, 1.5, 1.2, 28).texture;
           (attributesMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
 
