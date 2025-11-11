@@ -37,8 +37,6 @@ const generateGalleryConfig = (): PanelConfig => {
     { prefix: 'south-innermost', count: 2 },
     { prefix: 'east-innermost', count: 2 },
     { prefix: 'west-innermost', count: 2 },
-    // NEW CENTRAL ROOM PANELS
-    { prefix: 'center', count: 4 },
   ];
 
   wallLayouts.forEach(layout => {
