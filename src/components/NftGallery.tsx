@@ -216,7 +216,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.titleMesh.material.map.dispose();
       }
       // Increased font size from 100 to 120
-      const { texture: titleTexture } = createTextTexture(metadata.title, 2.0, 0.5, 120, 'white', { wordWrap: false });
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
@@ -248,7 +248,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.wallTitleMesh.material.map.dispose();
       }
       // Increased font size from 100 to 120
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 120, 'white', { wordWrap: false });
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
@@ -420,8 +420,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
-    const TEXT_PANEL_OFFSET_X = 3.25; // Reduced offset for padding
-    const TITLE_PANEL_WIDTH = 2.0;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
@@ -485,7 +485,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
-      const wallTitleGeometry = new THREE.PlaneGeometry(4, 0.75);
+      const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); // Doubled width for wall title
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
       wallTitleMesh.rotation.set(...config.rotation);
       const wallTitlePosition = new THREE.Vector3(...config.position);
