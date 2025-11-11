@@ -205,7 +205,7 @@ export class WallSegment {
     const TEXT_PANEL_WIDTH = 2.25; // Description/Attributes panel width
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 50; // Updated to 50
+    const TEXT_FONT_SIZE_ATTR = 20; // Updated to 20
     const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
     const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
 
@@ -403,7 +403,27 @@ export class WallSegment {
           if (Array.isArray(m)) m.forEach(mi => { mi.map?.dispose?.(); mi.dispose?.(); });
           else { if ((m as THREE.Material & { map?: THREE.Texture }).map) (m as THREE.Material & { map?: THREE.Texture }).map.dispose(); m.dispose(); }
         }
+      });
+      renderer.dispose();
+      wallsRef.current.forEach(w => w.dispose());
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.removeAttribute('src');
+        videoRef.current.load();
       }
-    });
-  }
-}
+      delete (window as any).galleryControls;
+      currentTargetedPanel = null;
+      currentTargetedArrow = null;
+      currentTargetedScrollPanel = null;
+    };
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+
+  return (
+    <>
+      <video ref={videoRef} style={{ display: 'none' }} playsInline autoPlay muted />
+      <div ref={mountRef} className="w-full h-full" />
+    </>
+  );
+};
+
+export default NftGallery;
