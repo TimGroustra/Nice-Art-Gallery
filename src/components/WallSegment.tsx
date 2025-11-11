@@ -61,10 +61,11 @@ export const createTextTexture = (text: string, width: number, height: number, f
   return { texture, totalHeight };
 };
 
-export const createAttributesTextTexture = (attributes: NftAttribute[], width: number, height: number, fontSize: number, color: string = 'white'): { texture: THREE.CanvasTexture } => {
+export const createAttributesTextTexture = (attributes: NftAttribute[], width: number, height: number, fontSize: number, color: string = 'white', options: { scrollY?: number } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
+  const { scrollY = 0 } = options;
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
-  if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')) };
+  if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')), totalHeight: 0 };
 
   const resolution = 512;
   canvas.width = resolution * (width / height);
@@ -80,22 +81,26 @@ export const createAttributesTextTexture = (attributes: NftAttribute[], width: n
   const padding = 40;
   const lineHeight = fontSize * 1.2;
   let y = padding;
+  let totalHeight = 0;
 
   if (!attributes || attributes.length === 0) {
-    context.fillText('No attributes found.', padding, y);
+    context.fillText('No attributes found.', padding, y - scrollY);
+    totalHeight = lineHeight;
   } else {
     attributes.forEach(attr => {
       if (attr.trait_type && attr.value) {
         const line = `${attr.trait_type}: ${attr.value}`;
-        context.fillText(line, padding, y);
+        // Note: We are not implementing word wrap here, assuming attributes are short lines.
+        context.fillText(line, padding, y - scrollY);
         y += lineHeight;
       }
     });
+    totalHeight = y + lineHeight - padding;
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.needsUpdate = true;
-  return { texture };
+  return { texture, totalHeight };
 };
 
 // ----------------------
@@ -132,6 +137,8 @@ export type PanelHandles = {
   descriptionTextHeight: number;
   descriptionScrollY: number;
   currentAttributes: NftAttribute[];
+  attributesTextHeight: number; // New field for attributes height
+  attributesScrollY: number; // New field for attributes scroll
   updateContent: (metadata: NftMetadata, textureLoader: (url: string, isVideo?: boolean) => THREE.Texture | THREE.VideoTexture) => void;
   dispose: () => void;
 };
@@ -177,7 +184,7 @@ export class WallSegment {
       const panel = this.createPanel(desc);
       this.panels.push(panel);
       this.group.add(panel.mesh, panel.prevArrow, panel.nextArrow, panel.titleMesh, panel.nameMesh, panel.descriptionMesh, panel.attributesMesh);
-      this.interactiveMeshes.push(panel.mesh, panel.prevArrow, panel.nextArrow, panel.descriptionMesh);
+      this.interactiveMeshes.push(panel.mesh, panel.prevArrow, panel.nextArrow, panel.descriptionMesh, panel.attributesMesh); // Added attributesMesh
     });
 
     this.createDownlights();
@@ -225,6 +232,7 @@ export class WallSegment {
     nameMesh.position.set(desc.offsetX, nameY, 0.02);
 
 
+    // Description Panel (Left)
     const descGeom = new THREE.PlaneGeometry(1.5, 1.8);
     const descPlace = createTextTexture('', 1.5, 1.8, 28);
     const descMat = new THREE.MeshBasicMaterial({ map: descPlace.texture, transparent: true });
@@ -235,11 +243,16 @@ export class WallSegment {
     (descriptionMesh.userData as any).panelId = desc.id;
     descriptionMesh.name = 'description'; // Add name for easier identification
 
-    const attrGeom = new THREE.PlaneGeometry(1.5, 1.2);
-    const attrPlace = createTextTexture('Attributes', 1.5, 1.2, 60); // Updated font size to 60
+    // Attributes Panel (Right)
+    const attrGeom = new THREE.PlaneGeometry(1.5, 1.8); // Increased height to 1.8
+    const attrPlace = createAttributesTextTexture([], 1.5, 1.8, 60); // Updated font size to 60
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
-    attributesMesh.position.set(desc.offsetX + 3, panelCenterY, 0.02);
+    const attrBlockOffsetX = 3;
+    attributesMesh.position.set(desc.offsetX + attrBlockOffsetX, panelCenterY, 0.02); // Centered vertically
+    (attributesMesh.userData as any).wallName = this.wallName;
+    (attributesMesh.userData as any).panelId = desc.id;
+    attributesMesh.name = 'attributes'; // Unique name for raycasting
 
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
@@ -271,6 +284,8 @@ export class WallSegment {
       descriptionTextHeight: 0,
       descriptionScrollY: 0,
       currentAttributes: [],
+      attributesTextHeight: 0,
+      attributesScrollY: 0,
       updateContent: (metadata: NftMetadata, textureLoader) => {
         try {
           const imageUrl = metadata.image;
@@ -297,6 +312,7 @@ export class WallSegment {
           (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
 
 
+          // Update Description
           const descTexObj = createTextTexture(metadata.description || '', 1.5, 1.8, 28, 'lightgray', { wordWrap: true });
           (descriptionMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (descriptionMesh.material as THREE.MeshBasicMaterial).map = descTexObj.texture;
@@ -305,11 +321,15 @@ export class WallSegment {
           panelHandle.descriptionTextHeight = descTexObj.totalHeight;
           panelHandle.descriptionScrollY = 0;
 
+          // Update Attributes
           const attributes = metadata.attributes || [];
           panelHandle.currentAttributes = attributes;
-          const attrTex = createAttributesTextTexture(attributes, 1.5, 1.2, 60).texture; // Updated font size to 60
+          const attrTexObj = createAttributesTextTexture(attributes, 1.5, 1.8, 60, 'lightgray', { scrollY: 0 });
           (attributesMesh.material as THREE.MeshBasicMaterial).map?.dispose();
-          (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
+          (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTexObj.texture;
+          
+          panelHandle.attributesTextHeight = attrTexObj.totalHeight;
+          panelHandle.attributesScrollY = 0;
 
         } catch (err) {
           console.error('WallSegment panel update error', err);

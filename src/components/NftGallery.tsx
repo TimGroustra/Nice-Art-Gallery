@@ -4,7 +4,7 @@ import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
-import { WallSegment, createTextTexture } from './WallSegment';
+import { WallSegment, createTextTexture, createAttributesTextTexture } from './WallSegment';
 import { GALLERY_LAYOUT } from '@/config/roomLayout';
 
 // Define types for the targeted panel data passed to the UI
@@ -19,10 +19,10 @@ interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
 }
 
-// Global state for UI interaction (now only tracking interaction targets)
+// Global state for UI interaction (now tracking interaction targets for scrolling)
 let currentTargetedPanel: { wallName: keyof PanelConfig; panelId: string } | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
-let currentTargetedDescriptionPanel: { wallName: keyof PanelConfig; panelId: string } | null = null;
+let currentTargetedScrollPanel: { wallName: keyof PanelConfig; panelId: string; type: 'description' | 'attributes' } | null = null;
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -274,22 +274,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     document.addEventListener('mousedown', onDocumentMouseDown);
 
-    const updateDescriptionTexture = (wallName: keyof PanelConfig, panelId: string) => {
+    const updateScrollTexture = (wallName: keyof PanelConfig, panelId: string, type: 'description' | 'attributes') => {
       const wall = wallsRef.current.find(w => w.wallName === wallName);
       if (!wall) return;
       const panel = wall.panels.find(p => p.id === panelId);
       if (!panel) return;
 
-      if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
-        panel.descriptionMesh.material.map.dispose();
+      if (type === 'description') {
+        if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
+          panel.descriptionMesh.material.map.dispose();
+        }
+        const { texture } = createTextTexture(panel.currentDescription, 1.5, 1.8, 28, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
+        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
+      } else if (type === 'attributes') {
+        if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
+          panel.attributesMesh.material.map.dispose();
+        }
+        const { texture } = createAttributesTextTexture(panel.currentAttributes, 1.5, 1.8, 60, 'lightgray', { scrollY: panel.attributesScrollY });
+        (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = texture;
       }
-      const { texture } = createTextTexture(panel.currentDescription, 1.5, 2.0, 40, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
-      (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
     };
 
     const onDocumentWheel = (event: WheelEvent) => {
-      if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
-      const { wallName, panelId } = currentTargetedDescriptionPanel;
+      if (!controls.isLocked || !currentTargetedScrollPanel) return;
+      const { wallName, panelId, type } = currentTargetedScrollPanel;
       const wall = wallsRef.current.find(w => w.wallName === wallName);
       if (!wall) return;
       const panel = wall.panels.find(p => p.id === panelId);
@@ -299,14 +307,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const canvasHeight = 512;
       const padding = 40;
       const effectiveViewportHeight = canvasHeight - 2 * padding;
-      const maxScroll = Math.max(0, panel.descriptionTextHeight - effectiveViewportHeight);
 
-      let newScrollY = panel.descriptionScrollY + scrollAmount;
-      newScrollY = Math.max(0, Math.min(newScrollY, maxScroll));
+      if (type === 'description') {
+        const maxScroll = Math.max(0, panel.descriptionTextHeight - effectiveViewportHeight);
+        let newScrollY = panel.descriptionScrollY + scrollAmount;
+        newScrollY = Math.max(0, Math.min(newScrollY, maxScroll));
 
-      if (panel.descriptionScrollY !== newScrollY) {
-        panel.descriptionScrollY = newScrollY;
-        updateDescriptionTexture(wallName, panelId);
+        if (panel.descriptionScrollY !== newScrollY) {
+          panel.descriptionScrollY = newScrollY;
+          updateScrollTexture(wallName, panelId, type);
+        }
+      } else if (type === 'attributes') {
+        const maxScroll = Math.max(0, panel.attributesTextHeight - effectiveViewportHeight);
+        let newScrollY = panel.attributesScrollY + scrollAmount;
+        newScrollY = Math.max(0, Math.min(newScrollY, maxScroll));
+
+        if (panel.attributesScrollY !== newScrollY) {
+          panel.attributesScrollY = newScrollY;
+          updateScrollTexture(wallName, panelId, type);
+        }
       }
     };
     document.addEventListener('wheel', onDocumentWheel);
@@ -347,7 +366,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         currentTargetedPanel = null;
         currentTargetedArrow = null;
-        currentTargetedDescriptionPanel = null;
+        currentTargetedScrollPanel = null;
 
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
@@ -363,7 +382,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             }
             
             if (intersectedMesh.name === 'description') {
-                 currentTargetedDescriptionPanel = { wallName, panelId };
+                 currentTargetedScrollPanel = { wallName, panelId, type: 'description' };
+            } else if (intersectedMesh.name === 'attributes') {
+                 currentTargetedScrollPanel = { wallName, panelId, type: 'attributes' };
             }
           }
         }
@@ -418,7 +439,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       delete (window as any).galleryControls;
       currentTargetedPanel = null;
       currentTargetedArrow = null;
-      currentTargetedDescriptionPanel = null;
+      currentTargetedScrollPanel = null;
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
