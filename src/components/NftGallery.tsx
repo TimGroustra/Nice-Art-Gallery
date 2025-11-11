@@ -5,11 +5,11 @@ import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, upd
 import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError, showLoading, dismissToast } from '@/utils/toast';
 import { WallSegment, createTextTexture, createAttributesTextTexture } from './WallSegment';
-import { GALLERY_LAYOUT, galleryTotalSize } from '@/config/roomLayout';
+import { GALLERY_LAYOUT } from '@/config/roomLayout';
 
 // Define types for the targeted panel data passed to the UI
 export interface TargetedPanelInfo {
-  wallName: keyof PanelConfig; // This will now be a panelId like 'panel-1'
+  wallName: keyof PanelConfig;
   panelId: string;
   collectionName: string;
   tokenId: number;
@@ -20,9 +20,9 @@ interface NftGalleryProps {
 }
 
 // Global state for UI interaction (now tracking interaction targets for scrolling)
-let currentTargetedPanel: { panelId: string } | null = null;
+let currentTargetedPanel: { wallName: keyof PanelConfig; panelId: string } | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
-let currentTargetedScrollPanel: { panelId: string; type: 'description' | 'attributes' } | null = null;
+let currentTargetedScrollPanel: { wallName: keyof PanelConfig; panelId: string; type: 'description' | 'attributes' } | null = null;
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -150,6 +150,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // FIX: Ensure accurate color display for NFTs using modern color space properties
     renderer.toneMapping = THREE.NoToneMapping;
     renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Use LinearSRGBColorSpace for linear output
+    // renderer.physicallyCorrectLights is deprecated and removed
     
     mountRef.current.appendChild(renderer.domElement);
 
@@ -185,11 +186,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = galleryTotalSize;
-    const wallHeight = 4;
-    const boundary = roomSize / 2 - 0.5;
+    const roomSize = 10, wallHeight = 4, boundary = roomSize / 2 - 0.5;
 
     // --- Scene Setup (Floors/Ceiling/Lights) ---
+    // Note: Using MeshPhongMaterial for floor/ceiling/walls allows them to react to scene lighting, 
+    // but the NFT panels themselves will use MeshBasicMaterial to preserve color accuracy.
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
@@ -197,6 +198,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
+      // Ensure floor texture is also linear if we disabled tone mapping globally
       texture.colorSpace = THREE.NoColorSpace; 
       
       const padding = 1.0;
@@ -223,17 +225,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
 
+    // Increased Ambient Light (from 0.3 to 0.8)
     scene.add(new THREE.AmbientLight(0x404050, 0.8));
     
+    // Increased Hemisphere Light (from 0.2 to 0.5)
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
 
     const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 5, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x0066ff, 0xff6600];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
-      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 4, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 4);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
@@ -244,8 +248,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     GALLERY_LAYOUT.forEach(config => {
       const ws = new WallSegment({ 
-        wallName: config.wallName, // Pass the descriptive wall name
-        width: config.width, 
+        wallName: config.wallName, 
+        width: roomSize, 
         height: wallHeight, 
         panelDescriptors: config.panelDescriptors 
       });
@@ -256,9 +260,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       wallsRef.current.push(ws);
       interactiveMeshes.push(...ws.interactiveMeshes);
 
-      // Initial content load for all panels in this wall segment
+      // Initial content load for all panels in this wall
       config.panelDescriptors.forEach(panelDesc => {
-        const source = getCurrentNftSource(panelDesc.id);
+        const source = getCurrentNftSource(config.wallName);
         if (source) {
           updatePanelContent(ws, panelDesc.id, source);
         }
@@ -294,13 +298,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const onDocumentMouseDown = () => {
       if (!controls.isLocked) return;
       if (currentTargetedArrow) {
+        const wallName = (currentTargetedArrow.userData as any).wallName as keyof PanelConfig;
         const panelId = (currentTargetedArrow.userData as any).panelId as string;
         const direction = (currentTargetedArrow.userData as any).direction as 'next' | 'prev';
         
-        if (updatePanelIndex(panelId, direction)) {
-          const newSource = getCurrentNftSource(panelId);
-          // Find the correct wall segment that contains this panelId
-          const wall = wallsRef.current.find(w => w.panels.some(p => p.id === panelId));
+        if (updatePanelIndex(wallName, direction)) {
+          const newSource = getCurrentNftSource(wallName);
+          const wall = wallsRef.current.find(w => w.wallName === wallName);
           if (newSource && wall) {
             updatePanelContent(wall, panelId, newSource);
           }
@@ -315,8 +319,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_FONT_SIZE_DESC = 28;
     const TEXT_FONT_SIZE_ATTR = 30; 
     
-    const updateScrollTexture = (panelId: string, type: 'description' | 'attributes') => {
-      const wall = wallsRef.current.find(w => w.panels.some(p => p.id === panelId));
+    const updateScrollTexture = (wallName: keyof PanelConfig, panelId: string, type: 'description' | 'attributes') => {
+      const wall = wallsRef.current.find(w => w.wallName === wallName);
       if (!wall) return;
       const panel = wall.panels.find(p => p.id === panelId);
       if (!panel) return;
@@ -352,8 +356,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const onDocumentWheel = (event: WheelEvent) => {
       if (!controls.isLocked || !currentTargetedScrollPanel) return;
-      const { panelId, type } = currentTargetedScrollPanel;
-      const wall = wallsRef.current.find(w => w.panels.some(p => p.id === panelId));
+      const { wallName, panelId, type } = currentTargetedScrollPanel;
+      const wall = wallsRef.current.find(w => w.wallName === wallName);
       if (!wall) return;
       const panel = wall.panels.find(p => p.id === panelId);
       if (!panel) return;
@@ -370,7 +374,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         if (panel.descriptionScrollY !== newScrollY) {
           panel.descriptionScrollY = newScrollY;
-          updateScrollTexture(panelId, type);
+          updateScrollTexture(wallName, panelId, type);
         }
       } else if (type === 'attributes') {
         const maxScroll = Math.max(0, panel.attributesTextHeight - effectiveViewportHeight);
@@ -379,7 +383,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         if (panel.attributesScrollY !== newScrollY) {
           panel.attributesScrollY = newScrollY;
-          updateScrollTexture(panelId, type);
+          updateScrollTexture(wallName, panelId, type);
         }
       }
     };
@@ -392,8 +396,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       lights.forEach((light, i) => {
         const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
-        light.position.x = Math.cos(angle) * 4;
-        light.position.z = Math.sin(angle) * 4;
+        light.position.x = Math.cos(angle) * 3;
+        light.position.z = Math.sin(angle) * 3;
       });
 
       if (controls.isLocked) {
@@ -425,21 +429,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
-          const { panelId } = intersectedMesh.userData as { panelId: string };
+          const { wallName, panelId } = intersectedMesh.userData as { wallName: keyof PanelConfig, panelId: string };
           
-          if (panelId) {
+          if (wallName && panelId) {
             
             if (intersectedMesh.userData.direction) { // Arrow
               currentTargetedArrow = intersectedMesh;
               (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00);
             } else if (intersectedMesh.name === 'nft-panel') { // Panel (mesh)
-              currentTargetedPanel = { panelId };
+              currentTargetedPanel = { wallName, panelId };
             }
             
             if (intersectedMesh.name === 'description') {
-                 currentTargetedScrollPanel = { panelId, type: 'description' };
+                 currentTargetedScrollPanel = { wallName, panelId, type: 'description' };
             } else if (intersectedMesh.name === 'attributes') {
-                 currentTargetedScrollPanel = { panelId, type: 'attributes' };
+                 currentTargetedScrollPanel = { wallName, panelId, type: 'attributes' };
             }
           }
         }
@@ -461,7 +465,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Re-run content loading after config is initialized to get correct names/supplies
       wallsRef.current.forEach(w => {
         w.panels.forEach(p => {
-          const source = getCurrentNftSource(p.id);
+          const source = getCurrentNftSource(w.wallName);
           if (source) updatePanelContent(w, p.id, source);
         });
       });

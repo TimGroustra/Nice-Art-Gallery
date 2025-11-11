@@ -8,35 +8,48 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the panel identifier (e.g., 'panel-1')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
-// The four collection addresses to cycle through for the 49 panels
-const COLLECTION_ADDRESSES = [
-  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // Panth.art
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984",
-  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31",
-  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4",
-];
+// The Panth.art collection address
+const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// Dynamically generate the configuration for 49 panels
-const generateGalleryConfig = (): PanelConfig => {
-  const config: PanelConfig = {};
-  for (let i = 1; i <= 49; i++) {
-    const panelId = `panel-${i}`;
-    config[panelId] = {
-      name: 'Loading...',
-      // Cycle through the available contract addresses
-      contractAddress: COLLECTION_ADDRESSES[(i - 1) % COLLECTION_ADDRESSES.length],
-      tokenIds: [1], // Start with token 1 as a placeholder
-      currentIndex: 0,
-    };
-  }
-  return config;
+// The second collection address
+const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+
+// The third collection address
+const THIRD_COLLECTION_ADDRESS = "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31";
+
+// The fourth collection address
+const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
+
+// Initial configuration structure (will be populated dynamically)
+let galleryConfig: PanelConfig = {
+  'north-wall': {
+    name: 'Loading...',
+    contractAddress: PANTH_ART_ADDRESS,
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'south-wall': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'east-wall': {
+    name: 'Loading...',
+    contractAddress: THIRD_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'west-wall': {
+    name: 'Loading...',
+    contractAddress: FOURTH_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
 };
-
-// Initial configuration structure is now generated
-let galleryConfig: PanelConfig = generateGalleryConfig();
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
@@ -75,16 +88,16 @@ export async function initializeGalleryConfig() {
       config.name = name;
     }
   }
-  console.log(`Gallery configuration fully initialized for ${Object.keys(galleryConfig).length} panels.`);
+  console.log(`Gallery configuration fully initialized.`);
 }
 
 // Export the configuration object reference
 export const GALLERY_PANEL_CONFIG = galleryConfig;
 
 
-// Utility function to get the current NFT source for a panel
-export const getCurrentNftSource = (panelName: keyof PanelConfig) => {
-  const config = GALLERY_PANEL_CONFIG[panelName];
+// Utility function to get the current NFT source for a wall
+export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
+  const config = GALLERY_PANEL_CONFIG[wallName];
   if (!config) return null;
   const tokenId = config.tokenIds[config.currentIndex];
   return {
@@ -94,8 +107,8 @@ export const getCurrentNftSource = (panelName: keyof PanelConfig) => {
 };
 
 // Utility function to update the current index (used by NftGallery)
-export const updatePanelIndex = (panelName: keyof PanelConfig, direction: 'next' | 'prev') => {
-  const config = GALLERY_PANEL_CONFIG[panelName];
+export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
+  const config = GALLERY_PANEL_CONFIG[wallName];
   if (!config || config.tokenIds.length === 0) return false;
 
   let newIndex = config.currentIndex;
