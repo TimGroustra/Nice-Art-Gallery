@@ -44,19 +44,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
+    // 1. Handle empty URL: return a red placeholder texture
     if (!url) {
-      // Return a simple placeholder texture if URL is empty
       const canvas = document.createElement('canvas');
-      canvas.width = 1;
-      canvas.height = 1;
+      canvas.width = 256;
+      canvas.height = 256;
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.fillStyle = 'red';
-        ctx.fillRect(0, 0, 1, 1);
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = 'white';
+        ctx.font = '30px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('No Image URL', 128, 128);
       }
       return new THREE.CanvasTexture(canvas);
     }
     
+    // 2. Handle Video Texture
     if (isVideo) {
       if (videoRef.current) {
         videoRef.current.pause();
@@ -69,39 +74,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
         return new THREE.VideoTexture(videoRef.current);
       }
+      // Fallback if video element is somehow missing
       return new THREE.TextureLoader().load(url);
     }
     
+    // 3. Handle Image Texture with Error Callback
     return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
       console.error('Error loading texture:', url, error);
       showError(`Failed to load image: ${url ? url.substring(0, 50) : 'unknown' }...`);
       
-      // Create a placeholder texture on error
-      const canvas = document.createElement('canvas');
-      canvas.width = 256;
-      canvas.height = 256;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = 'red';
-        ctx.fillRect(0, 0, 256, 256);
-        ctx.fillStyle = 'white';
-        ctx.font = '30px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Error', 128, 128);
-      }
-      const errorTexture = new THREE.CanvasTexture(canvas);
-      
-      // This texture will be returned by the loader's error callback, 
-      // but the original function call already returned the loader instance.
-      // We rely on the WallSegment's updateContent to handle the material update.
-      // Since the loader failed, the material map will remain null/placeholder until the next update.
-      // For now, we rely on the error message to debug.
+      // Note: We cannot return a new texture here to replace the failed one synchronously.
+      // The WallSegment's updateContent relies on the texture being returned immediately.
+      // If the texture fails to load, the material map will remain the placeholder set during initialization 
+      // or the previous successful texture.
     });
   }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (wall: WallSegment, panelId: string, source: NftSource) => {
+    let metadata: NftMetadata;
     try {
-      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+      metadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
       const imageUrl = metadata.image;
       const isVideo = typeof imageUrl === 'string' && /\.(mp4|webm|ogg)$/i.test(imageUrl);
       if (isVideo && videoRef.current) manageVideoPlayback(false);
@@ -111,11 +103,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.error('Error updating panel content', error);
       showError(`Failed to load NFT for ${wall.wallName}/${panelId}`);
       
-      // If metadata fetch fails, we should still update the panel with error info
+      // If metadata fetch fails, use error metadata and trigger placeholder texture via loadTexture('')
       wall.setPanelMetadataById(panelId, {
         title: `Error loading #${source.tokenId}`,
         description: `Failed to fetch metadata for token ${source.tokenId}.`,
-        image: '', // Empty image URL triggers placeholder texture in loadTexture
+        image: '', // Empty image URL triggers red placeholder in loadTexture
         source: '',
       }, loadTexture);
     }
