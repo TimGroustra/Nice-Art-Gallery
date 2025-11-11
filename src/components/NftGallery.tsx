@@ -337,7 +337,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
 
-    // --- Create Inner Room (5x5) ---
+    // --- Create Inner Room (85x85) ---
     const innerRoomSize = 85;
     const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const doorwayWidth = 10;
@@ -384,7 +384,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(westInnerWall2);
     // --- End Inner Room ---
 
-    // --- Create Innermost Room (3x3) ---
+    // --- Create Innermost Room (50x50) ---
     const innermostRoomSize = 50;
     const innermostWallMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innermostDoorwayWidth = 8;
@@ -430,6 +430,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westInnermostWall2.rotation.y = Math.PI / 2;
     scene.add(westInnermostWall2);
     // --- End Innermost Room ---
+
+    // --- Create Central Pillar (10x10) ---
+    const centralPillarSize = 10;
+    const centralPillarMaterial = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const centralPillarGeometry = new THREE.BoxGeometry(centralPillarSize, wallHeight, centralPillarSize);
+    const centralPillar = new THREE.Mesh(centralPillarGeometry, centralPillarMaterial);
+    centralPillar.position.set(0, wallHeight / 2, 0);
+    scene.add(centralPillar);
+    // --- End Central Pillar ---
 
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
@@ -533,13 +542,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Inner walls
     const panelsPerInnerSegment = 2;
     const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerSegmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2; // Re-using calculated offset
     innerWalls.forEach(wall => {
       for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
         const wallName = `${wall}-wall-${i + 1}`;
         const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
         const panelInSegment = i % panelsPerInnerSegment;
         
-        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * segmentOffset;
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * innerSegmentOffset;
         const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
         const finalOffset = segmentCenter + panelOffset;
 
@@ -570,6 +580,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Innermost walls
     const panelsPerInnermostSegment = 1;
     const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2; // Re-using calculated offset
     innermostWalls.forEach(wall => {
       for (let i = 0; i < panelsPerInnermostSegment * 2; i++) {
         const wallName = `${wall}-wall-${i + 1}`;
@@ -599,6 +610,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panelConfigs.push({ wallName, position, rotation });
       }
     });
+    
+    // Central Pillar Walls (4 panels)
+    const centralPillarHalf = centralPillarSize / 2;
+    panelConfigs.push({ 
+      wallName: 'center-pillar-1', 
+      position: [0, panelYPosition, -centralPillarHalf - ARROW_DEPTH_OFFSET], 
+      rotation: [0, 0, 0] // Facing Z+ (North side of pillar)
+    });
+    panelConfigs.push({ 
+      wallName: 'center-pillar-2', 
+      position: [0, panelYPosition, centralPillarHalf + ARROW_DEPTH_OFFSET], 
+      rotation: [0, Math.PI, 0] // Facing Z- (South side of pillar)
+    });
+    panelConfigs.push({ 
+      wallName: 'center-pillar-3', 
+      position: [centralPillarHalf + ARROW_DEPTH_OFFSET, panelYPosition, 0], 
+      rotation: [0, -Math.PI / 2, 0] // Facing X- (East side of pillar)
+    });
+    panelConfigs.push({ 
+      wallName: 'center-pillar-4', 
+      position: [-centralPillarHalf - ARROW_DEPTH_OFFSET, panelYPosition, 0], 
+      rotation: [0, Math.PI / 2, 0] // Facing X+ (West side of pillar)
+    });
+
 
     panelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
