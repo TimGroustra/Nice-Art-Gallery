@@ -15,24 +15,12 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
   useEffect(() => {
     const interval = setInterval(() => {
       const galleryControls = (window as any).galleryControls;
-      
       if (galleryControls) {
         // Video state check
-        let videoPresent = false;
-        
-        // FIX: Check if hasVideo is a function before calling it
-        if (typeof galleryControls.hasVideo === 'function') {
-          videoPresent = galleryControls.hasVideo();
-          setHasVideo(videoPresent);
-        } else {
-          setHasVideo(false);
-        }
-
+        const videoPresent = galleryControls.hasVideo();
+        setHasVideo(videoPresent);
         if (videoPresent) {
-          // FIX: Check if isMuted is a function before calling it
-          if (typeof galleryControls.isMuted === 'function') {
-            setIsMuted(galleryControls.isMuted());
-          }
+          setIsMuted(galleryControls.isMuted());
         }
       }
     }, 200); // Check state every 200ms
@@ -42,8 +30,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
 
   const handleMuteToggle = () => {
     const galleryControls = (window as any).galleryControls;
-    // FIX: Check if toggleMute is a function before calling it
-    if (galleryControls && typeof galleryControls.toggleMute === 'function') {
+    if (galleryControls && galleryControls.toggleMute) {
       galleryControls.toggleMute();
       // State update happens via the polling interval, but we can optimistically update it too
       setIsMuted(prev => !prev);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { NftMetadata, NftAttribute } from '@/utils/nftFetcher';
 import type { PanelConfig } from '@/config/galleryConfig';
-import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig';
+import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig'; // <-- FIX 1: Import GALLERY_PANEL_CONFIG
 
 // ----------------------
 // Helpers (text textures)
@@ -93,12 +93,15 @@ export const createAttributesTextTexture = (attributes: NftAttribute[], width: n
         const traitType = `${attr.trait_type}: `;
         const value = String(attr.value);
         
+        // 1. Draw Trait Type (always bold)
         context.font = `bold ${fontSize}px Arial`;
         context.fillText(traitType, padding, y - scrollY);
         
+        // Calculate starting X position for the value
         const traitMetrics = context.measureText(traitType);
         let currentX = padding + traitMetrics.width;
         
+        // 2. Draw Value (normal font, wrapped)
         context.font = `${fontSize}px Arial`;
         
         const words = value.split(' ');
@@ -110,17 +113,24 @@ export const createAttributesTextTexture = (attributes: NftAttribute[], width: n
           const metrics = context.measureText(testLine);
           const testWidth = metrics.width;
           
+          // Check if adding the word exceeds the max width from the current X position
           if (currentX + testWidth > canvas.width - padding && n > 0) {
+            // Draw the accumulated line segment
             context.fillText(line, currentX, y - scrollY);
+            
+            // Start a new line
             y += lineHeight;
-            currentX = padding;
+            currentX = padding; // Reset X position to the left padding
             line = word + ' ';
           } else {
             line = testLine;
           }
         }
         
+        // Draw the remaining line segment
         context.fillText(line, currentX, y - scrollY);
+        
+        // Move to the next attribute line
         y += lineHeight;
       }
     });
@@ -143,7 +153,7 @@ export type PanelDescriptor = {
 };
 
 export type WallSegmentOptions = {
-  wallName: keyof PanelConfig;
+  wallName: keyof PanelConfig; // Added wallName here for easy lookup
   width?: number;
   height?: number;
   panelDescriptors?: PanelDescriptor[];
@@ -158,17 +168,17 @@ export type PanelHandles = {
   mesh: THREE.Mesh;
   prevArrow: THREE.Mesh;
   nextArrow: THREE.Mesh;
-  titleMesh: THREE.Mesh;
-  nameMesh: THREE.Mesh;
+  titleMesh: THREE.Mesh; // Collection Name
+  nameMesh: THREE.Mesh; // NFT Name (metadata title)
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
   currentDescription: string;
   descriptionTextHeight: number;
   descriptionScrollY: number;
   currentAttributes: NftAttribute[];
-  attributesTextHeight: number;
-  attributesScrollY: number;
-  updateContent: (texture: THREE.Texture, metadata: NftMetadata) => void;
+  attributesTextHeight: number; // New field for attributes height
+  attributesScrollY: number; // New field for attributes scroll
+  updateContent: (metadata: NftMetadata, textureLoader: (url: string, isVideo?: boolean) => THREE.Texture | THREE.VideoTexture) => void;
   dispose: () => void;
 };
 
@@ -181,6 +191,7 @@ export class WallSegment {
   public interactiveMeshes: THREE.Mesh[] = [];
   public wallName: keyof PanelConfig;
   private options: WallSegmentOptions;
+  private resourcesToDispose: any[] = [];
 
   constructor(options: WallSegmentOptions) {
     this.options = {
@@ -204,14 +215,16 @@ export class WallSegment {
     const wallMat = new THREE.MeshStandardMaterial({ color: baseColor, side: THREE.FrontSide });
     const wallMesh = new THREE.Mesh(wallGeom, wallMat);
     wallMesh.position.set(0, height! / 2, 0);
-    wallMesh.renderOrder = 0;
+    wallMesh.renderOrder = 0; // Ensure wall renders first
     this.group.add(wallMesh);
+    this.resourcesToDispose.push(wallGeom, wallMat);
 
-    this.options.panelDescriptors!.forEach((desc) => {
-      const panel = this.createPanel(desc);
+    const pd = this.options.panelDescriptors!;
+    pd.forEach((desc) => {
+      const panel = this.createPanel(desc, wallMesh);
       this.panels.push(panel);
       this.group.add(panel.mesh, panel.prevArrow, panel.nextArrow, panel.titleMesh, panel.nameMesh, panel.descriptionMesh, panel.attributesMesh);
-      this.interactiveMeshes.push(panel.mesh, panel.prevArrow, panel.nextArrow, panel.descriptionMesh, panel.attributesMesh);
+      this.interactiveMeshes.push(panel.mesh, panel.prevArrow, panel.nextArrow, panel.descriptionMesh, panel.attributesMesh); // Added attributesMesh
     });
 
     this.createDownlights();
@@ -221,58 +234,70 @@ export class WallSegment {
     const glow = new THREE.Mesh(glowGeo, glowMat);
     glow.position.set(0, this.options.height! - 0.04, 0.01);
     this.group.add(glow);
+    this.resourcesToDispose.push(glowGeo, glowMat);
   }
 
-  private createPanel(desc: PanelDescriptor): PanelHandles {
+  private createPanel(desc: PanelDescriptor, wallMesh: THREE.Mesh): PanelHandles {
     const { panelSize } = this.options;
     const panelCenterY = desc.offsetY ?? 1.8;
     
-    const TEXT_PANEL_WIDTH = 2.25;
+    const TEXT_PANEL_WIDTH = 2.25; // Description/Attributes panel width
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
     const TEXT_FONT_SIZE_ATTR = 30; 
     const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
     const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
 
+    // New width for Title/Name panels (2.4 * 2 = 4.8)
     const TITLE_NAME_WIDTH = panelSize!.w * 2.4; 
     const TITLE_NAME_HEIGHT = 0.6;
     const TITLE_NAME_FONT_SIZE = 120;
 
+    // FIX 1: Use a positive Z offset to ensure panels are in front of the wall (z=0)
     const FRONT_OFFSET = 0.03; 
 
     const panelGeom = new THREE.PlaneGeometry(panelSize!.w, panelSize!.h);
+    // FIX 2: Use MeshBasicMaterial for NFT display to prevent lighting/tone mapping interference
     const panelMat = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff,
+      color: 0xffffff, // White color ensures texture is displayed without tint
       side: THREE.DoubleSide,
-      toneMapped: false,
+      toneMapped: false, // Crucial for accurate color display
     });
     const mesh = new THREE.Mesh(panelGeom, panelMat);
     
+    // FIX 1: Set positive Z position and renderOrder
     mesh.position.set(desc.offsetX, panelCenterY, FRONT_OFFSET + (desc.offsetZ || 0));
     mesh.renderOrder = 1; 
 
+    // Attach wallName and panelId to meshes for easy raycasting lookup
     (mesh.userData as any).wallName = this.wallName;
     (mesh.userData as any).panelId = desc.id;
-    mesh.name = 'nft-panel';
+    mesh.name = 'nft-panel'; // Ensure the main panel is identifiable
 
+    // Title Mesh (Collection Name)
     const titleGeom = new THREE.PlaneGeometry(TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT); 
     const placeholderTitleTex = createTextTexture('Loading...', TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
     
+    // Position title centered above the NFT panel
     const titleY = panelCenterY + (panelSize!.h / 2) + TITLE_NAME_HEIGHT / 2 + 0.1; 
     titleMesh.position.set(desc.offsetX, titleY, FRONT_OFFSET + 0.01);
     titleMesh.renderOrder = 1;
 
+    // Name Mesh (NFT Name/Metadata Title)
     const nameGeom = new THREE.PlaneGeometry(TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT); 
     const placeholderNameTex = createTextTexture('NFT Name', TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
     const nameMat = new THREE.MeshBasicMaterial({ map: placeholderNameTex, transparent: true });
     const nameMesh = new THREE.Mesh(nameGeom, nameMat);
 
+    // Position name centered below the NFT panel
     const nameY = panelCenterY - (panelSize!.h / 2) - TITLE_NAME_HEIGHT / 2 - 0.1; 
     nameMesh.position.set(desc.offsetX, nameY, FRONT_OFFSET + 0.01);
     nameMesh.renderOrder = 1;
 
+
+    // Description Panel (Left)
     const descGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT);
     const descPlace = createTextTexture('', TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_DESC);
     const descMat = new THREE.MeshBasicMaterial({ map: descPlace.texture, transparent: true });
@@ -281,17 +306,18 @@ export class WallSegment {
     descriptionMesh.renderOrder = 1;
     (descriptionMesh.userData as any).wallName = this.wallName;
     (descriptionMesh.userData as any).panelId = desc.id;
-    descriptionMesh.name = 'description';
+    descriptionMesh.name = 'description'; // Add name for easier identification
 
+    // Attributes Panel (Right)
     const attrGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT);
     const attrPlace = createAttributesTextTexture([], TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_ATTR);
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
-    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, FRONT_OFFSET + 0.01);
+    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, FRONT_OFFSET + 0.01); // Centered vertically
     attributesMesh.renderOrder = 1;
     (attributesMesh.userData as any).wallName = this.wallName;
     (attributesMesh.userData as any).panelId = desc.id;
-    attributesMesh.name = 'attributes';
+    attributesMesh.name = 'attributes'; // Unique name for raycasting
 
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
@@ -299,18 +325,18 @@ export class WallSegment {
     const arrowMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
     const prevArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
     prevArrow.rotation.z = Math.PI;
-    prevArrow.position.set(desc.offsetX - 1.6, panelCenterY, FRONT_OFFSET + 0.02);
+    prevArrow.position.set(desc.offsetX - 1.6, panelCenterY, FRONT_OFFSET + 0.02); // Slightly further out
     (prevArrow.userData as any).wallName = this.wallName;
     (prevArrow.userData as any).panelId = desc.id;
     (prevArrow.userData as any).direction = 'prev';
-    prevArrow.renderOrder = 2;
+    prevArrow.renderOrder = 2; // Arrows should render last
 
     const nextArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
-    nextArrow.position.set(desc.offsetX + 1.6, panelCenterY, FRONT_OFFSET + 0.02);
+    nextArrow.position.set(desc.offsetX + 1.6, panelCenterY, FRONT_OFFSET + 0.02); // Slightly further out
     (nextArrow.userData as any).wallName = this.wallName;
     (nextArrow.userData as any).panelId = desc.id;
     (nextArrow.userData as any).direction = 'next';
-    nextArrow.renderOrder = 2;
+    nextArrow.renderOrder = 2; // Arrows should render last
 
     const panelHandle: PanelHandles = {
       id: desc.id,
@@ -327,36 +353,52 @@ export class WallSegment {
       currentAttributes: [],
       attributesTextHeight: 0,
       attributesScrollY: 0,
-      updateContent: (texture: THREE.Texture, metadata: NftMetadata) => {
+      updateContent: (metadata: NftMetadata, textureLoader) => {
         try {
+          const imageUrl = metadata.image;
+          const isVideo = !!imageUrl && /\.(mp4|webm|ogg)$/i.test(imageUrl);
+          const tex = textureLoader(imageUrl, isVideo);
+          
+          // Ensure material is MeshBasicMaterial (it should be, but check)
           if (mesh.material instanceof THREE.MeshBasicMaterial) {
             if (mesh.material.map) mesh.material.map.dispose();
-            mesh.material.map = texture;
-            mesh.material.color.setHex(0xffffff);
+            mesh.material.map = tex;
+            mesh.material.color.setHex(0xffffff); // Ensure no tint
+            mesh.material.toneMapped = false;
             mesh.material.needsUpdate = true;
           }
 
+          // Update title (Collection Name only)
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
-          const titleTex = createTextTexture(collectionName, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
+          const titleText = collectionName;
+          
+          const titleTex = createTextTexture(titleText, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
-          const nameTex = createTextTexture(metadata.title, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
+          // Update name (NFT Name/Metadata Title)
+          const nftNameText = metadata.title;
+          const nameTex = createTextTexture(nftNameText, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
           (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
 
+
+          // Update Description
           const descTexObj = createTextTexture(metadata.description || '', TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_DESC, 'lightgray', { wordWrap: true });
           (descriptionMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (descriptionMesh.material as THREE.MeshBasicMaterial).map = descTexObj.texture;
+
           panelHandle.currentDescription = metadata.description || '';
           panelHandle.descriptionTextHeight = descTexObj.totalHeight;
           panelHandle.descriptionScrollY = 0;
 
+          // Update Attributes
           const attributes = metadata.attributes || [];
           panelHandle.currentAttributes = attributes;
           const attrTexObj = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_ATTR, 'lightgray', { scrollY: 0 });
           (attributesMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTexObj.texture;
+          
           panelHandle.attributesTextHeight = attrTexObj.totalHeight;
           panelHandle.attributesScrollY = 0;
 
@@ -384,10 +426,10 @@ export class WallSegment {
     }
   }
 
-  public setPanelContent(id: string, texture: THREE.Texture, metadata: NftMetadata) {
+  public setPanelMetadataById(id: string, metadata: NftMetadata, textureLoader: (url: string, isVideo?: boolean) => THREE.Texture | THREE.VideoTexture) {
     const panel = this.panels.find(p => p.id === id);
     if (!panel) return;
-    panel.updateContent(texture, metadata);
+    panel.updateContent(metadata, textureLoader);
   }
 
   public dispose() {
