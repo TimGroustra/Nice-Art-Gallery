@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, normalizeUrl, NftMetadata, NftAttribute } from '@/utils/nftFetcher';
+import { fetchNftMetadata, normalizeUrl, NftMetadata, NftAttribute, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
@@ -150,6 +150,29 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
+// Fallback texture for failed loads
+const createFallbackTexture = (message: string, width: number, height: number): THREE.Texture => {
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    if (!context) return new THREE.Texture();
+
+    const resolution = 512;
+    canvas.width = resolution * (width / height);
+    canvas.height = resolution;
+
+    context.fillStyle = '#333333';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.font = 'bold 60px Arial';
+    context.fillStyle = 'red';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(message, canvas.width / 2, canvas.height / 2);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+};
+
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -191,12 +214,68 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, [manageVideoPlayback]);
 
+  const applyFallbackContent = useCallback((panel: Panel, collectionName: string, error: string) => {
+    // 1. Update main mesh to show error
+    if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+        panel.mesh.material.map?.dispose();
+        panel.mesh.material.dispose();
+    }
+    panel.mesh.material = new THREE.MeshBasicMaterial({ map: createFallbackTexture(error, 2, 2), side: THREE.DoubleSide });
+    panel.metadataUrl = '';
+    panel.isVideo = false;
+
+    // 2. Update title mesh
+    if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
+        panel.titleMesh.material.map.dispose();
+    }
+    const { texture: titleTexture } = createTextTexture("NFT Load Failed", 4.0, 0.5, 120, 'red', { wordWrap: false });
+    (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
+    panel.titleMesh.visible = true;
+
+    // 3. Update description mesh
+    if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
+        panel.descriptionMesh.material.map.dispose();
+    }
+    const { texture: descriptionTexture, totalHeight } = createTextTexture(`Error loading token ${GALLERY_PANEL_CONFIG[panel.wallName].tokenIds[GALLERY_PANEL_CONFIG[panel.wallName].currentIndex]}. Check console for details.`, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'red', { wordWrap: true });
+    (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
+    panel.descriptionMesh.visible = true;
+    panel.currentDescription = '';
+    panel.descriptionTextHeight = totalHeight;
+    panel.descriptionScrollY = 0;
+
+    // 4. Update attributes mesh
+    if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
+        panel.attributesMesh.material.map.dispose();
+    }
+    const { texture: attributesTexture } = createAttributesTextTexture([], TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
+    (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
+    panel.attributesMesh.visible = true;
+    panel.currentAttributes = [];
+
+    // 5. Update wall title (this should still show the collection name)
+    if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
+        panel.wallTitleMesh.material.map.dispose();
+    }
+    const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
+    (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
+    panel.wallTitleMesh.visible = true;
+
+    showError(`Failed to load NFT for ${panel.wallName}.`);
+  }, []);
+
+
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+    const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
+    
     try {
       const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
       const imageUrl = metadata.image;
+      
+      if (!imageUrl) {
+          throw new Error("Image URL is missing in metadata.");
+      }
+
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
       if (isVideo && videoRef.current) manageVideoPlayback(false);
@@ -208,7 +287,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.mesh.material.dispose();
       }
 
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
@@ -256,21 +335,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
     } catch (error) {
       console.error(`Error updating panel ${panel.wallName}:`, error);
-      showError(`Failed to load NFT for ${panel.wallName}.`);
-      
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
-      panel.metadataUrl = '';
-      panel.isVideo = false;
-      if (panel.titleMesh) panel.titleMesh.visible = false;
-      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-      if (panel.attributesMesh) panel.attributesMesh.visible = false;
-      if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
+      applyFallbackContent(panel, collectionName, "LOAD FAILED");
     }
-  }, [loadTexture, manageVideoPlayback]);
+  }, [loadTexture, manageVideoPlayback, applyFallbackContent]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -658,6 +725,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Description Panel (Left side)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
+      const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
       descriptionMesh.rotation.set(...config.rotation);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
@@ -699,7 +767,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
       panelsRef.current.push(panel);
       
-      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
+      const source = getCurrentNftSource(panel.wallName as keyof PanelConfig);
       if (source) updatePanelContent(panel, source);
     });
 
@@ -917,7 +985,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, applyFallbackContent]);
 
   return (
     <>
