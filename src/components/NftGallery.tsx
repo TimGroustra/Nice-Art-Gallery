@@ -459,7 +459,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westInnerWall1.rotation.y = -Math.PI / 2;
     scene.add(westInnerWall1);
     const westInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
-    // FIX: Use segmentOffset instead of innermostSegmentOffset
     westInnerWall2.position.set(-innerRoomSize / 2, wallHeight / 2, segmentOffset);
     westInnerWall2.rotation.y = -Math.PI / 2;
     scene.add(westInnerWall2);
@@ -470,7 +469,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innermostWallMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innermostDoorwayWidth = 8;
     const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
-    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
     const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
 
     // North Innermost Wall
