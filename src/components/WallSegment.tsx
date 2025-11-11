@@ -124,7 +124,7 @@ export type PanelHandles = {
   mesh: THREE.Mesh;
   prevArrow: THREE.Mesh;
   nextArrow: THREE.Mesh;
-  titleMesh: THREE.Mesh; // Collection Name + Token ID
+  titleMesh: THREE.Mesh; // Collection Name
   nameMesh: THREE.Mesh; // NFT Name (metadata title)
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
@@ -204,7 +204,7 @@ export class WallSegment {
     (mesh.userData as any).panelId = desc.id;
     mesh.name = 'nft-panel'; // Ensure the main panel is identifiable
 
-    // Title Mesh (Collection Name + Token ID)
+    // Title Mesh (Collection Name)
     const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.45);
     const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.45, 40).texture;
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
@@ -282,15 +282,15 @@ export class WallSegment {
             mesh.material.needsUpdate = true;
           }
 
-          // Update title (Collection Name + Token ID)
+          // Update title (Collection Name only)
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
-          const titleText = `${collectionName} | Token #${metadata.title.replace('Token #', '')}`;
+          const titleText = collectionName; // Removed Token ID
           
           const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.45, 40).texture;
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
-          // Update name (NFT Name)
+          // Update name (NFT Name/Metadata Title)
           const nftNameText = metadata.title;
           const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.4, 36).texture;
           (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
