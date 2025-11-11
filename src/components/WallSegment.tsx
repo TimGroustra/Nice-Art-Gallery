@@ -82,6 +82,7 @@ export const createAttributesTextTexture = (attributes: NftAttribute[], width: n
   const lineHeight = fontSize * 1.2;
   let y = padding;
   let totalHeight = 0;
+  const maxTextWidth = canvas.width - 2 * padding;
 
   if (!attributes || attributes.length === 0) {
     context.fillText('No attributes found.', padding, y - scrollY);
@@ -89,9 +90,47 @@ export const createAttributesTextTexture = (attributes: NftAttribute[], width: n
   } else {
     attributes.forEach(attr => {
       if (attr.trait_type && attr.value) {
-        const line = `${attr.trait_type}: ${attr.value}`;
-        // Note: We are not implementing word wrap here, assuming attributes are short lines.
-        context.fillText(line, padding, y - scrollY);
+        const traitType = `${attr.trait_type}: `;
+        const value = String(attr.value);
+        
+        // 1. Draw Trait Type (always bold)
+        context.font = `bold ${fontSize}px Arial`;
+        context.fillText(traitType, padding, y - scrollY);
+        
+        // Calculate starting X position for the value
+        const traitMetrics = context.measureText(traitType);
+        let currentX = padding + traitMetrics.width;
+        
+        // 2. Draw Value (normal font, wrapped)
+        context.font = `${fontSize}px Arial`;
+        
+        const words = value.split(' ');
+        let line = '';
+        
+        for (let n = 0; n < words.length; n++) {
+          const word = words[n];
+          const testLine = line + word + ' ';
+          const metrics = context.measureText(testLine);
+          const testWidth = metrics.width;
+          
+          // Check if adding the word exceeds the max width from the current X position
+          if (currentX + testWidth > canvas.width - padding && n > 0) {
+            // Draw the accumulated line segment
+            context.fillText(line, currentX, y - scrollY);
+            
+            // Start a new line
+            y += lineHeight;
+            currentX = padding; // Reset X position to the left padding
+            line = word + ' ';
+          } else {
+            line = testLine;
+          }
+        }
+        
+        // Draw the remaining line segment
+        context.fillText(line, currentX, y - scrollY);
+        
+        // Move to the next attribute line
         y += lineHeight;
       }
     });
@@ -205,7 +244,7 @@ export class WallSegment {
     const TEXT_PANEL_WIDTH = 2.25; // Description/Attributes panel width
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 30; // Updated to 30
+    const TEXT_FONT_SIZE_ATTR = 30; 
     const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
     const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
 
