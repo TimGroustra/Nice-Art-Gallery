@@ -495,20 +495,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
-    const panelsPerWall = 7;
     const panelSpacing = 15; // Distance between centers of panels
 
     const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
-    const walls = ['north', 'south', 'east', 'west'];
-
-    walls.forEach(wall => {
-      for (let i = 0; i < panelsPerWall; i++) {
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
         const wallName = `${wall}-wall-${i + 1}`;
-        const offset = -(panelSpacing * (panelsPerWall - 1)) / 2 + i * panelSpacing;
-
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
         let position: [number, number, number] = [0, 0, 0];
         let rotation: [number, number, number] = [0, 0, 0];
-
         switch (wall) {
           case 'north':
             position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
@@ -527,7 +526,76 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             rotation = [0, Math.PI / 2, 0];
             break;
         }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
         
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * segmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    innermostWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnermostSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = i; // 0 or 1
+        const finalOffset = (segmentIndex === 0 ? -1 : 1) * innermostSegmentOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-innermost':
+            position = [finalOffset, panelYPosition, -innermostRoomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-innermost':
+            position = [-finalOffset, panelYPosition, innermostRoomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-innermost':
+            position = [innermostRoomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-innermost':
+            position = [-innermostRoomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
         panelConfigs.push({ wallName, position, rotation });
       }
     });

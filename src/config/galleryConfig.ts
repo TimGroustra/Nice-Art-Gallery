@@ -22,13 +22,26 @@ const contractAddresses = [
 // Generate the gallery configuration dynamically
 const generateGalleryConfig = (): PanelConfig => {
   const config: PanelConfig = {};
-  const walls = ['north', 'south', 'east', 'west'];
-  const panelsPerWall = 7;
   let contractIndex = 0;
 
-  walls.forEach(wall => {
-    for (let i = 1; i <= panelsPerWall; i++) {
-      const wallName = `${wall}-wall-${i}`;
+  const wallLayouts = [
+    { prefix: 'north', count: 7 },
+    { prefix: 'south', count: 7 },
+    { prefix: 'east', count: 7 },
+    { prefix: 'west', count: 7 },
+    { prefix: 'north-inner', count: 4 },
+    { prefix: 'south-inner', count: 4 },
+    { prefix: 'east-inner', count: 4 },
+    { prefix: 'west-inner', count: 4 },
+    { prefix: 'north-innermost', count: 2 },
+    { prefix: 'south-innermost', count: 2 },
+    { prefix: 'east-innermost', count: 2 },
+    { prefix: 'west-innermost', count: 2 },
+  ];
+
+  wallLayouts.forEach(layout => {
+    for (let i = 1; i <= layout.count; i++) {
+      const wallName = `${layout.prefix}-wall-${i}`;
       config[wallName] = {
         name: 'Loading...',
         contractAddress: contractAddresses[contractIndex % contractAddresses.length],
@@ -38,6 +51,7 @@ const generateGalleryConfig = (): PanelConfig => {
       contractIndex++;
     }
   });
+
 
   return config;
 };
