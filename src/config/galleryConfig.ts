@@ -49,6 +49,17 @@ const generateGalleryConfig = (): PanelConfig => {
     }
   });
 
+  // Add central pillar walls
+  for (let i = 1; i <= 4; i++) {
+    const wallName = `center-pillar-${i}`;
+    config[wallName] = {
+      name: 'Loading...',
+      contractAddress: contractAddresses[contractIndex % contractAddresses.length],
+      tokenIds: [1],
+      currentIndex: 0,
+    };
+    contractIndex++;
+  }
 
   return config;
 };
