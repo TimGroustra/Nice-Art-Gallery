@@ -58,7 +58,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         ctx.textAlign = 'center';
         ctx.fillText('No Image URL', 128, 128);
       }
-      return new THREE.CanvasTexture(canvas);
+      const placeholderTex = new THREE.CanvasTexture(canvas);
+      placeholderTex.encoding = THREE.LinearEncoding;
+      return placeholderTex;
     }
     
     // 2. Handle Video Texture
@@ -72,41 +74,40 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if ((window as any).galleryControls?.isLocked?.()) {
           manageVideoPlayback(true);
         }
-        return new THREE.VideoTexture(videoRef.current);
+        const vTex = new THREE.VideoTexture(videoRef.current);
+        vTex.encoding = THREE.LinearEncoding;
+        vTex.minFilter = THREE.LinearFilter;
+        vTex.magFilter = THREE.LinearFilter;
+        vTex.generateMipmaps = false;
+        vTex.needsUpdate = true;
+        return vTex;
       }
       // Fallback if video element is somehow missing
-      return new THREE.TextureLoader().load(url);
+      const fallback = new THREE.TextureLoader().load(url);
+      fallback.encoding = THREE.LinearEncoding;
+      return fallback;
     }
     
     // 3. Handle Image Texture with Error Callback
-    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
+    const tex = new THREE.TextureLoader().load(url, (t) => {
+      t.encoding = THREE.LinearEncoding; // important
+      t.minFilter = THREE.LinearFilter;
+      t.magFilter = THREE.LinearFilter;
+      t.generateMipmaps = false;
+      t.needsUpdate = true;
+    }, undefined, (error) => {
       console.error('Error loading texture:', url, error);
       showError(`Failed to load image: ${url ? url.substring(0, 50) : 'unknown' }...`);
     });
+    
+    // Set encoding immediately as precaution
+    tex.encoding = THREE.LinearEncoding;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    
+    return tex;
   }, [manageVideoPlayback]);
-
-  const updatePanelContent = useCallback(async (wall: WallSegment, panelId: string, source: NftSource) => {
-    let metadata: NftMetadata;
-    try {
-      metadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
-      const imageUrl = metadata.image;
-      const isVideo = typeof imageUrl === 'string' && /\.(mp4|webm|ogg)$/i.test(imageUrl);
-      if (isVideo && videoRef.current) manageVideoPlayback(false);
-      wall.setPanelMetadataById(panelId, metadata, loadTexture);
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
-    } catch (error) {
-      console.error('Error updating panel content', error);
-      showError(`Failed to load NFT for ${wall.wallName}/${panelId}`);
-      
-      // If metadata fetch fails, use error metadata and trigger placeholder texture via loadTexture('')
-      wall.setPanelMetadataById(panelId, {
-        title: `Error loading #${source.tokenId}`,
-        description: `Failed to fetch metadata for token ${source.tokenId}.`,
-        image: '', // Empty image URL triggers red placeholder in loadTexture
-        source: '',
-      }, loadTexture);
-    }
-  }, [loadTexture, manageVideoPlayback]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -121,6 +122,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    
+    // FIX 1: Ensure accurate color display for NFTs
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.outputEncoding = THREE.LinearEncoding;
+    renderer.physicallyCorrectLights = false;
+    
     mountRef.current.appendChild(renderer.domElement);
 
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -129,7 +136,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hasVideo = () => wallsRef.current.some(w => w.panels.some(p => {
       const map = (p.mesh.material as THREE.MeshBasicMaterial)?.map;
       if (map && map.image instanceof HTMLVideoElement) {
-        // FIX 5: Check if image is a Video element before accessing currentSrc
+        // Check if image is a Video element before accessing currentSrc
         return /\.(mp4|webm|ogg)$/i.test(map.image.currentSrc || '');
       }
       return false;
@@ -158,6 +165,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const roomSize = 10, wallHeight = 4, boundary = roomSize / 2 - 0.5;
 
     // --- Scene Setup (Floors/Ceiling/Lights) ---
+    // Note: Using MeshPhongMaterial for floor/ceiling/walls allows them to react to scene lighting, 
+    // but the NFT panels themselves will use MeshBasicMaterial to preserve color accuracy.
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
@@ -165,6 +174,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
+      // Ensure floor texture is also linear if we disabled tone mapping globally
+      texture.encoding = THREE.LinearEncoding; 
+      
       const padding = 1.0;
       const maxInnerSize = roomSize - 2 * padding;
       const imageAspect = texture.image.width / texture.image.height;

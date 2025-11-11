@@ -218,7 +218,12 @@ export class WallSegment {
     const FRONT_OFFSET = 0.03; 
 
     const panelGeom = new THREE.PlaneGeometry(panelSize!.w, panelSize!.h);
-    const panelMat = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
+    // FIX 2: Use MeshBasicMaterial for NFT display to prevent lighting/tone mapping interference
+    const panelMat = new THREE.MeshBasicMaterial({ 
+      color: 0xffffff, // White color ensures texture is displayed without tint
+      side: THREE.DoubleSide,
+      toneMapped: false, // Crucial for accurate color display
+    });
     const mesh = new THREE.Mesh(panelGeom, panelMat);
     
     // FIX 1: Set positive Z position and renderOrder
@@ -314,9 +319,13 @@ export class WallSegment {
           const imageUrl = metadata.image;
           const isVideo = !!imageUrl && /\.(mp4|webm|ogg)$/i.test(imageUrl);
           const tex = textureLoader(imageUrl, isVideo);
+          
+          // Ensure material is MeshBasicMaterial (it should be, but check)
           if (mesh.material instanceof THREE.MeshBasicMaterial) {
             if (mesh.material.map) mesh.material.map.dispose();
             mesh.material.map = tex;
+            mesh.material.color.setHex(0xffffff); // Ensure no tint
+            mesh.material.toneMapped = false;
             mesh.material.needsUpdate = true;
           }
 
