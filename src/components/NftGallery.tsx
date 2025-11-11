@@ -1,4 +1,3 @@
-colorSpace, outputEncoding -> outputColorSpace), and importing toast utilities.">
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
@@ -128,7 +127,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             attributes: [],
         }, loadTexture);
     } finally {
-        dismissToast(loadingToastId);
+        // Ensure loadingToastId is treated as a string before dismissing
+        dismissToast(String(loadingToastId));
     }
   }, [loadTexture]);
 
