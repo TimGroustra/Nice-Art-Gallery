@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { NftMetadata, NftAttribute } from '@/utils/nftFetcher';
 import type { PanelConfig } from '@/config/galleryConfig';
+import { GALLERY_PANEL_CONFIG } from '@/config/galleryConfig'; // <-- FIX 1: Import GALLERY_PANEL_CONFIG
 
 // ----------------------
 // Helpers (text textures)
@@ -323,11 +324,13 @@ export class WallSegment {
   public dispose() {
     this.panels.forEach(p => p.dispose());
     this.group.traverse(obj => {
-      if ((obj as any).geometry) (obj as any).geometry.dispose?.();
-      const m = (obj as any).material;
-      if (m) {
-        if (Array.isArray(m)) m.forEach(mi => { mi.map?.dispose?.(); mi.dispose?.(); });
-        else { if ((obj.material as any).map) (obj.material as any).map.dispose(); (obj.material as any).dispose(); }
+      if (obj instanceof THREE.Mesh) { // <-- FIX 2, 3, 4: Check if obj is a Mesh before accessing material/geometry
+        obj.geometry.dispose?.();
+        const m = obj.material;
+        if (m) {
+          if (Array.isArray(m)) m.forEach(mi => { mi.map?.dispose?.(); mi.dispose?.(); });
+          else { if ((m as THREE.Material & { map?: THREE.Texture }).map) (m as THREE.Material & { map?: THREE.Texture }).map.dispose(); m.dispose(); }
+        }
       }
     });
   }

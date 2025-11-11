@@ -82,11 +82,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
       console.error('Error loading texture:', url, error);
       showError(`Failed to load image: ${url ? url.substring(0, 50) : 'unknown' }...`);
-      
-      // Note: We cannot return a new texture here to replace the failed one synchronously.
-      // The WallSegment's updateContent relies on the texture being returned immediately.
-      // If the texture fails to load, the material map will remain the placeholder set during initialization 
-      // or the previous successful texture.
     });
   }, [manageVideoPlayback]);
 
@@ -131,7 +126,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const controls = new PointerLockControls(camera, renderer.domElement);
     
     // Helper to check if any video is present across all walls
-    const hasVideo = () => wallsRef.current.some(w => w.panels.some(p => /\.(mp4|webm|ogg)$/i.test((p.mesh.material as THREE.MeshBasicMaterial)?.map?.image?.currentSrc || '')));
+    const hasVideo = () => wallsRef.current.some(w => w.panels.some(p => {
+      const map = (p.mesh.material as THREE.MeshBasicMaterial)?.map;
+      if (map && map.image instanceof HTMLVideoElement) {
+        // FIX 5: Check if image is a Video element before accessing currentSrc
+        return /\.(mp4|webm|ogg)$/i.test(map.image.currentSrc || '');
+      }
+      return false;
+    }));
 
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
