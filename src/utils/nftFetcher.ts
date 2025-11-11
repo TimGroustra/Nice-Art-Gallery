@@ -1,7 +1,7 @@
 import { JsonRpcProvider, Contract } from "ethers";
 
-// Public RPC endpoint for Ethereum Mainnet
-const RPC_URL = "https://cloudflare-eth.com";
+// Switched to a more reliable public RPC endpoint for Ethereum Mainnet
+const RPC_URL = "https://rpc.ankr.com/eth";
 const provider = new JsonRpcProvider(RPC_URL);
 
 const erc721Abi = [
@@ -21,8 +21,8 @@ export function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
   if (url.startsWith('ipfs://')) {
-    // Using a common public gateway
-    const normalized = url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    // Switched to a more reliable public IPFS gateway
+    const normalized = url.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
     console.log(`[NFT Fetcher] Normalized IPFS URL: ${normalized}`);
     return normalized;
   }
