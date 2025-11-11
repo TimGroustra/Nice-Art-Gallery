@@ -403,27 +403,7 @@ export class WallSegment {
           if (Array.isArray(m)) m.forEach(mi => { mi.map?.dispose?.(); mi.dispose?.(); });
           else { if ((m as THREE.Material & { map?: THREE.Texture }).map) (m as THREE.Material & { map?: THREE.Texture }).map.dispose(); m.dispose(); }
         }
-      });
-      renderer.dispose();
-      wallsRef.current.forEach(w => w.dispose());
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.removeAttribute('src');
-        videoRef.current.load();
       }
-      delete (window as any).galleryControls;
-      currentTargetedPanel = null;
-      currentTargetedArrow = null;
-      currentTargetedScrollPanel = null;
-    };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
-
-  return (
-    <>
-      <video ref={videoRef} style={{ display: 'none' }} playsInline autoPlay muted />
-      <div ref={mountRef} className="w-full h-full" />
-    </>
-  );
-};
-
-export default NftGallery;
+    });
+  }
+}
