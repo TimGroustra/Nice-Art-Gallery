@@ -1,5 +1,5 @@
 import { fetchTotalSupply, fetchCollectionName } from '@/utils/nftFetcher';
-import { showLoading, dismissToast, showError } from '@/utils/toast';
+// Removed import { showLoading, dismissToast, showError } from '@/utils/toast';
 
 export interface NftCollection {
   name: string;
@@ -71,7 +71,7 @@ let galleryConfig: PanelConfig = generateGalleryConfig();
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  const loadingToastId = showLoading("Initializing gallery collections...");
+  // Removed loadingToastId = showLoading(...)
   
   try {
     const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
@@ -109,11 +109,11 @@ export async function initializeGalleryConfig() {
         config.name = name;
       }
     }
-    dismissToast(loadingToastId);
+    // Removed dismissToast(loadingToastId);
     console.log(`[Gallery Config] Gallery configuration fully initialized.`);
   } catch (error) {
-    dismissToast(loadingToastId);
-    showError("Failed to initialize gallery configuration.");
+    // Removed dismissToast(loadingToastId);
+    // Removed showError(...)
     console.error("[Gallery Config] Critical failure during initialization:", error);
   }
 }

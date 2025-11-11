@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftAttribute, NftSource } from '@/utils/nftFetcher';
-import { showSuccess, showError } from '@/utils/toast';
+// Removed import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
 const TEXT_PANEL_WIDTH = 2.5;
@@ -210,7 +210,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
     return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
       console.error('Error loading texture:', url, error);
-      showError(`Failed to load image: ${url.substring(0, 50)}...`);
+      // Removed showError call
     });
   }, [manageVideoPlayback]);
 
@@ -260,7 +260,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
     panel.wallTitleMesh.visible = true;
 
-    showError(`Failed to load NFT for ${panel.wallName}.`);
+    // Removed showError call
   }, []);
 
 
@@ -331,7 +331,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
+      // Removed showSuccess call
       
     } catch (error) {
       console.error(`Error updating panel ${panel.wallName}:`, error);
@@ -967,6 +967,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       renderer.setSize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', onWindowResize);
+
+    loadAllPanelsSequentially();
 
     animate();
 
