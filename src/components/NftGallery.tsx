@@ -1,9 +1,10 @@
+colorSpace, outputEncoding -> outputColorSpace), and importing toast utilities.">
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
-import { showSuccess, showError } from '@/utils/toast';
+import { showSuccess, showError, showLoading, dismissToast } from '@/utils/toast';
 import { WallSegment, createTextTexture, createAttributesTextTexture } from './WallSegment';
 import { GALLERY_LAYOUT } from '@/config/roomLayout';
 
@@ -59,7 +60,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         ctx.fillText('No Image URL', 128, 128);
       }
       const placeholderTex = new THREE.CanvasTexture(canvas);
-      placeholderTex.encoding = THREE.LinearEncoding;
+      placeholderTex.colorSpace = THREE.NoColorSpace;
       return placeholderTex;
     }
     
@@ -75,7 +76,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           manageVideoPlayback(true);
         }
         const vTex = new THREE.VideoTexture(videoRef.current);
-        vTex.encoding = THREE.LinearEncoding;
+        vTex.colorSpace = THREE.NoColorSpace;
         vTex.minFilter = THREE.LinearFilter;
         vTex.magFilter = THREE.LinearFilter;
         vTex.generateMipmaps = false;
@@ -84,13 +85,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
       // Fallback if video element is somehow missing
       const fallback = new THREE.TextureLoader().load(url);
-      fallback.encoding = THREE.LinearEncoding;
+      fallback.colorSpace = THREE.NoColorSpace;
       return fallback;
     }
     
     // 3. Handle Image Texture with Error Callback
     const tex = new THREE.TextureLoader().load(url, (t) => {
-      t.encoding = THREE.LinearEncoding; // important
+      t.colorSpace = THREE.NoColorSpace; // important
       t.minFilter = THREE.LinearFilter;
       t.magFilter = THREE.LinearFilter;
       t.generateMipmaps = false;
@@ -100,14 +101,37 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       showError(`Failed to load image: ${url ? url.substring(0, 50) : 'unknown' }...`);
     });
     
-    // Set encoding immediately as precaution
-    tex.encoding = THREE.LinearEncoding;
+    // Set colorSpace immediately as precaution
+    tex.colorSpace = THREE.NoColorSpace;
     tex.minFilter = THREE.LinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     
     return tex;
   }, [manageVideoPlayback]);
+
+  const updatePanelContent = useCallback(async (wall: WallSegment, panelId: string, source: NftSource) => {
+    const loadingToastId = showLoading(`Loading NFT ${source.tokenId}...`);
+    try {
+        const metadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+        wall.setPanelMetadataById(panelId, metadata, loadTexture);
+        showSuccess(`Loaded NFT ${metadata.title}`);
+    } catch (error) {
+        console.error("Failed to load NFT content:", error);
+        showError(`Failed to load NFT #${source.tokenId}.`);
+        // Fallback to placeholder texture if metadata fetch fails
+        wall.setPanelMetadataById(panelId, {
+            title: `Error loading #${source.tokenId}`,
+            description: `Failed to fetch metadata.`,
+            image: '', // Empty string triggers the red placeholder in loadTexture
+            source: '',
+            attributes: [],
+        }, loadTexture);
+    } finally {
+        dismissToast(loadingToastId);
+    }
+  }, [loadTexture]);
+
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -123,10 +147,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     
-    // FIX 1: Ensure accurate color display for NFTs
+    // FIX: Ensure accurate color display for NFTs using modern color space properties
     renderer.toneMapping = THREE.NoToneMapping;
-    renderer.outputEncoding = THREE.LinearEncoding;
-    renderer.physicallyCorrectLights = false;
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace; // Use LinearSRGBColorSpace for linear output
+    // renderer.physicallyCorrectLights is deprecated and removed
     
     mountRef.current.appendChild(renderer.domElement);
 
@@ -175,7 +199,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
       // Ensure floor texture is also linear if we disabled tone mapping globally
-      texture.encoding = THREE.LinearEncoding; 
+      texture.colorSpace = THREE.NoColorSpace; 
       
       const padding = 1.0;
       const maxInnerSize = roomSize - 2 * padding;
