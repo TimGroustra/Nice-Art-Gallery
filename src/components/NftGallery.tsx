@@ -225,8 +225,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
 
-    scene.add(new THREE.AmbientLight(0x404050, 0.3));
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    // Increased Ambient Light (from 0.3 to 0.8)
+    scene.add(new THREE.AmbientLight(0x404050, 0.8));
+    
+    // Increased Hemisphere Light (from 0.2 to 0.5)
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
 
@@ -314,7 +317,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_PANEL_WIDTH = 2.25; 
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 30; // Updated to 30
+    const TEXT_FONT_SIZE_ATTR = 30; 
     
     const updateScrollTexture = (wallName: keyof PanelConfig, panelId: string, type: 'description' | 'attributes') => {
       const wall = wallsRef.current.find(w => w.wallName === wallName);
