@@ -17,8 +17,8 @@ export interface NftSource {
 }
 
 // Utility: normalize ipfs:// to https gateway
-export function normalizeUrl(url: string | null | undefined): string {
-  if (!url) return '';
+export function normalizeUrl(url: string): string {
+  if (!url) return url;
   url = url.trim();
   if (url.startsWith('ipfs://')) {
     // Using a common public gateway
@@ -80,27 +80,13 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     throw new Error("Token URI resolved to an empty URL.");
   }
 
-  let res;
-  try {
-    res = await fetch(metadataUrl);
-  } catch (e) {
-    console.error(`[NFT Fetcher] Network error fetching metadata from ${metadataUrl}:`, e);
-    throw new Error(`Network error fetching metadata from ${metadataUrl}.`);
-  }
-
+  const res = await fetch(metadataUrl);
   if (!res.ok) {
     console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
     throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
   }
   
-  let json;
-  try {
-    json = await res.json();
-  } catch (e) {
-    console.error(`[NFT Fetcher] Failed to parse JSON metadata from ${metadataUrl}:`, e);
-    throw new Error(`Failed to parse JSON metadata from ${metadataUrl}.`);
-  }
-
+  const json = await res.json();
 
   let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
   imageUrl = normalizeUrl(imageUrl);
