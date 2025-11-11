@@ -580,7 +580,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Innermost walls
     const panelsPerInnermostSegment = 1;
     const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
-    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2; // Re-using calculated offset
     innermostWalls.forEach(wall => {
       for (let i = 0; i < panelsPerInnermostSegment * 2; i++) {
         const wallName = `${wall}-wall-${i + 1}`;
