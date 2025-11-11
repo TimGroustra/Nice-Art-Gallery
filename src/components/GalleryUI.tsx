@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Volume2, VolumeX } from 'lucide-react';
+// Removed Dialog imports
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -8,8 +9,13 @@ interface GalleryUIProps {
 }
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
+  // Removed modal state: isModalOpen, modalMetadata
   const [isMuted, setIsMuted] = useState(true);
   const [hasVideo, setHasVideo] = useState(false);
+
+  // Removed openMetadataModal function
+
+  // Removed useEffect that exposed openMetadataModal globally
 
   // Polling/Interval to check video state from NftGallery
   useEffect(() => {
@@ -66,6 +72,8 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </Button>
         )}
       </div>
+      
+      {/* Metadata Modal removed */}
     </>
   );
 };

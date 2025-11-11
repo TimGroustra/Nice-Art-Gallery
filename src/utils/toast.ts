@@ -2,20 +2,18 @@ import { toast } from "sonner";
 
 export const showSuccess = (message: string) => {
   // Notifications disabled
-  return undefined;
+  // toast.success(message);
 };
 
 export const showError = (message: string) => {
   // Notifications disabled
-  return undefined;
+  // toast.error(message);
 };
 
 export const showLoading = (message: string) => {
-  // Notifications disabled
-  return undefined;
+  return toast.loading(message);
 };
 
 export const dismissToast = (toastId: string) => {
-  // Since toasts are disabled, this function will do nothing if called with a disabled toast ID.
   toast.dismiss(toastId);
 };
