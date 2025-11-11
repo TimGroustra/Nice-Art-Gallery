@@ -17,7 +17,6 @@ export interface TargetedPanelInfo {
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
-  // setTargetedPanelInfo removed as metadata is now displayed in 3D space
 }
 
 // Global state for UI interaction (now only tracking interaction targets)
@@ -45,7 +44,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
-    if (!url) return new THREE.Texture();
+    if (!url) {
+      // Return a simple placeholder texture if URL is empty
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(0, 0, 1, 1);
+      }
+      return new THREE.CanvasTexture(canvas);
+    }
+    
     if (isVideo) {
       if (videoRef.current) {
         videoRef.current.pause();
@@ -60,9 +71,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
       return new THREE.TextureLoader().load(url);
     }
+    
     return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
       console.error('Error loading texture:', url, error);
       showError(`Failed to load image: ${url ? url.substring(0, 50) : 'unknown' }...`);
+      
+      // Create a placeholder texture on error
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = 'red';
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = 'white';
+        ctx.font = '30px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Error', 128, 128);
+      }
+      const errorTexture = new THREE.CanvasTexture(canvas);
+      
+      // This texture will be returned by the loader's error callback, 
+      // but the original function call already returned the loader instance.
+      // We rely on the WallSegment's updateContent to handle the material update.
+      // Since the loader failed, the material map will remain null/placeholder until the next update.
+      // For now, we rely on the error message to debug.
     });
   }, [manageVideoPlayback]);
 
@@ -77,6 +110,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     } catch (error) {
       console.error('Error updating panel content', error);
       showError(`Failed to load NFT for ${wall.wallName}/${panelId}`);
+      
+      // If metadata fetch fails, we should still update the panel with error info
+      wall.setPanelMetadataById(panelId, {
+        title: `Error loading #${source.tokenId}`,
+        description: `Failed to fetch metadata for token ${source.tokenId}.`,
+        image: '', // Empty image URL triggers placeholder texture in loadTexture
+        source: '',
+      }, loadTexture);
     }
   }, [loadTexture, manageVideoPlayback]);
 
@@ -313,14 +354,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         currentTargetedPanel = null;
         currentTargetedArrow = null;
         currentTargetedDescriptionPanel = null;
-        // setTargetedPanelInfo(null); // Removed UI state update
 
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
           const { wallName, panelId } = intersectedMesh.userData as { wallName: keyof PanelConfig, panelId: string };
           
           if (wallName && panelId) {
-            // const wallConfig = GALLERY_PANEL_CONFIG[wallName]; // Not needed for 3D interaction logic
             
             if (intersectedMesh.userData.direction) { // Arrow
               currentTargetedArrow = intersectedMesh;
