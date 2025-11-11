@@ -314,7 +314,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TEXT_PANEL_WIDTH = 2.25; 
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 30; 
+    const TEXT_FONT_SIZE_ATTR = 30; // Updated to 30
     
     const updateScrollTexture = (wallName: keyof PanelConfig, panelId: string, type: 'description' | 'attributes') => {
       const wall = wallsRef.current.find(w => w.wallName === wallName);
@@ -339,16 +339,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
         }
-        const { texture, maxScrollX } = createAttributesTextTexture(
+        const { texture } = createAttributesTextTexture(
           panel.currentAttributes, 
           TEXT_PANEL_WIDTH, 
           TEXT_PANEL_HEIGHT, 
           TEXT_FONT_SIZE_ATTR, 
           'lightgray', 
-          { scrollY: panel.attributesScrollY, scrollX: panel.attributesScrollX }
+          { scrollY: panel.attributesScrollY }
         );
         (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = texture;
-        panel.attributesMaxScrollX = maxScrollX; // Update max scroll limit
       }
     };
 
@@ -375,7 +374,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           updateScrollTexture(wallName, panelId, type);
         }
       } else if (type === 'attributes') {
-        // Vertical scrolling for attributes
         const maxScroll = Math.max(0, panel.attributesTextHeight - effectiveViewportHeight);
         let newScrollY = panel.attributesScrollY + scrollAmount;
         newScrollY = Math.max(0, Math.min(newScrollY, maxScroll));
@@ -443,45 +441,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                  currentTargetedScrollPanel = { wallName, panelId, type: 'description' };
             } else if (intersectedMesh.name === 'attributes') {
                  currentTargetedScrollPanel = { wallName, panelId, type: 'attributes' };
-            }
-          }
-        }
-        
-        // --- Horizontal Scrolling Animation for Attributes ---
-        if (currentTargetedScrollPanel?.type === 'attributes') {
-          const { wallName, panelId } = currentTargetedScrollPanel;
-          const wall = wallsRef.current.find(w => w.wallName === wallName);
-          const panel = wall?.panels.find(p => p.id === panelId);
-
-          if (panel && panel.attributesMaxScrollX > 0) {
-            const scrollSpeed = 10; // Pixels per second
-            const scrollDuration = panel.attributesMaxScrollX / scrollSpeed; // Time to scroll one way
-            const totalCycleTime = scrollDuration * 2 + 3; // Scroll out, scroll back, plus 3s pause
-
-            const cycleTime = time * 0.001 % totalCycleTime;
-            let newScrollX;
-
-            if (cycleTime < scrollDuration) {
-              // Scrolling right (0 to maxScrollX)
-              newScrollX = (cycleTime / scrollDuration) * panel.attributesMaxScrollX;
-            } else if (cycleTime < scrollDuration + 3) {
-              // Pause at max scroll (3 seconds)
-              newScrollX = panel.attributesMaxScrollX;
-            } else if (cycleTime < scrollDuration * 2 + 3) {
-              // Scrolling left (maxScrollX to 0)
-              const scrollBackTime = cycleTime - (scrollDuration + 3);
-              newScrollX = panel.attributesMaxScrollX * (1 - (scrollBackTime / scrollDuration));
-            } else {
-              // Pause at start (0 seconds) - handled by the modulo reset
-              newScrollX = 0;
-            }
-            
-            // Ensure scrollX is within bounds
-            newScrollX = Math.max(0, Math.min(newScrollX, panel.attributesMaxScrollX));
-
-            if (Math.abs(panel.attributesScrollX - newScrollX) > 0.1) {
-              panel.attributesScrollX = newScrollX;
-              updateScrollTexture(wallName, panelId, 'attributes');
             }
           }
         }
