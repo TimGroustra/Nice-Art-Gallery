@@ -2,27 +2,9 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
+import { fetchNftMetadata, NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
-
-// Define types for the panel objects
-interface Panel {
-  mesh: THREE.Mesh;
-  wallName: keyof PanelConfig;
-  metadataUrl: string;
-  isVideo: boolean;
-  prevArrow: THREE.Mesh;
-  nextArrow: THREE.Mesh;
-  titleMesh: THREE.Mesh;
-  descriptionMesh: THREE.Mesh;
-  attributesMesh: THREE.Mesh;
-  wallTitleMesh: THREE.Mesh;
-  // New properties for scrolling description
-  currentDescription: string;
-  descriptionScrollY: number;
-  descriptionTextHeight: number;
-  currentAttributes: NftAttribute[];
-}
+import { Panel, createTextTexture, createAttributesTextTexture, createWallWithPanel, WallCreationConfig } from './gallery/factories';
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
@@ -31,101 +13,7 @@ interface NftGalleryProps {
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
-let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
-
-// Helper function to create a text texture using Canvas
-const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
-    const { scrollY = 0, wordWrap = false } = options;
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')), totalHeight: 0 };
-
-    const resolution = 512;
-    canvas.width = resolution * (width / height);
-    canvas.height = resolution;
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
-    const actualFontSize = fontSize;
-    context.font = `bold ${actualFontSize}px Arial`;
-    context.fillStyle = color;
-    
-    const padding = 40;
-    const lineHeight = actualFontSize * 1.2;
-    let totalHeight = 0;
-
-    if (wordWrap) {
-        context.textAlign = 'left';
-        context.textBaseline = 'top';
-        let y = padding;
-        const words = text.split(' ');
-        let line = '';
-        const maxTextWidth = canvas.width - 2 * padding;
-
-        for (let n = 0; n < words.length; n++) {
-            const testLine = line + words[n] + ' ';
-            const metrics = context.measureText(testLine);
-            const testWidth = metrics.width;
-
-            if (testWidth > maxTextWidth && n > 0) {
-                context.fillText(line, padding, y - scrollY);
-                line = words[n] + ' ';
-                y += lineHeight;
-            } else {
-                line = testLine;
-            }
-        }
-        context.fillText(line, padding, y - scrollY);
-        totalHeight = y + lineHeight - padding;
-    } else {
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(text, canvas.width / 2, canvas.height / 2);
-        totalHeight = lineHeight;
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return { texture, totalHeight };
-};
-
-const createAttributesTextTexture = (attributes: NftAttribute[], width: number, height: number, fontSize: number, color: string = 'white'): { texture: THREE.CanvasTexture } => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')) };
-
-    const resolution = 512;
-    canvas.width = resolution * (width / height);
-    canvas.height = resolution;
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
-    context.font = `bold ${fontSize}px Arial`;
-    context.fillStyle = color;
-    context.textAlign = 'left';
-    context.textBaseline = 'top';
-
-    const padding = 40;
-    const lineHeight = fontSize * 1.2;
-    let y = padding;
-
-    if (!attributes || attributes.length === 0) {
-        context.fillText('No attributes found.', padding, y);
-    } else {
-        attributes.forEach(attr => {
-            if (attr.trait_type && attr.value) {
-                const line = `${attr.trait_type}: ${attr.value}`;
-                context.fillText(line, padding, y);
-                y += lineHeight;
-            }
-        });
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return { texture };
-};
-
+let currentTargetedDescriptionPanel: Panel | null = null;
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -203,12 +91,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
-      // Update panel state for scrolling
       panel.currentDescription = descriptionText;
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
 
-      // Update attributes
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
       }
@@ -218,7 +104,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      // Update wall title
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
@@ -282,37 +167,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
+    const roomSize = 10, wallHeight = 4, boundary = roomSize / 2 - 0.5;
     
-    // Create the outer floor for padding
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
     scene.add(outerFloor);
 
-    // Create the inner floor with the image
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
-        // Calculate inner plane dimensions based on texture aspect ratio
-        const padding = 1.0; // 1 unit of padding on each side
+        const padding = 1.0;
         const maxInnerSize = roomSize - 2 * padding;
         const imageAspect = texture.image.width / texture.image.height;
-
         let innerPlaneWidth, innerPlaneHeight;
-        if (imageAspect >= 1) { // Landscape or square
+        if (imageAspect >= 1) {
             innerPlaneWidth = maxInnerSize;
             innerPlaneHeight = maxInnerSize / imageAspect;
-        } else { // Portrait
+        } else {
             innerPlaneHeight = maxInnerSize;
             innerPlaneWidth = maxInnerSize * imageAspect;
         }
-
         const innerFloorGeometry = new THREE.PlaneGeometry(innerPlaneWidth, innerPlaneHeight);
         const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
         const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
-        
         innerFloor.rotation.x = Math.PI / 2;
-        innerFloor.position.y = 0.01; // Place slightly above the outer floor to prevent z-fighting
+        innerFloor.position.y = 0.01;
         scene.add(innerFloor);
     });
 
@@ -320,23 +199,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    northWall.position.set(0, wallHeight / 2, -roomSize / 2);
-    scene.add(northWall);
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    southWall.rotation.y = Math.PI;
-    southWall.position.set(0, wallHeight / 2, roomSize / 2);
-    scene.add(southWall);
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    eastWall.rotation.y = -Math.PI / 2;
-    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    scene.add(eastWall);
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    westWall.rotation.y = Math.PI / 2;
-    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    scene.add(westWall);
 
+    // Room Lights
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
@@ -350,131 +214,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
 
-    // Add glowing cove lighting
-    const coveLightColor = 0x87CEEB; // A soft sky blue glow
-    const coveLightIntensity = 10;
-    const coveLightWidth = roomSize;
-    const coveLightHeight = 0.1;
-
-    const createCoveLighting = (
-        position: [number, number, number],
-        rotation: [number, number, number],
-        order: THREE.EulerOrder = 'XYZ'
-    ) => {
-        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
-        rectLight.position.set(...position);
-        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
-        scene.add(rectLight);
-
-        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
-        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
-        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
-        glowMesh.position.set(...position);
-        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
-        scene.add(glowMesh);
-    };
-
-    const yPos = wallHeight - 0.1;
-    const offset = 0.1;
-
-    // North
-    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
-    // South
-    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
-    // East
-    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-    // West
-    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-
-    const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
-    const TEXT_PANEL_WIDTH = 1.5, TITLE_HEIGHT = 0.5, DESCRIPTION_HEIGHT = 1.5, TEXT_BLOCK_OFFSET_X = 3;
-    const TITLE_PANEL_WIDTH = 2.0;
-    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white', { wordWrap: false });
-    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
-    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
-    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT);
-
-    const panelConfigs = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
+    // Wall Creation using the factory
+    const wallConfigs: WallCreationConfig[] = [
+      { wallName: 'north-wall', size: { width: roomSize, height: wallHeight }, position: new THREE.Vector3(0, wallHeight / 2, -roomSize / 2), rotation: new THREE.Euler(0, 0, 0) },
+      { wallName: 'south-wall', size: { width: roomSize, height: wallHeight }, position: new THREE.Vector3(0, wallHeight / 2, roomSize / 2), rotation: new THREE.Euler(0, Math.PI, 0) },
+      { wallName: 'east-wall', size: { width: roomSize, height: wallHeight }, position: new THREE.Vector3(roomSize / 2, wallHeight / 2, 0), rotation: new THREE.Euler(0, -Math.PI / 2, 0) },
+      { wallName: 'west-wall', size: { width: roomSize, height: wallHeight }, position: new THREE.Vector3(-roomSize / 2, wallHeight / 2, 0), rotation: new THREE.Euler(0, Math.PI / 2, 0) },
     ];
 
-    panelConfigs.forEach(config => {
-      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-      mesh.position.set(...config.position);
-      mesh.rotation.set(...config.rotation);
-      scene.add(mesh);
-      
-      const wallRotation = new THREE.Euler(...config.rotation, 'XYZ');
-      const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-      const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
-      const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
-      
-      const basePosition = new THREE.Vector3(...config.position);
-      
-      const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
-      titleMesh.rotation.set(...config.rotation);
-      const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
-      const titlePosition = basePosition.clone()
-          .addScaledVector(upVector, titleYOffset)
-          .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-      titleMesh.position.copy(titlePosition);
-      scene.add(titleMesh);
-
-      const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_BLOCK_OFFSET_X);
-      const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
-      descriptionMesh.rotation.set(...config.rotation);
-      const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-      descriptionMesh.position.copy(descriptionPosition);
-      scene.add(descriptionMesh);
-      
-      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
-      const prevPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
-      prevArrow.position.copy(prevPosition);
-      scene.add(prevArrow);
-      
-      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(...config.rotation);
-      const nextPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
-      nextArrow.position.copy(nextPosition);
-      scene.add(nextArrow);
-
-      const COLLECTION_INFO_OFFSET_X = 3;
-      const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, COLLECTION_INFO_OFFSET_X);
-      const ATTRIBUTES_HEIGHT = 1.5;
-      const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
-      const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
-      attributesMesh.rotation.set(...config.rotation);
-      const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-      attributesMesh.position.copy(attributesPosition);
-      scene.add(attributesMesh);
-
-      const wallTitleGeometry = new THREE.PlaneGeometry(4, 0.75);
-      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
-      wallTitleMesh.rotation.set(...config.rotation);
-      const wallTitlePosition = new THREE.Vector3(...config.position);
-      wallTitlePosition.y = 3.2; // Position it above the main panel
-      wallTitleMesh.position.copy(wallTitlePosition);
-      scene.add(wallTitleMesh);
-
-      const panel: Panel = {
-        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-        attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-      };
-      panelsRef.current.push(panel);
-      
-      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
-      if (source) updatePanelContent(panel, source);
+    const allInteractiveMeshes: THREE.Object3D[] = [];
+    wallConfigs.forEach(config => {
+        const { panel, interactiveMeshes } = createWallWithPanel(scene, config);
+        panelsRef.current.push(panel);
+        allInteractiveMeshes.push(...interactiveMeshes);
+        const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
+        if (source) updatePanelContent(panel, source);
     });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
@@ -501,7 +255,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
-    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]);
 
     const onDocumentMouseDown = () => {
       if (!controls.isLocked) return;
@@ -532,7 +285,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const scrollAmount = event.deltaY * 0.5;
       
       const canvasHeight = 512;
-      const padding = 40; // Must match padding in createTextTexture
+      const padding = 40;
       const effectiveViewportHeight = canvasHeight - 2 * padding;
       const maxScroll = Math.max(0, panel.descriptionTextHeight - effectiveViewportHeight);
 
@@ -571,11 +324,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
         raycaster.setFromCamera(center, camera);
-        const intersects = raycaster.intersectObjects(interactiveMeshes);
+        const intersects = raycaster.intersectObjects(allInteractiveMeshes);
         
         panelsRef.current.forEach(p => {
-          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
-          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
+          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc);
+          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc);
         });
         
         currentTargetedPanel = null;
@@ -589,7 +342,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
             else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
               currentTargetedArrow = intersectedMesh;
-              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
+              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00);
             } else if (intersectedMesh === panel.descriptionMesh) {
               currentTargetedDescriptionPanel = panel;
             }
