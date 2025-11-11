@@ -16,24 +16,6 @@ export interface NftSource {
   tokenId: number;
 }
 
-// Utility function for retrying async operations
-async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === retries - 1) {
-        throw error; // Throw if last attempt failed
-      }
-      console.warn(`Attempt ${i + 1} failed. Retrying in ${delay}ms...`, error);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-  // This line should technically be unreachable
-  throw new Error("Retry mechanism failed unexpectedly.");
-}
-
-
 // Utility: normalize ipfs:// to https gateway
 export function normalizeUrl(url: string): string {
   if (!url) return url;
@@ -66,7 +48,7 @@ export async function fetchCollectionName(contractAddress: string): Promise<stri
   }
   const contract = new Contract(contractAddress, erc721Abi, provider);
   try {
-    const name = await retry(() => contract.name(), 3, 500);
+    const name = await contract.name();
     console.log(`[NFT Fetcher] Fetched collection name for ${contractAddress}: ${name}`);
     return name;
   } catch (e) {
@@ -84,11 +66,11 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   
   let tokenUri: string;
   try {
-    // 1. Retry fetching tokenURI
-    tokenUri = await retry(() => contract.tokenURI(tokenId), 3, 500);
+    // Call tokenURI(tokenId)
+    tokenUri = await contract.tokenURI(tokenId);
     console.log(`[NFT Fetcher] Token URI for ${tokenId}: ${tokenUri}`);
   } catch (e) {
-    console.error(`Failed to retrieve token URI for ${contractAddress}/${tokenId}:`, e);
+    console.error(`Failed to call tokenURI for ${contractAddress}/${tokenId}:`, e);
     throw new Error("Failed to retrieve token URI from contract.");
   }
 
@@ -98,23 +80,13 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     throw new Error("Token URI resolved to an empty URL.");
   }
 
-  let json: any;
-  try {
-    // 2. Retry fetching metadata JSON
-    const res = await retry(async () => {
-      const response = await fetch(metadataUrl);
-      if (!response.ok) {
-        // Throwing here ensures retry catches HTTP errors too
-        throw new Error(`HTTP error status: ${response.status}`);
-      }
-      return response;
-    }, 3, 1000);
-    
-    json = await res.json();
-  } catch (e) {
-    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}:`, e);
-    throw new Error(`Failed to fetch metadata from ${metadataUrl}.`);
+  const res = await fetch(metadataUrl);
+  if (!res.ok) {
+    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+    throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
   }
+  
+  const json = await res.json();
 
   let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
   imageUrl = normalizeUrl(imageUrl);
@@ -139,7 +111,7 @@ export async function fetchTotalSupply(contractAddress: string): Promise<number>
   const contract = new Contract(contractAddress, erc721Abi, provider);
   
   try {
-    const supply = await retry(() => contract.totalSupply(), 3, 500);
+    const supply = await contract.totalSupply();
     const total = Number(supply);
     console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${total}`);
     return total;
