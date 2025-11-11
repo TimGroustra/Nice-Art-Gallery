@@ -124,7 +124,8 @@ export type PanelHandles = {
   mesh: THREE.Mesh;
   prevArrow: THREE.Mesh;
   nextArrow: THREE.Mesh;
-  titleMesh: THREE.Mesh;
+  titleMesh: THREE.Mesh; // Collection Name + Token ID
+  nameMesh: THREE.Mesh; // NFT Name (metadata title)
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
   currentDescription: string;
@@ -175,7 +176,7 @@ export class WallSegment {
     pd.forEach((desc) => {
       const panel = this.createPanel(desc);
       this.panels.push(panel);
-      this.group.add(panel.mesh, panel.prevArrow, panel.nextArrow, panel.titleMesh, panel.descriptionMesh, panel.attributesMesh);
+      this.group.add(panel.mesh, panel.prevArrow, panel.nextArrow, panel.titleMesh, panel.nameMesh, panel.descriptionMesh, panel.attributesMesh);
       this.interactiveMeshes.push(panel.mesh, panel.prevArrow, panel.nextArrow, panel.descriptionMesh);
     });
 
@@ -205,13 +206,24 @@ export class WallSegment {
 
     // Title Mesh (Collection Name + Token ID)
     const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.45);
-    const placeholderTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.45, 40).texture;
-    const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTex, transparent: true });
+    const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.45, 40).texture;
+    const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
     
     // Position title centered above the NFT panel
     const titleY = panelCenterY + (panelSize!.h / 2) + 0.45 / 2 + 0.1;
     titleMesh.position.set(desc.offsetX, titleY, 0.02);
+
+    // Name Mesh (NFT Name/Metadata Title)
+    const nameGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.4);
+    const placeholderNameTex = createTextTexture('NFT Name', panelSize!.w * 1.2, 0.4, 36).texture;
+    const nameMat = new THREE.MeshBasicMaterial({ map: placeholderNameTex, transparent: true });
+    const nameMesh = new THREE.Mesh(nameGeom, nameMat);
+
+    // Position name centered below the NFT panel
+    const nameY = panelCenterY - (panelSize!.h / 2) - 0.4 / 2 - 0.1;
+    nameMesh.position.set(desc.offsetX, nameY, 0.02);
+
 
     const descGeom = new THREE.PlaneGeometry(1.5, 1.8);
     const descPlace = createTextTexture('', 1.5, 1.8, 28);
@@ -252,6 +264,7 @@ export class WallSegment {
       prevArrow,
       nextArrow,
       titleMesh,
+      nameMesh,
       descriptionMesh,
       attributesMesh,
       currentDescription: '',
@@ -269,13 +282,20 @@ export class WallSegment {
             mesh.material.needsUpdate = true;
           }
 
-          // Update title to show Collection Name + Token ID
+          // Update title (Collection Name + Token ID)
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
           const titleText = `${collectionName} | Token #${metadata.title.replace('Token #', '')}`;
           
           const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.45, 40).texture;
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
+
+          // Update name (NFT Name)
+          const nftNameText = metadata.title;
+          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.4, 36).texture;
+          (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
+          (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
+
 
           const descTexObj = createTextTexture(metadata.description || '', 1.5, 1.8, 28, 'lightgray', { wordWrap: true });
           (descriptionMesh.material as THREE.MeshBasicMaterial).map?.dispose();
@@ -296,7 +316,7 @@ export class WallSegment {
         }
       },
       dispose: () => {
-        [panelGeom, panelMat, titleGeom, titleMat, descGeom, descMat, attrGeom, attrMat, arrowGeom, arrowMat].forEach((r:any) => {
+        [panelGeom, panelMat, titleGeom, titleMat, nameGeom, nameMat, descGeom, descMat, attrGeom, attrMat, arrowGeom, arrowMat].forEach((r:any) => {
           try { if (r && typeof r.dispose === 'function') r.dispose(); } catch(e){ }
         });
       }
@@ -324,7 +344,7 @@ export class WallSegment {
   public dispose() {
     this.panels.forEach(p => p.dispose());
     this.group.traverse(obj => {
-      if (obj instanceof THREE.Mesh) { // <-- FIX 2, 3, 4: Check if obj is a Mesh before accessing material/geometry
+      if (obj instanceof THREE.Mesh) { 
         obj.geometry.dispose?.();
         const m = obj.material;
         if (m) {
