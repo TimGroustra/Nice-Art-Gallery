@@ -200,6 +200,14 @@ export class WallSegment {
   private createPanel(desc: PanelDescriptor): PanelHandles {
     const { panelSize } = this.options;
     const panelCenterY = desc.offsetY ?? 1.8;
+    
+    const TEXT_PANEL_WIDTH = 2.25; // 1.5 * 1.5
+    const TEXT_PANEL_HEIGHT = 1.8;
+    const TEXT_FONT_SIZE_DESC = 28;
+    const TEXT_FONT_SIZE_ATTR = 40;
+    const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; // -3 - (2.25 - 1.5) / 2
+    const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; // 3 + (2.25 - 1.5) / 2
+
 
     const panelGeom = new THREE.PlaneGeometry(panelSize!.w, panelSize!.h);
     const panelMat = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
@@ -233,23 +241,21 @@ export class WallSegment {
 
 
     // Description Panel (Left)
-    const descGeom = new THREE.PlaneGeometry(1.5, 1.8);
-    const descPlace = createTextTexture('', 1.5, 1.8, 28);
+    const descGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT);
+    const descPlace = createTextTexture('', TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_DESC);
     const descMat = new THREE.MeshBasicMaterial({ map: descPlace.texture, transparent: true });
     const descriptionMesh = new THREE.Mesh(descGeom, descMat);
-    const textBlockOffsetX = -3;
-    descriptionMesh.position.set(desc.offsetX + textBlockOffsetX, panelCenterY, 0.02);
+    descriptionMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_LEFT, panelCenterY, 0.02);
     (descriptionMesh.userData as any).wallName = this.wallName;
     (descriptionMesh.userData as any).panelId = desc.id;
     descriptionMesh.name = 'description'; // Add name for easier identification
 
     // Attributes Panel (Right)
-    const attrGeom = new THREE.PlaneGeometry(1.5, 1.8); // Increased height to 1.8
-    const attrPlace = createAttributesTextTexture([], 1.5, 1.8, 40); // Updated font size to 40
+    const attrGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT);
+    const attrPlace = createAttributesTextTexture([], TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_ATTR);
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
-    const attrBlockOffsetX = 3;
-    attributesMesh.position.set(desc.offsetX + attrBlockOffsetX, panelCenterY, 0.02); // Centered vertically
+    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, 0.02); // Centered vertically
     (attributesMesh.userData as any).wallName = this.wallName;
     (attributesMesh.userData as any).panelId = desc.id;
     attributesMesh.name = 'attributes'; // Unique name for raycasting
@@ -313,7 +319,7 @@ export class WallSegment {
 
 
           // Update Description
-          const descTexObj = createTextTexture(metadata.description || '', 1.5, 1.8, 28, 'lightgray', { wordWrap: true });
+          const descTexObj = createTextTexture(metadata.description || '', TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_DESC, 'lightgray', { wordWrap: true });
           (descriptionMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (descriptionMesh.material as THREE.MeshBasicMaterial).map = descTexObj.texture;
 
@@ -324,7 +330,7 @@ export class WallSegment {
           // Update Attributes
           const attributes = metadata.attributes || [];
           panelHandle.currentAttributes = attributes;
-          const attrTexObj = createAttributesTextTexture(attributes, 1.5, 1.8, 40, 'lightgray', { scrollY: 0 });
+          const attrTexObj = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_ATTR, 'lightgray', { scrollY: 0 });
           (attributesMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTexObj.texture;
           
