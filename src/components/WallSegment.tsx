@@ -236,7 +236,7 @@ export class WallSegment {
     descriptionMesh.name = 'description'; // Add name for easier identification
 
     const attrGeom = new THREE.PlaneGeometry(1.5, 1.2);
-    const attrPlace = createTextTexture('Attributes', 1.5, 1.2, 28);
+    const attrPlace = createTextTexture('Attributes', 1.5, 1.2, 60); // Updated font size to 60
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
     attributesMesh.position.set(desc.offsetX + 3, panelCenterY, 0.02);
@@ -286,13 +286,13 @@ export class WallSegment {
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
           const titleText = collectionName;
           
-          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.6, 80).texture; // 80px font
+          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.6, 80).texture;
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
           // Update name (NFT Name/Metadata Title)
           const nftNameText = metadata.title;
-          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.6, 80).texture; // 80px font
+          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.6, 80).texture;
           (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
 
@@ -307,7 +307,7 @@ export class WallSegment {
 
           const attributes = metadata.attributes || [];
           panelHandle.currentAttributes = attributes;
-          const attrTex = createAttributesTextTexture(attributes, 1.5, 1.2, 28).texture;
+          const attrTex = createAttributesTextTexture(attributes, 1.5, 1.2, 60).texture; // Updated font size to 60
           (attributesMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
 
