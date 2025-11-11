@@ -1007,6 +1007,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     window.addEventListener('resize', onWindowResize);
 
     loadAllPanelsConcurrently();
+    
+    // START THE ANIMATION LOOP
+    animate();
 
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
