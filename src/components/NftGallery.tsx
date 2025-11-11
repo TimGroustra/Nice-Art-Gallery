@@ -418,7 +418,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
-    const TEXT_PANEL_OFFSET_X = 3.5; // Increased offset for padding
+    const TEXT_PANEL_OFFSET_X = 3.25; // Reduced offset for padding
     const TITLE_PANEL_WIDTH = 2.0;
     const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
