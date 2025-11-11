@@ -201,12 +201,17 @@ export class WallSegment {
     const { panelSize } = this.options;
     const panelCenterY = desc.offsetY ?? 1.8;
     
-    const TEXT_PANEL_WIDTH = 2.25; // 1.5 * 1.5
+    const TEXT_PANEL_WIDTH = 2.25; // Description/Attributes panel width
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
     const TEXT_FONT_SIZE_ATTR = 40;
-    const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; // -3 - (2.25 - 1.5) / 2
-    const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; // 3 + (2.25 - 1.5) / 2
+    const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
+    const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
+
+    // New width for Title/Name panels (2.4 * 2 = 4.8)
+    const TITLE_NAME_WIDTH = panelSize!.w * 2.4; 
+    const TITLE_NAME_HEIGHT = 0.6;
+    const TITLE_NAME_FONT_SIZE = 120;
 
 
     const panelGeom = new THREE.PlaneGeometry(panelSize!.w, panelSize!.h);
@@ -220,23 +225,23 @@ export class WallSegment {
     mesh.name = 'nft-panel'; // Ensure the main panel is identifiable
 
     // Title Mesh (Collection Name)
-    const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.6); // Increased height
-    const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.6, 120).texture; // Updated font size to 120
+    const titleGeom = new THREE.PlaneGeometry(TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT); 
+    const placeholderTitleTex = createTextTexture('Loading...', TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
     
     // Position title centered above the NFT panel
-    const titleY = panelCenterY + (panelSize!.h / 2) + 0.6 / 2 + 0.1; // Adjusted position based on new height
+    const titleY = panelCenterY + (panelSize!.h / 2) + TITLE_NAME_HEIGHT / 2 + 0.1; 
     titleMesh.position.set(desc.offsetX, titleY, 0.02);
 
     // Name Mesh (NFT Name/Metadata Title)
-    const nameGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.6); // Increased height
-    const placeholderNameTex = createTextTexture('NFT Name', panelSize!.w * 1.2, 0.6, 120).texture; // Updated font size to 120
+    const nameGeom = new THREE.PlaneGeometry(TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT); 
+    const placeholderNameTex = createTextTexture('NFT Name', TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
     const nameMat = new THREE.MeshBasicMaterial({ map: placeholderNameTex, transparent: true });
     const nameMesh = new THREE.Mesh(nameGeom, nameMat);
 
     // Position name centered below the NFT panel
-    const nameY = panelCenterY - (panelSize!.h / 2) - 0.6 / 2 - 0.1; // Adjusted position based on new height
+    const nameY = panelCenterY - (panelSize!.h / 2) - TITLE_NAME_HEIGHT / 2 - 0.1; 
     nameMesh.position.set(desc.offsetX, nameY, 0.02);
 
 
@@ -307,13 +312,13 @@ export class WallSegment {
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
           const titleText = collectionName;
           
-          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.6, 120).texture; // Updated font size to 120
+          const titleTex = createTextTexture(titleText, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
           // Update name (NFT Name/Metadata Title)
           const nftNameText = metadata.title;
-          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.6, 120).texture; // Updated font size to 120
+          const nameTex = createTextTexture(nftNameText, TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT, TITLE_NAME_FONT_SIZE).texture; 
           (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
 
