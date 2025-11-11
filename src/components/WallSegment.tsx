@@ -221,7 +221,7 @@ export class WallSegment {
 
     // Title Mesh (Collection Name)
     const titleGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.6); // Increased height
-    const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.6, 80).texture; // Increased font size
+    const placeholderTitleTex = createTextTexture('Loading...', panelSize!.w * 1.2, 0.6, 60).texture; // Updated font size to 60
     const titleMat = new THREE.MeshBasicMaterial({ map: placeholderTitleTex, transparent: true });
     const titleMesh = new THREE.Mesh(titleGeom, titleMat);
     
@@ -231,7 +231,7 @@ export class WallSegment {
 
     // Name Mesh (NFT Name/Metadata Title)
     const nameGeom = new THREE.PlaneGeometry(panelSize!.w * 1.2, 0.6); // Increased height
-    const placeholderNameTex = createTextTexture('NFT Name', panelSize!.w * 1.2, 0.6, 80).texture; // Increased font size
+    const placeholderNameTex = createTextTexture('NFT Name', panelSize!.w * 1.2, 0.6, 60).texture; // Updated font size to 60
     const nameMat = new THREE.MeshBasicMaterial({ map: placeholderNameTex, transparent: true });
     const nameMesh = new THREE.Mesh(nameGeom, nameMat);
 
@@ -307,13 +307,13 @@ export class WallSegment {
           const collectionName = GALLERY_PANEL_CONFIG[this.wallName]?.name || 'Unknown Collection';
           const titleText = collectionName;
           
-          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.6, 80).texture;
+          const titleTex = createTextTexture(titleText, panelSize!.w * 1.2, 0.6, 60).texture; // Updated font size to 60
           (titleMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
 
           // Update name (NFT Name/Metadata Title)
           const nftNameText = metadata.title;
-          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.6, 80).texture;
+          const nameTex = createTextTexture(nftNameText, panelSize!.w * 1.2, 0.6, 60).texture; // Updated font size to 60
           (nameMesh.material as THREE.MeshBasicMaterial).map?.dispose();
           (nameMesh.material as THREE.MeshBasicMaterial).map = nameTex;
 
