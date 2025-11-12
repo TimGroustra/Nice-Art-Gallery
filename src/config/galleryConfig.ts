@@ -31,29 +31,94 @@ const CONTRACT_ADDRESSES = [
 ];
 
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-const NUM_SEGMENTS = 7;
+const NUM_SEGMENTS_70 = 7; // Outer 70x70 walls
+
+// Inner room segment definitions
+const INNER_SEGMENTS_50 = [-20, -10, 10, 20]; // 4 segments, skipping 0
+const INNER_SEGMENTS_30 = [-10, 10]; // 2 segments, skipping 0
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {};
 
-// Generate 28 panel configurations, cycling through the 4 contract addresses
-for (let i = 0; i < NUM_SEGMENTS; i++) {
+let contractIndexCounter = 0;
+
+// 1. Outer 70x70 Walls (7 segments each, 28 total panels, all facing inward)
+for (let i = 0; i < NUM_SEGMENTS_70; i++) {
     for (let j = 0; j < WALL_NAMES.length; j++) {
         const wallNameBase = WALL_NAMES[j];
         const panelKey = `${wallNameBase}-${i}`;
-        // Cycle through the 4 contracts (0, 1, 2, 3, 0, 1, 2, 3, ...)
-        // Using (i + j) ensures adjacent panels on the same wall use different contracts if possible.
-        const contractIndex = (i + j) % CONTRACT_ADDRESSES.length; 
-        const contractAddress = CONTRACT_ADDRESSES[contractIndex];
+        
+        const contractAddress = CONTRACT_ADDRESSES[contractIndexCounter % CONTRACT_ADDRESSES.length];
+        contractIndexCounter++;
 
         galleryConfig[panelKey] = {
             name: 'Loading...',
             contractAddress: contractAddress,
-            tokenIds: [1], // Start with token 1 as placeholder
+            tokenIds: [1], 
             currentIndex: 0,
         };
     }
 }
+
+// 2. 50x50 Inner Walls (4 segments each, 8 panels per wall, 32 total panels, facing both ways)
+for (const segmentCenter of INNER_SEGMENTS_50) {
+    for (let j = 0; j < WALL_NAMES.length; j++) {
+        const wallNameBase = WALL_NAMES[j];
+        
+        // Outer side (facing 70x70 corridor)
+        const panelKeyOuter = `inner-50-${wallNameBase}-${segmentCenter}-outer`;
+        const contractAddressOuter = CONTRACT_ADDRESSES[contractIndexCounter % CONTRACT_ADDRESSES.length];
+        contractIndexCounter++;
+        galleryConfig[panelKeyOuter] = {
+            name: 'Loading...',
+            contractAddress: contractAddressOuter,
+            tokenIds: [1], 
+            currentIndex: 0,
+        };
+
+        // Inner side (facing 30x30 corridor)
+        const panelKeyInner = `inner-50-${wallNameBase}-${segmentCenter}-inner`;
+        const contractAddressInner = CONTRACT_ADDRESSES[contractIndexCounter % CONTRACT_ADDRESSES.length];
+        contractIndexCounter++;
+        galleryConfig[panelKeyInner] = {
+            name: 'Loading...',
+            contractAddress: contractAddressInner,
+            tokenIds: [1], 
+            currentIndex: 0,
+        };
+    }
+}
+
+// 3. 30x30 Inner Inner Walls (2 segments each, 4 panels per wall, 16 total panels, facing both ways)
+for (const segmentCenter of INNER_SEGMENTS_30) {
+    for (let j = 0; j < WALL_NAMES.length; j++) {
+        const wallNameBase = WALL_NAMES[j];
+        
+        // Outer side (facing 50x50 corridor)
+        const panelKeyOuter = `inner-30-${wallNameBase}-${segmentCenter}-outer`;
+        const contractAddressOuter = CONTRACT_ADDRESSES[contractIndexCounter % CONTRACT_ADDRESSES.length];
+        contractIndexCounter++;
+        galleryConfig[panelKeyOuter] = {
+            name: 'Loading...',
+            contractAddress: contractAddressOuter,
+            tokenIds: [1], 
+            currentIndex: 0,
+        };
+
+        // Inner side (facing 10x10 room)
+        const panelKeyInner = `inner-30-${wallNameBase}-${segmentCenter}-inner`;
+        const contractAddressInner = CONTRACT_ADDRESSES[contractIndexCounter % CONTRACT_ADDRESSES.length];
+        contractIndexCounter++;
+        galleryConfig[panelKeyInner] = {
+            name: 'Loading...',
+            contractAddress: contractAddressInner,
+            tokenIds: [1], 
+            currentIndex: 0,
+        };
+    }
+}
+
+// 4. 10x10 Innermost Walls (No panels)
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
@@ -86,12 +151,15 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
-      const segmentIndexMatch = wallName.match(/-(\d+)$/);
-      const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
       
-      // Start index is segment index modulo total tokens available
-      config.currentIndex = segmentIndex % tokens.length; 
+      // Determine segment index for initial token selection
+      // This logic is complex now, let's simplify initial index selection based on a hash or just sequential assignment
+      
+      // Simple sequential assignment based on the index of the wallName in the sorted keys
+      const sortedKeys = Object.keys(galleryConfig).sort();
+      const wallIndex = sortedKeys.indexOf(wallName);
+      
+      config.currentIndex = wallIndex % tokens.length; 
     }
     if (name) {
       config.name = name;
