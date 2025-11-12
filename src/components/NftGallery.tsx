@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
+import { getCachedNftMetadata } from '@/utils/metadataCache'; // <-- Updated import
+import { normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
@@ -41,7 +42,7 @@ let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
 
 // Helper function to create a text texture using Canvas
-const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
+const createTextTexture = (text: string, width: number, height: number, fontSize: number = 30, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
     const { scrollY = 0, wordWrap = false } = options;
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -193,7 +194,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
-      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
+      // Use the cached fetcher
+      const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
       const imageUrl = metadata.image;
