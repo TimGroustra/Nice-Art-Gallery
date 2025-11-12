@@ -379,10 +379,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    // Outer walls should only be visible from the inside (side: THREE.FrontSide is default, so we just remove DoubleSide)
-    const outerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8, metalness: 0.1 });
-    // Inner walls need to be visible from both sides of the corridor
-    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
     // 1. Create Modular Floor and Ceiling
     for (let i = 0; i < NUM_SEGMENTS; i++) {
@@ -428,24 +425,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
         // North Wall Segments (Z = -halfRoomSize)
-        const northWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
+        const northWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         northWall.position.set(segmentCenter, WALL_HEIGHT / 2, -halfRoomSize);
         scene.add(northWall);
 
         // South Wall Segments (Z = halfRoomSize)
-        const southWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
+        const southWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         southWall.rotation.y = Math.PI;
         southWall.position.set(segmentCenter, WALL_HEIGHT / 2, halfRoomSize);
         scene.add(southWall);
 
         // East Wall Segments (X = halfRoomSize)
-        const eastWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
+        const eastWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         eastWall.rotation.y = -Math.PI / 2;
         eastWall.position.set(halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastWall);
 
         // West Wall Segments (X = -halfRoomSize)
-        const westWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
+        const westWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         westWall.rotation.y = Math.PI / 2;
         westWall.position.set(-halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
         scene.add(westWall);
@@ -454,6 +451,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- START INNER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = 25;
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
     // Segment centers for a 50 unit span (5 segments): -20, -10, 0, 10, 20
@@ -520,26 +518,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(westInnerInnerWall);
     });
     // --- END INNER INNER ROOM SETUP ---
-
-    // --- START CENTRAL PILLAR SETUP (10x10) ---
-    const PILLAR_SIZE = 10;
-    const HALF_PILLAR_SIZE = PILLAR_SIZE / 2; // 5
-    const PILLAR_HEIGHT = WALL_HEIGHT;
-    const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8, metalness: 0.1 });
-    
-    // Use BoxGeometry for a solid, non-transparent pillar
-    const pillarGeometry = new THREE.BoxGeometry(PILLAR_SIZE, PILLAR_HEIGHT, PILLAR_SIZE);
-    const centralPillar = new THREE.Mesh(pillarGeometry, pillarMaterial.clone());
-    centralPillar.position.set(0, PILLAR_HEIGHT / 2, 0);
-    scene.add(centralPillar);
-
-    // Top surface (Ceiling of the pillar) - This is now redundant but kept for consistency with previous ceiling style
-    const pillarTopGeometry = new THREE.PlaneGeometry(PILLAR_SIZE, PILLAR_SIZE);
-    const pillarTop = new THREE.Mesh(pillarTopGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
-    pillarTop.rotation.x = Math.PI / 2;
-    pillarTop.position.y = PILLAR_HEIGHT;
-    scene.add(pillarTop);
-    // --- END CENTRAL PILLAR SETUP ---
 
 
     // 4. Lighting Setup
@@ -920,56 +898,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         camera.position.y = 1.6;
-        
-        // --- Boundary Checks ---
-        
-        // 1. Outer boundary check (70x70)
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
-
-        // 2. Inner pillar boundary check (10x10 centered at 0,0)
-        const PILLAR_HALF_SIZE = 5.0;
-        const PUSH_MARGIN = 0.1; 
-
-        const currentX = camera.position.x;
-        const currentZ = camera.position.z;
-
-        const isInsidePillarX = currentX > -PILLAR_HALF_SIZE && currentX < PILLAR_HALF_SIZE;
-        const isInsidePillarZ = currentZ > -PILLAR_HALF_SIZE && currentZ < PILLAR_HALF_SIZE;
-
-        if (isInsidePillarX && isInsidePillarZ) {
-            // We are inside the pillar area. Find the closest edge to push out to.
-            
-            // Distances to the four edges:
-            const distToXMin = Math.abs(currentX - (-PILLAR_HALF_SIZE));
-            const distToXMax = Math.abs(currentX - PILLAR_HALF_SIZE);
-            const distToZMin = Math.abs(currentZ - (-PILLAR_HALF_SIZE));
-            const distToZMax = Math.abs(currentZ - PILLAR_HALF_SIZE);
-            
-            const minXDist = Math.min(distToXMin, distToXMax);
-            const minZDist = Math.min(distToZMin, distToZMax);
-            
-            if (minXDist < minZDist) {
-                // Push out in X direction
-                if (distToXMin < distToXMax) {
-                    // Closer to negative X boundary
-                    camera.position.x = -PILLAR_HALF_SIZE - PUSH_MARGIN;
-                } else {
-                    // Closer to positive X boundary
-                    camera.position.x = PILLAR_HALF_SIZE + PUSH_MARGIN;
-                }
-            } else {
-                // Push out in Z direction
-                if (distToZMin < distToZMax) {
-                    // Closer to negative Z boundary
-                    camera.position.z = -PILLAR_HALF_SIZE - PUSH_MARGIN;
-                } else {
-                    // Closer to positive Z boundary
-                    camera.position.z = PILLAR_HALF_SIZE + PUSH_MARGIN;
-                }
-            }
-        }
-        // --- End Boundary Checks ---
         
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(interactiveMeshes);
