@@ -203,8 +203,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
   }, []);
 
-  // Removed loadTexture, replaced by loadTextureAsync
-
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     // Helper function to reset panel to placeholder state
     const resetPanel = () => {
@@ -212,7 +210,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             panel.mesh.material.map?.dispose();
             panel.mesh.material.dispose();
         }
-        panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        // Use a distinct color for failed loads
+        panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x880000, side: THREE.DoubleSide }); 
         panel.metadataUrl = '';
         panel.isVideo = false;
         if (panel.titleMesh) panel.titleMesh.visible = false;
@@ -240,7 +239,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.mesh.material.dispose();
       }
 
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
@@ -292,7 +291,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.error(`Error updating panel ${panel.wallName} for token ${source.tokenId}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
-      // Reset panel to gray placeholder state upon failure
+      // Reset panel to distinct failure color upon failure
       resetPanel();
     }
   }, [manageVideoPlayback]);
@@ -484,7 +483,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    // Use a distinct initial color (e.g., light gray) for the main panel before loading starts
+    const initialPanelMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide }); 
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
@@ -560,7 +560,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panelsRef.current = [];
 
     dynamicPanelConfigs.forEach(config => {
-      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+      const mesh = new THREE.Mesh(panelGeometry, initialPanelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
