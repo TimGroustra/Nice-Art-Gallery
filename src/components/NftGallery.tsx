@@ -720,7 +720,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    // Increased offset to ensure panels are clearly in front of the wall
+    const ARROW_DEPTH_OFFSET = 0.1, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.11; 
     const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
@@ -750,6 +751,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             let x = 0, z = 0;
             let rotation: [number, number, number] = [0, 0, 0];
             let depthSign = 0; // 1 for positive axis, -1 for negative axis
+            let wallAxis: 'x' | 'z' = 'z';
 
             if (i <= 4) {
                 // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
@@ -758,13 +760,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 
                 // Panels face inwards (towards the center)
                 if (wallNameBase === 'north-wall') { // Z = -25, facing +Z
-                    x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1;
+                    x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1; wallAxis = 'z';
                 } else if (wallNameBase === 'south-wall') { // Z = 25, facing -Z
-                    x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1;
+                    x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1; wallAxis = 'z';
                 } else if (wallNameBase === 'east-wall') { // X = 25, facing -X
-                    x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1;
+                    x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
                 } else if (wallNameBase === 'west-wall') { // X = -25, facing +X
-                    x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1;
+                    x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 }
             } else if (i >= 5 && i <= 6) {
                 // 30x30 Walls (Indices 5-6, 2 segments: -10, 10)
@@ -773,13 +775,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 
                 // Panels face outwards (towards the 50x50 room)
                 if (wallNameBase === 'north-wall') { // Z = -15, facing -Z
-                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1;
+                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1; wallAxis = 'z';
                 } else if (wallNameBase === 'south-wall') { // Z = 15, facing +Z
-                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1;
+                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1; wallAxis = 'z';
                 } else if (wallNameBase === 'east-wall') { // X = 15, facing +X
-                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1;
+                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 } else if (wallNameBase === 'west-wall') { // X = -15, facing -X
-                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1;
+                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
                 }
             } else {
                 continue;
@@ -789,7 +791,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             let finalX = x;
             let finalZ = z;
             
-            if (wallNameBase === 'east-wall' || wallNameBase === 'west-wall') {
+            if (wallAxis === 'x') {
                 // X wall, offset X
                 finalX += depthSign * ARROW_DEPTH_OFFSET;
             } else {
