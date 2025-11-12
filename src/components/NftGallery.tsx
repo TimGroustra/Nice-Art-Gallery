@@ -641,7 +641,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // South Inner Wall (Z = 25)
         // Outer side (facing +Z, corridor)
-        createCveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
         // Inner side (facing -Z, inner room)
         createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
         
