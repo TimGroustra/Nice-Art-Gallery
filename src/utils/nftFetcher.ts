@@ -42,14 +42,6 @@ export interface NftMetadata {
   attributes?: NftAttribute[];
 }
 
-// --- Caching Implementation ---
-const metadataCache = new Map<string, NftMetadata>();
-
-function getCacheKey(contractAddress: string, tokenId: number): string {
-  return `${contractAddress}:${tokenId}`;
-}
-// ------------------------------
-
 export async function fetchCollectionName(contractAddress: string): Promise<string> {
   if (!contractAddress) {
     throw new Error("Contract address must be provided.");
@@ -69,16 +61,6 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   if (!contractAddress || tokenId === undefined) {
     throw new Error("Contract address and token ID must be provided.");
   }
-
-  const cacheKey = getCacheKey(contractAddress, tokenId);
-  
-  // 1. Check cache
-  if (metadataCache.has(cacheKey)) {
-    console.log(`[NFT Fetcher] Cache hit for ${cacheKey}`);
-    return metadataCache.get(cacheKey)!;
-  }
-  
-  console.log(`[NFT Fetcher] Cache miss for ${cacheKey}. Fetching...`);
 
   const contract = new Contract(contractAddress, erc721Abi, provider);
   
@@ -112,18 +94,13 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
 
 
-  const result: NftMetadata = {
+  return {
     title: json.name || `Token #${tokenId}`,
     description: json.description || '(No description)',
     image: imageUrl || '',
     source: metadataUrl,
     attributes: json.attributes || [],
   };
-
-  // 2. Store result in cache
-  metadataCache.set(cacheKey, result);
-
-  return result;
 }
 
 export async function fetchTotalSupply(contractAddress: string): Promise<number> {
