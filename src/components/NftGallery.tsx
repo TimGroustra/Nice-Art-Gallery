@@ -518,11 +518,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 x = map.sign * halfRoomSize;
                 z = segmentCenter;
             }
+            
+            // FIX: Calculate offset to push the panel slightly into the room (opposite direction of wall sign)
+            const depthOffset = -map.sign * ARROW_DEPTH_OFFSET;
 
             dynamicPanelConfigs.push({
                 wallName: panelKey,
-                // Adjust position slightly off the wall based on rotation/axis
-                position: [x + (map.axis === 'x' ? map.sign * ARROW_DEPTH_OFFSET : 0), panelYPosition, z + (map.axis === 'z' ? map.sign * ARROW_DEPTH_OFFSET : 0)],
+                // Apply depth offset
+                position: [x + (map.axis === 'x' ? depthOffset : 0), panelYPosition, z + (map.axis === 'z' ? depthOffset : 0)],
                 rotation: rotation,
             });
         }
@@ -544,7 +547,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
       
-      const basePosition = new THREE.Vector3(...config.position);
+      const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
       // Fix 4: Use spread arguments correctly for set()
@@ -567,14 +570,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
-      const prevPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+      const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
       scene.add(prevArrow);
       
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       // Fix 6: Use spread arguments correctly for set()
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      const nextPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+      const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
@@ -590,7 +593,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
       // Fix 8: Use spread arguments correctly for set()
       wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      const wallTitlePosition = new THREE.Vector3(...config.position);
+      const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
       scene.add(wallTitleMesh);
