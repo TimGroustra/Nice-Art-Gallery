@@ -659,7 +659,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     // Increased offset to ensure panels are clearly in front of the wall
-    const ARROW_DEPTH_OFFSET = 0.1, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.11; 
+    const ARROW_DEPTH_OFFSET = 0.15, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.16; 
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
     // Helper to create a unique placeholder material/texture combo
