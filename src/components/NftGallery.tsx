@@ -471,14 +471,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- End 50x50 Outer Room Walls ---
 
 
+    // --- Disco Lights Setup (7 Rings of 3 lights each) ---
     const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
-    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
-      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
-      scene.add(pl);
-      lights.push(pl);
+    const NUM_RINGS = 7; // 1 original + 6 more rings
+    const LIGHTS_PER_RING = 3;
+    const BASE_RADIUS = 3;
+    const RADIUS_INCREMENT = 0.5;
+    const DISCO_LIGHT_HEIGHT = 2.5;
+    const LIGHT_COLORS = [0xff0066, 0x00ffd5, 0xffff00]; // Cycle through these colors
+
+    // Interface to store light configuration for animation
+    interface AnimatedLight extends THREE.PointLight {
+        ringIndex: number;
+        radius: number;
+        lightIndex: number;
     }
+
+    for (let r = 0; r < NUM_RINGS; r++) {
+      const radius = BASE_RADIUS + r * RADIUS_INCREMENT;
+      for (let i = 0; i < LIGHTS_PER_RING; i++) {
+        const color = LIGHT_COLORS[i % LIGHT_COLORS.length];
+        const pl = new THREE.PointLight(color, 0.8, 15, 2) as AnimatedLight;
+        
+        // Initial position calculation
+        const angle = i / LIGHTS_PER_RING * Math.PI * 2;
+        pl.position.set(Math.cos(angle) * radius, DISCO_LIGHT_HEIGHT, Math.sin(angle) * radius);
+        
+        pl.ringIndex = r;
+        pl.radius = radius;
+        pl.lightIndex = i;
+        
+        scene.add(pl);
+        lights.push(pl);
+      }
+    }
+    // --- End Disco Lights Setup ---
+
     scene.add(new THREE.AmbientLight(0x404050, 0.3));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, wallHeight, 0);
@@ -691,10 +719,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      lights.forEach((light, i) => {
-        const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
-        light.position.x = Math.cos(angle) * 3;
-        light.position.z = Math.sin(angle) * 3;
+      
+      // Update disco lights animation
+      lights.forEach((light) => {
+        const animatedLight = light as AnimatedLight;
+        
+        // Introduce slight speed variation per ring
+        const ringSpeedFactor = 1 + animatedLight.ringIndex * 0.05; 
+        
+        // Angle calculation: time rotation + static offset based on light index within the ring
+        const angle = time * 0.0005 * ringSpeedFactor + animatedLight.lightIndex * (Math.PI * 2 / LIGHTS_PER_RING);
+        
+        animatedLight.position.x = Math.cos(angle) * animatedLight.radius;
+        animatedLight.position.z = Math.sin(angle) * animatedLight.radius;
       });
 
       if (controls.isLocked) {
