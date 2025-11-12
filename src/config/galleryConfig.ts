@@ -23,78 +23,37 @@ const THIRD_COLLECTION_ADDRESS = "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31";
 // The fourth collection address
 const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
 
-const CONTRACT_ADDRESSES = [
-  PANTH_ART_ADDRESS,
-  SECOND_COLLECTION_ADDRESS,
-  THIRD_COLLECTION_ADDRESS,
-  FOURTH_COLLECTION_ADDRESS,
-];
-
-let contractIndex = 0;
-const getNextContractAddress = () => {
-  const address = CONTRACT_ADDRESSES[contractIndex % CONTRACT_ADDRESSES.length];
-  contractIndex++;
-  return address;
+// Initial configuration structure (will be populated dynamically)
+let galleryConfig: PanelConfig = {
+  'north-wall': {
+    name: 'Loading...',
+    contractAddress: PANTH_ART_ADDRESS,
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'south-wall': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'east-wall': {
+    name: 'Loading...',
+    contractAddress: THIRD_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'west-wall': {
+    name: 'Loading...',
+    contractAddress: FOURTH_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
 };
-
-// Function to generate panel configurations based on wall positions
-function generatePanelConfigs(): PanelConfig {
-  const config: PanelConfig = {};
-  
-  // 1. Inner Room (10x10) - Existing 4 panels
-  config['north-wall'] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-  config['south-wall'] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-  config['east-wall'] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-  config['west-wall'] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-
-  // 2. Outer Walls (30x30, 50x50, 70x70)
-  const wallLayers = [
-    // 30x30 walls (coord 15) - Panels centered at X/Z = +/- 10
-    { coord: 15, segments: [-10, 10] }, 
-    // 50x50 walls (coord 25) - Panels centered at X/Z = +/- 15
-    { coord: 25, segments: [-15, 15] }, 
-    // 70x70 walls (coord 35) - Panels centered every 10 units
-    { coord: 35, segments: [-30, -20, -10, 0, 10, 20, 30] }, 
-  ];
-
-  wallLayers.forEach(({ coord, segments }) => {
-    // North/South walls (Z = +/- coord, X varies)
-    segments.forEach(x => {
-      // North wall (Z = -coord)
-      const northKey = `wall-N-${coord}-X${x}`;
-      config[northKey] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-      
-      // South wall (Z = +coord)
-      const southKey = `wall-S-${coord}-X${x}`;
-      config[southKey] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-    });
-
-    // East/West walls (X = +/- coord, Z varies)
-    segments.forEach(z => {
-      // East wall (X = +coord)
-      const eastKey = `wall-E-${coord}-Z${z}`;
-      config[eastKey] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-      
-      // West wall (X = -coord)
-      const westKey = `wall-W-${coord}-Z${z}`;
-      config[westKey] = { name: 'Loading...', contractAddress: getNextContractAddress(), tokenIds: [1], currentIndex: 0 };
-    });
-  });
-  
-  return config;
-}
-
-// Initialize galleryConfig using the generator
-export const GALLERY_PANEL_CONFIG: PanelConfig = generatePanelConfigs();
-
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  // Reset contract index for consistent initialization logging/fetching
-  contractIndex = 0; 
-  
-  // Collect unique contract addresses from the generated config
-  const uniqueContracts = Array.from(new Set(Object.values(GALLERY_PANEL_CONFIG).map(c => c.contractAddress)));
+  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
 
   const tokenMap: { [address: string]: number[] } = {};
   const nameMap: { [address: string]: string } = {};
@@ -116,8 +75,8 @@ export async function initializeGalleryConfig() {
   }
 
   // Update all panels using the fetched token lists and names
-  for (const wallName in GALLERY_PANEL_CONFIG) {
-    const config = GALLERY_PANEL_CONFIG[wallName];
+  for (const wallName in galleryConfig) {
+    const config = galleryConfig[wallName];
     const tokens = tokenMap[config.contractAddress];
     const name = nameMap[config.contractAddress];
     
@@ -131,6 +90,10 @@ export async function initializeGalleryConfig() {
   }
   console.log(`Gallery configuration fully initialized.`);
 }
+
+// Export the configuration object reference
+export const GALLERY_PANEL_CONFIG = galleryConfig;
+
 
 // Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
