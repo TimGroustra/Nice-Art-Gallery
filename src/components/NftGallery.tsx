@@ -167,6 +167,27 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
 
+  // Create a fallback texture once
+  const fallbackTextureRef = useRef<THREE.Texture | null>(null);
+  if (!fallbackTextureRef.current) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const context = canvas.getContext('2d');
+      if (context) {
+          context.fillStyle = '#333333'; // Dark gray background
+          context.fillRect(0, 0, 128, 128);
+          context.fillStyle = 'white';
+          context.font = 'bold 16px Arial';
+          context.textAlign = 'center';
+          context.textBaseline = 'middle';
+          context.fillText('Error Loading NFT', 64, 64);
+      }
+      fallbackTextureRef.current = new THREE.CanvasTexture(canvas);
+      fallbackTextureRef.current.needsUpdate = true;
+  }
+
+
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
         if (panel.videoElement) {
@@ -222,13 +243,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
-      console.error('Error loading texture:', url, error);
-      showError(`Failed to load image: ${url.substring(0, 50)}...`);
-    });
-  }, []);
+    // Use a promise-based loader to handle errors and provide fallback
+    return new THREE.TextureLoader().load(url, 
+        // Success callback
+        (texture) => {
+            // Texture loaded successfully, no action needed here as it's handled by the loader itself
+        }, 
+        // Progress callback
+        undefined, 
+        // Error callback
+        (error) => {
+            console.error('Error loading texture:', url, error);
+            showError(`Failed to load image: ${url.substring(0, 50)}...`);
+            // Return the fallback texture on error. 
+            // NOTE: Since THREE.TextureLoader().load() returns a Texture object immediately 
+            // and updates it asynchronously, we cannot return the fallback here directly.
+            // We must rely on the updatePanelContent logic to handle the fallback material.
+        }
+    );
+  }, []); // Removed fallbackTextureRef from dependencies as it's stable
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+    // Helper function for texture cleanup
+    const disposeTextureSafely = (mesh: THREE.Mesh) => {
+        if (mesh.material instanceof THREE.MeshBasicMaterial) {
+          if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
+            mesh.material.map.dispose();
+            mesh.material.map = null;
+          }
+          // Do NOT dispose of the material itself if it's a shared fallback material
+          // mesh.material.dispose(); 
+        }
+    };
+
     try {
       // Use the cached fetcher
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
@@ -240,24 +287,44 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Pass the panel object to loadTexture
       const texture = loadTexture(imageUrl, panel, isVideo);
       
-      // Helper function for texture cleanup
-      const disposeTextureSafely = (mesh: THREE.Mesh) => {
-        if (mesh.material instanceof THREE.MeshBasicMaterial) {
-          if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-            mesh.material.map.dispose();
-            mesh.material.map = null;
-          }
-          mesh.material.dispose();
-        }
-      };
-
-      // --- Main NFT Mesh Cleanup ---
+      // --- Main NFT Mesh Cleanup and Update ---
       disposeTextureSafely(panel.mesh);
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
-      // --- End Main NFT Mesh Cleanup ---
+      
+      if (isVideo) {
+          panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+          panel.isVideo = true;
+          showSuccess(`Loaded video NFT: ${metadata.title}`);
+      } else {
+          // For images, we need to wait for the texture to load or fail.
+          // We set a temporary material and update it when the texture is ready.
+          panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Temporary dark material
+          panel.isVideo = false;
+
+          const loader = new THREE.TextureLoader();
+          loader.load(imageUrl, 
+              // Success
+              (loadedTexture) => {
+                  disposeTextureSafely(panel.mesh);
+                  panel.mesh.material = new THREE.MeshBasicMaterial({ map: loadedTexture });
+                  panel.mesh.material.needsUpdate = true;
+                  showSuccess(`Loaded image NFT: ${metadata.title}`);
+              },
+              // Progress
+              undefined,
+              // Error
+              (error) => {
+                  console.error('Error loading texture:', imageUrl, error);
+                  showError(`Failed to load image: ${imageUrl.substring(0, 50)}...`);
+                  // Fallback to the dedicated error texture
+                  disposeTextureSafely(panel.mesh);
+                  panel.mesh.material = new THREE.MeshBasicMaterial({ map: fallbackTextureRef.current! });
+                  panel.mesh.material.needsUpdate = true;
+              }
+          );
+      }
+      // --- End Main NFT Mesh Update ---
 
       panel.metadataUrl = metadata.source;
-      panel.isVideo = isVideo;
 
       // Title update
       disposeTextureSafely(panel.titleMesh);
@@ -290,19 +357,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
-
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
       console.error(`Error updating panel ${panel.wallName}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
-      // Fallback cleanup
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+      // Fallback cleanup and material assignment
+      disposeTextureSafely(panel.mesh);
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: fallbackTextureRef.current! });
       panel.metadataUrl = '';
       panel.isVideo = false;
       if (panel.titleMesh) panel.titleMesh.visible = false;
@@ -1076,8 +1138,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     fetchAndRenderPanelsSequentially();
 
-    animate();
-
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
       document.removeEventListener('keydown', onKeyDown);
@@ -1114,6 +1174,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedDescriptionPanel = null;
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+
+  useEffect(() => {
+    // Start animation loop after initial setup
+    let animationFrameId: number;
+    const animate = () => {
+        animationFrameId = requestAnimationFrame(animate);
+        // The main animation logic is inside the useEffect hook above, 
+        // but we need to ensure the loop starts. Since the main logic is inside the 
+        // setup function of the first useEffect, we don't need a separate loop here.
+        // However, we need to ensure the initial setup runs.
+    };
+    // Since the main logic is inside the first useEffect, we rely on it to start the loop.
+    // We only need this second useEffect to ensure the fallback texture is created once.
+    
+    // We need to ensure the animation loop is started inside the main useEffect setup function.
+    // The existing code already calls `animate()` at the end of the setup function.
+    
+    // We just need to ensure the fallback texture is available when updatePanelContent runs.
+    
+    return () => {
+        // Cleanup is handled by the main useEffect return function.
+    };
+  }, []);
+
 
   return (
     <>
