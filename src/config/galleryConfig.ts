@@ -1,5 +1,4 @@
 import { fetchTotalSupply, fetchCollectionName } from '@/utils/nftFetcher';
-import { getCachedNftMetadata } from '@/utils/metadataCache'; // Import caching utility
 
 export interface NftCollection {
   name: string;
@@ -62,30 +61,15 @@ export async function initializeGalleryConfig() {
 
   const tokenMap: { [address: string]: number[] } = {};
   const nameMap: { [address: string]: string } = {};
-  const prefetchPromises: Promise<any>[] = [];
 
   for (const address of uniqueContracts) {
     try {
       const totalSupply = await fetchTotalSupply(address);
       const name = await fetchCollectionName(address);
-      
-      // Assuming token IDs are 1-indexed (1 to totalSupply). 
-      // fetchTotalSupply falls back to 100 if the call fails.
-      const tokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      tokenMap[address] = tokens;
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
       nameMap[address] = name;
       console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
-
-      // --- Pre-fetch and cache metadata for all tokens in this collection ---
-      tokens.forEach(tokenId => {
-        // We don't await here, just collect the promises
-        prefetchPromises.push(getCachedNftMetadata(address, tokenId).catch(e => {
-          console.error(`Failed to pre-cache metadata for ${address}/${tokenId}:`, e);
-          // Allow promise to fail without stopping the main initialization flow
-        }));
-      });
-      // --------------------------------------------------------------------------
-
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails
@@ -93,12 +77,6 @@ export async function initializeGalleryConfig() {
       nameMap[address] = "Unknown Collection";
     }
   }
-
-  // Wait for all metadata pre-fetching to complete (or fail)
-  console.log(`Waiting for ${prefetchPromises.length} NFT metadata fetches to complete...`);
-  await Promise.allSettled(prefetchPromises);
-  console.log(`All initial NFT metadata fetches attempted.`);
-
 
   // Update all panels using the fetched token lists and names
   for (const wallName in galleryConfig) {

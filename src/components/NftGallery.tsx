@@ -2,8 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { getCachedNftMetadata } from '@/utils/metadataCache'; // <-- Updated import
-import { normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
+import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
@@ -42,7 +41,7 @@ let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
 
 // Helper function to create a text texture using Canvas
-const createTextTexture = (text: string, width: number, height: number, fontSize: number = 30, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
+const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
     const { scrollY = 0, wordWrap = false } = options;
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
@@ -151,38 +150,6 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
-// Helper function to load texture asynchronously using Promises
-const loadTextureAsync = (url: string, isVideo: boolean, videoElement: HTMLVideoElement | null, manageVideoPlayback: (shouldPlay: boolean) => void): Promise<THREE.Texture | THREE.VideoTexture> => {
-    return new Promise((resolve, reject) => {
-        if (isVideo) {
-            if (videoElement) {
-                videoElement.pause();
-                videoElement.src = url;
-                videoElement.load();
-                videoElement.loop = true;
-                videoElement.muted = true; 
-                if ((window as any).galleryControls?.isLocked?.()) {
-                     manageVideoPlayback(true);
-                }
-                // VideoTexture creation is synchronous, but playback relies on the video element
-                resolve(new THREE.VideoTexture(videoElement));
-            } else {
-                reject(new Error("Video element not available."));
-            }
-        } else {
-            const loader = new THREE.TextureLoader();
-            loader.load(
-                url,
-                (texture) => resolve(texture),
-                undefined,
-                (error) => {
-                    reject(new Error(`Failed to load image texture: ${url}. Error: ${error.message}`));
-                }
-            );
-        }
-    });
-};
-
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -203,26 +170,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
   }, []);
 
-  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
-    // Helper function to reset panel to placeholder state
-    const resetPanel = () => {
-        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-            panel.mesh.material.map?.dispose();
-            panel.mesh.material.dispose();
+  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
+    if (isVideo) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.src = url;
+        videoRef.current.load();
+        videoRef.current.loop = true;
+        videoRef.current.muted = true; 
+        if ((window as any).galleryControls?.isLocked?.()) {
+             manageVideoPlayback(true);
         }
-        // Use a distinct color for failed loads
-        panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x880000, side: THREE.DoubleSide }); 
-        panel.metadataUrl = '';
-        panel.isVideo = false;
-        if (panel.titleMesh) panel.titleMesh.visible = false;
-        if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-        if (panel.attributesMesh) panel.attributesMesh.visible = false;
-        if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
-    };
+        return new THREE.VideoTexture(videoRef.current);
+      }
+      return new THREE.TextureLoader().load(url);
+    }
+    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
+      console.error('Error loading texture:', url, error);
+      showError(`Failed to load image: ${url.substring(0, 50)}...`);
+    });
+  }, [manageVideoPlayback]);
 
+  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
-      // 1. Fetch Metadata (Cached)
-      const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+      const metadata: NftMetadata = await fetchNftMetadata(source.contractAddress, source.tokenId);
       const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
       const imageUrl = metadata.image;
@@ -230,30 +201,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       if (isVideo && videoRef.current) manageVideoPlayback(false);
 
-      // 2. Load Texture (Async/Awaited)
-      const texture = await loadTextureAsync(imageUrl, isVideo, videoRef.current, manageVideoPlayback);
+      const texture = loadTexture(imageUrl, isVideo);
       
-      // 3. Apply Texture
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
       }
 
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
-      // 4. Update Text Panels
-      
-      // Title
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false });
+      // Increased font size from 100 to 120
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
-      // Description
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
@@ -267,7 +233,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
 
-      // Attributes
+      // Update attributes
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
       }
@@ -277,24 +243,34 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      // Wall Title
+      // Update wall title
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
+      // Increased font size from 100 to 120
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
       showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
-      console.error(`Error updating panel ${panel.wallName} for token ${source.tokenId}:`, error);
+      console.error(`Error updating panel ${panel.wallName}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
-      // Reset panel to distinct failure color upon failure
-      resetPanel();
+      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+        panel.mesh.material.map?.dispose();
+        panel.mesh.material.dispose();
+      }
+      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+      panel.metadataUrl = '';
+      panel.isVideo = false;
+      if (panel.titleMesh) panel.titleMesh.visible = false;
+      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
+      if (panel.attributesMesh) panel.attributesMesh.visible = false;
+      if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
     }
-  }, [manageVideoPlayback]);
+  }, [loadTexture, manageVideoPlayback]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -483,8 +459,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    // Use a distinct initial color (e.g., light gray) for the main panel before loading starts
-    const initialPanelMaterial = new THREE.MeshBasicMaterial({ color: 0xaaaaaa, side: THREE.DoubleSide }); 
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
@@ -544,13 +519,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 z = segmentCenter;
             }
 
-            // Calculate offset to push the panel slightly into the room (opposite direction of wall sign)
-            const depthOffset = -map.sign * ARROW_DEPTH_OFFSET;
-
             dynamicPanelConfigs.push({
                 wallName: panelKey,
-                // Apply depth offset
-                position: [x + (map.axis === 'x' ? depthOffset : 0), panelYPosition, z + (map.axis === 'z' ? depthOffset : 0)],
+                // Adjust position slightly off the wall based on rotation/axis
+                position: [x + (map.axis === 'x' ? map.sign * ARROW_DEPTH_OFFSET : 0), panelYPosition, z + (map.axis === 'z' ? map.sign * ARROW_DEPTH_OFFSET : 0)],
                 rotation: rotation,
             });
         }
@@ -560,20 +532,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panelsRef.current = [];
 
     dynamicPanelConfigs.forEach(config => {
-      const mesh = new THREE.Mesh(panelGeometry, initialPanelMaterial.clone());
+      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+      // Fix 1 & 2: Use spread arguments correctly for set()
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
       
+      // Fix 3: Use spread arguments correctly for THREE.Euler constructor
       const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
       
-      // FIX: Initialize basePosition using indexed access
-      const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
+      const basePosition = new THREE.Vector3(...config.position);
       
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
+      // Fix 4: Use spread arguments correctly for set()
       titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
       const titlePosition = basePosition.clone()
@@ -585,6 +559,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Description Panel (Left side relative to the NFT panel)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
+      // Fix 5: Use spread arguments correctly for set()
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
@@ -592,30 +567,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
-      // FIX: Initialize prevPosition using indexed access
-      const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+      const prevPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
       scene.add(prevArrow);
       
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      // Fix 6: Use spread arguments correctly for set()
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // FIX: Initialize nextPosition using indexed access
-      const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+      const nextPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
       // Attributes Panel (Right side relative to the NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
+      // Fix 7: Use spread arguments correctly for set()
       attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
+      // Fix 8: Use spread arguments correctly for set()
       wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // FIX: Initialize wallTitlePosition using indexed access
-      const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
+      const wallTitlePosition = new THREE.Vector3(...config.position);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
       scene.add(wallTitleMesh);
@@ -626,7 +601,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
       panelsRef.current.push(panel);
       
-      // Initial load is handled after initialization completes below
+      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
+      if (source) updatePanelContent(panel, source);
     });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
