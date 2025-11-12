@@ -12,7 +12,7 @@ export interface PanelConfig {
 }
 
 // The primary collection address used for all panels
-const PRIMARY_COLLECTION_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
+const PRIMARY_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
 // --- Wall Configuration Template ---
 // This function creates a default configuration for a new wall panel.
