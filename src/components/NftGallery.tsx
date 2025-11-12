@@ -4,6 +4,7 @@ import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftAttribute, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
+import { createTextTexture, createAttributesTextTexture } from '@/utils/threeUtils';
 
 // Constants for geometry
 const TEXT_PANEL_WIDTH = 2.5;
@@ -39,117 +40,6 @@ interface NftGalleryProps {
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
-
-// Helper function to create a text texture using Canvas
-const createTextTexture = (text: string, width: number, height: number, fontSize: number, color: string = 'white', options: { scrollY?: number, wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture, totalHeight: number } => {
-    const { scrollY = 0, wordWrap = false } = options;
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')), totalHeight: 0 };
-
-    const resolution = 512;
-    canvas.width = resolution * (width / height);
-    canvas.height = resolution;
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
-    const actualFontSize = fontSize;
-    context.font = `bold ${actualFontSize}px Arial`;
-    context.fillStyle = color;
-    
-    const padding = 40;
-    const lineHeight = actualFontSize * 1.2;
-    let totalHeight = 0;
-
-    if (wordWrap) {
-        context.textAlign = 'left';
-        context.textBaseline = 'top';
-        let y = padding;
-        const words = text.split(' ');
-        let line = '';
-        const maxTextWidth = canvas.width - 2 * padding;
-
-        for (let n = 0; n < words.length; n++) {
-            const testLine = line + words[n] + ' ';
-            const metrics = context.measureText(testLine);
-            const testWidth = metrics.width;
-
-            if (testWidth > maxTextWidth && n > 0) {
-                context.fillText(line, padding, y - scrollY);
-                line = words[n] + ' ';
-                y += lineHeight;
-            } else {
-                line = testLine;
-            }
-        }
-        context.fillText(line, padding, y - scrollY);
-        totalHeight = y + lineHeight - padding;
-    } else {
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(text, canvas.width / 2, canvas.height / 2);
-        totalHeight = lineHeight;
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return { texture, totalHeight };
-};
-
-const createAttributesTextTexture = (attributes: NftAttribute[], width: number, height: number, fontSize: number, color: string = 'white'): { texture: THREE.CanvasTexture } => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')) };
-
-    const resolution = 512;
-    canvas.width = resolution * (width / height);
-    canvas.height = resolution;
-
-    context.clearRect(0, 0, canvas.width, canvas.height);
-
-    context.font = `bold ${fontSize}px Arial`;
-    context.fillStyle = color;
-    context.textAlign = 'left';
-    context.textBaseline = 'top';
-
-    const padding = 40;
-    const lineHeight = fontSize * 1.2;
-    let y = padding;
-    const maxTextWidth = canvas.width - 2 * padding;
-
-    if (!attributes || attributes.length === 0) {
-        context.fillText('No attributes found.', padding, y);
-    } else {
-        attributes.forEach(attr => {
-            if (attr.trait_type && attr.value) {
-                const line = `${attr.trait_type}: ${attr.value}`;
-                
-                // Word wrapping logic
-                const words = line.split(' ');
-                let currentLine = '';
-                for (let n = 0; n < words.length; n++) {
-                    const testLine = currentLine + words[n] + ' ';
-                    const metrics = context.measureText(testLine);
-                    const testWidth = metrics.width;
-                    if (testWidth > maxTextWidth && n > 0) {
-                        context.fillText(currentLine, padding, y);
-                        currentLine = words[n] + ' ';
-                        y += lineHeight;
-                    } else {
-                        currentLine = testLine;
-                    }
-                }
-                context.fillText(currentLine, padding, y);
-                y += lineHeight;
-            }
-        });
-    }
-
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.needsUpdate = true;
-    return { texture };
-};
-
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -280,8 +170,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    
+    // Layer 1 for Disco Lights
+    const DISCO_LIGHT_LAYER = 1; 
+
     // Start camera outside the 50x50 room, looking towards the center
     camera.position.set(0, 1.6, -26); 
+    camera.layers.enable(DISCO_LIGHT_LAYER); // Camera sees both layers 0 and 1
+    
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -492,6 +388,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       for (let i = 0; i < LIGHTS_PER_RING; i++) {
         const color = LIGHT_COLORS[i % LIGHT_COLORS.length];
         const pl = new THREE.PointLight(color, 0.8, 15, 2) as AnimatedLight;
+        
+        pl.layers.set(DISCO_LIGHT_LAYER); // Assign disco lights to Layer 1
         
         // Initial position calculation
         const angle = i / LIGHTS_PER_RING * Math.PI * 2;
@@ -716,6 +614,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('wheel', onDocumentWheel);
 
     let prevTime = performance.now();
+    
+    // Interface to store light configuration for animation
+    interface AnimatedLight extends THREE.PointLight {
+        ringIndex: number;
+        radius: number;
+        lightIndex: number;
+    }
+
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
@@ -728,7 +634,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const ringSpeedFactor = 1 + animatedLight.ringIndex * 0.05; 
         
         // Angle calculation: time rotation + static offset based on light index within the ring
-        // Reduced rotation speed from 0.0005 to 0.00005
         const angle = time * 0.00005 * ringSpeedFactor + animatedLight.lightIndex * (Math.PI * 2 / LIGHTS_PER_RING);
         
         animatedLight.position.x = Math.cos(angle) * animatedLight.radius;
