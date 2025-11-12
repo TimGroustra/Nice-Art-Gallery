@@ -280,8 +280,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Start camera outside the 30x30 room, looking towards the 10x10 room
-    camera.position.set(0, 1.6, -16); 
+    // Start camera outside the 50x50 room, looking towards the center
+    camera.position.set(0, 1.6, -26); 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -311,7 +311,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const roomSize = 10, wallHeight = 4;
     const totalAreaSize = 70;
-    const boundary = totalAreaSize / 2; // New boundary is 35 units
+    const boundary = totalAreaSize / 2; // 35 units
     const panelYPosition = 1.8; // Defined panelYPosition here
     
     // Create the outer floor for padding (now the main floor)
@@ -370,11 +370,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
 
-    // --- New 30x30 Outer Room Walls ---
+    const outerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    
+    // --- 30x30 Outer Room Walls ---
     const outerRoomSize = 30;
     const outerWallPosition = outerRoomSize / 2; // 15
     const outerWallSegmentLength = 10;
-    const outerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const outerWallGeometry = new THREE.PlaneGeometry(outerWallSegmentLength, wallHeight);
     
     // North Outer Wall (Z = -15)
@@ -418,7 +419,56 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westOuterWall2.rotation.y = Math.PI / 2;
     westOuterWall2.position.set(-outerWallPosition, wallHeight / 2, outerWallSegmentLength / 2 + 5); // Z = 10
     scene.add(westOuterWall2);
-    // --- End New 30x30 Outer Room Walls ---
+    // --- End 30x30 Outer Room Walls ---
+    
+    // --- 50x50 Outer Room Walls ---
+    const outerRoomSize2 = 50;
+    const outerWallPosition2 = outerRoomSize2 / 2; // 25
+    const outerWallSegmentLength2 = 20; // (50 - 10 gap) / 2 = 20
+    const outerWallGeometry2 = new THREE.PlaneGeometry(outerWallSegmentLength2, wallHeight);
+
+    // North Outer Wall (Z = -25)
+    const northOuterWall3 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    northOuterWall3.position.set(-15, wallHeight / 2, -outerWallPosition2); 
+    scene.add(northOuterWall3);
+    
+    const northOuterWall4 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    northOuterWall4.position.set(15, wallHeight / 2, -outerWallPosition2); 
+    scene.add(northOuterWall4);
+
+    // South Outer Wall (Z = 25)
+    const southOuterWall3 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    southOuterWall3.rotation.y = Math.PI;
+    southOuterWall3.position.set(-15, wallHeight / 2, outerWallPosition2); 
+    scene.add(southOuterWall3);
+    
+    const southOuterWall4 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    southOuterWall4.rotation.y = Math.PI;
+    southOuterWall4.position.set(15, wallHeight / 2, outerWallPosition2); 
+    scene.add(southOuterWall4);
+
+    // East Outer Wall (X = 25)
+    const eastOuterWall3 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    eastOuterWall3.rotation.y = -Math.PI / 2;
+    eastOuterWall3.position.set(outerWallPosition2, wallHeight / 2, -15); 
+    scene.add(eastOuterWall3);
+    
+    const eastOuterWall4 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    eastOuterWall4.rotation.y = -Math.PI / 2;
+    eastOuterWall4.position.set(outerWallPosition2, wallHeight / 2, 15); 
+    scene.add(eastOuterWall4);
+
+    // West Outer Wall (X = -25)
+    const westOuterWall3 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    westOuterWall3.rotation.y = Math.PI / 2;
+    westOuterWall3.position.set(-outerWallPosition2, wallHeight / 2, -15); 
+    scene.add(westOuterWall3);
+    
+    const westOuterWall4 = new THREE.Mesh(outerWallGeometry2, outerWallMaterial);
+    westOuterWall4.rotation.y = Math.PI / 2;
+    westOuterWall4.position.set(-outerWallPosition2, wallHeight / 2, 15); 
+    scene.add(westOuterWall4);
+    // --- End 50x50 Outer Room Walls ---
 
 
     const lights: THREE.PointLight[] = [];
