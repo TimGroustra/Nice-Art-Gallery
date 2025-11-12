@@ -151,6 +151,38 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
+// Helper function to load texture asynchronously using Promises
+const loadTextureAsync = (url: string, isVideo: boolean, videoElement: HTMLVideoElement | null, manageVideoPlayback: (shouldPlay: boolean) => void): Promise<THREE.Texture | THREE.VideoTexture> => {
+    return new Promise((resolve, reject) => {
+        if (isVideo) {
+            if (videoElement) {
+                videoElement.pause();
+                videoElement.src = url;
+                videoElement.load();
+                videoElement.loop = true;
+                videoElement.muted = true; 
+                if ((window as any).galleryControls?.isLocked?.()) {
+                     manageVideoPlayback(true);
+                }
+                // VideoTexture creation is synchronous, but playback relies on the video element
+                resolve(new THREE.VideoTexture(videoElement));
+            } else {
+                reject(new Error("Video element not available."));
+            }
+        } else {
+            const loader = new THREE.TextureLoader();
+            loader.load(
+                url,
+                (texture) => resolve(texture),
+                undefined,
+                (error) => {
+                    reject(new Error(`Failed to load image texture: ${url}. Error: ${error.message}`));
+                }
+            );
+        }
+    });
+};
+
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -171,30 +203,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
   }, []);
 
-  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
-    if (isVideo) {
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.src = url;
-        videoRef.current.load();
-        videoRef.current.loop = true;
-        videoRef.current.muted = true; 
-        if ((window as any).galleryControls?.isLocked?.()) {
-             manageVideoPlayback(true);
-        }
-        return new THREE.VideoTexture(videoRef.current);
-      }
-      return new THREE.TextureLoader().load(url);
-    }
-    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
-      console.error('Error loading texture:', url, error);
-      showError(`Failed to load image: ${url.substring(0, 50)}...`);
-    });
-  }, [manageVideoPlayback]);
+  // Removed loadTexture, replaced by loadTextureAsync
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+    // Helper function to reset panel to placeholder state
+    const resetPanel = () => {
+        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+            panel.mesh.material.map?.dispose();
+            panel.mesh.material.dispose();
+        }
+        panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        panel.metadataUrl = '';
+        panel.isVideo = false;
+        if (panel.titleMesh) panel.titleMesh.visible = false;
+        if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
+        if (panel.attributesMesh) panel.attributesMesh.visible = false;
+        if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
+    };
+
     try {
-      // Use the cached fetcher
+      // 1. Fetch Metadata (Cached)
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
@@ -203,8 +231,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       if (isVideo && videoRef.current) manageVideoPlayback(false);
 
-      const texture = loadTexture(imageUrl, isVideo);
+      // 2. Load Texture (Async/Awaited)
+      const texture = await loadTextureAsync(imageUrl, isVideo, videoRef.current, manageVideoPlayback);
       
+      // 3. Apply Texture
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
@@ -214,14 +244,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
+      // 4. Update Text Panels
+      
+      // Title
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      // Increased font size from 100 to 120
-      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
+      // Description
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
@@ -235,7 +268,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
 
-      // Update attributes
+      // Attributes
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
       }
@@ -245,34 +278,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      // Update wall title
+      // Wall Title
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
-      // Increased font size from 100 to 120
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
       showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
-      console.error(`Error updating panel ${panel.wallName}:`, error);
+      console.error(`Error updating panel ${panel.wallName} for token ${source.tokenId}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
-      panel.metadataUrl = '';
-      panel.isVideo = false;
-      if (panel.titleMesh) panel.titleMesh.visible = false;
-      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-      if (panel.attributesMesh) panel.attributesMesh.visible = false;
-      if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
+      // Reset panel to gray placeholder state upon failure
+      resetPanel();
     }
-  }, [loadTexture, manageVideoPlayback]);
+  }, [manageVideoPlayback]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -603,8 +626,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
       panelsRef.current.push(panel);
       
-      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
-      if (source) updatePanelContent(panel, source);
+      // Initial load is handled after initialization completes below
     });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
