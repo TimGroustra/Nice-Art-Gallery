@@ -463,20 +463,60 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+    
+    // Helper function to determine panel placement based on wall name
+    const getPanelPlacement = (wallName: keyof PanelConfig) => {
+        if (wallName === 'north-wall') return { position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] };
+        if (wallName === 'south-wall') return { position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] };
+        if (wallName === 'east-wall') return { position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] };
+        if (wallName === 'west-wall') return { position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] };
 
-    // Panel configurations adjusted to face outwards (relative to the 10x10 room center)
-    const panelConfigs = [
-      // North Wall (Z = -5). Panel faces +Z (outwards). Position Z = -5 + offset. Rotation 0.
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      // South Wall (Z = 5). Panel faces -Z (outwards). Position Z = 5 - offset. Rotation PI.
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      // East Wall (X = 5). Panel faces -X (outwards). Position X = 5 - offset. Rotation -PI/2.
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      // West Wall (X = -5). Panel faces +X (outwards). Position X = -5 + offset. Rotation PI/2.
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
-    ];
+        // Handle outer walls: wall-[Direction]-[Coord]-X/Z[Position]
+        const parts = wallName.split('-');
+        if (parts.length !== 5 || parts[0] !== 'wall') {
+            // This should not happen if galleryConfig is generated correctly
+            return null;
+        }
+        
+        const direction = parts[1]; // N, S, E, W
+        const coord = parseFloat(parts[2]); // 15, 25, 35
+        const axis = parts[3]; // X or Z
+        const positionValue = parseFloat(parts[4].substring(axis.length)); 
 
-    panelConfigs.forEach(config => {
+        let x = 0, z = 0, rotationY = 0;
+
+        if (direction === 'N') {
+            z = -coord + ARROW_DEPTH_OFFSET;
+            x = positionValue;
+            rotationY = 0; // Facing +Z
+        } else if (direction === 'S') {
+            z = coord - ARROW_DEPTH_OFFSET;
+            x = positionValue;
+            rotationY = Math.PI; // Facing -Z
+        } else if (direction === 'E') {
+            x = coord - ARROW_DEPTH_OFFSET;
+            z = positionValue;
+            rotationY = -Math.PI / 2; // Facing -X
+        } else if (direction === 'W') {
+            x = -coord + ARROW_DEPTH_OFFSET;
+            z = positionValue;
+            rotationY = Math.PI / 2; // Facing +X
+        } else {
+            return null;
+        }
+
+        return { position: [x, panelYPosition, z], rotation: [0, rotationY, 0] };
+    };
+
+
+    // --- Initialize Panels ---
+    panelsRef.current = []; 
+    const interactiveMeshes: THREE.Mesh[] = [];
+
+    Object.keys(GALLERY_PANEL_CONFIG).forEach(wallName => {
+      const config = getPanelPlacement(wallName as keyof PanelConfig);
+      if (!config) return;
+
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
@@ -538,40 +578,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(wallTitleMesh);
 
       const panel: Panel = {
-        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
+        mesh, wallName: wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
         attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
       };
       panelsRef.current.push(panel);
       
-      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
-      if (source) updatePanelContent(panel, source);
+      interactiveMeshes.push(mesh, prevArrow, nextArrow, descriptionMesh);
     });
+    // --- End Initialize Panels ---
 
-    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-    const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW': moveForward = true; break;
-        case 'KeyA': moveLeft = true; break;
-        case 'KeyS': moveBackward = true; break;
-        case 'KeyD': moveRight = true; break;
-      }
-    };
-    const onKeyUp = (e: KeyboardEvent) => {
-      switch (e.code) {
-        case 'KeyW': moveForward = false; break;
-        case 'KeyA': moveLeft = false; break;
-        case 'KeyS': moveBackward = false; break;
-        case 'KeyD': moveRight = false; break;
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
-
-    const raycaster = new THREE.Raycaster();
-    const center = new THREE.Vector2(0, 0);
-    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]);
 
     const onDocumentMouseDown = () => {
       if (!controls.isLocked) return;
@@ -615,6 +630,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     };
     document.addEventListener('wheel', onDocumentWheel);
+
+    let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
+    const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'KeyW': moveForward = true; break;
+        case 'KeyA': moveLeft = true; break;
+        case 'KeyS': moveBackward = true; break;
+        case 'KeyD': moveRight = true; break;
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'KeyW': moveForward = false; break;
+        case 'KeyA': moveLeft = false; break;
+        case 'KeyS': moveBackward = false; break;
+        case 'KeyD': moveRight = false; break;
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+    const raycaster = new THREE.Raycaster();
+    const center = new THREE.Vector2(0, 0);
 
     let prevTime = performance.now();
     
