@@ -719,19 +719,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 // Panels must face OUTWARD (towards the 50x50 room)
                 if (wallNameBase === 'north-wall') { // Z = -15, faces -Z
                     x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-                    // Flipped rotation relative to 50x50 North wall, so flip offset sign
-                    textOffsetSign = -1; 
+                    // FIX: Set textOffsetSign to 1 to correct mirroring caused by 180 degree rotation relative to viewer
+                    textOffsetSign = 1; 
                 } else if (wallNameBase === 'south-wall') { // Z = 15, faces +Z
                     x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-                    // Same rotation as 50x50 South wall, so keep offset sign
                     textOffsetSign = 1;
                 } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
                     x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-                    // East/West walls use the same rotation regardless of 50x50 or 30x30, so textOffsetSign should be 1
                     textOffsetSign = 1;
                 } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
                     x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-                    // East/West walls use the same rotation regardless of 50x50 or 30x30, so textOffsetSign should be 1
                     textOffsetSign = 1;
                 }
             } else {
@@ -762,8 +759,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Clear existing panels before populating
     panelsRef.current = [];
 
-    // NOTE: TEXT_PANEL_OFFSET_X is declared below, removing duplicate declaration here.
-    // const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
 
     dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
