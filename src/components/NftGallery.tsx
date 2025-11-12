@@ -182,37 +182,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
-  const loadTexture = useCallback((url: string, panel: Panel, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
+  // Refactored loadTexture to return a Promise
+  const loadTexture = useCallback((url: string, panel: Panel, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
     if (isVideo) {
-      let videoEl = panel.videoElement;
-      if (!videoEl) {
-          // Create a new video element if it doesn't exist for this panel
-          videoEl = document.createElement('video');
-          videoEl.playsInline = true;
-          videoEl.autoplay = true;
-          videoEl.loop = true;
-          videoEl.muted = true;
-          videoEl.style.display = 'none'; // Keep it hidden
-          panel.videoElement = videoEl;
-      }
+      return new Promise(resolve => {
+        let videoEl = panel.videoElement;
+        if (!videoEl) {
+            // Create a new video element if it doesn't exist for this panel
+            videoEl = document.createElement('video');
+            videoEl.playsInline = true;
+            videoEl.autoplay = true;
+            videoEl.loop = true;
+            videoEl.muted = true;
+            videoEl.style.display = 'none'; // Keep it hidden
+            panel.videoElement = videoEl;
+        }
 
-      // Stop previous playback and set new source
-      videoEl.pause();
-      videoEl.src = url;
-      videoEl.load();
-      
-      // Start playback if controls are locked
-      if ((window as any).galleryControls?.isLocked?.()) {
-           videoEl.play().catch(e => console.warn("Video playback prevented:", e));
-      }
-      
-      const videoTexture = new THREE.VideoTexture(videoEl);
-      // Set filters for better video quality
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.needsUpdate = true;
-      
-      return videoTexture;
+        // Stop previous playback and set new source
+        videoEl.pause();
+        videoEl.src = url;
+        videoEl.load();
+        
+        // Start playback if controls are locked
+        if ((window as any).galleryControls?.isLocked?.()) {
+             videoEl.play().catch(e => console.warn("Video playback prevented:", e));
+        }
+        
+        const videoTexture = new THREE.VideoTexture(videoEl);
+        // Set filters for better video quality
+        videoTexture.minFilter = THREE.LinearFilter;
+        videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.needsUpdate = true;
+        
+        // Video textures are ready immediately
+        resolve(videoTexture);
+      });
     }
     
     // If it's not a video, ensure we clean up any existing video element for this panel
@@ -222,9 +226,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
-      console.error('Error loading texture:', url, error);
-      showError(`Failed to load image: ${url.substring(0, 50)}...`);
+    // Use TextureLoader wrapped in a Promise for asynchronous image loading
+    return new Promise((resolve, reject) => {
+        new THREE.TextureLoader().load(url, 
+            (texture) => {
+                resolve(texture);
+            }, 
+            undefined, 
+            (error) => {
+                console.error('Error loading texture:', url, error);
+                showError(`Failed to load image: ${url.substring(0, 50)}...`);
+                reject(error);
+            }
+        );
     });
   }, []);
 
@@ -237,8 +251,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
-      // Pass the panel object to loadTexture
-      const texture = loadTexture(imageUrl, panel, isVideo);
+      // AWAIT the texture loading to ensure the image data is ready
+      const texture = await loadTexture(imageUrl, panel, isVideo);
       
       // Helper function for texture cleanup
       const disposeTextureSafely = (mesh: THREE.Mesh) => {
