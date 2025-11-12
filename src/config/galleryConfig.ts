@@ -30,30 +30,21 @@ const CONTRACT_ADDRESSES = [
   FOURTH_COLLECTION_ADDRESS,
 ];
 
-const OUTER_WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-const OUTER_NUM_SEGMENTS = 7; // 70x70 walls
-
-// Inner wall definitions based on NftGallery structure
-const INNER_WALL_CONFIGS = [
-    { prefix: 'inner-50', walls: OUTER_WALL_NAMES, indices: [0, 1, 3, 4] }, // 5 segments total, skipping index 2 (center walkway)
-    { prefix: 'inner-30', walls: OUTER_WALL_NAMES, indices: [0, 2] }, // 3 segments total, skipping index 1 (center walkway)
-    { prefix: 'inner-10', walls: OUTER_WALL_NAMES, indices: [0] }, // 1 segment total
-];
+const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+const NUM_SEGMENTS = 7;
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {};
 
-let contractCounter = 0;
-
-// 1. Generate Outer Wall Configurations (70x70)
-for (let i = 0; i < OUTER_NUM_SEGMENTS; i++) {
-    for (let j = 0; j < OUTER_WALL_NAMES.length; j++) {
-        const wallNameBase = OUTER_WALL_NAMES[j];
+// Generate 28 panel configurations, cycling through the 4 contract addresses
+for (let i = 0; i < NUM_SEGMENTS; i++) {
+    for (let j = 0; j < WALL_NAMES.length; j++) {
+        const wallNameBase = WALL_NAMES[j];
         const panelKey = `${wallNameBase}-${i}`;
-        
-        const contractIndex = contractCounter % CONTRACT_ADDRESSES.length; 
+        // Cycle through the 4 contracts (0, 1, 2, 3, 0, 1, 2, 3, ...)
+        // Using (i + j) ensures adjacent panels on the same wall use different contracts if possible.
+        const contractIndex = (i + j) % CONTRACT_ADDRESSES.length; 
         const contractAddress = CONTRACT_ADDRESSES[contractIndex];
-        contractCounter++;
 
         galleryConfig[panelKey] = {
             name: 'Loading...',
@@ -63,42 +54,6 @@ for (let i = 0; i < OUTER_NUM_SEGMENTS; i++) {
         };
     }
 }
-
-// 2. Generate Inner Wall Configurations (50x50, 30x30, 10x10)
-for (const config of INNER_WALL_CONFIGS) {
-    for (const wallNameBase of config.walls) {
-        for (const i of config.indices) {
-            // We need two panels per segment: one facing outward (corridor) and one facing inward (inner room)
-            
-            // Outer facing panel (e.g., inner-50-north-0-outer)
-            const outerPanelKey = `${config.prefix}-${wallNameBase}-${i}-outer`;
-            const contractIndexOuter = contractCounter % CONTRACT_ADDRESSES.length; 
-            const contractAddressOuter = CONTRACT_ADDRESSES[contractIndexOuter];
-            contractCounter++;
-
-            galleryConfig[outerPanelKey] = {
-                name: 'Loading...',
-                contractAddress: contractAddressOuter,
-                tokenIds: [1],
-                currentIndex: 0,
-            };
-
-            // Inner facing panel (e.g., inner-50-north-0-inner)
-            const innerPanelKey = `${config.prefix}-${wallNameBase}-${i}-inner`;
-            const contractIndexInner = contractCounter % CONTRACT_ADDRESSES.length; 
-            const contractAddressInner = CONTRACT_ADDRESSES[contractIndexInner];
-            contractCounter++;
-
-            galleryConfig[innerPanelKey] = {
-                name: 'Loading...',
-                contractAddress: contractAddressInner,
-                tokenIds: [1],
-                currentIndex: 0,
-            };
-        }
-    }
-}
-
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
@@ -131,13 +86,12 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
+      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
+      const segmentIndexMatch = wallName.match(/-(\d+)$/);
+      const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
       
-      // Use a hash of the wallName to determine a starting index for variety
-      let hash = 0;
-      for (let i = 0; i < wallName.length; i++) {
-        hash = wallName.charCodeAt(i) + ((hash << 5) - hash);
-      }
-      config.currentIndex = Math.abs(hash) % tokens.length; 
+      // Start index is segment index modulo total tokens available
+      config.currentIndex = segmentIndex % tokens.length; 
     }
     if (name) {
       config.name = name;
