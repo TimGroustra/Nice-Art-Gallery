@@ -621,7 +621,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // Inner Inner Inner Cove Lighting (10x10)
-    const innerInnerYPos = WALL_HEIGHT - 0.1; // Re-declare or ensure scope is correct
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
 
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
@@ -728,11 +727,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                     textOffsetSign = 1;
                 } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
                     x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-                    // Same rotation as 50x50 East wall, so keep offset sign
+                    // East/West walls use the same rotation regardless of 50x50 or 30x30, so textOffsetSign should be 1
                     textOffsetSign = 1;
                 } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
                     x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-                    // Same rotation as 50x50 West wall, so keep offset sign
+                    // East/West walls use the same rotation regardless of 50x50 or 30x30, so textOffsetSign should be 1
                     textOffsetSign = 1;
                 }
             } else {
