@@ -235,12 +235,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Pass the panel object to loadTexture
       const texture = loadTexture(imageUrl, panel, isVideo);
       
+      // --- Main NFT Mesh Cleanup (Explicit check for stability) ---
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
+        if (panel.mesh.material.map) {
+            panel.mesh.material.map.dispose();
+        }
         panel.mesh.material.dispose();
       }
-
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      // --- End Main NFT Mesh Cleanup ---
+
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
@@ -295,7 +299,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
+        if (panel.mesh.material.map) {
+            panel.mesh.material.map.dispose();
+        }
         panel.mesh.material.dispose();
       }
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
@@ -976,7 +982,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     window.addEventListener('resize', onWindowResize);
 
     const reloadAllPanelContent = async () => {
-        console.log("WebGL context restored. Reloading all panel content...");
+        console.log("WebGL Context Restored. Reloading all panel content...");
         // Re-run content update for all panels
         for (const panel of panelsRef.current) {
             const source = getCurrentNftSource(panel.wallName);
