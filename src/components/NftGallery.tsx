@@ -365,6 +365,55 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westOuterWall4.position.set(-outerWallPosition2, wallHeight / 2, 15); 
     scene.add(westOuterWall4);
     // --- End 50x50 Outer Room Walls ---
+    
+    // --- 70x70 Outer Room Walls ---
+    const outerRoomSize3 = 70;
+    const outerWallPosition3 = outerRoomSize3 / 2; // 35
+    const outerWallSegmentLength3 = 30; // (70 - 10 gap) / 2 = 30
+    const outerWallGeometry3 = new THREE.PlaneGeometry(outerWallSegmentLength3, wallHeight);
+
+    // North Outer Wall (Z = -35)
+    const northOuterWall5 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    northOuterWall5.position.set(-20, wallHeight / 2, -outerWallPosition3); 
+    scene.add(northOuterWall5);
+    
+    const northOuterWall6 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    northOuterWall6.position.set(20, wallHeight / 2, -outerWallPosition3); 
+    scene.add(northOuterWall6);
+
+    // South Outer Wall (Z = 35)
+    const southOuterWall5 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    southOuterWall5.rotation.y = Math.PI;
+    southOuterWall5.position.set(-20, wallHeight / 2, outerWallPosition3); 
+    scene.add(southOuterWall5);
+    
+    const southOuterWall6 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    southOuterWall6.rotation.y = Math.PI;
+    southOuterWall6.position.set(20, wallHeight / 2, outerWallPosition3); 
+    scene.add(southOuterWall6);
+
+    // East Outer Wall (X = 35)
+    const eastOuterWall5 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    eastOuterWall5.rotation.y = -Math.PI / 2;
+    eastOuterWall5.position.set(outerWallPosition3, wallHeight / 2, -20); 
+    scene.add(eastOuterWall5);
+    
+    const eastOuterWall6 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    eastOuterWall6.rotation.y = -Math.PI / 2;
+    eastOuterWall6.position.set(outerWallPosition3, wallHeight / 2, 20); 
+    scene.add(eastOuterWall6);
+
+    // West Outer Wall (X = -35)
+    const westOuterWall5 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    westOuterWall5.rotation.y = Math.PI / 2;
+    westOuterWall5.position.set(-outerWallPosition3, wallHeight / 2, -20); 
+    scene.add(westOuterWall5);
+    
+    const westOuterWall6 = new THREE.Mesh(outerWallGeometry3, outerWallMaterial);
+    westOuterWall6.rotation.y = Math.PI / 2;
+    westOuterWall6.position.set(-outerWallPosition3, wallHeight / 2, 20); 
+    scene.add(westOuterWall6);
+    // --- End 70x70 Outer Room Walls ---
 
 
     // --- Disco Lights Setup (Expanded to cover 70x70 area) ---
