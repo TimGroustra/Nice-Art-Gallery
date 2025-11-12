@@ -11,7 +11,7 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
-// --- NEW CONTRACT ADDRESSES (20 collections for 50x50 walls) ---
+// --- CONTRACT ADDRESSES (20 collections for 50x50 walls, segments 0-4) ---
 const CONTRACT_ADDRESSES_20 = [
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0: Planet ETN
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1: MEGA OGs
@@ -33,37 +33,24 @@ const CONTRACT_ADDRESSES_20 = [
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17: Electric Legends
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18: Electric Eels
   "0xD5bBD743A47cD60e23FDA16Abf56F3aaA813Fe47", // 19: Thunder Swords
-  // Note: Blue Catto (20) is excluded as there are only 20 panels on the 50x50 wall (segments 0-4)
 ];
 
-// Use the first 4 contracts for cycling through the remaining 16 panels (segments 5-8)
-const CONTRACT_ADDRESSES_CYCLE = CONTRACT_ADDRESSES_20.slice(0, 4);
-
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-const NUM_SEGMENTS = 9; 
+// We only care about segments 0 through 4 (5 segments total)
+const NUM_SEGMENTS_TO_USE = 5; 
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {};
 
-// Generate 36 panel configurations
-for (let i = 0; i < NUM_SEGMENTS; i++) {
+// Generate 20 panel configurations (4 walls * 5 segments)
+for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
     for (let j = 0; j < WALL_NAMES.length; j++) {
         const wallNameBase = WALL_NAMES[j];
         const panelKey = `${wallNameBase}-${i}`;
         
-        let contractAddress: string;
-        
-        if (i <= 4) {
-            // Segments 0-4 (5 segments per wall) -> 20 panels total.
-            // Map sequentially using index k = (j * 5) + i
-            const k = (j * 5) + i;
-            contractAddress = CONTRACT_ADDRESSES_20[k];
-        } else {
-            // Segments 5-8 (4 segments per wall) -> 16 panels total.
-            // Cycle through the first 4 contracts for these inner walls.
-            const cycleIndex = (i + j) % CONTRACT_ADDRESSES_CYCLE.length; 
-            contractAddress = CONTRACT_ADDRESSES_CYCLE[cycleIndex];
-        }
+        // Map sequentially using index k = (j * 5) + i
+        const k = (j * 5) + i;
+        const contractAddress = CONTRACT_ADDRESSES_20[k];
 
         galleryConfig[panelKey] = {
             name: 'Loading...',

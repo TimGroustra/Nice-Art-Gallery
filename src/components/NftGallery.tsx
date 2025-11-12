@@ -698,71 +698,36 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Dynamic Panel Configuration Generation (Panels moved to 50x50 and 30x30 inner walls)
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number], textOffsetSign: number }[] = [];
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+    const MAX_SEGMENT_INDEX = 4; // Only generate panels for segments 0, 1, 2, 3, 4
 
-    // Iterate through all 36 panel keys (segment index 0 to 8)
-    for (let i = 0; i < 9; i++) { 
+    // Iterate through segments 0 to 4 (5 segments)
+    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
         for (const wallNameBase of WALL_NAMES) {
             const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
             
-            if (!GALLERY_PANEL_CONFIG[panelKey]) continue;
-
+            // Since we only generate segments 0-4, these must be on the 50x50 walls
+            
             let x = 0, z = 0;
             let rotation: [number, number, number] = [0, 0, 0];
             let depthSign = 0; 
             let wallAxis: 'x' | 'z' = 'z';
             let textOffsetSign = 1; 
 
-            if (i <= 4) {
-                // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
-                const centerIndex = i - 2; 
-                const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
-                
-                // Panels face INWARD (towards the 30x30 room/center)
-                if (wallNameBase === 'north-wall') { // Z = -25, faces +Z
-                    x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-                } else if (wallNameBase === 'south-wall') { // Z = 25, faces -Z
-                    x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-                } else if (wallNameBase === 'east-wall') { // X = 25, faces -X
-                    x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-                } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
-                    x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-                }
-                textOffsetSign = 1; 
-            } else if (i >= 5 && i <= 6) {
-                // 30x30 Walls, OUTER SIDE (Indices 5-6, 2 segments: -10, 10)
-                const centerMap = { 5: -10, 6: 10 };
-                const segmentCenter = centerMap[i as 5 | 6];
-                
-                // Panels face OUTWARD (towards the 50x50 corridor)
-                if (wallNameBase === 'north-wall') { // Z = -15, faces -Z
-                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-                } else if (wallNameBase === 'south-wall') { // Z = 15, faces +Z
-                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-                } else if (wallNameBase === 'east-wall') { // X = 15, faces -X
-                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-                } else if (wallNameBase === 'west-wall') { // X = -15, faces +X
-                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-                }
-                textOffsetSign = -1; 
-            } else if (i >= 7 && i <= 8) {
-                // 30x30 Walls, INNER SIDE (Indices 7-8, 2 segments: -10, 10)
-                const centerMap = { 7: -10, 8: 10 };
-                const segmentCenter = centerMap[i as 7 | 8];
-                
-                // Panels face INWARD (towards the 10x10 center room)
-                if (wallNameBase === 'north-wall') { // Z = -15, faces +Z
-                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-                } else if (wallNameBase === 'south-wall') { // Z = 15, faces -Z
-                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-                } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
-                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-                } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
-                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-                }
-                textOffsetSign = 1;
-            } else {
-                continue;
+            // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
+            const centerIndex = i - 2; 
+            const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
+            
+            // Panels face INWARD (towards the 30x30 room/center)
+            if (wallNameBase === 'north-wall') { // Z = -25, faces +Z
+                x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+            } else if (wallNameBase === 'south-wall') { // Z = 25, faces -Z
+                x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+            } else if (wallNameBase === 'east-wall') { // X = 25, faces -X
+                x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+            } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
+                x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
             }
+            textOffsetSign = 1; 
             
             // Apply depth offset based on which axis the wall lies on
             let finalX = x;
