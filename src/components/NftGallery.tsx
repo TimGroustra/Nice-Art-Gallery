@@ -308,79 +308,121 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
-    
-    // Create the outer floor for padding
-    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
-    outerFloor.rotation.x = Math.PI / 2;
-    scene.add(outerFloor);
+    // --- ROOM GEOMETRY SETUP (70x70) ---
+    const ROOM_SEGMENT_SIZE = 10;
+    const NUM_SEGMENTS = 7;
+    const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS; // 70
+    const WALL_HEIGHT = 4;
+    const PANEL_Y_POSITION = 1.8;
+    const BOUNDARY = ROOM_SIZE / 2 - 0.5; // 34.5
 
-    // Create the inner floor with the image
+    const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
+    const halfRoomSize = ROOM_SIZE / 2;
+    
+    const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
+    const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
+    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+
+    // 1. Create Modular Floor and Ceiling
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        for (let j = 0; j < NUM_SEGMENTS; j++) {
+            const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+            const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+
+            // Outer Floor Segment
+            const outerFloor = new THREE.Mesh(segmentGeometry, outerFloorMaterial);
+            outerFloor.rotation.x = Math.PI / 2;
+            outerFloor.position.x = segmentCenter;
+            outerFloor.position.z = segmentCenterZ;
+            scene.add(outerFloor);
+
+            // Ceiling Segment
+            const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.x = segmentCenter;
+            ceiling.position.z = segmentCenterZ;
+            ceiling.position.y = wallHeight;
+            scene.add(ceiling);
+        }
+    }
+
+    // 2. Inner Floor (using a single large plane with repeated texture)
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
-        // Calculate inner plane dimensions based on texture aspect ratio
-        const padding = 1.0; // 1 unit of padding on each side
-        const maxInnerSize = roomSize - 2 * padding;
-        const imageAspect = texture.image.width / texture.image.height;
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(NUM_SEGMENTS, NUM_SEGMENTS); 
 
-        let innerPlaneWidth, innerPlaneHeight;
-        if (imageAspect >= 1) { // Landscape or square
-            innerPlaneWidth = maxInnerSize;
-            innerPlaneHeight = maxInnerSize / imageAspect;
-        } else { // Portrait
-            innerPlaneHeight = maxInnerSize;
-            innerPlaneWidth = maxInnerSize * imageAspect;
-        }
-
-        const innerFloorGeometry = new THREE.PlaneGeometry(innerPlaneWidth, innerPlaneHeight);
+        const innerFloorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
         const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
         const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
         
         innerFloor.rotation.x = Math.PI / 2;
-        innerFloor.position.y = 0.01; // Place slightly above the outer floor to prevent z-fighting
+        innerFloor.position.y = 0.01; 
         scene.add(innerFloor);
     });
 
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = wallHeight;
-    scene.add(ceiling);
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    northWall.position.set(0, wallHeight / 2, -roomSize / 2);
-    scene.add(northWall);
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    southWall.rotation.y = Math.PI;
-    southWall.position.set(0, wallHeight / 2, roomSize / 2);
-    scene.add(southWall);
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    eastWall.rotation.y = -Math.PI / 2;
-    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    scene.add(eastWall);
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    westWall.rotation.y = Math.PI / 2;
-    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    scene.add(westWall);
+    // 3. Create Modular Walls
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
+        // North Wall Segments (Z = -halfRoomSize)
+        const northWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        northWall.position.set(segmentCenter, WALL_HEIGHT / 2, -halfRoomSize);
+        scene.add(northWall);
+
+        // South Wall Segments (Z = halfRoomSize)
+        const southWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, WALL_HEIGHT / 2, halfRoomSize);
+        scene.add(southWall);
+
+        // East Wall Segments (X = halfRoomSize)
+        const eastWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+
+        // West Wall Segments (X = -halfRoomSize)
+        const westWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
+    }
+
+    // 4. Lighting Setup
     const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; 
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
-      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
       scene.add(pl);
       lights.push(pl);
     }
-    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    scene.add(new THREE.AmbientLight(0x404050, 0.5));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
-    hemiLight.position.set(0, wallHeight, 0);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
 
-    // Add glowing cove lighting
-    const coveLightColor = 0x87CEEB; // A soft sky blue glow
+    // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
     const coveLightIntensity = 10;
-    const coveLightWidth = roomSize;
+    const coveLightWidth = ROOM_SEGMENT_SIZE; 
     const coveLightHeight = 0.1;
+    const offset = 0.1;
+    const yPos = WALL_HEIGHT - 0.1;
 
     const createCoveLighting = (
         position: [number, number, number],
@@ -400,17 +442,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(glowMesh);
     };
 
-    const yPos = wallHeight - 0.1;
-    const offset = 0.1;
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
-    // North
-    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
-    // South
-    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
-    // East
-    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-    // West
-    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // North
+        createCoveLighting([segmentCenter, yPos, -halfRoomSize + offset], [Math.PI / 2, 0, 0]);
+        // South
+        createCoveLighting([segmentCenter, yPos, halfRoomSize - offset], [-Math.PI / 2, 0, 0]);
+        
+        // East
+        createCoveLighting([halfRoomSize - offset, yPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // West
+        createCoveLighting([-halfRoomSize + offset, yPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+    }
+    // --- END ROOM GEOMETRY SETUP ---
+
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
@@ -428,10 +474,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
     const panelConfigs = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
+      // Panels are placed centrally on the 70 unit walls (X=0 or Z=0)
+      { wallName: 'north-wall', position: [0, panelYPosition, -halfRoomSize + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      { wallName: 'south-wall', position: [0, panelYPosition, halfRoomSize - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      { wallName: 'east-wall', position: [halfRoomSize - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'west-wall', position: [-halfRoomSize + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
@@ -578,8 +625,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const time = performance.now(), delta = (time - prevTime) / 1000;
       lights.forEach((light, i) => {
         const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
-        light.position.x = Math.cos(angle) * 3;
-        light.position.z = Math.sin(angle) * 3;
+        light.position.x = Math.cos(angle) * lightRadius;
+        light.position.z = Math.sin(angle) * lightRadius;
       });
 
       if (controls.isLocked) {
