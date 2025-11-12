@@ -31,18 +31,18 @@ const CONTRACT_ADDRESSES = [
 ];
 
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-// We now need 10 segments per wall (0-9) to cover 50x50 (5 segments), 30x30 outer (2 segments), and 30x30 inner (3 segments)
-const NUM_SEGMENTS = 10; 
+const NUM_SEGMENTS = 7;
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {};
 
-// Generate 40 panel configurations, cycling through the 4 contract addresses
+// Generate 28 panel configurations, cycling through the 4 contract addresses
 for (let i = 0; i < NUM_SEGMENTS; i++) {
     for (let j = 0; j < WALL_NAMES.length; j++) {
         const wallNameBase = WALL_NAMES[j];
         const panelKey = `${wallNameBase}-${i}`;
-        // Cycle through the 4 contracts
+        // Cycle through the 4 contracts (0, 1, 2, 3, 0, 1, 2, 3, ...)
+        // Using (i + j) ensures adjacent panels on the same wall use different contracts if possible.
         const contractIndex = (i + j) % CONTRACT_ADDRESSES.length; 
         const contractAddress = CONTRACT_ADDRESSES[contractIndex];
 
