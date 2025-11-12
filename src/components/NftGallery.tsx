@@ -471,9 +471,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- End 50x50 Outer Room Walls ---
 
 
-    // --- Disco Lights Setup (7 Rings of 3 lights each) ---
+    // --- Disco Lights Setup (Expanded to cover 70x70 area) ---
     const lights: THREE.PointLight[] = [];
-    const NUM_RINGS = 7; // 1 original + 6 more rings
+    const NUM_RINGS = 65; // Increased from 7 to cover the 70x70 area (radius 35) with 0.5 unit spacing
     const LIGHTS_PER_RING = 3;
     const BASE_RADIUS = 3;
     const RADIUS_INCREMENT = 0.5;
