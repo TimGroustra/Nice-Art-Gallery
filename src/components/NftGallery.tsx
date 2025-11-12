@@ -519,37 +519,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     // --- END INNER INNER ROOM SETUP ---
 
-    // --- START INNER INNER INNER ROOM SETUP (10x10) ---
-    const INNER_INNER_INNER_WALL_BOUNDARY = 5;
-    // Segment centers for a 10 unit span (1 segment): 0
-    const innerInnerInnerSegmentCenters = [0];
-
-    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
-        // North Wall (Z = -5)
-        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(northWall);
-
-        // South Wall (Z = 5)
-        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southWall.rotation.y = Math.PI;
-        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(southWall);
-
-        // East Wall (X = 5)
-        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastWall.rotation.y = -Math.PI / 2;
-        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastWall);
-
-        // West Wall (X = -5)
-        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westWall.rotation.y = Math.PI / 2;
-        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westWall);
-    });
-    // --- END INNER INNER INNER ROOM SETUP ---
-
 
     // 4. Lighting Setup
     const lights: THREE.PointLight[] = [];
@@ -681,37 +650,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
         // Inner side (facing +X, inner room)
         createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-    });
-    
-    // Inner Inner Inner Cove Lighting (10x10)
-    const innerInnerInnerYPos = WALL_HEIGHT - 0.1;
-    const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
-    // Reusing innerInnerInnerSegmentCenters defined earlier in the useEffect scope
-
-    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
-        // North Inner Inner Inner Wall (Z = -5)
-        // Outer side (facing -Z, corridor)
-        createCoveLighting([segmentCenter, innerInnerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
-        // Inner side (facing +Z, inner room)
-        createCoveLighting([segmentCenter, innerInnerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
-
-        // South Inner Inner Inner Wall (Z = 5)
-        // Outer side (facing +Z, corridor)
-        createCoveLighting([segmentCenter, innerInnerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
-        // Inner side (facing -Z, inner room)
-        createCoveLighting([segmentCenter, innerInnerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
-        
-        // East Inner Inner Inner Wall (X = 5)
-        // Outer side (facing +X, corridor)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-        // Inner side (facing -X, inner room)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-
-        // West Inner Inner Inner Wall (X = -5)
-        // Outer side (facing -X, corridor)
-        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-        // Inner side (facing +X, inner room)
-        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
     // --- END COVE LIGHTING ---
 
