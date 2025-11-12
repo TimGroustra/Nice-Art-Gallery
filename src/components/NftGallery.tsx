@@ -759,8 +759,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Clear existing panels before populating
     panelsRef.current = [];
 
-    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
-
     dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
