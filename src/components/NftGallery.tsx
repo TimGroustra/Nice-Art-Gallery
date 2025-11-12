@@ -420,7 +420,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(innerFloor);
     });
 
-    // 3. Create Modular Walls
+    // 3. Create Modular Outer Walls (70x70)
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
@@ -447,6 +447,45 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         westWall.position.set(-halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
         scene.add(westWall);
     }
+    
+    // --- START INNER ROOM SETUP (50x50) ---
+    const INNER_WALL_BOUNDARY = 25;
+    const INNER_WALL_HEIGHT = WALL_HEIGHT;
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
+
+    // Segment centers for a 50 unit span (5 segments): -20, -10, 0, 10, 20
+    const innerSegmentCenters = [-20, -10, 0, 10, 20];
+    const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
+
+    innerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Wall (Z = -25)
+        const northInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_WALL_BOUNDARY);
+        scene.add(northInnerWall);
+
+        // South Inner Wall (Z = 25)
+        const southInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerWall.rotation.y = Math.PI;
+        southInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_WALL_BOUNDARY);
+        scene.add(southInnerWall);
+
+        // East Inner Wall (X = 25)
+        const eastInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerWall.rotation.y = -Math.PI / 2;
+        eastInnerWall.position.set(INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerWall);
+
+        // West Inner Wall (X = -25)
+        const westInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerWall.rotation.y = Math.PI / 2;
+        westInnerWall.position.set(-INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerWall);
+    });
+    // --- END INNER ROOM SETUP ---
+
 
     // 4. Lighting Setup
     const lights: THREE.PointLight[] = [];
@@ -499,6 +538,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(glowMesh);
     };
 
+    // Outer Cove Lighting (70x70)
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
@@ -512,7 +552,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // West
         createCoveLighting([-halfRoomSize + offset, yPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
     }
-    // --- END ROOM GEOMETRY SETUP ---
+    
+    // Inner Cove Lighting (50x50)
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const innerOffset = 0.1;
+
+    innerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset], [Math.PI / 2, 0, 0]);
+        // South Inner
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset], [-Math.PI / 2, 0, 0]);
+        
+        // East Inner
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset, innerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // West Inner
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset, innerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+    });
+    // --- END COVE LIGHTING ---
 
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
@@ -538,7 +596,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); 
 
-    // Dynamic Panel Configuration Generation
+    // Dynamic Panel Configuration Generation (Panels remain on the outer 70x70 walls)
     const WALL_ROTATIONS: { [key: string]: [number, number, number] } = {
         'north-wall': [0, 0, 0],
         'south-wall': [0, Math.PI, 0],
