@@ -1,7 +1,7 @@
 import { JsonRpcProvider, Contract } from "ethers";
 
-// Using a public Ethereum Mainnet RPC endpoint for broader NFT compatibility
-const RPC_URL = "https://eth.public-rpc.com";
+// Using the public Ankr RPC endpoint for the Electroneum Mainnet
+const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
 const erc721Abi = [
