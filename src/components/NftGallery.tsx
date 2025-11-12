@@ -32,7 +32,7 @@ interface Panel {
 }
 
 interface NftGalleryProps {
-  setInstructionsVisible: (visible: (visible: boolean) => void) => void;
+  setInstructionsVisible: (visible: boolean) => void;
 }
 
 // Global state for UI interaction
@@ -470,33 +470,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(westOuterWall4);
     // --- End 50x50 Outer Room Walls ---
 
-    // --- Expanded Disco Lights Setup ---
-    const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 12; // Increased number of lights
-    const DISCO_RADIUS = 30; // Radius for initial placement and movement (fits within 70x70 boundary of 35)
-    const LIGHT_DISTANCE = 70; // Increased distance for wider spread
-    const LIGHT_INTENSITY = 0.2; // Slightly increased intensity to compensate for wider distance
-    const discoLightHeight = 3.8; // Just below the ceiling (y=4)
 
-    // Expanded color palette for more variety
-    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0xaa00ff, 0x00ffaa, 0xffaa00, 0x00aaff, 0xff00aa, 0xaaff00, 0x00ff00, 0xff0000, 0x0000ff];
-    
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const colorIndex = i % lightColors.length;
-      // PointLight( color : Integer, intensity : Float, distance : Float, decay : Float )
-      const pl = new THREE.PointLight(lightColors[colorIndex], LIGHT_INTENSITY, LIGHT_DISTANCE, 2);
-      
-      // Initial placement distributed around the large radius
-      pl.position.set(
-        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * DISCO_RADIUS, 
-        discoLightHeight, 
-        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * DISCO_RADIUS
-      );
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
+      pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
-    // --- End Expanded Disco Lights Setup ---
-
     scene.add(new THREE.AmbientLight(0x404050, 0.3));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, wallHeight, 0);
@@ -709,13 +691,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      
-      // Update light movement radius to DISCO_RADIUS
-      const movementRadius = DISCO_RADIUS * 0.9; // Use 90% of the radius for movement
       lights.forEach((light, i) => {
-        const angle = time * 0.00015 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Slower movement
-        light.position.x = Math.cos(angle) * movementRadius;
-        light.position.z = Math.sin(angle) * movementRadius;
+        const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
+        light.position.x = Math.cos(angle) * 3;
+        light.position.z = Math.sin(angle) * 3;
       });
 
       if (controls.isLocked) {
