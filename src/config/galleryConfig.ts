@@ -11,7 +11,7 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
-// --- CONTRACT ADDRESSES FOR 50x50 OUTER WALLS (Segments 0-4, 20 panels) ---
+// --- NEW CONTRACT ADDRESSES (20 collections for 50x50 walls) ---
 const CONTRACT_ADDRESSES_20 = [
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0: Planet ETN
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1: MEGA OGs
@@ -33,15 +33,11 @@ const CONTRACT_ADDRESSES_20 = [
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17: Electric Legends
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18: Electric Eels
   "0xD5bBD743A47cD60e23FDA16Abf56F3aaA813Fe47", // 19: Thunder Swords
+  // Note: Blue Catto (20) is excluded as there are only 20 panels on the 50x50 wall (segments 0-4)
 ];
 
-// --- CONTRACT ADDRESSES FOR 30x30 INNER WALLS (Segments 5-8, 16 panels) ---
-const CONTRACT_ADDRESSES_INNER_CYCLE = [
-    "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // Club Watches
-    "0xc107C97710972e964d59000f610c07262638B508", // Non-Fungible Comrades
-    "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // ElectroGems
-    "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // Electric Legends
-];
+// Use the first 4 contracts for cycling through the remaining 16 panels (segments 5-8)
+const CONTRACT_ADDRESSES_CYCLE = CONTRACT_ADDRESSES_20.slice(0, 4);
 
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
 const NUM_SEGMENTS = 9; 
@@ -64,10 +60,9 @@ for (let i = 0; i < NUM_SEGMENTS; i++) {
             contractAddress = CONTRACT_ADDRESSES_20[k];
         } else {
             // Segments 5-8 (4 segments per wall) -> 16 panels total.
-            // Cycle through the 4 inner contracts for these inner walls.
-            // We use a combined index based on wall (j) and segment index (i - 5)
-            const innerIndex = ((i - 5) * WALL_NAMES.length + j) % CONTRACT_ADDRESSES_INNER_CYCLE.length; 
-            contractAddress = CONTRACT_ADDRESSES_INNER_CYCLE[innerIndex];
+            // Cycle through the first 4 contracts for these inner walls.
+            const cycleIndex = (i + j) % CONTRACT_ADDRESSES_CYCLE.length; 
+            contractAddress = CONTRACT_ADDRESSES_CYCLE[cycleIndex];
         }
 
         galleryConfig[panelKey] = {
