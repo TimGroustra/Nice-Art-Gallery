@@ -718,10 +718,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 
                 // Panels must face OUTWARD (towards the 50x50 room)
                 if (wallNameBase === 'north-wall') { // Z = -15. Viewer is North (Z < -15). Panel must face +Z (South).
-                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1; wallAxis = 'z'; // Corrected depthSign to -1
                     textOffsetSign = 1; 
                 } else if (wallNameBase === 'south-wall') { // Z = 15. Viewer is South (Z > 15). Panel must face -Z (North).
-                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1; wallAxis = 'z'; // Corrected depthSign to 1
                     textOffsetSign = 1;
                 } else if (wallNameBase === 'east-wall') { // X = 15. Viewer is East (X > 15). Panel must face -X (West).
                     x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
