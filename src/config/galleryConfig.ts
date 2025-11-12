@@ -25,7 +25,6 @@ const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
 
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {
-  // --- Inner Room Walls (10x10) ---
   'north-wall': {
     name: 'Loading...',
     contractAddress: PANTH_ART_ADDRESS,
@@ -34,160 +33,20 @@ let galleryConfig: PanelConfig = {
   },
   'south-wall': {
     name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS, 
-    tokenIds: [1], 
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'east-wall': {
     name: 'Loading...',
     contractAddress: THIRD_COLLECTION_ADDRESS, 
-    tokenIds: [1], 
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
   'west-wall': {
     name: 'Loading...',
     contractAddress: FOURTH_COLLECTION_ADDRESS, 
-    tokenIds: [1], 
-    currentIndex: 0,
-  },
-  
-  // --- North Facing Panels (Z < 0) ---
-  // 30x30 Walls (Z=-15)
-  'wall-N-15-X-10': {
-    name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-N-15-X--10': {
-    name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 50x50 Walls (Z=-25)
-  'wall-N-25-X-20': {
-    name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-N-25-X--20': {
-    name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 70x70 Wall (Z=-35)
-  'wall-N-35-X-0': {
-    name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-
-  // --- South Facing Panels (Z > 0) ---
-  // 30x30 Walls (Z=15)
-  'wall-S-15-X-10': {
-    name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-S-15-X--10': {
-    name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 50x50 Walls (Z=25)
-  'wall-S-25-X-20': {
-    name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-S-25-X--20': {
-    name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 70x70 Wall (Z=35)
-  'wall-S-35-X-0': {
-    name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-
-  // --- East Facing Panels (X > 0) ---
-  // 30x30 Walls (X=15)
-  'wall-E-15-Z-10': {
-    name: 'Loading...',
-    contractAddress: THIRD_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-E-15-Z--10': {
-    name: 'Loading...',
-    contractAddress: THIRD_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 50x50 Walls (X=25)
-  'wall-E-25-Z-20': {
-    name: 'Loading...',
-    contractAddress: THIRD_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-E-25-Z--20': {
-    name: 'Loading...',
-    contractAddress: THIRD_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 70x70 Wall (X=35)
-  'wall-E-35-Z-0': {
-    name: 'Loading...',
-    contractAddress: THIRD_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-
-  // --- West Facing Panels (X < 0) ---
-  // 30x30 Walls (X=-15)
-  'wall-W-15-Z-10': {
-    name: 'Loading...',
-    contractAddress: FOURTH_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-W-15-Z--10': {
-    name: 'Loading...',
-    contractAddress: FOURTH_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 50x50 Walls (X=-25)
-  'wall-W-25-Z-20': {
-    name: 'Loading...',
-    contractAddress: FOURTH_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  'wall-W-25-Z--20': {
-    name: 'Loading...',
-    contractAddress: FOURTH_COLLECTION_ADDRESS,
-    tokenIds: [1],
-    currentIndex: 0,
-  },
-  // 70x70 Wall (X=-35)
-  'wall-W-35-Z-0': {
-    name: 'Loading...',
-    contractAddress: FOURTH_COLLECTION_ADDRESS,
-    tokenIds: [1],
+    tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
 };
