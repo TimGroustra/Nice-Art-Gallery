@@ -49,6 +49,40 @@ let galleryConfig: PanelConfig = {
     tokenIds: [1], // Start with token 1 as placeholder
     currentIndex: 0,
   },
+  // --- New South Facing Panels ---
+  // 30x30 Walls (Z=15)
+  'wall-S-15-X-10': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS,
+    tokenIds: [1],
+    currentIndex: 0,
+  },
+  'wall-S-15-X--10': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS,
+    tokenIds: [1],
+    currentIndex: 0,
+  },
+  // 50x50 Walls (Z=25)
+  'wall-S-25-X-20': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS,
+    tokenIds: [1],
+    currentIndex: 0,
+  },
+  'wall-S-25-X--20': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS,
+    tokenIds: [1],
+    currentIndex: 0,
+  },
+  // 70x70 Wall (Z=35)
+  'wall-S-35-X-0': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS,
+    tokenIds: [1],
+    currentIndex: 0,
+  },
 };
 
 // Function to initialize the gallery configuration
