@@ -563,7 +563,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 }
 
                 // Determine if this wall segment is a double-sided inner wall
-                const isDoubleSided = config.namePrefix.startsWith('inner-');
+                const isDoubleSided = config.namePrefix.startsWith('inner-') || config.namePrefix === 'inner-10-';
 
                 // Side 1: Facing outward (away from the center of the room defined by config.boundary)
                 // This is the side facing the larger corridor/room.
@@ -658,11 +658,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // 30x30 Inner Inner Walls: Panels face INWARD (to 10x10 room) and OUTWARD (to 50x50 corridor)
         { wallNamePrefix: 'inner-30-', boundary: INNER_WALL_BOUNDARY_30, segments: [-10, 10], panelSides: ['inward', 'outward'] },
         // 10x10 Innermost Walls: No panels
+        { wallNamePrefix: 'inner-10-', boundary: INNER_WALL_BOUNDARY_10, segments: [0], panelSides: [] }, // No panels here
     ];
 
     WALL_DIRECTIONS.forEach(dir => {
         PANEL_PLACEMENT_CONFIGS.forEach(config => {
-            if (config.wallNamePrefix === 'inner-10-') return; // Skip 10x10 walls
+            if (config.panelSides.length === 0) return; // Skip walls with no panels (like 10x10)
 
             config.segments.forEach((segmentCenter, i) => {
                 
@@ -675,10 +676,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                     let isMirrored = false;
 
                     if (config.wallNamePrefix === '') {
-                        // 70x70 walls: Always inward facing (towards -Z or +Z or -X or +X center)
-                        // The rotation already handles the direction, so we just use the base key.
+                        // 70x70 walls: Always inward facing (towards center)
                         wallKeySuffix = `-${i}`;
                         // depthSign is already set to dir.sign (which points outward, so panel faces inward)
+                        if (side === 'outward') return; // Skip outward panels on 70x70 walls
                     } else {
                         // Inner walls (50x50, 30x30)
                         if (side === 'outward') {
@@ -700,8 +701,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                     
                     if (!GALLERY_PANEL_CONFIG[panelKey]) {
                         // This happens if the key generation logic doesn't match the config initialization logic
-                        // For 70x70 walls, we only expect 'inward' panels, which use the base rotation.
-                        if (config.wallNamePrefix === '' && side === 'outward') return;
                         // console.warn(`Skipping missing panel key: ${panelKey}`);
                         return;
                     }
@@ -890,8 +889,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         camera.position.y = 1.6;
-        camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
-        camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
+        // FIX: Use BOUNDARY constant instead of undefined variable 'boundary'
+        camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
+        camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
         
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(interactiveMeshes);
