@@ -518,8 +518,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 x = map.sign * halfRoomSize;
                 z = segmentCenter;
             }
-            
-            // FIX: Calculate offset to push the panel slightly into the room (opposite direction of wall sign)
+
+            // Calculate offset to push the panel slightly into the room (opposite direction of wall sign)
             const depthOffset = -map.sign * ARROW_DEPTH_OFFSET;
 
             dynamicPanelConfigs.push({
@@ -536,21 +536,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-      // Fix 1 & 2: Use spread arguments correctly for set()
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
       
-      // Fix 3: Use spread arguments correctly for THREE.Euler constructor
       const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
       
+      // FIX: Initialize basePosition using indexed access
       const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
-      // Fix 4: Use spread arguments correctly for set()
       titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
       const titlePosition = basePosition.clone()
@@ -562,7 +560,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Description Panel (Left side relative to the NFT panel)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
-      // Fix 5: Use spread arguments correctly for set()
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
@@ -570,13 +567,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
+      // FIX: Initialize prevPosition using indexed access
       const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
       scene.add(prevArrow);
       
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      // Fix 6: Use spread arguments correctly for set()
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      // FIX: Initialize nextPosition using indexed access
       const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
@@ -584,15 +582,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Attributes Panel (Right side relative to the NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
-      // Fix 7: Use spread arguments correctly for set()
       attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
-      // Fix 8: Use spread arguments correctly for set()
       wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      // FIX: Initialize wallTitlePosition using indexed access
       const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
