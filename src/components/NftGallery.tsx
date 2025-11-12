@@ -243,25 +243,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    // Use a promise-based loader to handle errors and provide fallback
-    return new THREE.TextureLoader().load(url, 
-        // Success callback
-        (texture) => {
-            // Texture loaded successfully, no action needed here as it's handled by the loader itself
-        }, 
-        // Progress callback
-        undefined, 
-        // Error callback
-        (error) => {
-            console.error('Error loading texture:', url, error);
-            showError(`Failed to load image: ${url.substring(0, 50)}...`);
-            // Return the fallback texture on error. 
-            // NOTE: Since THREE.TextureLoader().load() returns a Texture object immediately 
-            // and updates it asynchronously, we cannot return the fallback here directly.
-            // We must rely on the updatePanelContent logic to handle the fallback material.
-        }
-    );
-  }, []); // Removed fallbackTextureRef from dependencies as it's stable
+    // We don't use this return value for images anymore, loading is handled in updatePanelContent
+    return fallbackTextureRef.current!; 
+  }, []); 
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     // Helper function for texture cleanup
@@ -284,13 +268,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
-      // Pass the panel object to loadTexture
-      const texture = loadTexture(imageUrl, panel, isVideo);
-      
       // --- Main NFT Mesh Cleanup and Update ---
       disposeTextureSafely(panel.mesh);
       
-      if (isVideo) {
+      if (!imageUrl) {
+          console.warn(`[NFT Gallery] No image URL found for ${panel.wallName}. Using fallback.`);
+          panel.mesh.material = new THREE.MeshBasicMaterial({ map: fallbackTextureRef.current! });
+          panel.isVideo = false;
+          
+          // Ensure video cleanup on failure path
+          if (panel.videoElement) {
+            panel.videoElement.pause();
+            panel.videoElement.removeAttribute('src');
+            panel.videoElement = null;
+          }
+
+      } else if (isVideo) {
+          // Pass the panel object to loadTexture
+          const texture = loadTexture(imageUrl, panel, isVideo);
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
           panel.isVideo = true;
           showSuccess(`Loaded video NFT: ${metadata.title}`);
@@ -299,6 +294,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           // We set a temporary material and update it when the texture is ready.
           panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Temporary dark material
           panel.isVideo = false;
+
+          // Ensure video cleanup on image path
+          if (panel.videoElement) {
+            panel.videoElement.pause();
+            panel.videoElement.removeAttribute('src');
+            panel.videoElement = null;
+          }
 
           const loader = new THREE.TextureLoader();
           loader.load(imageUrl, 
@@ -1045,6 +1047,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
                 camera.position.x = INNER_ROOM_MIN_X;
             }
+            // FIX: Changed INNER_ROOM_MAX_Z to INNER_ROOM_MAX_X in the condition check
             if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
                 camera.position.x = INNER_ROOM_MAX_X;
             }
