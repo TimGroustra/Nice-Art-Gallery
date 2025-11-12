@@ -470,24 +470,76 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    
+    // Geometries defined once outside the loop
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+    const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
+    const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); 
 
-    const panelConfigs = [
-      // Panels are placed centrally on the 70 unit walls (X=0 or Z=0)
-      { wallName: 'north-wall', position: [0, panelYPosition, -halfRoomSize + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, halfRoomSize - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [halfRoomSize - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-halfRoomSize + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
-    ];
+    // Dynamic Panel Configuration Generation
+    const WALL_ROTATIONS: { [key: string]: [number, number, number] } = {
+        'north-wall': [0, 0, 0],
+        'south-wall': [0, Math.PI, 0],
+        'east-wall': [0, -Math.PI / 2, 0],
+        'west-wall': [0, Math.PI / 2, 0],
+    };
 
-    panelConfigs.forEach(config => {
+    const WALL_AXIS_MAP: { [key: string]: { axis: 'x' | 'z', sign: 1 | -1 } } = {
+        'north-wall': { axis: 'z', sign: -1 }, // Z = -halfRoomSize
+        'south-wall': { axis: 'z', sign: 1 },  // Z = halfRoomSize
+        'east-wall': { axis: 'x', sign: 1 },   // X = halfRoomSize
+        'west-wall': { axis: 'x', sign: -1 },  // X = -halfRoomSize
+    };
+
+    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
+
+    // Iterate over the 7 segments
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        // Calculate the center position of the segment along the wall axis
+        const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE; // -30, -20, ..., 30
+
+        // Iterate over the 4 walls
+        for (const wallNameBase of ['north-wall', 'south-wall', 'east-wall', 'west-wall']) {
+            const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
+            
+            // Check if this panel key exists in the configuration
+            if (!GALLERY_PANEL_CONFIG[panelKey]) continue;
+
+            const rotation = WALL_ROTATIONS[wallNameBase];
+            const map = WALL_AXIS_MAP[wallNameBase];
+            
+            let x = 0, z = 0;
+            
+            if (map.axis === 'z') {
+                x = segmentCenter;
+                z = map.sign * halfRoomSize;
+            } else { // map.axis === 'x'
+                x = map.sign * halfRoomSize;
+                z = segmentCenter;
+            }
+
+            dynamicPanelConfigs.push({
+                wallName: panelKey,
+                // Adjust position slightly off the wall based on rotation/axis
+                position: [x + (map.axis === 'x' ? map.sign * ARROW_DEPTH_OFFSET : 0), panelYPosition, z + (map.axis === 'z' ? map.sign * ARROW_DEPTH_OFFSET : 0)],
+                rotation: rotation,
+            });
+        }
+    }
+
+    // Clear existing panels before populating
+    panelsRef.current = [];
+
+    dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-      mesh.position.set(...config.position);
-      mesh.rotation.set(...config.rotation);
+      // Fix 1 & 2: Use spread arguments correctly for set()
+      mesh.position.set(config.position[0], config.position[1], config.position[2]);
+      mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
       
-      const wallRotation = new THREE.Euler(...config.rotation, 'XYZ');
+      // Fix 3: Use spread arguments correctly for THREE.Euler constructor
+      const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
@@ -495,7 +547,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const basePosition = new THREE.Vector3(...config.position);
       
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
-      titleMesh.rotation.set(...config.rotation);
+      // Fix 4: Use spread arguments correctly for set()
+      titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
       const titlePosition = basePosition.clone()
           .addScaledVector(upVector, titleYOffset)
@@ -503,10 +556,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       titleMesh.position.copy(titlePosition);
       scene.add(titleMesh);
 
-      // Description Panel (Left side)
+      // Description Panel (Left side relative to the NFT panel)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
-      descriptionMesh.rotation.set(...config.rotation);
+      // Fix 5: Use spread arguments correctly for set()
+      descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
@@ -518,23 +572,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(prevArrow);
       
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(...config.rotation);
+      // Fix 6: Use spread arguments correctly for set()
+      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const nextPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
-      // Attributes Panel (Right side)
+      // Attributes Panel (Right side relative to the NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
-      const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
-      attributesMesh.rotation.set(...config.rotation);
+      // Fix 7: Use spread arguments correctly for set()
+      attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
-      const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); // Doubled width for wall title
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
-      wallTitleMesh.rotation.set(...config.rotation);
+      // Fix 8: Use spread arguments correctly for set()
+      wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const wallTitlePosition = new THREE.Vector3(...config.position);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
