@@ -553,7 +553,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoade
 
 
     // 4. Lighting Setup
-    // Removed colorful moving lights (PointLights)
     scene.add(new THREE.AmbientLight(0x404050, 0.5));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, WALL_HEIGHT, 0);
@@ -661,9 +660,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoade
 
         // West Inner Inner Wall (X = -15)
         // Outer side (facing -X, corridor)
-        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
         // Inner side (facing +X, inner room)
-        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
     
     // Inner Inner Inner Cove Lighting (10x10)
@@ -992,7 +991,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoade
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      // Removed disco light animation loop
       
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
