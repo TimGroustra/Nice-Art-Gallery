@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { getCachedNftMetadata } from '@/utils/metadataCache';
+import { getCachedNftMetadata } from '@/utils/metadataCache'; // <-- Updated import
 import { normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
@@ -151,27 +151,6 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
-// Create a persistent error texture once
-const createErrorTexture = () => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    if (!context) return new THREE.Texture();
-
-    canvas.width = 512;
-    canvas.height = 512;
-    context.fillStyle = '#8B0000'; // Dark Red background
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.font = 'bold 40px Arial';
-    context.fillStyle = 'white';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText('Error Loading NFT Image', canvas.width / 2, canvas.height / 2);
-    
-    return new THREE.CanvasTexture(canvas);
-};
-
-const errorTexture = createErrorTexture();
-
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -207,25 +186,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
       return new THREE.TextureLoader().load(url);
     }
-    
-    // Use TextureLoader with explicit error handling
-    const loader = new THREE.TextureLoader();
-    
-    return loader.load(url, 
-      // Success callback
-      (texture) => {
-        // Texture loaded successfully
-      }, 
-      // Progress callback (optional)
-      undefined, 
-      // Error callback
-      (error) => {
-        console.error('Error loading texture:', url, error);
-        showError(`Failed to load image: ${url.substring(0, 50)}...`);
-        // Return the error texture on failure
-        return errorTexture;
-      }
-    );
+    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
+      console.error('Error loading texture:', url, error);
+      showError(`Failed to load image: ${url.substring(0, 50)}...`);
+    });
   }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
@@ -239,26 +203,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       if (isVideo && videoRef.current) manageVideoPlayback(false);
 
-      let texture: THREE.Texture | THREE.VideoTexture;
-      
-      if (isVideo) {
-        texture = loadTexture(imageUrl, true);
-      } else {
-        // For images, we need to handle the asynchronous nature of loadTexture's error callback.
-        // Since THREE.TextureLoader.load is asynchronous, we wrap it in a Promise to await the result.
-        texture = await new Promise((resolve) => {
-            const loader = new THREE.TextureLoader();
-            loader.load(imageUrl, 
-                (t) => resolve(t), 
-                undefined, 
-                (error) => {
-                    console.error('Error loading texture:', imageUrl, error);
-                    showError(`Failed to load image: ${imageUrl.substring(0, 50)}...`);
-                    resolve(errorTexture);
-                }
-            );
-        });
-      }
+      const texture = loadTexture(imageUrl, isVideo);
       
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
@@ -319,7 +264,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
       }
-      // Fallback to solid color material on metadata fetch failure
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       panel.metadataUrl = '';
       panel.isVideo = false;
