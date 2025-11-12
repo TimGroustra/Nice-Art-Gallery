@@ -541,16 +541,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
 
+    // Offset from the center of the room to the center of the solid wall segment (10/2 - (10-2)/4) = 5 - 2 = 3.0
+    const PANEL_OFFSET_FROM_CENTER = 3.0; 
+
     // Panel configurations relative to the central room (0, 0)
     const panelConfigs = [
-      // North Wall of Central Room (Z = -5)
-      { wallName: 'north-wall', position: [0, PANEL_Y_POSITION, -ROOM_SIZE / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      // South Wall of Central Room (Z = 5)
-      { wallName: 'south-wall', position: [0, PANEL_Y_POSITION, ROOM_SIZE / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      // East Wall of Central Room (X = 5)
-      { wallName: 'east-wall', position: [ROOM_SIZE / 2 - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, 0], rotation: [0, -Math.PI / 2, 0] },
-      // West Wall of Central Room (X = -5)
-      { wallName: 'west-wall', position: [-ROOM_SIZE / 2 + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, 0], rotation: [0, Math.PI / 2, 0] },
+      // North Wall of Central Room (Z = -5). Panel moved to X = 3.0
+      { wallName: 'north-wall', position: [PANEL_OFFSET_FROM_CENTER, PANEL_Y_POSITION, -ROOM_SIZE / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      // South Wall of Central Room (Z = 5). Panel moved to X = -3.0 (relative right side)
+      { wallName: 'south-wall', position: [-PANEL_OFFSET_FROM_CENTER, PANEL_Y_POSITION, ROOM_SIZE / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      // East Wall of Central Room (X = 5). Panel moved to Z = 3.0
+      { wallName: 'east-wall', position: [ROOM_SIZE / 2 - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, PANEL_OFFSET_FROM_CENTER], rotation: [0, -Math.PI / 2, 0] },
+      // West Wall of Central Room (X = -5). Panel moved to Z = -3.0 (relative right side)
+      { wallName: 'west-wall', position: [-ROOM_SIZE / 2 + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, -PANEL_OFFSET_FROM_CENTER], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
@@ -576,7 +579,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       titleMesh.position.copy(titlePosition);
       scene.add(titleMesh);
 
-      // Description Panel (Left side)
+      // Description Panel (Left side relative to NFT panel)
+      // Note: TEXT_PANEL_OFFSET_X is relative to the NFT panel center (2.5 units wide)
+      // We need to adjust the offset calculation since the NFT panel is no longer centered on the wall segment.
+      // Since the NFT panel is 2 units wide, and the text panels are 2.5 units wide, 
+      // we keep the existing relative offsets for text panels to the NFT panel.
+      
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
       descriptionMesh.rotation.set(...config.rotation);
@@ -598,7 +606,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
-      // Attributes Panel (Right side)
+      // Attributes Panel (Right side relative to NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
       attributesMesh.rotation.set(...config.rotation);
@@ -606,7 +614,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
-      // Wall Title
+      // Wall Title (Centered on the wall segment, which is now 3.0 units from room center)
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
       wallTitleMesh.rotation.set(...config.rotation);
       const wallTitlePosition = new THREE.Vector3(...config.position);
