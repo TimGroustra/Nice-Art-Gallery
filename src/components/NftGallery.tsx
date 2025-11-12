@@ -280,8 +280,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    // Start camera outside the room, near the North wall display
-    camera.position.set(0, 1.6, -6); 
+    // Start camera outside the 30x30 room, looking towards the 10x10 room
+    camera.position.set(0, 1.6, -16); 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -352,23 +352,74 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
     
-    // Walls remain 10x10
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    // Walls remain 10x10 (Inner Room)
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), innerWallMaterial);
     northWall.position.set(0, wallHeight / 2, -roomSize / 2);
     scene.add(northWall);
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), innerWallMaterial);
     southWall.rotation.y = Math.PI;
     southWall.position.set(0, wallHeight / 2, roomSize / 2);
     scene.add(southWall);
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), innerWallMaterial);
     eastWall.rotation.y = -Math.PI / 2;
     eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
     scene.add(eastWall);
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), innerWallMaterial);
     westWall.rotation.y = Math.PI / 2;
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
+
+    // --- New 30x30 Outer Room Walls ---
+    const outerRoomSize = 30;
+    const outerWallPosition = outerRoomSize / 2; // 15
+    const outerWallSegmentLength = 10;
+    const outerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x555555, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const outerWallGeometry = new THREE.PlaneGeometry(outerWallSegmentLength, wallHeight);
+    
+    // North Outer Wall (Z = -15)
+    const northOuterWall1 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    northOuterWall1.position.set(-outerWallSegmentLength / 2 - 5, wallHeight / 2, -outerWallPosition); // X = -10
+    scene.add(northOuterWall1);
+    
+    const northOuterWall2 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    northOuterWall2.position.set(outerWallSegmentLength / 2 + 5, wallHeight / 2, -outerWallPosition); // X = 10
+    scene.add(northOuterWall2);
+
+    // South Outer Wall (Z = 15)
+    const southOuterWall1 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    southOuterWall1.rotation.y = Math.PI;
+    southOuterWall1.position.set(-outerWallSegmentLength / 2 - 5, wallHeight / 2, outerWallPosition); // X = -10
+    scene.add(southOuterWall1);
+    
+    const southOuterWall2 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    southOuterWall2.rotation.y = Math.PI;
+    southOuterWall2.position.set(outerWallSegmentLength / 2 + 5, wallHeight / 2, outerWallPosition); // X = 10
+    scene.add(southOuterWall2);
+
+    // East Outer Wall (X = 15)
+    const eastOuterWall1 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    eastOuterWall1.rotation.y = -Math.PI / 2;
+    eastOuterWall1.position.set(outerWallPosition, wallHeight / 2, -outerWallSegmentLength / 2 - 5); // Z = -10
+    scene.add(eastOuterWall1);
+    
+    const eastOuterWall2 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    eastOuterWall2.rotation.y = -Math.PI / 2;
+    eastOuterWall2.position.set(outerWallPosition, wallHeight / 2, outerWallSegmentLength / 2 + 5); // Z = 10
+    scene.add(eastOuterWall2);
+
+    // West Outer Wall (X = -15)
+    const westOuterWall1 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    westOuterWall1.rotation.y = Math.PI / 2;
+    westOuterWall1.position.set(-outerWallPosition, wallHeight / 2, -outerWallSegmentLength / 2 - 5); // Z = -10
+    scene.add(westOuterWall1);
+    
+    const westOuterWall2 = new THREE.Mesh(outerWallGeometry, outerWallMaterial);
+    westOuterWall2.rotation.y = Math.PI / 2;
+    westOuterWall2.position.set(-outerWallPosition, wallHeight / 2, outerWallSegmentLength / 2 + 5); // Z = 10
+    scene.add(westOuterWall2);
+    // --- End New 30x30 Outer Room Walls ---
+
 
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
@@ -383,7 +434,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
 
-    // Add glowing cove lighting
+    // Add glowing cove lighting (Inner Room only)
     const coveLightColor = 0x87CEEB; // A soft sky blue glow
     const coveLightIntensity = 10;
     const coveLightWidth = roomSize;
