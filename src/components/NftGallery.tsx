@@ -365,16 +365,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    // --- ROOM GEOMETRY SETUP (70x70) ---
+    // --- ROOM GEOMETRY SETUP (50x50) ---
     const ROOM_SEGMENT_SIZE = 10;
-    const NUM_SEGMENTS = 7;
-    const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS; // 70
+    const NUM_SEGMENTS = 5; // Reduced from 7 to 5
+    const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS; // 50
     const WALL_HEIGHT = 4;
     const PANEL_Y_POSITION = 1.8;
-    const BOUNDARY = ROOM_SIZE / 2 - 0.5; // 34.5
+    const BOUNDARY = ROOM_SIZE / 2 - 0.5; // 24.5
 
     const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
-    const halfRoomSize = ROOM_SIZE / 2;
+    const halfRoomSize = ROOM_SIZE / 2; // 25
     
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
@@ -383,12 +383,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
-    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // 50x50 room segments
+    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // 50x50 room segments (now the main room segments)
     const innerInnerSegmentCenters = [-10, 0, 10]; // 30x30 room segments
     const innerInnerInnerSegmentCenters = [0]; // 10x10 room segments
 
 
-    // 1. Create Modular Floor and Ceiling
+    // 1. Create Modular Floor and Ceiling (Covers 50x50 area)
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
             const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
@@ -427,67 +427,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(innerFloor);
     });
 
-    // 3. Create Modular Outer Walls (70x70)
-    for (let i = 0; i < NUM_SEGMENTS; i++) {
-        const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+    // 3. Create Modular Outer Walls (70x70) - REMOVED
 
-        // North Wall Segments (Z = -halfRoomSize)
-        const northWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
-        northWall.position.set(segmentCenter, WALL_HEIGHT / 2, -halfRoomSize);
-        scene.add(northWall);
-
-        // South Wall Segments (Z = halfRoomSize)
-        const southWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
-        southWall.rotation.y = Math.PI;
-        southWall.position.set(segmentCenter, WALL_HEIGHT / 2, halfRoomSize);
-        scene.add(southWall);
-
-        // East Wall Segments (X = halfRoomSize)
-        const eastWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
-        eastWall.rotation.y = -Math.PI / 2;
-        eastWall.position.set(halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastWall);
-
-        // West Wall Segments (X = -halfRoomSize)
-        const westWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
-        westWall.rotation.y = Math.PI / 2;
-        westWall.position.set(-halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westWall);
-    }
-    
-    // --- START INNER ROOM SETUP (50x50) ---
-    const INNER_WALL_BOUNDARY = 25;
+    // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
+    const INNER_WALL_BOUNDARY = halfRoomSize; // 25
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
     const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
     innerSegmentCenters.forEach(segmentCenter => {
-        // This loop now includes segmentCenter = 0, fully enclosing the 50x50 room.
-
-        // North Inner Wall (Z = -25)
+        // North Outer Wall (Z = -25)
         const northInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         northInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_WALL_BOUNDARY);
         scene.add(northInnerWall);
 
-        // South Inner Wall (Z = 25)
+        // South Outer Wall (Z = 25)
         const southInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         southInnerWall.rotation.y = Math.PI;
         southInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_WALL_BOUNDARY);
         scene.add(southInnerWall);
 
-        // East Inner Wall (X = 25)
+        // East Outer Wall (X = 25)
         const eastInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerWall.rotation.y = -Math.PI / 2;
         eastInnerWall.position.set(INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastInnerWall);
 
-        // West Inner Wall (X = -25)
+        // West Outer Wall (X = -25)
         const westInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerWall.rotation.y = Math.PI / 2;
         westInnerWall.position.set(-INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(westInnerWall);
     });
-    // --- END INNER ROOM SETUP ---
+    // --- END OUTER ROOM SETUP ---
 
     // --- START INNER INNER ROOM SETUP (30x30) ---
     const INNER_INNER_WALL_BOUNDARY = 15;
@@ -555,7 +527,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const NUM_DISCO_LIGHTS = 10; 
     const discoLightHeight = 3.5; 
     const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
-    const lightRadius = ROOM_SIZE * 0.4; 
+    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
     const lightDistance = ROOM_SIZE * 1.5; 
     const lightDecay = 1.5; 
 
@@ -580,73 +552,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const coveLightIntensity = 10;
     const coveLightWidth = ROOM_SEGMENT_SIZE; 
     const coveLightHeight = 0.1;
-    const offset = 0.1;
-    const yPos = WALL_HEIGHT - 0.1;
-    const wallThicknessOffset = 0.05; // Half the wall thickness (assuming wall is centered on boundary line)
-
-
-    const createCoveLighting = (
-        position: [number, number, number],
-        rotation: [number, number, number],
-        order: THREE.EulerOrder = 'XYZ'
-    ) => {
-        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
-        rectLight.position.set(...position);
-        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
-        scene.add(rectLight);
-
-        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
-        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
-        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
-        glowMesh.position.set(...position);
-        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
-        scene.add(glowMesh);
-    };
-
-    // Outer Cove Lighting (70x70)
-    for (let i = 0; i < NUM_SEGMENTS; i++) {
-        const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
-
-        // North
-        createCoveLighting([segmentCenter, yPos, -halfRoomSize + offset], [Math.PI / 2, 0, 0]);
-        // South
-        createCoveLighting([segmentCenter, yPos, halfRoomSize - offset], [-Math.PI / 2, 0, 0]);
-        
-        // East
-        createCoveLighting([halfRoomSize - offset, yPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-        // West
-        createCoveLighting([-halfRoomSize + offset, yPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-    }
-    
-    // Inner Cove Lighting (50x50)
-    const innerYPos = WALL_HEIGHT - 0.1;
     const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
 
+    // Outer Cove Lighting (50x50 perimeter)
     innerSegmentCenters.forEach(segmentCenter => {
-        // This loop now includes segmentCenter = 0, fully enclosing the 50x50 room.
-
-        // North Inner Wall (Z = -25)
-        // Outer side (facing -Z, corridor)
-        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
-        // Inner side (facing +Z, inner room)
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
         createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
 
-        // South Inner Wall (Z = 25)
-        // Outer side (facing +Z, corridor)
-        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
-        // Inner side (facing -Z, inner room)
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
         createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
         
-        // East Inner Wall (X = 25)
-        // Outer side (facing +X, corridor)
-        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-        // Inner side (facing -X, inner room)
+        // East Outer Wall (X = 25). Faces -X (Inward)
         createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
-        // West Inner Wall (X = -25)
-        // Outer side (facing -X, corridor)
-        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-        // Inner side (facing +X, inner room)
+        // West Outer Wall (X = -25). Faces +X (Inward)
         createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
 
