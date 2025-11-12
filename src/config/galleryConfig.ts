@@ -8,16 +8,15 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
-// The primary collection address used for all panels (Electrogems)
-const PRIMARY_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-// Temporary debug address (CryptoPunks) - kept for reference but not used in config generation
-const DEBUG_COLLECTION_ADDRESS = "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB";
+// The primary collection address used for all panels
+const PRIMARY_COLLECTION_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
 // --- Wall Configuration Template ---
 // This function creates a default configuration for a new wall panel.
+// Use this template when adding new walls, specifying the contractAddress.
 const createWallTemplate = (contractAddress: string): NftCollection => ({
   name: 'Loading...',
   contractAddress: contractAddress,
@@ -26,25 +25,14 @@ const createWallTemplate = (contractAddress: string): NftCollection => ({
 });
 // -----------------------------------
 
-// Function to generate the initial configuration for 7 segments per wall
-const generateInitialConfig = (): PanelConfig => {
-    const config: PanelConfig = {};
-    const directions = ['north', 'south', 'east', 'west'];
-    const numSegments = 7;
-
-    for (const direction of directions) {
-        for (let i = 1; i <= numSegments; i++) {
-            const wallName = `${direction}-wall-${i}`;
-            
-            // Assign the primary collection address (Electrogems) to all panels
-            config[wallName] = createWallTemplate(PRIMARY_COLLECTION_ADDRESS);
-        }
-    }
-    return config;
-};
-
 // Initial configuration structure (will be populated dynamically)
-let galleryConfig: PanelConfig = generateInitialConfig();
+// All four initial walls use the PRIMARY_COLLECTION_ADDRESS
+let galleryConfig: PanelConfig = {
+  'north-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+  'south-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+  'east-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+  'west-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+};
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
@@ -81,9 +69,6 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      // Special case for CryptoPunks: they are 0-indexed, but we are using token ID 1 for testing.
-      // Since we set tokenIds = [1] if fetch fails, we ensure currentIndex is 0.
-      // If fetch succeeds, we assume 1-indexed tokens for now, so currentIndex=0 points to token ID 1.
       config.currentIndex = 0; 
     }
     if (name) {

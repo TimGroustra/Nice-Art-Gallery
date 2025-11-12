@@ -1,6 +1,6 @@
 import { JsonRpcProvider, Contract } from "ethers";
 
-// Using the public Ankr RPC endpoint for the Electroneum Mainnet
+// Ankr RPC endpoint for Electroneum
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
