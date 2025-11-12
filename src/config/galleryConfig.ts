@@ -14,41 +14,32 @@ export interface PanelConfig {
 // The primary collection address used for all panels
 const PRIMARY_COLLECTION_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// We use the primary address for all walls to demonstrate shared collection functionality.
-const SHARED_COLLECTION_ADDRESS = PRIMARY_COLLECTION_ADDRESS;
+// --- Wall Configuration Template ---
+// This function creates a default configuration for a new wall panel.
+// Use this template when adding new walls, specifying the contractAddress.
+const createWallTemplate = (contractAddress: string): NftCollection => ({
+  name: 'Loading...',
+  contractAddress: contractAddress,
+  tokenIds: [1], // Start with token 1 as placeholder
+  currentIndex: 0,
+});
+// -----------------------------------
 
 // Initial configuration structure (will be populated dynamically)
+// All four initial walls use the PRIMARY_COLLECTION_ADDRESS
 let galleryConfig: PanelConfig = {
-  'north-wall': {
-    name: 'Loading...',
-    contractAddress: SHARED_COLLECTION_ADDRESS,
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-  'south-wall': {
-    name: 'Loading...',
-    contractAddress: SHARED_COLLECTION_ADDRESS, 
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-  'east-wall': {
-    name: 'Loading...',
-    contractAddress: SHARED_COLLECTION_ADDRESS, 
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-  'west-wall': {
-    name: 'Loading...',
-    contractAddress: SHARED_COLLECTION_ADDRESS, 
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
+  'north-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+  'south-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+  'east-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+  'west-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
 };
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  // Since all panels share the same contract address now, we only need to fetch data once.
-  const uniqueContracts = [SHARED_COLLECTION_ADDRESS];
+  // Collect unique contract addresses from the current configuration
+  const uniqueContracts = Array.from(new Set(
+    Object.values(galleryConfig).map(config => config.contractAddress)
+  ));
 
   const tokenMap: { [address: string]: number[] } = {};
   const nameMap: { [address: string]: string } = {};
@@ -72,8 +63,9 @@ export async function initializeGalleryConfig() {
   // Update all panels using the fetched token lists and names
   for (const wallName in galleryConfig) {
     const config = galleryConfig[wallName];
-    const tokens = tokenMap[config.contractAddress];
-    const name = nameMap[config.contractAddress];
+    const address = config.contractAddress;
+    const tokens = tokenMap[address];
+    const name = nameMap[address];
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
