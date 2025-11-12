@@ -2,8 +2,8 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { getCachedNftMetadata } from '@/utils/metadataCache'; // <-- Updated import
-import { normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
+import { getCachedNftMetadata } from '@/utils/metadataCache';
+import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
@@ -30,6 +30,8 @@ interface Panel {
   descriptionScrollY: number;
   descriptionTextHeight: number;
   currentAttributes: NftAttribute[];
+  // NEW: Dedicated video element for this panel
+  videoElement: HTMLVideoElement | null;
 }
 
 interface NftGalleryProps {
@@ -155,42 +157,62 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isLocked, setIsLocked] = useState(false); 
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
-    if (videoRef.current) {
-      if (shouldPlay) {
-        const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
-        if (controlsLocked) {
-          videoRef.current.play().catch(e => console.warn("Video playback prevented:", e));
+    panelsRef.current.forEach(panel => {
+        if (panel.videoElement) {
+            if (shouldPlay) {
+                const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
+                if (controlsLocked) {
+                    panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
+                }
+            } else {
+                panel.videoElement.pause();
+            }
         }
-      } else {
-        videoRef.current.pause();
-      }
-    }
+    });
   }, []);
 
-  const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
+  const loadTexture = useCallback((url: string, panel: Panel, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
     if (isVideo) {
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.src = url;
-        videoRef.current.load();
-        videoRef.current.loop = true;
-        videoRef.current.muted = true; 
-        if ((window as any).galleryControls?.isLocked?.()) {
-             manageVideoPlayback(true);
-        }
-        return new THREE.VideoTexture(videoRef.current);
+      let videoEl = panel.videoElement;
+      if (!videoEl) {
+          // Create a new video element if it doesn't exist for this panel
+          videoEl = document.createElement('video');
+          videoEl.playsInline = true;
+          videoEl.autoplay = true;
+          videoEl.loop = true;
+          videoEl.muted = true;
+          videoEl.style.display = 'none'; // Keep it hidden
+          panel.videoElement = videoEl;
       }
-      return new THREE.TextureLoader().load(url);
+
+      // Stop previous playback and set new source
+      videoEl.pause();
+      videoEl.src = url;
+      videoEl.load();
+      
+      // Start playback if controls are locked
+      if ((window as any).galleryControls?.isLocked?.()) {
+           videoEl.play().catch(e => console.warn("Video playback prevented:", e));
+      }
+      
+      return new THREE.VideoTexture(videoEl);
     }
+    
+    // If it's not a video, ensure we clean up any existing video element for this panel
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
+    
     return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
       console.error('Error loading texture:', url, error);
       showError(`Failed to load image: ${url.substring(0, 50)}...`);
     });
-  }, [manageVideoPlayback]);
+  }, []);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
@@ -201,9 +223,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
-      if (isVideo && videoRef.current) manageVideoPlayback(false);
-
-      const texture = loadTexture(imageUrl, isVideo);
+      // Pass the panel object to loadTexture
+      const texture = loadTexture(imageUrl, panel, isVideo);
       
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
@@ -271,8 +292,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
       if (panel.attributesMesh) panel.attributesMesh.visible = false;
       if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
+      
+      // Ensure video cleanup on failure
+      if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+      }
     }
-  }, [loadTexture, manageVideoPlayback]);
+  }, [loadTexture]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -292,9 +320,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
-      hasVideo: () => panelsRef.current.some(p => p.isVideo),
-      isMuted: () => videoRef.current?.muted ?? true,
-      toggleMute: () => { if (videoRef.current) videoRef.current.muted = !videoRef.current.muted; },
+      // Check if ANY panel has a video element
+      hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
+      // Check if ALL active video elements are muted
+      isMuted: () => {
+        const activeVideos = panelsRef.current.filter(p => p.videoElement);
+        if (activeVideos.length === 0) return true;
+        return activeVideos.every(p => p.videoElement!.muted);
+      },
+      // Toggle mute on ALL active video elements
+      toggleMute: () => { 
+        const activeVideos = panelsRef.current.filter(p => p.videoElement);
+        if (activeVideos.length > 0) {
+          const currentlyMuted = activeVideos[0].videoElement!.muted;
+          activeVideos.forEach(p => {
+            p.videoElement!.muted = !currentlyMuted;
+          });
+        }
+      },
       isLocked: () => controls.isLocked, 
       getTargetedPanel: () => currentTargetedPanel,
     };
@@ -302,11 +345,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     controls.addEventListener('lock', () => {
       setIsLocked(true);
       setInstructionsVisible(false);
-      if (panelsRef.current.some(p => p.isVideo)) manageVideoPlayback(true);
+      // Start playback for all active videos
+      manageVideoPlayback(true);
     });
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
+      // Pause playback for all active videos
       manageVideoPlayback(false);
     });
 
@@ -433,14 +478,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ) => {
         const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
         rectLight.position.set(...position);
-        rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
         scene.add(rectLight);
 
         const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
         const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
         const glowMesh = new THREE.Mesh(glowGeo, glowMat);
         glowMesh.position.set(...position);
-        glowMesh.rotation.set(rotation[0], rotation[1], rotation[2], order);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
         scene.add(glowMesh);
     };
 
@@ -600,6 +645,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
         attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+        videoElement: null, // Initialize video element as null
       };
       panelsRef.current.push(panel);
       
@@ -754,6 +800,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       window.removeEventListener('resize', onWindowResize);
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
+      
+      // Cleanup individual video elements and Three.js resources
+      panelsRef.current.forEach(panel => {
+        if (panel.videoElement) {
+          panel.videoElement.pause();
+          panel.videoElement.removeAttribute('src');
+        }
+      });
+
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
           obj.geometry.dispose();
@@ -762,11 +817,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       });
       renderer.dispose();
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.removeAttribute('src');
-        videoRef.current.load();
-      }
+      
       delete (window as any).galleryControls;
       currentTargetedPanel = null; 
       currentTargetedArrow = null;
@@ -776,7 +827,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
   return (
     <>
-      <video ref={videoRef} style={{ display: 'none' }} playsInline autoPlay muted />
       <div ref={mountRef} className="w-full h-full" />
     </>
   );
