@@ -171,12 +171,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     
-    // Layer 1 for Disco Lights
-    const DISCO_LIGHT_LAYER = 1; 
-
     // Start camera outside the 50x50 room, looking towards the center
     camera.position.set(0, 1.6, -26); 
-    camera.layers.enable(DISCO_LIGHT_LAYER); // Camera sees both layers 0 and 1
     
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -395,44 +391,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(westOuterWall5);
     // --- End 70x70 Outer Room Walls ---
 
-
-    // --- Disco Lights Setup (Expanded to cover 70x70 area) ---
-    const lights: THREE.PointLight[] = [];
-    const NUM_RINGS = 65; // Covers radius up to 35 (3 + 64 * 0.5 = 35)
-    const LIGHTS_PER_RING = 3;
-    const BASE_RADIUS = 3;
-    const RADIUS_INCREMENT = 0.5;
-    const DISCO_LIGHT_HEIGHT = 2.5;
-    const LIGHT_COLORS = [0xff0066, 0x00ffd5, 0xffff00]; // Cycle through these colors
-
-    // Interface to store light configuration for animation
-    interface AnimatedLight extends THREE.PointLight {
-        ringIndex: number;
-        radius: number;
-        lightIndex: number;
-    }
-
-    for (let r = 0; r < NUM_RINGS; r++) {
-      const radius = BASE_RADIUS + r * RADIUS_INCREMENT;
-      for (let i = 0; i < LIGHTS_PER_RING; i++) {
-        const color = LIGHT_COLORS[i % LIGHT_COLORS.length];
-        const pl = new THREE.PointLight(color, 0.8, 15, 2) as AnimatedLight;
-        
-        pl.layers.set(DISCO_LIGHT_LAYER); // Assign disco lights to Layer 1
-        
-        // Initial position calculation
-        const angle = i / LIGHTS_PER_RING * Math.PI * 2;
-        pl.position.set(Math.cos(angle) * radius, DISCO_LIGHT_HEIGHT, Math.sin(angle) * radius);
-        
-        pl.ringIndex = r;
-        pl.radius = radius;
-        pl.lightIndex = i;
-        
-        scene.add(pl);
-        lights.push(pl);
-      }
-    }
-    // --- End Disco Lights Setup ---
 
     scene.add(new THREE.AmbientLight(0x404050, 0.3));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
@@ -655,30 +613,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     let prevTime = performance.now();
     
-    // Interface to store light configuration for animation
-    interface AnimatedLight extends THREE.PointLight {
-        ringIndex: number;
-        radius: number;
-        lightIndex: number;
-    }
-
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
       
-      // Update disco lights animation
-      lights.forEach((light) => {
-        const animatedLight = light as AnimatedLight;
-        
-        // Introduce slight speed variation per ring
-        const ringSpeedFactor = 1 + animatedLight.ringIndex * 0.05; 
-        
-        // Angle calculation: time rotation + static offset based on light index within the ring
-        const angle = time * 0.00005 * ringSpeedFactor + animatedLight.lightIndex * (Math.PI * 2 / LIGHTS_PER_RING);
-        
-        animatedLight.position.x = Math.cos(angle) * animatedLight.radius;
-        animatedLight.position.z = Math.sin(angle) * animatedLight.radius;
-      });
+      // Disco lights animation removed
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
