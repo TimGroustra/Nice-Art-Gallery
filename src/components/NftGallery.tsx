@@ -367,7 +367,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- ROOM GEOMETRY SETUP (50x50) ---
     const ROOM_SEGMENT_SIZE = 10;
-    const NUM_SEGMENTS = 5; // 5 segments for 50 units
+    const NUM_SEGMENTS = 5; // Reduced from 7 to 5
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS; // 50
     const WALL_HEIGHT = 4;
     const PANEL_Y_POSITION = 1.8;
@@ -492,54 +492,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // --- START INNER INNER INNER ROOM SETUP (10x10) ---
     const INNER_INNER_INNER_WALL_BOUNDARY = 5;
-    const fourUnitWallGeometry = new THREE.PlaneGeometry(4, WALL_HEIGHT); 
-
+    
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
-        // North Wall (Z = -5) - Two 4-unit segments, 2 unit gap at center
-        // Left segment (X = -3)
-        const northWallL = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        northWallL.position.set(-3, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(northWallL);
-        // Right segment (X = 3)
-        const northWallR = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        northWallR.position.set(3, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(northWallR);
+        // North Wall (Z = -5)
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(northWall);
 
         // South Wall (Z = 5)
-        // Left segment (X = -3)
-        const southWallL = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        southWallL.rotation.y = Math.PI;
-        southWallL.position.set(-3, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(southWallL);
-        // Right segment (X = 3)
-        const southWallR = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        southWallR.rotation.y = Math.PI;
-        southWallR.position.set(3, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(southWallR);
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(southWall);
 
-        // East Wall (X = 5) - Rotated 90 degrees
-        // Bottom segment (Z = -3)
-        const eastWallB = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        eastWallB.rotation.y = -Math.PI / 2;
-        eastWallB.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, -3);
-        scene.add(eastWallB);
-        // Top segment (Z = 3)
-        const eastWallT = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        eastWallT.rotation.y = -Math.PI / 2;
-        eastWallT.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, 3);
-        scene.add(eastWallT);
+        // East Wall (X = 5)
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
 
-        // West Wall (X = -5) - Rotated 90 degrees
-        // Bottom segment (Z = -3)
-        const westWallB = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        westWallB.rotation.y = Math.PI / 2;
-        westWallB.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, -3);
-        scene.add(westWallB);
-        // Top segment (Z = 3)
-        const westWallT = new THREE.Mesh(fourUnitWallGeometry, innerWallMaterial.clone());
-        westWallT.rotation.y = Math.PI / 2;
-        westWallT.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, 3);
-        scene.add(westWallT);
+        // West Wall (X = -5)
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
     });
     // --- END INNER INNER INNER ROOM SETUP ---
 
@@ -646,60 +622,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Inner Inner Inner Cove Lighting (10x10)
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
 
-    // We need to create custom lighting for the 10x10 room to account for the gaps.
-    // Since the wall segments are 4 units wide, we place 4-unit wide lights centered at X/Z = +/- 3.
-    const fourUnitLightWidth = 4;
-    const createFourUnitCoveLighting = (
-        position: [number, number, number],
-        rotation: [number, number, number],
-        order: THREE.EulerOrder = 'XYZ'
-    ) => {
-        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, fourUnitLightWidth, coveLightHeight);
-        rectLight.position.set(...position);
-        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
-        scene.add(rectLight);
-
-        const glowGeo = new THREE.BoxGeometry(fourUnitLightWidth, coveLightHeight, 0.02);
-        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
-        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
-        glowMesh.position.set(...position);
-        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
-        scene.add(glowMesh);
-    };
-
-
-    innerInnerInnerSegmentCenters.forEach(() => { // segmentCenter = 0
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Inner Inner Inner Wall (Z = -5)
         // Outer side (facing -Z, corridor)
-        createFourUnitCoveLighting([-3, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
-        createFourUnitCoveLighting([3, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
         // Inner side (facing +Z, inner room)
-        createFourUnitCoveLighting([-3, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
-        createFourUnitCoveLighting([3, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
 
         // South Inner Inner Inner Wall (Z = 5)
         // Outer side (facing +Z, corridor)
-        createFourUnitCoveLighting([-3, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
-        createFourUnitCoveLighting([3, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
         // Inner side (facing -Z, inner room)
-        createFourUnitCoveLighting([-3, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
-        createFourUnitCoveLighting([3, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
         
         // East Inner Inner Inner Wall (X = 5)
         // Outer side (facing +X, corridor)
-        createFourUnitCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, -3], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-        createFourUnitCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, 3], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
         // Inner side (facing -X, inner room)
-        createFourUnitCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerYPos, -3], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-        createFourUnitCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerYPos, 3], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
         // West Inner Inner Inner Wall (X = -5)
         // Outer side (facing -X, corridor)
-        createFourUnitCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, -3], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-        createFourUnitCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, 3], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
         // Inner side (facing +X, inner room)
-        createFourUnitCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, -3], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-        createFourUnitCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, 3], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
     // --- END COVE LIGHTING ---
 
@@ -877,60 +823,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
 
-    const PLAYER_RADIUS = 0.5;
-    // Collision threshold is player radius + half wall thickness (0.05)
-    const COLLISION_THRESHOLD = PLAYER_RADIUS + 0.05; 
-
-    const checkWallCollision = (currentX: number, currentZ: number, prevX: number, prevZ: number) => {
-        let newX = currentX;
-        let newZ = currentZ;
-
-        // 1. Check 10x10 Walls (X/Z = +/- 5)
-        const INNER_WALL = 5;
-        const GAP_HALF_SIZE_10X10 = 1; // Gap is 2 units wide, centered at 0. X/Z in [-1, 1] is the gap.
-
-        // Z = -5 wall (X in [-5, -1] U [1, 5])
-        if (Math.abs(newZ - (-INNER_WALL)) < COLLISION_THRESHOLD && Math.abs(newX) > GAP_HALF_SIZE_10X10 && Math.abs(newX) <= INNER_WALL + PLAYER_RADIUS) {
-            newZ = prevZ; // Revert Z movement
-        }
-        // Z = 5 wall (X in [-5, -1] U [1, 5])
-        if (Math.abs(newZ - INNER_WALL) < COLLISION_THRESHOLD && Math.abs(newX) > GAP_HALF_SIZE_10X10 && Math.abs(newX) <= INNER_WALL + PLAYER_RADIUS) {
-            newZ = prevZ; // Revert Z movement
-        }
-        // X = -5 wall (Z in [-5, -1] U [1, 5])
-        if (Math.abs(newX - (-INNER_WALL)) < COLLISION_THRESHOLD && Math.abs(newZ) > GAP_HALF_SIZE_10X10 && Math.abs(newZ) <= INNER_WALL + PLAYER_RADIUS) {
-            newX = prevX; // Revert X movement
-        }
-        // X = 5 wall (Z in [-5, -1] U [1, 5])
-        if (Math.abs(newX - INNER_WALL) < COLLISION_THRESHOLD && Math.abs(newZ) > GAP_HALF_SIZE_10X10 && Math.abs(newZ) <= INNER_WALL + PLAYER_RADIUS) {
-            newX = prevX; // Revert X movement
-        }
-
-        // 2. Check 30x30 Walls (X/Z = +/- 15)
-        const MIDDLE_WALL = 15;
-        const GAP_HALF_SIZE_30X30 = 5; // Gap is 10 units wide, centered at 0. X/Z in [-5, 5] is the gap.
-
-        // Z = -15 wall (X in [-25, -5] U [5, 25])
-        if (Math.abs(newZ - (-MIDDLE_WALL)) < COLLISION_THRESHOLD && Math.abs(newX) > GAP_HALF_SIZE_30X30 && Math.abs(newX) <= halfRoomSize) {
-            newZ = prevZ;
-        }
-        // Z = 15 wall (X in [-25, -5] U [5, 25])
-        if (Math.abs(newZ - MIDDLE_WALL) < COLLISION_THRESHOLD && Math.abs(newX) > GAP_HALF_SIZE_30X30 && Math.abs(newX) <= halfRoomSize) {
-            newZ = prevZ;
-        }
-        // X = -15 wall (Z in [-25, -5] U [5, 25])
-        if (Math.abs(newX - (-MIDDLE_WALL)) < COLLISION_THRESHOLD && Math.abs(newZ) > GAP_HALF_SIZE_30X30 && Math.abs(newZ) <= halfRoomSize) {
-            newX = prevX;
-        }
-        // X = 15 wall (Z in [-25, -5] U [5, 25])
-        if (Math.abs(newX - MIDDLE_WALL) < COLLISION_THRESHOLD && Math.abs(newZ) > GAP_HALF_SIZE_30X30 && Math.abs(newZ) <= halfRoomSize) {
-            newX = prevX;
-        }
-
-        return { x: newX, z: newZ };
-    };
-
-
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
         case 'KeyW': moveForward = true; break;
@@ -1014,21 +906,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         direction.z = Number(moveForward) - Number(moveBackward);
         direction.x = Number(moveRight) - Number(moveLeft);
         direction.normalize();
-        
-        // Store previous position before movement
-        const prevX = camera.position.x;
-        const prevZ = camera.position.z;
-
-        // Apply movement
+        if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+        if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
-        
-        // Apply collision checks against inner walls
-        const { x: collidedX, z: collidedZ } = checkWallCollision(camera.position.x, camera.position.z, prevX, prevZ);
-        camera.position.x = collidedX;
-        camera.position.z = collidedZ;
-
-        // Apply outer boundary check (50x50 perimeter)
         camera.position.y = 1.6;
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
