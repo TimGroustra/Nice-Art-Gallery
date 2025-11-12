@@ -195,6 +195,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             videoEl.loop = true;
             videoEl.muted = true;
             videoEl.style.display = 'none'; // Keep it hidden
+            videoEl.crossOrigin = 'anonymous'; // Added crossOrigin for video
             panel.videoElement = videoEl;
         }
 
@@ -228,7 +229,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // Use TextureLoader wrapped in a Promise for asynchronous image loading
     return new Promise((resolve, reject) => {
-        new THREE.TextureLoader().load(url, 
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous'); // Added crossOrigin setting for image loader
+        
+        loader.load(url, 
             (texture) => {
                 resolve(texture);
             }, 
