@@ -678,8 +678,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number], textOffsetSign: number }[] = [];
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
 
-    // Iterate through all 28 panel keys (segment index 0 to 6)
-    for (let i = 0; i < 7; i++) { 
+    // Iterate through all 36 panel keys (segment index 0 to 8)
+    for (let i = 0; i < 9; i++) { 
         for (const wallNameBase of WALL_NAMES) {
             const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
             
@@ -687,16 +687,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
             let x = 0, z = 0;
             let rotation: [number, number, number] = [0, 0, 0];
-            let depthSign = 0; // 1 for positive axis, -1 for negative axis
+            let depthSign = 0; 
             let wallAxis: 'x' | 'z' = 'z';
-            let textOffsetSign = 1; // Default: text panels are placed to the right/left of the NFT panel
+            let textOffsetSign = 1; 
 
             if (i <= 4) {
                 // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
                 const centerIndex = i - 2; 
                 const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
                 
-                // Panels must face INWARD (towards the 30x30 room/center)
+                // Panels face INWARD (towards the 30x30 room/center)
                 if (wallNameBase === 'north-wall') { // Z = -25, faces +Z
                     x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
                 } else if (wallNameBase === 'south-wall') { // Z = 25, faces -Z
@@ -706,28 +706,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
                     x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 }
-                // For 50x50 walls, the viewer is outside, looking in. Text panels should be on the sides. Default textOffsetSign=1 is correct.
-                textOffsetSign = 1;
+                textOffsetSign = 1; 
             } else if (i >= 5 && i <= 6) {
-                // 30x30 Walls (Indices 5-6, 2 segments: -10, 10)
+                // 30x30 Walls, OUTER SIDE (Indices 5-6, 2 segments: -10, 10)
                 const centerMap = { 5: -10, 6: 10 };
                 const segmentCenter = centerMap[i as 5 | 6];
                 
-                // Panels must face OUTWARD (towards the 50x50 room)
+                // Panels face OUTWARD (towards the 50x50 corridor)
                 if (wallNameBase === 'north-wall') { // Z = -15, faces -Z
                     x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
                 } else if (wallNameBase === 'south-wall') { // Z = 15, faces +Z
                     x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-                } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
-                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-                } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
-                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+                } else if (wallNameBase === 'east-wall') { // X = 15, faces -X
+                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+                } else if (wallNameBase === 'west-wall') { // X = -15, faces +X
+                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 }
-                // For 30x30 walls, the viewer is outside, looking in. Text panels should be on the sides.
-                // However, the rotation of the panel is flipped (Math.PI difference) compared to the 50x50 walls on the same cardinal direction.
-                // If the panel rotation is flipped, the 'rightVector' is also flipped relative to the viewer's perspective.
-                // We need to flip the text offset sign for the 30x30 walls to keep the text panels on the outside of the wall segment.
-                textOffsetSign = -1;
+                textOffsetSign = -1; 
+            } else if (i >= 7 && i <= 8) {
+                // 30x30 Walls, INNER SIDE (Indices 7-8, 2 segments: -10, 10)
+                const centerMap = { 7: -10, 8: 10 };
+                const segmentCenter = centerMap[i as 7 | 8];
+                
+                // Panels face INWARD (towards the 10x10 center room)
+                if (wallNameBase === 'north-wall') { // Z = -15, faces +Z
+                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+                } else if (wallNameBase === 'south-wall') { // Z = 15, faces -Z
+                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+                } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
+                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
+                } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
+                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+                }
+                textOffsetSign = 1;
             } else {
                 continue;
             }
@@ -928,7 +939,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
         raycaster.setFromCamera(center, camera);
-        const intersects = raycaster.intersectObjects(interactiveMeshes);
+        const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]));
         
         panelsRef.current.forEach(p => {
           (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
