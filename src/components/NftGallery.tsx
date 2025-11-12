@@ -686,7 +686,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Inner Inner Inner Cove Lighting (10x10)
     const innerInnerInnerYPos = WALL_HEIGHT - 0.1;
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
-    const innerInnerInnerSegmentCenters = [0];
+    // Reusing innerInnerInnerSegmentCenters defined earlier in the useEffect scope
 
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Inner Inner Inner Wall (Z = -5)
