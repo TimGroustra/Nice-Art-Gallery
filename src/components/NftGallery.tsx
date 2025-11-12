@@ -19,8 +19,6 @@ interface Panel {
   wallName: keyof PanelConfig;
   metadataUrl: string;
   isVideo: boolean;
-  prevArrow: THREE.Mesh;
-  nextArrow: THREE.Mesh;
   titleMesh: THREE.Mesh;
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
@@ -40,7 +38,6 @@ interface NftGalleryProps {
 
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
-let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
 
 // Helper function to create a text texture using Canvas
@@ -707,12 +704,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_DEPTH_OFFSET = 0.03;
     const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
@@ -853,20 +845,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
       
-      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
-      // FIX: Initialize prevPosition using indexed access
-      const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
-      prevArrow.position.copy(prevPosition);
-      scene.add(prevArrow);
-      
-      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // FIX: Initialize nextPosition using indexed access
-      const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
-      nextArrow.position.copy(nextPosition);
-      scene.add(nextArrow);
-
       // Attributes Panel (Right side relative to the NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
       const attributesMesh = new THREE.Mesh(attributesGeometry, createBaseTextMaterial());
@@ -885,7 +863,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // --- END Initialization ---
 
       const panel: Panel = {
-        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
+        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, titleMesh, descriptionMesh,
         attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
         videoElement: null, // Initialize video element as null
       };
@@ -918,22 +896,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
-    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]);
+    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.descriptionMesh]);
 
-    const onDocumentMouseDown = () => {
-      if (!controls.isLocked) return;
-      if (currentTargetedArrow) {
-        const panel = panelsRef.current.find(p => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow);
-        if (panel) {
-          const direction = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
-          if (updatePanelIndex(panel.wallName, direction)) {
-            const newSource = getCurrentNftSource(panel.wallName);
-            if (newSource) updatePanelContent(panel, newSource);
-          }
-        }
-      }
-    };
-    document.addEventListener('mousedown', onDocumentMouseDown);
+    // Removed onDocumentMouseDown as it was only used for arrow navigation.
 
     const updateDescriptionTexture = (panel: Panel) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial) {
@@ -998,24 +963,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(interactiveMeshes);
         
-        panelsRef.current.forEach(p => {
-          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
-          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
-        });
+        // Removed arrow hover reset logic
         
         currentTargetedPanel = null;
-        currentTargetedArrow = null;
         currentTargetedDescriptionPanel = null;
 
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
-          const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh || p.descriptionMesh === intersectedMesh);
+          const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.descriptionMesh === intersectedMesh);
           if (panel) {
             if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
-            else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
-              currentTargetedArrow = intersectedMesh;
-              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
-            } else if (intersectedMesh === panel.descriptionMesh) {
+            else if (intersectedMesh === panel.descriptionMesh) {
               currentTargetedDescriptionPanel = panel;
             }
           }
@@ -1051,7 +1009,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     animate();
 
     return () => {
-      document.removeEventListener('mousedown', onDocumentMouseDown);
+      // Removed mousedown listener
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('wheel', onDocumentWheel);
@@ -1078,7 +1036,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       delete (window as any).galleryControls;
       currentTargetedPanel = null; 
-      currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
