@@ -198,7 +198,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
            videoEl.play().catch(e => console.warn("Video playback prevented:", e));
       }
       
-      return new THREE.VideoTexture(videoEl);
+      const videoTexture = new THREE.VideoTexture(videoEl);
+      // Set filters for better video quality
+      videoTexture.minFilter = THREE.LinearFilter;
+      videoTexture.magFilter = THREE.LinearFilter;
+      videoTexture.needsUpdate = true;
+      
+      return videoTexture;
     }
     
     // If it's not a video, ensure we clean up any existing video element for this panel
@@ -235,14 +241,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
+      // Title update
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      // Increased font size from 100 to 120
-      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
+      // Description update
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
@@ -256,7 +263,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
 
-      // Update attributes
+      // Attributes update
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
       }
@@ -266,12 +273,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      // Update wall title
+      // Wall title update
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
-      // Increased font size from 100 to 120
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
