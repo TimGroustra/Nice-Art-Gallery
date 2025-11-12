@@ -521,9 +521,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
     const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
-    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
-    const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     
+    // Helper to create a unique placeholder material/texture combo
+    const createUniquePlaceholderMaterial = (text: string, width: number, height: number, fontSize: number, color: string = 'white') => {
+        const { texture } = createTextTexture(text, width, height, fontSize, color, { wordWrap: false });
+        return new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    };
+
     // Geometries defined once outside the loop
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
@@ -601,7 +605,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // FIX: Initialize basePosition using indexed access
       const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       
-      const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
+      // --- START FIX: Use unique placeholder materials ---
+      const titleMesh = new THREE.Mesh(titleGeometry, createUniquePlaceholderMaterial('Loading Title...', TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120));
       titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
       const titlePosition = basePosition.clone()
@@ -612,7 +617,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Description Panel (Left side relative to the NFT panel)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
-      const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
+      const descriptionMesh = new THREE.Mesh(descriptionGeometry, createUniquePlaceholderMaterial('Loading Description...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray'));
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
@@ -634,19 +639,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Attributes Panel (Right side relative to the NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
-      const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
+      const attributesMesh = new THREE.Mesh(attributesGeometry, createUniquePlaceholderMaterial('Loading Attributes...', TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray'));
       attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
-      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
+      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createUniquePlaceholderMaterial('Loading Collection...', 8, 0.75, 120));
       wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       // FIX: Initialize wallTitlePosition using indexed access
       const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
       scene.add(wallTitleMesh);
+      // --- END FIX ---
 
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
