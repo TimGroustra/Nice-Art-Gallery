@@ -171,24 +171,53 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   const loadTexture = useCallback((url: string, isVideo: boolean = false): THREE.Texture | THREE.VideoTexture => {
+    if (!url) return new THREE.Texture();
     if (isVideo) {
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.src = url;
         videoRef.current.load();
         videoRef.current.loop = true;
-        videoRef.current.muted = true; 
+        videoRef.current.muted = true;
         if ((window as any).galleryControls?.isLocked?.()) {
-             manageVideoPlayback(true);
+          manageVideoPlayback(true);
         }
-        return new THREE.VideoTexture(videoRef.current);
+        const vTex = new THREE.VideoTexture(videoRef.current as HTMLVideoElement);
+        vTex.encoding = THREE.LinearEncoding;
+        vTex.minFilter = THREE.LinearFilter;
+        vTex.magFilter = THREE.LinearFilter;
+        vTex.generateMipmaps = false;
+        vTex.needsUpdate = true;
+        return vTex;
       }
-      return new THREE.TextureLoader().load(url);
+      const fallback = new THREE.TextureLoader().load(url);
+      fallback.encoding = THREE.LinearEncoding;
+      fallback.minFilter = THREE.LinearFilter;
+      fallback.magFilter = THREE.LinearFilter;
+      fallback.generateMipmaps = false;
+      fallback.needsUpdate = true;
+      return fallback;
     }
-    return new THREE.TextureLoader().load(url, () => {}, undefined, (error) => {
-      console.error('Error loading texture:', url, error);
-      showError(`Failed to load image: ${url.substring(0, 50)}...`);
-    });
+    const tex = new THREE.TextureLoader().load(url,
+      (t) => {
+        t.encoding = THREE.LinearEncoding;
+        t.minFilter = THREE.LinearFilter;
+        t.magFilter = THREE.LinearFilter;
+        t.generateMipmaps = false;
+        t.needsUpdate = true;
+      },
+      undefined,
+      (error) => {
+        console.error('Error loading texture:', url, error);
+        try { showError && showError(`Failed to load image: ${url ? url.substring(0,50) : 'unknown'}...`); } catch(e) {}
+      }
+    );
+    tex.encoding = THREE.LinearEncoding;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = false;
+    tex.needsUpdate = true;
+    return tex;
   }, [manageVideoPlayback]);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
@@ -203,12 +232,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       const texture = loadTexture(imageUrl, isVideo);
       
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
+      // ensure material is neutral/basic and not affected by scene lighting or tone mapping
+      if (!(panel.mesh.material instanceof THREE.MeshBasicMaterial)) {
+        try { panel.mesh.material.dispose(); } catch(e) {}
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+      } else {
+        // replace map while preserving material instance
+        (panel.mesh.material as THREE.MeshBasicMaterial).map?.dispose?.();
+        (panel.mesh.material as THREE.MeshBasicMaterial).map = texture;
       }
+      (panel.mesh.material as THREE.MeshBasicMaterial).color.setHex(0xffffff);
+      (panel.mesh.material as THREE.MeshBasicMaterial).toneMapped = false;
+      panel.mesh.renderOrder = 1;
 
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
@@ -284,6 +320,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
+    // FORCE linear output & disable tone-mapping so textures render exactly as they come from the loader
+    renderer.toneMapping = THREE.NoToneMapping;
+    renderer.outputEncoding = THREE.LinearEncoding;
+    renderer.physicallyCorrectLights = false;
     mountRef.current.appendChild(renderer.domElement);
 
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -324,18 +364,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     northWall.position.set(0, wallHeight / 2, -roomSize / 2);
     scene.add(northWall);
+    northWall.renderOrder = 0;
     const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     southWall.rotation.y = Math.PI;
     southWall.position.set(0, wallHeight / 2, roomSize / 2);
     scene.add(southWall);
+    southWall.renderOrder = 0;
     const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     eastWall.rotation.y = -Math.PI / 2;
     eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
     scene.add(eastWall);
+    eastWall.renderOrder = 0;
     const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     westWall.rotation.y = Math.PI / 2;
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
+    westWall.renderOrder = 0;
 
     // --- Create Inner Room (5x5) ---
     const innerRoomSize = 85;
@@ -515,6 +559,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const FRONT_OFFSET = 0.03; // small positive offset to place panels in front of the wall
     const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
@@ -677,6 +722,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
       
       const basePosition = new THREE.Vector3(...config.position);
+      // Move the panel and its text planes slightly forward along the wall's local forward vector
+      if (typeof forwardVector !== 'undefined' && forwardVector) {
+        // Move the main panel mesh so it sits in front of the wall plane
+        mesh.position.copy(basePosition).addScaledVector(forwardVector, FRONT_OFFSET);
+        mesh.renderOrder = 1;
+      } else {
+        // fallback - still set renderOrder
+        mesh.renderOrder = 1;
+      }
       
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
       titleMesh.rotation.set(...config.rotation);
@@ -686,6 +740,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       titleMesh.position.copy(titlePosition);
       scene.add(titleMesh);
+      titleMesh.renderOrder = 1;
 
       // Description Panel (Left side)
       const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
@@ -694,6 +749,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
+      descriptionMesh.renderOrder = 1;
       
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
@@ -715,6 +771,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
+      attributesMesh.renderOrder = 1;
 
       const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); // Doubled width for wall title
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
