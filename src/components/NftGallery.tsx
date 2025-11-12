@@ -379,7 +379,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    // Outer walls should only be visible from the inside (side: THREE.FrontSide is default, so we just remove DoubleSide)
+    const outerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8, metalness: 0.1 });
+    // Inner walls need to be visible from both sides of the corridor
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
     // 1. Create Modular Floor and Ceiling
     for (let i = 0; i < NUM_SEGMENTS; i++) {
@@ -425,24 +428,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
         // North Wall Segments (Z = -halfRoomSize)
-        const northWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        const northWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
         northWall.position.set(segmentCenter, WALL_HEIGHT / 2, -halfRoomSize);
         scene.add(northWall);
 
         // South Wall Segments (Z = halfRoomSize)
-        const southWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        const southWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
         southWall.rotation.y = Math.PI;
         southWall.position.set(segmentCenter, WALL_HEIGHT / 2, halfRoomSize);
         scene.add(southWall);
 
         // East Wall Segments (X = halfRoomSize)
-        const eastWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        const eastWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
         eastWall.rotation.y = -Math.PI / 2;
         eastWall.position.set(halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastWall);
 
         // West Wall Segments (X = -halfRoomSize)
-        const westWall = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        const westWall = new THREE.Mesh(wallSegmentGeometry, outerWallMaterial.clone());
         westWall.rotation.y = Math.PI / 2;
         westWall.position.set(-halfRoomSize, WALL_HEIGHT / 2, segmentCenter);
         scene.add(westWall);
@@ -451,7 +454,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- START INNER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = 25;
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
-    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
     // Segment centers for a 50 unit span (5 segments): -20, -10, 0, 10, 20
@@ -524,32 +526,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const HALF_PILLAR_SIZE = PILLAR_SIZE / 2; // 5
     const PILLAR_HEIGHT = WALL_HEIGHT;
     const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8, metalness: 0.1 });
-    const pillarSideGeometry = new THREE.PlaneGeometry(PILLAR_SIZE, PILLAR_HEIGHT);
+    
+    // Use BoxGeometry for a solid, non-transparent pillar
+    const pillarGeometry = new THREE.BoxGeometry(PILLAR_SIZE, PILLAR_HEIGHT, PILLAR_SIZE);
+    const centralPillar = new THREE.Mesh(pillarGeometry, pillarMaterial.clone());
+    centralPillar.position.set(0, PILLAR_HEIGHT / 2, 0);
+    scene.add(centralPillar);
 
-    // North side (Z = -5)
-    const pillarNorth = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
-    pillarNorth.position.set(0, PILLAR_HEIGHT / 2, -HALF_PILLAR_SIZE);
-    scene.add(pillarNorth);
-
-    // South side (Z = 5)
-    const pillarSouth = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
-    pillarSouth.rotation.y = Math.PI;
-    pillarSouth.position.set(0, PILLAR_HEIGHT / 2, HALF_PILLAR_SIZE);
-    scene.add(pillarSouth);
-
-    // East side (X = 5)
-    const pillarEast = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
-    pillarEast.rotation.y = -Math.PI / 2;
-    pillarEast.position.set(HALF_PILLAR_SIZE, PILLAR_HEIGHT / 2, 0);
-    scene.add(pillarEast);
-
-    // West side (X = -5)
-    const pillarWest = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
-    pillarWest.rotation.y = Math.PI / 2;
-    pillarWest.position.set(-HALF_PILLAR_SIZE, PILLAR_HEIGHT / 2, 0);
-    scene.add(pillarWest);
-
-    // Top surface (Ceiling of the pillar)
+    // Top surface (Ceiling of the pillar) - This is now redundant but kept for consistency with previous ceiling style
     const pillarTopGeometry = new THREE.PlaneGeometry(PILLAR_SIZE, PILLAR_SIZE);
     const pillarTop = new THREE.Mesh(pillarTopGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     pillarTop.rotation.x = Math.PI / 2;
