@@ -439,23 +439,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
 
-    // Add glowing cove lighting (Inner Room only)
+    // Add glowing cove lighting 
     const coveLightColor = 0x87CEEB; // A soft sky blue glow
     const coveLightIntensity = 10;
-    const coveLightWidth = roomSize;
     const coveLightHeight = 0.1;
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
 
     const createCoveLighting = (
         position: [number, number, number],
         rotation: [number, number, number],
+        width: number,
         order: THREE.EulerOrder = 'XYZ'
     ) => {
-        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, width, coveLightHeight);
         rectLight.position.set(...position);
         rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
         scene.add(rectLight);
 
-        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowGeo = new THREE.BoxGeometry(width, coveLightHeight, 0.02);
         const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
         const glowMesh = new THREE.Mesh(glowGeo, glowMat);
         glowMesh.position.set(...position);
@@ -463,17 +465,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(glowMesh);
     };
 
-    const yPos = wallHeight - 0.1;
-    const offset = 0.1;
+    // Inner Room (10x10)
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0], roomSize); // North
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0], roomSize); // South
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], roomSize, 'YXZ'); // East
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], roomSize, 'YXZ'); // West
+    
+    // Outer Boundary (70x70)
+    const outerCoveWidth = totalAreaSize; // 70
+    const outerOffset = 0.1;
+    const outerWallPos = boundary; // 35
 
-    // North
-    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
-    // South
-    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
-    // East
-    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-    // West
-    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+    // North Outer Boundary (Z = -35)
+    createCoveLighting([0, yPos, -outerWallPos + outerOffset], [Math.PI / 2, 0, 0], outerCoveWidth);
+    // South Outer Boundary (Z = 35)
+    createCoveLighting([0, yPos, outerWallPos - outerOffset], [-Math.PI / 2, 0, 0], outerCoveWidth);
+    // East Outer Boundary (X = 35)
+    createCoveLighting([outerWallPos - outerOffset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], outerCoveWidth, 'YXZ');
+    // West Outer Boundary (X = -35)
+    createCoveLighting([-outerWallPos + outerOffset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], outerCoveWidth, 'YXZ');
+
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
