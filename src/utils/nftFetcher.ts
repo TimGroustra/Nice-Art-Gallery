@@ -4,9 +4,10 @@ import { JsonRpcProvider, Contract } from "ethers";
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
-const erc721Abi = [
+const erc721And1155Abi = [
   "function name() view returns (string)",
-  "function tokenURI(uint256 tokenId) view returns (string)",
+  "function tokenURI(uint256 tokenId) view returns (string)", // ERC-721
+  "function uri(uint256 _id) view returns (string)", // ERC-1155
   "function totalSupply() view returns (uint256)"
 ];
 
@@ -38,7 +39,7 @@ export interface NftMetadata {
   title: string;
   description: string;
   image: string;
-  source: string; // Original metadata URL (resolved tokenURI)
+  source: string; // Original metadata URL (resolved tokenURI/uri)
   attributes?: NftAttribute[];
 }
 
@@ -46,7 +47,7 @@ export async function fetchCollectionName(contractAddress: string): Promise<stri
   if (!contractAddress) {
     throw new Error("Contract address must be provided.");
   }
-  const contract = new Contract(contractAddress, erc721Abi, provider);
+  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
   try {
     const name = await contract.name();
     console.log(`[NFT Fetcher] Fetched collection name for ${contractAddress}: ${name}`);
@@ -62,19 +63,33 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     throw new Error("Contract address and token ID must be provided.");
   }
 
-  const contract = new Contract(contractAddress, erc721Abi, provider);
+  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
   
-  let tokenUri: string;
+  let tokenUri: string | undefined;
+  
+  // 1. Try ERC-721 standard (tokenURI)
   try {
-    // Call tokenURI(tokenId)
     tokenUri = await contract.tokenURI(tokenId);
-    console.log(`[NFT Fetcher] Token URI for ${tokenId}: ${tokenUri}`);
+    console.log(`[NFT Fetcher] Token URI (ERC-721) for ${tokenId}: ${tokenUri}`);
   } catch (e) {
-    console.error(`Failed to call tokenURI for ${contractAddress}/${tokenId}:`, e);
-    throw new Error("Failed to retrieve token URI from contract.");
+    // 2. If ERC-721 fails, try ERC-1155 standard (uri)
+    try {
+      // ERC-1155 URI often contains {id} placeholder, which needs to be replaced.
+      let uriTemplate = await contract.uri(tokenId);
+      
+      // Replace {id} placeholder with the token ID in hex format (padded to 64 chars)
+      // This is a common convention for ERC-1155 metadata URIs.
+      const hexId = tokenId.toString(16).padStart(64, '0');
+      tokenUri = uriTemplate.replace('{id}', hexId);
+      
+      console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
+    } catch (e2) {
+      console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
+      throw new Error("Failed to retrieve token URI from contract.");
+    }
   }
 
-  const metadataUrl = normalizeUrl(tokenUri);
+  const metadataUrl = normalizeUrl(tokenUri!);
   
   if (!metadataUrl) {
     throw new Error("Token URI resolved to an empty URL.");
@@ -108,7 +123,7 @@ export async function fetchTotalSupply(contractAddress: string): Promise<number>
     throw new Error("Contract address must be provided.");
   }
   
-  const contract = new Contract(contractAddress, erc721Abi, provider);
+  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
   
   try {
     const supply = await contract.totalSupply();
@@ -117,7 +132,7 @@ export async function fetchTotalSupply(contractAddress: string): Promise<number>
     return total;
   } catch (e) {
     console.error(`Failed to call totalSupply for ${contractAddress}:`, e);
-    // Fallback to a reasonable default if the call fails
+    // Fallback to a reasonable default if the call fails (e.g., for ERC-1155 which often lacks totalSupply)
     return 100; 
   }
 }
