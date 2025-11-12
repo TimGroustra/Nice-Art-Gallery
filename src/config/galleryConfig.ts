@@ -8,7 +8,7 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
 }
 
 // The primary collection address used for all panels
@@ -25,14 +25,23 @@ const createWallTemplate = (contractAddress: string): NftCollection => ({
 });
 // -----------------------------------
 
-// Initial configuration structure (will be populated dynamically)
-// All four initial walls use the PRIMARY_COLLECTION_ADDRESS
-let galleryConfig: PanelConfig = {
-  'north-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
-  'south-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
-  'east-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
-  'west-wall': createWallTemplate(PRIMARY_COLLECTION_ADDRESS),
+// Function to generate the initial configuration for 7 segments per wall
+const generateInitialConfig = (): PanelConfig => {
+    const config: PanelConfig = {};
+    const directions = ['north', 'south', 'east', 'west'];
+    const numSegments = 7;
+
+    for (const direction of directions) {
+        for (let i = 1; i <= numSegments; i++) {
+            const wallName = `${direction}-wall-${i}`;
+            config[wallName] = createWallTemplate(PRIMARY_COLLECTION_ADDRESS);
+        }
+    }
+    return config;
 };
+
+// Initial configuration structure (will be populated dynamically)
+let galleryConfig: PanelConfig = generateInitialConfig();
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {

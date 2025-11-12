@@ -5,7 +5,15 @@ import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, upd
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
-// Constants for geometry
+// Constants for room geometry
+const WALL_SEGMENT_LENGTH = 10;
+const NUM_SEGMENTS_PER_SIDE = 7; // 1 original + 6 new
+const ROOM_DIMENSION = NUM_SEGMENTS_PER_SIDE * WALL_SEGMENT_LENGTH; // 70
+const WALL_HEIGHT = 4;
+const PANEL_Y_POSITION = 1.8;
+const BOUNDARY = ROOM_DIMENSION / 2 - 0.5; // 34.5
+
+// Constants for NFT panel and text panels geometry
 const TEXT_PANEL_WIDTH = 2.5;
 const TITLE_HEIGHT = 0.5;
 const DESCRIPTION_HEIGHT = 1.5;
@@ -280,7 +288,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 4.5); 
+    
+    // Use new constants for room dimensions
+    const roomSize = ROOM_DIMENSION;
+    const wallHeight = WALL_HEIGHT;
+    const panelYPosition = PANEL_Y_POSITION;
+    const boundary = BOUNDARY;
+    const halfRoom = ROOM_DIMENSION / 2; // 35
+
+    camera.position.set(0, 1.6, halfRoom - 5); 
+    
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -308,8 +325,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
-    
     // Create the outer floor for padding
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
@@ -346,22 +361,67 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
+    
+    const wallSegmentGeometry = new THREE.PlaneGeometry(WALL_SEGMENT_LENGTH, wallHeight);
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    northWall.position.set(0, wallHeight / 2, -roomSize / 2);
-    scene.add(northWall);
-    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    southWall.rotation.y = Math.PI;
-    southWall.position.set(0, wallHeight / 2, roomSize / 2);
-    scene.add(southWall);
-    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    eastWall.rotation.y = -Math.PI / 2;
-    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
-    scene.add(eastWall);
-    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
-    westWall.rotation.y = Math.PI / 2;
-    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
-    scene.add(westWall);
+
+    const segmentCenters = Array.from({ length: NUM_SEGMENTS_PER_SIDE }, (_, i) => 
+        (i - (NUM_SEGMENTS_PER_SIDE - 1) / 2) * WALL_SEGMENT_LENGTH
+    ); // e.g., [-30, -20, -10, 0, 10, 20, 30] for 7 segments
+
+    const panelConfigs: { wallName: string, position: [number, number, number], rotation: [number, number, number] }[] = [];
+
+    const createWallSegments = (direction: 'north' | 'south' | 'east' | 'west') => {
+        for (let i = 0; i < NUM_SEGMENTS_PER_SIDE; i++) {
+            const wallIndex = i + 1;
+            const wallName = `${direction}-wall-${i + 1}`;
+            const centerOffset = segmentCenters[i];
+            
+            let wallPosition: [number, number, number];
+            let rotation: [number, number, number];
+            
+            if (direction === 'north') {
+                wallPosition = [centerOffset, wallHeight / 2, -halfRoom];
+                rotation = [0, 0, 0];
+            } else if (direction === 'south') {
+                wallPosition = [centerOffset, wallHeight / 2, halfRoom];
+                rotation = [0, Math.PI, 0];
+            } else if (direction === 'east') {
+                wallPosition = [halfRoom, wallHeight / 2, centerOffset];
+                rotation = [0, -Math.PI / 2, 0];
+            } else { // west
+                wallPosition = [-halfRoom, wallHeight / 2, centerOffset];
+                rotation = [0, Math.PI / 2, 0];
+            }
+
+            // Add wall segment mesh
+            const wallMesh = new THREE.Mesh(wallSegmentGeometry, wallMaterial);
+            wallMesh.position.set(...wallPosition);
+            wallMesh.rotation.set(...rotation);
+            scene.add(wallMesh);
+
+            // Calculate panel position (slightly offset inward)
+            const panelPosition: [number, number, number] = [...wallPosition];
+            panelPosition[1] = panelYPosition; // Set Y position for panel center
+            
+            if (direction === 'north') panelPosition[2] += ARROW_DEPTH_OFFSET;
+            if (direction === 'south') panelPosition[2] -= ARROW_DEPTH_OFFSET;
+            if (direction === 'east') panelPosition[0] -= ARROW_DEPTH_OFFSET;
+            if (direction === 'west') panelPosition[0] += ARROW_DEPTH_OFFSET;
+
+            panelConfigs.push({
+                wallName,
+                position: panelPosition,
+                rotation: rotation,
+            });
+        }
+    };
+
+    createWallSegments('north');
+    createWallSegments('south');
+    createWallSegments('east');
+    createWallSegments('west');
+
 
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
@@ -379,7 +439,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Add glowing cove lighting
     const coveLightColor = 0x87CEEB; // A soft sky blue glow
     const coveLightIntensity = 10;
-    const coveLightWidth = roomSize;
+    const coveLightWidth = ROOM_DIMENSION; // Use full room dimension
     const coveLightHeight = 0.1;
 
     const createCoveLighting = (
@@ -404,13 +464,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const offset = 0.1;
 
     // North
-    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    createCoveLighting([0, yPos, -halfRoom + offset], [Math.PI / 2, 0, 0]);
     // South
-    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    createCoveLighting([0, yPos, halfRoom - offset], [-Math.PI / 2, 0, 0]);
     // East
-    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    createCoveLighting([halfRoom - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     // West
-    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+    createCoveLighting([-halfRoom + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
@@ -427,13 +487,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
-    const panelConfigs = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
-    ];
-
+    // Iterate over the dynamically generated panel configurations
     panelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(...config.position);
@@ -499,8 +553,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
       panelsRef.current.push(panel);
       
-      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
-      if (source) updatePanelContent(panel, source);
+      // We defer loading content until after galleryConfig is initialized below
     });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
@@ -633,6 +686,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     window.addEventListener('resize', onWindowResize);
 
+    // Initialize gallery config and load content
     initializeGalleryConfig().then(() => {
       panelsRef.current.forEach(panel => {
         const source = getCurrentNftSource(panel.wallName);
