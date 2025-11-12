@@ -486,6 +486,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     // --- END INNER ROOM SETUP ---
 
+    // --- START INNER INNER ROOM SETUP (30x30) ---
+    const INNER_INNER_WALL_BOUNDARY = 15;
+    // Segment centers for a 30 unit span (3 segments): -10, 0, 10
+    const innerInnerSegmentCenters = [-10, 0, 10];
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
+        scene.add(northInnerInnerWall);
+
+        // South Inner Inner Wall (Z = 15)
+        const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerInnerWall.rotation.y = Math.PI;
+        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
+        scene.add(southInnerInnerWall);
+
+        // East Inner Inner Wall (X = 15)
+        const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerInnerWall.rotation.y = -Math.PI / 2;
+        eastInnerInnerWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerInnerWall);
+
+        // West Inner Inner Wall (X = -15)
+        const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerInnerWall.rotation.y = Math.PI / 2;
+        westInnerInnerWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerInnerWall);
+    });
+    // --- END INNER INNER ROOM SETUP ---
+
 
     // 4. Lighting Setup
     const lights: THREE.PointLight[] = [];
@@ -519,6 +552,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const coveLightHeight = 0.1;
     const offset = 0.1;
     const yPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; // Half the wall thickness (assuming wall is centered on boundary line)
+
 
     const createCoveLighting = (
         position: [number, number, number],
@@ -556,7 +591,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Inner Cove Lighting (50x50)
     const innerYPos = WALL_HEIGHT - 0.1;
     const innerOffset = 0.1;
-    const wallThicknessOffset = 0.05; // Half the wall thickness (assuming wall is centered on boundary line)
 
     innerSegmentCenters.forEach(segmentCenter => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
@@ -584,6 +618,38 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
         // Inner side (facing +X, inner room)
         createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+
+    // Inner Inner Cove Lighting (30x30)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
+    const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        // Outer side (facing -Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
+        // Inner side (facing +Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Inner Inner Wall (Z = 15)
+        // Outer side (facing +Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        // Inner side (facing -Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Inner Inner Wall (X = 15)
+        // Outer side (facing +X, corridor)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing -X, inner room)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Inner Inner Wall (X = -15)
+        // Outer side (facing -X, corridor)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing +X, inner room)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
     // --- END COVE LIGHTING ---
 
