@@ -11,9 +11,9 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
 }
 
-// The primary collection address used for most panels (Electrogems)
+// The primary collection address used for all panels (Electrogems)
 const PRIMARY_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-// Temporary debug address (CryptoPunks)
+// Temporary debug address (CryptoPunks) - kept for reference but not used in config generation
 const DEBUG_COLLECTION_ADDRESS = "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB";
 
 // --- Wall Configuration Template ---
@@ -36,13 +36,8 @@ const generateInitialConfig = (): PanelConfig => {
         for (let i = 1; i <= numSegments; i++) {
             const wallName = `${direction}-wall-${i}`;
             
-            if (wallName === 'north-wall-1') {
-                // Use CryptoPunks for debugging connectivity
-                config[wallName] = createWallTemplate(DEBUG_COLLECTION_ADDRESS);
-            } else {
-                // Use Electrogems for the rest
-                config[wallName] = createWallTemplate(PRIMARY_COLLECTION_ADDRESS);
-            }
+            // Assign the primary collection address (Electrogems) to all panels
+            config[wallName] = createWallTemplate(PRIMARY_COLLECTION_ADDRESS);
         }
     }
     return config;
