@@ -32,7 +32,7 @@ interface Panel {
 }
 
 interface NftGalleryProps {
-  setInstructionsVisible: (visible: boolean) => void;
+  setInstructionsVisible: (visible: (visible: boolean) => void) => void;
 }
 
 // Global state for UI interaction
@@ -475,7 +475,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const NUM_DISCO_LIGHTS = 12; // Increased number of lights
     const DISCO_RADIUS = 30; // Radius for initial placement and movement (fits within 70x70 boundary of 35)
     const LIGHT_DISTANCE = 50; // Increased distance for coverage
-    const LIGHT_INTENSITY = 0.5; // Adjusted intensity
+    const LIGHT_INTENSITY = 0.15; // Adjusted intensity (Milder)
     const discoLightHeight = 3.8; // Just below the ceiling (y=4)
 
     // Expanded color palette for more variety
@@ -713,7 +713,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Update light movement radius to DISCO_RADIUS
       const movementRadius = DISCO_RADIUS * 0.9; // Use 90% of the radius for movement
       lights.forEach((light, i) => {
-        const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
+        const angle = time * 0.00015 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Slower movement
         light.position.x = Math.cos(angle) * movementRadius;
         light.position.z = Math.sin(angle) * movementRadius;
       });
