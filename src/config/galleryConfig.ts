@@ -8,7 +8,7 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
 // The Panth.art collection address
@@ -23,33 +23,37 @@ const THIRD_COLLECTION_ADDRESS = "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31";
 // The fourth collection address
 const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
 
+const CONTRACT_ADDRESSES = [
+  PANTH_ART_ADDRESS,
+  SECOND_COLLECTION_ADDRESS,
+  THIRD_COLLECTION_ADDRESS,
+  FOURTH_COLLECTION_ADDRESS,
+];
+
+const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+const NUM_SEGMENTS = 7;
+
 // Initial configuration structure (will be populated dynamically)
-let galleryConfig: PanelConfig = {
-  'north-wall': {
-    name: 'Loading...',
-    contractAddress: PANTH_ART_ADDRESS,
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-  'south-wall': {
-    name: 'Loading...',
-    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-  'east-wall': {
-    name: 'Loading...',
-    contractAddress: THIRD_COLLECTION_ADDRESS, 
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-  'west-wall': {
-    name: 'Loading...',
-    contractAddress: FOURTH_COLLECTION_ADDRESS, 
-    tokenIds: [1], // Start with token 1 as placeholder
-    currentIndex: 0,
-  },
-};
+let galleryConfig: PanelConfig = {};
+
+// Generate 28 panel configurations, cycling through the 4 contract addresses
+for (let i = 0; i < NUM_SEGMENTS; i++) {
+    for (let j = 0; j < WALL_NAMES.length; j++) {
+        const wallNameBase = WALL_NAMES[j];
+        const panelKey = `${wallNameBase}-${i}`;
+        // Cycle through the 4 contracts (0, 1, 2, 3, 0, 1, 2, 3, ...)
+        // Using (i + j) ensures adjacent panels on the same wall use different contracts if possible.
+        const contractIndex = (i + j) % CONTRACT_ADDRESSES.length; 
+        const contractAddress = CONTRACT_ADDRESSES[contractIndex];
+
+        galleryConfig[panelKey] = {
+            name: 'Loading...',
+            contractAddress: contractAddress,
+            tokenIds: [1], // Start with token 1 as placeholder
+            currentIndex: 0,
+        };
+    }
+}
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
@@ -82,7 +86,12 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      config.currentIndex = 0; 
+      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
+      const segmentIndexMatch = wallName.match(/-(\d+)$/);
+      const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
+      
+      // Start index is segment index modulo total tokens available
+      config.currentIndex = segmentIndex % tokens.length; 
     }
     if (name) {
       config.name = name;
