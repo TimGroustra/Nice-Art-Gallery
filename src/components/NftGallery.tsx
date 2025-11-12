@@ -474,8 +474,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 12; // Increased number of lights
     const DISCO_RADIUS = 30; // Radius for initial placement and movement (fits within 70x70 boundary of 35)
-    const LIGHT_DISTANCE = 50; // Increased distance for coverage
-    const LIGHT_INTENSITY = 0.15; // Adjusted intensity (Milder)
+    const LIGHT_DISTANCE = 70; // Increased distance for wider spread
+    const LIGHT_INTENSITY = 0.2; // Slightly increased intensity to compensate for wider distance
     const discoLightHeight = 3.8; // Just below the ceiling (y=4)
 
     // Expanded color palette for more variety
