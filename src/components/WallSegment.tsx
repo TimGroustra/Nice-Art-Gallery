@@ -176,13 +176,12 @@ export class WallSegment {
     const wallMat = new THREE.MeshStandardMaterial({ color: baseColor, side: THREE.FrontSide });
     const wallMesh = new THREE.Mesh(wallGeom, wallMat);
     wallMesh.position.set(0, height! / 2, 0);
-    wallMesh.renderOrder = 0; // Ensure wall renders first
     this.group.add(wallMesh);
     this.resourcesToDispose.push(wallGeom, wallMat);
 
     const pd = this.options.panelDescriptors!;
     pd.forEach((desc) => {
-      const panel = this.createPanel(desc, wallMesh);
+      const panel = this.createPanel(desc);
       this.panels.push(panel);
       this.group.add(panel.mesh, panel.prevArrow, panel.nextArrow, panel.titleMesh, panel.nameMesh, panel.descriptionMesh, panel.attributesMesh);
       this.interactiveMeshes.push(panel.mesh, panel.prevArrow, panel.nextArrow, panel.descriptionMesh, panel.attributesMesh); // Added attributesMesh
@@ -198,14 +197,14 @@ export class WallSegment {
     this.resourcesToDispose.push(glowGeo, glowMat);
   }
 
-  private createPanel(desc: PanelDescriptor, wallMesh: THREE.Mesh): PanelHandles {
+  private createPanel(desc: PanelDescriptor): PanelHandles {
     const { panelSize } = this.options;
     const panelCenterY = desc.offsetY ?? 1.8;
     
     const TEXT_PANEL_WIDTH = 2.25; // Description/Attributes panel width
     const TEXT_PANEL_HEIGHT = 1.8;
     const TEXT_FONT_SIZE_DESC = 28;
-    const TEXT_FONT_SIZE_ATTR = 30; // Updated to 30
+    const TEXT_FONT_SIZE_ATTR = 40;
     const TEXT_BLOCK_OFFSET_X_LEFT = -3.375; 
     const TEXT_BLOCK_OFFSET_X_RIGHT = 3.375; 
 
@@ -214,21 +213,11 @@ export class WallSegment {
     const TITLE_NAME_HEIGHT = 0.6;
     const TITLE_NAME_FONT_SIZE = 120;
 
-    // FIX 1: Use a positive Z offset to ensure panels are in front of the wall (z=0)
-    const FRONT_OFFSET = 0.03; 
 
     const panelGeom = new THREE.PlaneGeometry(panelSize!.w, panelSize!.h);
-    // FIX 2: Use MeshBasicMaterial for NFT display to prevent lighting/tone mapping interference
-    const panelMat = new THREE.MeshBasicMaterial({ 
-      color: 0xffffff, // White color ensures texture is displayed without tint
-      side: THREE.DoubleSide,
-      toneMapped: false, // Crucial for accurate color display
-    });
+    const panelMat = new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide });
     const mesh = new THREE.Mesh(panelGeom, panelMat);
-    
-    // FIX 1: Set positive Z position and renderOrder
-    mesh.position.set(desc.offsetX, panelCenterY, FRONT_OFFSET + (desc.offsetZ || 0));
-    mesh.renderOrder = 1; 
+    mesh.position.set(desc.offsetX, panelCenterY, -0.01 + (desc.offsetZ || 0));
 
     // Attach wallName and panelId to meshes for easy raycasting lookup
     (mesh.userData as any).wallName = this.wallName;
@@ -243,8 +232,7 @@ export class WallSegment {
     
     // Position title centered above the NFT panel
     const titleY = panelCenterY + (panelSize!.h / 2) + TITLE_NAME_HEIGHT / 2 + 0.1; 
-    titleMesh.position.set(desc.offsetX, titleY, FRONT_OFFSET + 0.01);
-    titleMesh.renderOrder = 1;
+    titleMesh.position.set(desc.offsetX, titleY, 0.02);
 
     // Name Mesh (NFT Name/Metadata Title)
     const nameGeom = new THREE.PlaneGeometry(TITLE_NAME_WIDTH, TITLE_NAME_HEIGHT); 
@@ -254,8 +242,7 @@ export class WallSegment {
 
     // Position name centered below the NFT panel
     const nameY = panelCenterY - (panelSize!.h / 2) - TITLE_NAME_HEIGHT / 2 - 0.1; 
-    nameMesh.position.set(desc.offsetX, nameY, FRONT_OFFSET + 0.01);
-    nameMesh.renderOrder = 1;
+    nameMesh.position.set(desc.offsetX, nameY, 0.02);
 
 
     // Description Panel (Left)
@@ -263,8 +250,7 @@ export class WallSegment {
     const descPlace = createTextTexture('', TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_DESC);
     const descMat = new THREE.MeshBasicMaterial({ map: descPlace.texture, transparent: true });
     const descriptionMesh = new THREE.Mesh(descGeom, descMat);
-    descriptionMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_LEFT, panelCenterY, FRONT_OFFSET + 0.01);
-    descriptionMesh.renderOrder = 1;
+    descriptionMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_LEFT, panelCenterY, 0.02);
     (descriptionMesh.userData as any).wallName = this.wallName;
     (descriptionMesh.userData as any).panelId = desc.id;
     descriptionMesh.name = 'description'; // Add name for easier identification
@@ -274,8 +260,7 @@ export class WallSegment {
     const attrPlace = createAttributesTextTexture([], TEXT_PANEL_WIDTH, TEXT_PANEL_HEIGHT, TEXT_FONT_SIZE_ATTR);
     const attrMat = new THREE.MeshBasicMaterial({ map: attrPlace.texture, transparent: true });
     const attributesMesh = new THREE.Mesh(attrGeom, attrMat);
-    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, FRONT_OFFSET + 0.01); // Centered vertically
-    attributesMesh.renderOrder = 1;
+    attributesMesh.position.set(desc.offsetX + TEXT_BLOCK_OFFSET_X_RIGHT, panelCenterY, 0.02); // Centered vertically
     (attributesMesh.userData as any).wallName = this.wallName;
     (attributesMesh.userData as any).panelId = desc.id;
     attributesMesh.name = 'attributes'; // Unique name for raycasting
@@ -286,18 +271,16 @@ export class WallSegment {
     const arrowMat = new THREE.MeshBasicMaterial({ color: 0xcccccc });
     const prevArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
     prevArrow.rotation.z = Math.PI;
-    prevArrow.position.set(desc.offsetX - 1.6, panelCenterY, FRONT_OFFSET + 0.02); // Slightly further out
+    prevArrow.position.set(desc.offsetX - 1.6, panelCenterY, 0.03);
     (prevArrow.userData as any).wallName = this.wallName;
     (prevArrow.userData as any).panelId = desc.id;
     (prevArrow.userData as any).direction = 'prev';
-    prevArrow.renderOrder = 2; // Arrows should render last
 
     const nextArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
-    nextArrow.position.set(desc.offsetX + 1.6, panelCenterY, FRONT_OFFSET + 0.02); // Slightly further out
+    nextArrow.position.set(desc.offsetX + 1.6, panelCenterY, 0.03);
     (nextArrow.userData as any).wallName = this.wallName;
     (nextArrow.userData as any).panelId = desc.id;
     (nextArrow.userData as any).direction = 'next';
-    nextArrow.renderOrder = 2; // Arrows should render last
 
     const panelHandle: PanelHandles = {
       id: desc.id,
@@ -319,13 +302,9 @@ export class WallSegment {
           const imageUrl = metadata.image;
           const isVideo = !!imageUrl && /\.(mp4|webm|ogg)$/i.test(imageUrl);
           const tex = textureLoader(imageUrl, isVideo);
-          
-          // Ensure material is MeshBasicMaterial (it should be, but check)
           if (mesh.material instanceof THREE.MeshBasicMaterial) {
             if (mesh.material.map) mesh.material.map.dispose();
             mesh.material.map = tex;
-            mesh.material.color.setHex(0xffffff); // Ensure no tint
-            mesh.material.toneMapped = false;
             mesh.material.needsUpdate = true;
           }
 
