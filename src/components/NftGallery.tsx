@@ -462,7 +462,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
     innerSegmentCenters.forEach(segmentCenter => {
-        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+        // This loop now includes segmentCenter = 0, fully enclosing the 50x50 room.
 
         // North Inner Wall (Z = -25)
         const northInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
@@ -623,7 +623,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerOffset = 0.1;
 
     innerSegmentCenters.forEach(segmentCenter => {
-        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+        // This loop now includes segmentCenter = 0, fully enclosing the 50x50 room.
 
         // North Inner Wall (Z = -25)
         // Outer side (facing -Z, corridor)
