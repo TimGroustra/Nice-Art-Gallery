@@ -473,7 +473,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- Disco Lights Setup (Expanded to cover 70x70 area) ---
     const lights: THREE.PointLight[] = [];
-    const NUM_RINGS = 65; // Increased from 7 to cover the 70x70 area (radius 35) with 0.5 unit spacing
+    const NUM_RINGS = 65; // Covers radius up to 35 (3 + 64 * 0.5 = 35)
     const LIGHTS_PER_RING = 3;
     const BASE_RADIUS = 3;
     const RADIUS_INCREMENT = 0.5;
@@ -728,7 +728,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const ringSpeedFactor = 1 + animatedLight.ringIndex * 0.05; 
         
         // Angle calculation: time rotation + static offset based on light index within the ring
-        const angle = time * 0.0005 * ringSpeedFactor + animatedLight.lightIndex * (Math.PI * 2 / LIGHTS_PER_RING);
+        // Reduced rotation speed from 0.0005 to 0.00005
+        const angle = time * 0.00005 * ringSpeedFactor + animatedLight.lightIndex * (Math.PI * 2 / LIGHTS_PER_RING);
         
         animatedLight.position.x = Math.cos(angle) * animatedLight.radius;
         animatedLight.position.z = Math.sin(angle) * animatedLight.radius;
