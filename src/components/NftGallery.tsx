@@ -427,8 +427,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(innerFloor);
     });
 
-    // 3. Create Modular Outer Walls (70x70) - REMOVED
-
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
@@ -555,6 +553,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerOffset = 0.1;
     const innerYPos = WALL_HEIGHT - 0.1;
     const wallThicknessOffset = 0.05; 
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(glowMesh);
+    };
 
     // Outer Cove Lighting (50x50 perimeter)
     innerSegmentCenters.forEach(segmentCenter => {
