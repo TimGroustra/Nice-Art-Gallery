@@ -11,12 +11,13 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
 }
 
-// The primary collection address used for all panels
+// The primary collection address used for most panels (Electrogems)
 const PRIMARY_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+// Temporary debug address (CryptoPunks)
+const DEBUG_COLLECTION_ADDRESS = "0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB";
 
 // --- Wall Configuration Template ---
 // This function creates a default configuration for a new wall panel.
-// Use this template when adding new walls, specifying the contractAddress.
 const createWallTemplate = (contractAddress: string): NftCollection => ({
   name: 'Loading...',
   contractAddress: contractAddress,
@@ -34,7 +35,14 @@ const generateInitialConfig = (): PanelConfig => {
     for (const direction of directions) {
         for (let i = 1; i <= numSegments; i++) {
             const wallName = `${direction}-wall-${i}`;
-            config[wallName] = createWallTemplate(PRIMARY_COLLECTION_ADDRESS);
+            
+            if (wallName === 'north-wall-1') {
+                // Use CryptoPunks for debugging connectivity
+                config[wallName] = createWallTemplate(DEBUG_COLLECTION_ADDRESS);
+            } else {
+                // Use Electrogems for the rest
+                config[wallName] = createWallTemplate(PRIMARY_COLLECTION_ADDRESS);
+            }
         }
     }
     return config;
@@ -78,6 +86,9 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
+      // Special case for CryptoPunks: they are 0-indexed, but we are using token ID 1 for testing.
+      // Since we set tokenIds = [1] if fetch fails, we ensure currentIndex is 0.
+      // If fetch succeeds, we assume 1-indexed tokens for now, so currentIndex=0 points to token ID 1.
       config.currentIndex = 0; 
     }
     if (name) {
