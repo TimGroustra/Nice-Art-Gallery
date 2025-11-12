@@ -5,6 +5,13 @@ import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, upd
 import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
+// Constants for geometry
+const TEXT_PANEL_WIDTH = 2.5;
+const TITLE_HEIGHT = 0.5;
+const DESCRIPTION_HEIGHT = 1.5;
+const ATTRIBUTES_HEIGHT = 1.5;
+const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
+
 // Define types for the panel objects
 interface Panel {
   mesh: THREE.Mesh;
@@ -108,6 +115,7 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     const padding = 40;
     const lineHeight = fontSize * 1.2;
     let y = padding;
+    const maxTextWidth = canvas.width - 2 * padding;
 
     if (!attributes || attributes.length === 0) {
         context.fillText('No attributes found.', padding, y);
@@ -115,7 +123,23 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
         attributes.forEach(attr => {
             if (attr.trait_type && attr.value) {
                 const line = `${attr.trait_type}: ${attr.value}`;
-                context.fillText(line, padding, y);
+                
+                // Word wrapping logic
+                const words = line.split(' ');
+                let currentLine = '';
+                for (let n = 0; n < words.length; n++) {
+                    const testLine = currentLine + words[n] + ' ';
+                    const metrics = context.measureText(testLine);
+                    const testWidth = metrics.width;
+                    if (testWidth > maxTextWidth && n > 0) {
+                        context.fillText(currentLine, padding, y);
+                        currentLine = words[n] + ' ';
+                        y += lineHeight;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                context.fillText(currentLine, padding, y);
                 y += lineHeight;
             }
         });
@@ -191,7 +215,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
       }
-      const { texture: titleTexture } = createTextTexture(metadata.title, 2.0, 0.5, 100, 'white', { wordWrap: false });
+      // Increased font size from 100 to 120
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false }); // Updated width to 4.0
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
@@ -199,7 +224,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.descriptionMesh.material.map.dispose();
       }
       const descriptionText = metadata.description;
-      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, 1.5, 2.0, 40, 'lightgray', { wordWrap: true });
+      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
@@ -214,7 +239,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
       const attributes = metadata.attributes || [];
       panel.currentAttributes = attributes;
-      const { texture: attributesTexture } = createAttributesTextTexture(attributes, 1.5, 1.5, 40, 'lightgray');
+      const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
@@ -222,7 +247,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
       }
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 4, 0.75, 100, 'white', { wordWrap: false });
+      // Increased font size from 100 to 120
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false }); // Updated width to 8
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
@@ -282,39 +308,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
+    const roomSize = 120, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
-    // Create the outer floor for padding
-    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
-    outerFloor.rotation.x = Math.PI / 2;
-    scene.add(outerFloor);
-
-    // Create the inner floor with the image
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load('/floor.jpg', (texture) => {
-        // Calculate inner plane dimensions based on texture aspect ratio
-        const padding = 1.0; // 1 unit of padding on each side
-        const maxInnerSize = roomSize - 2 * padding;
-        const imageAspect = texture.image.width / texture.image.height;
-
-        let innerPlaneWidth, innerPlaneHeight;
-        if (imageAspect >= 1) { // Landscape or square
-            innerPlaneWidth = maxInnerSize;
-            innerPlaneHeight = maxInnerSize / imageAspect;
-        } else { // Portrait
-            innerPlaneHeight = maxInnerSize;
-            innerPlaneWidth = maxInnerSize * imageAspect;
-        }
-
-        const innerFloorGeometry = new THREE.PlaneGeometry(innerPlaneWidth, innerPlaneHeight);
-        const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
-        const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
-        
-        innerFloor.rotation.x = Math.PI / 2;
-        innerFloor.position.y = 0.01; // Place slightly above the outer floor to prevent z-fighting
-        scene.add(innerFloor);
-    });
+    // Create the floor
+    const floorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), floorMaterial);
+    floor.rotation.x = Math.PI / 2;
+    scene.add(floor);
 
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
@@ -337,10 +337,131 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
     scene.add(westWall);
 
+    // --- Create Inner Room (5x5) ---
+    const innerRoomSize = 85;
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const doorwayWidth = 10;
+    const wallSegmentWidth = (innerRoomSize - doorwayWidth) / 2;
+    const wallSegmentGeometry = new THREE.PlaneGeometry(wallSegmentWidth, wallHeight);
+    const segmentOffset = doorwayWidth / 2 + wallSegmentWidth / 2;
+
+    // North Inner Wall
+    const northInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    northInnerWall1.position.set(-segmentOffset, wallHeight / 2, -innerRoomSize / 2);
+    scene.add(northInnerWall1);
+    const northInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    northInnerWall2.position.set(segmentOffset, wallHeight / 2, -innerRoomSize / 2);
+    scene.add(northInnerWall2);
+
+    // South Inner Wall
+    const southInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    southInnerWall1.position.set(-segmentOffset, wallHeight / 2, innerRoomSize / 2);
+    southInnerWall1.rotation.y = Math.PI;
+    scene.add(southInnerWall1);
+    const southInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    southInnerWall2.position.set(segmentOffset, wallHeight / 2, innerRoomSize / 2);
+    southInnerWall2.rotation.y = Math.PI;
+    scene.add(southInnerWall2);
+
+    // East Inner Wall
+    const eastInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    eastInnerWall1.position.set(innerRoomSize / 2, wallHeight / 2, -segmentOffset);
+    eastInnerWall1.rotation.y = -Math.PI / 2;
+    scene.add(eastInnerWall1);
+    const eastInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    eastInnerWall2.position.set(innerRoomSize / 2, wallHeight / 2, segmentOffset);
+    eastInnerWall2.rotation.y = -Math.PI / 2;
+    scene.add(eastInnerWall2);
+
+    // West Inner Wall
+    const westInnerWall1 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    westInnerWall1.position.set(-innerRoomSize / 2, wallHeight / 2, -segmentOffset);
+    westInnerWall1.rotation.y = Math.PI / 2;
+    scene.add(westInnerWall1);
+    const westInnerWall2 = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial);
+    westInnerWall2.position.set(-innerRoomSize / 2, wallHeight / 2, segmentOffset);
+    westInnerWall2.rotation.y = Math.PI / 2;
+    scene.add(westInnerWall2);
+    // --- End Inner Room ---
+
+    // --- Create Innermost Room (3x3) ---
+    const innermostRoomSize = 50;
+    const innermostWallMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const innermostDoorwayWidth = 8;
+    const innermostWallSegmentWidth = (innermostRoomSize - innermostDoorwayWidth) / 2;
+    const innermostWallSegmentGeometry = new THREE.PlaneGeometry(innermostWallSegmentWidth, wallHeight);
+    const innermostSegmentOffset = innermostDoorwayWidth / 2 + innermostWallSegmentWidth / 2;
+
+    // North Innermost Wall
+    const northInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall1);
+    const northInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    northInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, -innermostRoomSize / 2);
+    scene.add(northInnermostWall2);
+
+    // South Innermost Wall
+    const southInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall1.position.set(-innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall1.rotation.y = Math.PI;
+    scene.add(southInnermostWall1);
+    const southInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    southInnermostWall2.position.set(innermostSegmentOffset, wallHeight / 2, innermostRoomSize / 2);
+    southInnermostWall2.rotation.y = Math.PI;
+    scene.add(southInnermostWall2);
+
+    // East Innermost Wall
+    const eastInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall1.position.set(innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    eastInnermostWall1.rotation.y = -Math.PI / 2;
+    scene.add(eastInnermostWall1);
+    const eastInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    eastInnermostWall2.position.set(innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    eastInnermostWall2.rotation.y = -Math.PI / 2;
+    scene.add(eastInnermostWall2);
+
+    // West Innermost Wall
+    const westInnermostWall1 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall1.position.set(-innermostRoomSize / 2, wallHeight / 2, -innermostSegmentOffset);
+    westInnermostWall1.rotation.y = Math.PI / 2;
+    scene.add(westInnermostWall1);
+    const westInnermostWall2 = new THREE.Mesh(innermostWallSegmentGeometry, innermostWallMaterial);
+    westInnermostWall2.position.set(-innermostRoomSize / 2, wallHeight / 2, innermostSegmentOffset);
+    westInnermostWall2.rotation.y = Math.PI / 2;
+    scene.add(westInnermostWall2);
+    // --- End Innermost Room ---
+    
+    // --- Create Central Room (10x10 units) ---
+    const centralRoomSize = 10;
+    const centralBoundary = centralRoomSize / 2; // 5
+    const centralWallMaterial = new THREE.MeshStandardMaterial({ color: 0xAAAAAA, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+
+    // North Central Wall (Z = -5)
+    const northCentralWall = new THREE.Mesh(new THREE.PlaneGeometry(centralRoomSize, wallHeight), centralWallMaterial);
+    northCentralWall.position.set(0, wallHeight / 2, -centralBoundary);
+    scene.add(northCentralWall);
+    // South Central Wall (Z = 5)
+    const southCentralWall = new THREE.Mesh(new THREE.PlaneGeometry(centralRoomSize, wallHeight), centralWallMaterial);
+    southCentralWall.rotation.y = Math.PI;
+    southCentralWall.position.set(0, wallHeight / 2, centralBoundary);
+    scene.add(southCentralWall);
+    // East Central Wall (X = 5)
+    const eastCentralWall = new THREE.Mesh(new THREE.PlaneGeometry(centralRoomSize, wallHeight), centralWallMaterial);
+    eastCentralWall.rotation.y = -Math.PI / 2;
+    eastCentralWall.position.set(centralBoundary, wallHeight / 2, 0);
+    scene.add(eastCentralWall);
+    // West Central Wall (X = -5)
+    const westCentralWall = new THREE.Mesh(new THREE.PlaneGeometry(centralRoomSize, wallHeight), centralWallMaterial);
+    westCentralWall.rotation.y = Math.PI / 2;
+    westCentralWall.position.set(-centralBoundary, wallHeight / 2, 0);
+    scene.add(westCentralWall);
+    // --- End Central Room ---
+
+
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
+      const pl = new THREE.PointLight(lightColors[i], 0.8, 50, 2);
       pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
@@ -394,19 +515,155 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
-    const TEXT_PANEL_WIDTH = 1.5, TITLE_HEIGHT = 0.5, DESCRIPTION_HEIGHT = 1.5, TEXT_BLOCK_OFFSET_X = 3;
-    const TITLE_PANEL_WIDTH = 2.0;
-    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT, 30, 'white', { wordWrap: false });
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
+    const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
-    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, TITLE_HEIGHT + DESCRIPTION_HEIGHT);
+    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
-    const panelConfigs = [
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
-      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
-    ];
+    const panelSpacing = 15; // Distance between centers of panels
+
+    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
+    
+    // Outer walls
+    const panelsPerOuterWall = 7;
+    const outerWalls = ['north', 'south', 'east', 'west'];
+    outerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerOuterWall; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const offset = -(panelSpacing * (panelsPerOuterWall - 1)) / 2 + i * panelSpacing;
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north':
+            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
+            rotation = [0, 0, 0];
+            break;
+          case 'south':
+            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east':
+            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west':
+            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Inner walls
+    const panelsPerInnerSegment = 2;
+    const innerWalls = ['north-inner', 'south-inner', 'east-inner', 'west-inner'];
+    const innerRoomBoundaryOffset = innerRoomSize / 2 - ARROW_DEPTH_OFFSET;
+    innerWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnerSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = Math.floor(i / panelsPerInnerSegment); // 0 for left/first, 1 for right/second
+        const panelInSegment = i % panelsPerInnerSegment;
+        
+        const segmentCenter = (segmentIndex === 0 ? -1 : 1) * segmentOffset;
+        const panelOffset = -(panelSpacing * (panelsPerInnerSegment - 1)) / 2 + panelInSegment * panelSpacing;
+        const finalOffset = segmentCenter + panelOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-inner':
+            position = [finalOffset, panelYPosition, -innerRoomBoundaryOffset];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-inner':
+            position = [-finalOffset, panelYPosition, innerRoomBoundaryOffset];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-inner':
+            position = [innerRoomBoundaryOffset, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-inner':
+            position = [-innerRoomBoundaryOffset, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+
+    // Innermost walls
+    const panelsPerInnermostSegment = 1;
+    const innermostWalls = ['north-innermost', 'south-innermost', 'east-innermost', 'west-innermost'];
+    const innermostRoomBoundaryOffset = innermostRoomSize / 2 - ARROW_DEPTH_OFFSET;
+    innermostWalls.forEach(wall => {
+      for (let i = 0; i < panelsPerInnermostSegment * 2; i++) {
+        const wallName = `${wall}-wall-${i + 1}`;
+        const segmentIndex = i; // 0 or 1
+        const finalOffset = (segmentIndex === 0 ? -1 : 1) * innermostSegmentOffset;
+
+        let position: [number, number, number] = [0, 0, 0];
+        let rotation: [number, number, number] = [0, 0, 0];
+        switch (wall) {
+          case 'north-innermost':
+            position = [finalOffset, panelYPosition, -innermostRoomBoundaryOffset];
+            rotation = [0, 0, 0];
+            break;
+          case 'south-innermost':
+            position = [-finalOffset, panelYPosition, innermostRoomBoundaryOffset];
+            rotation = [0, Math.PI, 0];
+            break;
+          case 'east-innermost':
+            position = [innermostRoomBoundaryOffset, panelYPosition, finalOffset];
+            rotation = [0, -Math.PI / 2, 0];
+            break;
+          case 'west-innermost':
+            position = [-innermostRoomBoundaryOffset, panelYPosition, -finalOffset];
+            rotation = [0, Math.PI / 2, 0];
+            break;
+        }
+        panelConfigs.push({ wallName, position, rotation });
+      }
+    });
+    
+    // Central walls (Outward facing displays)
+    const centralRoomBoundary = centralBoundary + ARROW_DEPTH_OFFSET; // 5 + 0.02
+    const centralWalls = ['center-north', 'center-south', 'center-east', 'center-west'];
+    centralWalls.forEach((wall, index) => {
+      const wallName = `center-wall-${index + 1}`;
+      const offset = 0; // Center of the 10 unit wall
+      
+      let position: [number, number, number] = [0, 0, 0];
+      let rotation: [number, number, number] = [0, 0, 0];
+
+      switch (wall) {
+        case 'center-north':
+          // Display faces Z = -infinity (rotation 0)
+          position = [offset, panelYPosition, -centralRoomBoundary];
+          rotation = [0, 0, 0];
+          break;
+        case 'center-south':
+          // Display faces Z = +infinity (rotation PI)
+          position = [offset, panelYPosition, centralRoomBoundary];
+          rotation = [0, Math.PI, 0];
+          break;
+        case 'center-east':
+          // Display faces X = +infinity (rotation -PI/2)
+          position = [centralRoomBoundary, panelYPosition, offset];
+          rotation = [0, -Math.PI / 2, 0];
+          break;
+        case 'center-west':
+          // Display faces X = -infinity (rotation PI/2)
+          position = [-centralRoomBoundary, panelYPosition, offset];
+          rotation = [0, Math.PI / 2, 0];
+          break;
+      }
+      panelConfigs.push({ wallName, position, rotation });
+    });
+
 
     panelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
@@ -430,7 +687,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       titleMesh.position.copy(titlePosition);
       scene.add(titleMesh);
 
-      const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_BLOCK_OFFSET_X);
+      // Description Panel (Left side)
+      const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, placeholderMaterial.clone());
       descriptionMesh.rotation.set(...config.rotation);
       const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
@@ -449,9 +707,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
-      const COLLECTION_INFO_OFFSET_X = 3;
-      const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, COLLECTION_INFO_OFFSET_X);
-      const ATTRIBUTES_HEIGHT = 1.5;
+      // Attributes Panel (Right side)
+      const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
       const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
       attributesMesh.rotation.set(...config.rotation);
@@ -459,7 +716,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
-      const wallTitleGeometry = new THREE.PlaneGeometry(4, 0.75);
+      const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); // Doubled width for wall title
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
       wallTitleMesh.rotation.set(...config.rotation);
       const wallTitlePosition = new THREE.Vector3(...config.position);
@@ -522,7 +779,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
       }
-      const { texture } = createTextTexture(panel.currentDescription, 1.5, 2.0, 40, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
+      const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
     };
 
