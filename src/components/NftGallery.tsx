@@ -308,7 +308,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 40, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
+    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
     // Create the outer floor for padding
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
@@ -427,42 +427,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
-    const panelsPerWall = 7;
-    const panelSpacing = 5; // Distance between centers of panels
-
-    const panelConfigs: { wallName: string; position: [number, number, number]; rotation: [number, number, number]; }[] = [];
-    const walls = ['north', 'south', 'east', 'west'];
-
-    walls.forEach(wall => {
-      for (let i = 0; i < panelsPerWall; i++) {
-        const wallName = `${wall}-wall-${i + 1}`;
-        const offset = -(panelSpacing * (panelsPerWall - 1)) / 2 + i * panelSpacing;
-
-        let position: [number, number, number] = [0, 0, 0];
-        let rotation: [number, number, number] = [0, 0, 0];
-
-        switch (wall) {
-          case 'north':
-            position = [offset, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET];
-            rotation = [0, 0, 0];
-            break;
-          case 'south':
-            position = [-offset, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET];
-            rotation = [0, Math.PI, 0];
-            break;
-          case 'east':
-            position = [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, offset];
-            rotation = [0, -Math.PI / 2, 0];
-            break;
-          case 'west':
-            position = [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, -offset];
-            rotation = [0, Math.PI / 2, 0];
-            break;
-        }
-        
-        panelConfigs.push({ wallName, position, rotation });
-      }
-    });
+    const panelConfigs = [
+      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
+    ];
 
     panelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());

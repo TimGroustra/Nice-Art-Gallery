@@ -8,43 +8,48 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
-// Collection addresses to be cycled through for the panels
-const contractAddresses = [
-  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // Panth.art
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984",
-  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31",
-  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4",
-];
+// The Panth.art collection address
+const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// Generate the gallery configuration dynamically
-const generateGalleryConfig = (): PanelConfig => {
-  const config: PanelConfig = {};
-  const walls = ['north', 'south', 'east', 'west'];
-  const panelsPerWall = 7;
-  let contractIndex = 0;
+// The second collection address
+const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
-  walls.forEach(wall => {
-    for (let i = 1; i <= panelsPerWall; i++) {
-      const wallName = `${wall}-wall-${i}`;
-      config[wallName] = {
-        name: 'Loading...',
-        contractAddress: contractAddresses[contractIndex % contractAddresses.length],
-        tokenIds: [1], // Start with token 1 as placeholder
-        currentIndex: 0,
-      };
-      contractIndex++;
-    }
-  });
+// The third collection address
+const THIRD_COLLECTION_ADDRESS = "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31";
 
-  return config;
-};
-
+// The fourth collection address
+const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
 
 // Initial configuration structure (will be populated dynamically)
-let galleryConfig: PanelConfig = generateGalleryConfig();
+let galleryConfig: PanelConfig = {
+  'north-wall': {
+    name: 'Loading...',
+    contractAddress: PANTH_ART_ADDRESS,
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'south-wall': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'east-wall': {
+    name: 'Loading...',
+    contractAddress: THIRD_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'west-wall': {
+    name: 'Loading...',
+    contractAddress: FOURTH_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+};
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
