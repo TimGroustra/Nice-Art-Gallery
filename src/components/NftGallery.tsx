@@ -381,6 +381,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
+    // Define constants for inner rooms centrally
+    const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
+    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // 50x50 room segments
+    const innerInnerSegmentCenters = [-10, 0, 10]; // 30x30 room segments
+    const innerInnerInnerSegmentCenters = [0]; // 10x10 room segments
+
+
     // 1. Create Modular Floor and Ceiling
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
@@ -454,10 +461,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
-    // Segment centers for a 50 unit span (5 segments): -20, -10, 0, 10, 20
-    const innerSegmentCenters = [-20, -10, 0, 10, 20];
-    const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
-
     innerSegmentCenters.forEach(segmentCenter => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
@@ -488,8 +491,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- START INNER INNER ROOM SETUP (30x30) ---
     const INNER_INNER_WALL_BOUNDARY = 15;
-    // Segment centers for a 30 unit span (3 segments): -10, 0, 10
-    const innerInnerSegmentCenters = [-10, 0, 10];
 
     innerInnerSegmentCenters.forEach(segmentCenter => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
@@ -521,8 +522,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // --- START INNER INNER INNER ROOM SETUP (10x10) ---
     const INNER_INNER_INNER_WALL_BOUNDARY = 5;
-    // Segment centers for a 10 unit span (1 segment): 0
-    const innerInnerInnerSegmentCenters = [0]; 
     
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Wall (Z = -5)
@@ -685,7 +684,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // Inner Inner Inner Cove Lighting (10x10)
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
-    const innerInnerInnerSegmentCenters = [0];
 
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Inner Inner Inner Wall (Z = -5)
