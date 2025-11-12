@@ -57,6 +57,9 @@ export async function fetchCollectionName(contractAddress: string): Promise<stri
   }
 }
 
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 1000;
+
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
     throw new Error("Contract address and token ID must be provided.");
@@ -80,27 +83,41 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     throw new Error("Token URI resolved to an empty URL.");
   }
 
-  const res = await fetch(metadataUrl);
-  if (!res.ok) {
-    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
-    throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+  let res: Response;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      res = await fetch(metadataUrl);
+      if (res.ok) {
+        const json = await res.json();
+
+        let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
+        imageUrl = normalizeUrl(imageUrl);
+        
+        console.log(`[NFT Fetcher] Final Image URL for ${tokenId} (Attempt ${attempt}): ${imageUrl}`);
+
+        return {
+          title: json.name || `Token #${tokenId}`,
+          description: json.description || '(No description)',
+          image: imageUrl || '',
+          source: metadataUrl,
+          attributes: json.attributes || [],
+        };
+      } else {
+        throw new Error(`HTTP Status ${res.status}`);
+      }
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.warn(`[NFT Fetcher] Attempt ${attempt} failed for ${metadataUrl}: ${lastError.message}`);
+      if (attempt < MAX_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt));
+      }
+    }
   }
-  
-  const json = await res.json();
 
-  let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
-  imageUrl = normalizeUrl(imageUrl);
-  
-  console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
-
-
-  return {
-    title: json.name || `Token #${tokenId}`,
-    description: json.description || '(No description)',
-    image: imageUrl || '',
-    source: metadataUrl,
-    attributes: json.attributes || [],
-  };
+  console.error(`[NFT Fetcher] Failed to fetch metadata after ${MAX_RETRIES} attempts from ${metadataUrl}. Last error: ${lastError?.message}`);
+  throw new Error(`Failed to fetch metadata after ${MAX_RETRIES} attempts.`);
 }
 
 export async function fetchTotalSupply(contractAddress: string): Promise<number> {
