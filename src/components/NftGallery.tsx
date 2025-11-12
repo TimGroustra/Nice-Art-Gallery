@@ -625,34 +625,549 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // Inner Inner Inner Cove Lighting (10x10)
+    const INNER_INNER_INNER_WALL_BOUNDARY = 5;
+    
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
+        // North Wall (Z = -5)
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(northWall);
+
+        // South Wall (Z = 5)
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(southWall);
+
+        // East Wall (X = 5)
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+
+        // West Wall (X = -5)
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
+    });
+    // --- END INNER INNER INNER ROOM SETUP ---
+
+
+    // 4. Lighting Setup
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.5));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
+    const coveLightIntensity = 10;
+    const coveLightWidth = ROOM_SEGMENT_SIZE; 
+    const coveLightHeight = 0.1;
+    const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(glowMesh);
+    };
+
+    // Outer Cove Lighting (50x50 perimeter)
+    innerSegmentCenters.forEach(segmentCenter => {
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Outer Wall (X = 25). Faces -X (Inward)
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Outer Wall (X = -25). Faces +X (Inward)
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+
+    // Inner Inner Cove Lighting (30x30)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
+    const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        // Outer side (facing -Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
+        // Inner side (facing +Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Inner Inner Wall (Z = 15)
+        // Outer side (facing +Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        // Inner side (facing -Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Inner Inner Wall (X = 15)
+        // Outer side (facing +X, corridor)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing -X, inner room)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Inner Inner Wall (X = -15)
+        // Outer side (facing -X, corridor)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing +X, inner room)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+    
+    // Inner Inner Inner Cove Lighting (10x10)
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
 
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
-        // North Inner Inner Inner Wall (Z = -5)
-        // Outer side (facing -Z, corridor)
-        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
-        // Inner side (facing +Z, inner room)
-        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+        // North Wall (Z = -5)
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(northWall);
 
-        // South Inner Inner Inner Wall (Z = 5)
-        // Outer side (facing +Z, corridor)
-        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
-        // Inner side (facing -Z, inner room)
-        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
-        
-        // East Inner Inner Inner Wall (X = 5)
-        // Outer side (facing +X, corridor)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
-        // Inner side (facing -X, inner room)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // South Wall (Z = 5)
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(southWall);
 
-        // West Inner Inner Inner Wall (X = -5)
-        // Outer side (facing -X, corridor)
-        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
-        // Inner side (facing +X, inner room)
-        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // East Wall (X = 5)
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+
+        // West Wall (X = -5)
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
     });
-    // --- END COVE LIGHTING ---
+    // --- END INNER INNER INNER ROOM SETUP ---
+
+
+    // 4. Lighting Setup
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.5));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
+    const coveLightIntensity = 10;
+    const coveLightWidth = ROOM_SEGMENT_SIZE; 
+    const coveLightHeight = 0.1;
+    const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(glowMesh);
+    };
+
+    // Outer Cove Lighting (50x50 perimeter)
+    innerSegmentCenters.forEach(segmentCenter => {
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Outer Wall (X = 25). Faces -X (Inward)
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Outer Wall (X = -25). Faces +X (Inward)
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+
+    // Inner Inner Cove Lighting (30x30)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
+    const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        // Outer side (facing -Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
+        // Inner side (facing +Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Inner Inner Wall (Z = 15)
+        // Outer side (facing +Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        // Inner side (facing -Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Inner Inner Wall (X = 15)
+        // Outer side (facing +X, corridor)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing -X, inner room)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Inner Inner Wall (X = -15)
+        // Outer side (facing -X, corridor)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing +X, inner room)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+    
+    // Inner Inner Inner Cove Lighting (10x10)
+    const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
+
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
+        // North Wall (Z = -5)
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(northWall);
+
+        // South Wall (Z = 5)
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(southWall);
+
+        // East Wall (X = 5)
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+
+        // West Wall (X = -5)
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
+    });
+    // --- END INNER INNER INNER ROOM SETUP ---
+
+
+    // 4. Lighting Setup
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.5));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
+    const coveLightIntensity = 10;
+    const coveLightWidth = ROOM_SEGMENT_SIZE; 
+    const coveLightHeight = 0.1;
+    const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(glowMesh);
+    };
+
+    // Outer Cove Lighting (50x50 perimeter)
+    innerSegmentCenters.forEach(segmentCenter => {
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Outer Wall (X = 25). Faces -X (Inward)
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Outer Wall (X = -25). Faces +X (Inward)
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+
+    // Inner Inner Cove Lighting (30x30)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
+    const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        // Outer side (facing -Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
+        // Inner side (facing +Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Inner Inner Wall (Z = 15)
+        // Outer side (facing +Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        // Inner side (facing -Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Inner Inner Wall (X = 15)
+        // Outer side (facing +X, corridor)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing -X, inner room)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Inner Inner Wall (X = -15)
+        // Outer side (facing -X, corridor)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing +X, inner room)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+    
+    // Inner Inner Inner Cove Lighting (10x10)
+    const INNER_INNER_INNER_WALL_BOUNDARY_COLLISION = 5;
+    
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
+        // North Wall (Z = -5)
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY_COLLISION);
+        scene.add(northWall);
+
+        // South Wall (Z = 5)
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY_COLLISION);
+        scene.add(southWall);
+
+        // East Wall (X = 5)
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY_COLLISION, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+
+        // West Wall (X = -5)
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY_COLLISION, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
+    });
+    // --- END INNER INNER INNER ROOM SETUP ---
+
+
+    // 4. Lighting Setup
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
+      scene.add(pl);
+      lights.push(pl);
+    }
+    scene.add(new THREE.AmbientLight(0x404050, 0.5));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
+    const coveLightIntensity = 10;
+    const coveLightWidth = ROOM_SEGMENT_SIZE; 
+    const coveLightHeight = 0.1;
+    const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(glowMesh);
+    };
+
+    // Outer Cove Lighting (50x50 perimeter)
+    innerSegmentCenters.forEach(segmentCenter => {
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Outer Wall (X = 25). Faces -X (Inward)
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Outer Wall (X = -25). Faces +X (Inward)
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+
+    // Inner Inner Cove Lighting (30x30)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
+    const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        // Outer side (facing -Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
+        // Inner side (facing +Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+
+        // South Inner Inner Wall (Z = 15)
+        // Outer side (facing +Z, corridor)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        // Inner side (facing -Z, inner room)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        
+        // East Inner Inner Wall (X = 15)
+        // Outer side (facing +X, corridor)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing -X, inner room)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
+        // West Inner Inner Wall (X = -15)
+        // Outer side (facing -X, corridor)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // Inner side (facing +X, inner room)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    });
+    
+    // Inner Inner Inner Cove Lighting (10x10)
+    const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
+
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
+        // North Wall (Z = -5)
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT);
+        scene.add(northWall);
+
+        // South Wall (Z = 5)
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT);
+        scene.add(southWall);
+
+        // East Wall (X = 5)
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY_LIGHT, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+
+        // West Wall (X = -5)
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
+    });
+    // --- END INNER INNER INNER ROOM SETUP ---
 
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
@@ -851,6 +1366,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
 
+    // Collision constants for the 10x10 center room
+    const INNER_ROOM_MIN_X = -5 + 0.5; // Wall at -5, player radius 0.5
+    const INNER_ROOM_MAX_X = 5 - 0.5;   // Wall at 5
+    const INNER_ROOM_MIN_Z = -5 + 0.5;
+    const INNER_ROOM_MAX_Z = 5 - 0.5;
+    
+    // Collision constants for the 30x30 room (corridor boundaries)
+    const CORRIDOR_MIN_X = -15 + 0.5;
+    const CORRIDOR_MAX_X = 15 - 0.5;
+    const CORRIDOR_MIN_Z = -15 + 0.5;
+    const CORRIDOR_MAX_Z = 15 - 0.5;
+
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
         case 'KeyW': moveForward = true; break;
@@ -936,11 +1463,74 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         direction.normalize();
         if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+        
+        // Store previous position before moving
+        const prevX = camera.position.x;
+        const prevZ = camera.position.z;
+
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
-        camera.position.y = 1.6;
+        
+        // --- Collision Detection ---
+        
+        // 1. Outer Boundary (50x50 room)
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
+        
+        // 2. Inner 10x10 Room Walls (Collision)
+        const isInsideInnerRoom = camera.position.x > INNER_ROOM_MIN_X && camera.position.x < INNER_ROOM_MAX_X &&
+                                  camera.position.z > INNER_ROOM_MIN_Z && camera.position.z < INNER_ROOM_MAX_Z;
+
+        // 3. 30x30 Corridor Walls (Collision)
+        // Check if the player is trying to enter the 30x30 walls from the 50x50 corridor
+        const isOutside30x30Corridor = camera.position.x < CORRIDOR_MIN_X || camera.position.x > CORRIDOR_MAX_X ||
+                                       camera.position.z < CORRIDOR_MIN_Z || camera.position.z > CORRIDOR_MAX_Z;
+        
+        // The 30x30 walls have openings at X=0 and Z=0.
+        const isNearXAxisOpening = camera.position.z > -5 && camera.position.z < 5;
+        const isNearZAxisOpening = camera.position.x > -5 && camera.position.x < 5;
+
+        // If player is trying to enter the 10x10 room from the 30x30 corridor, block them unless they are in the central walkway (X=0 or Z=0)
+        if (isInsideInnerRoom) {
+            // If player is inside the 10x10 box, check if they came from an allowed opening (X=0 or Z=0)
+            
+            // Check Z boundaries (North/South walls of 10x10 room)
+            if (camera.position.z > INNER_ROOM_MAX_Z || camera.position.z < INNER_ROOM_MIN_Z) {
+                // If we are outside the Z bounds of the central walkway (X: -5 to 5), we must be blocked by the X walls of the 10x10 room.
+                if (!isNearZAxisOpening) {
+                    camera.position.x = prevX; // Revert X movement
+                }
+            }
+            
+            // Check X boundaries (East/West walls of 10x10 room)
+            if (camera.position.x > INNER_ROOM_MAX_X || camera.position.x < INNER_ROOM_MIN_X) {
+                // If we are outside the X bounds of the central walkway (Z: -5 to 5), we must be blocked by the Z walls of the 10x10 room.
+                if (!isNearXAxisOpening) {
+                    camera.position.z = prevZ; // Revert Z movement
+                }
+            }
+            
+            // Simplified collision for the 10x10 room (assuming the player is trying to enter the solid wall area)
+            // If the player is trying to enter the 10x10 room, but is not aligned with the central walkway (X: -5 to 5 OR Z: -5 to 5), revert movement.
+            
+            // Block movement into the 10x10 room if not aligned with the Z-axis walkway (X: -5 to 5)
+            if (camera.position.z < INNER_ROOM_MIN_Z && !isNearZAxisOpening) {
+                camera.position.z = INNER_ROOM_MIN_Z;
+            }
+            if (camera.position.z > INNER_ROOM_MAX_Z && !isNearZAxisOpening) {
+                camera.position.z = INNER_ROOM_MAX_Z;
+            }
+            
+            // Block movement into the 10x10 room if not aligned with the X-axis walkway (Z: -5 to 5)
+            if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
+                camera.position.x = INNER_ROOM_MIN_X;
+            }
+            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
+                camera.position.x = INNER_ROOM_MAX_X;
+            }
+        }
+        
+        camera.position.y = 1.6;
         
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]));
