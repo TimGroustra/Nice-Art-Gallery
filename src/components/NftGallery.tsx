@@ -736,55 +736,70 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); 
 
-    // Dynamic Panel Configuration Generation (Panels remain on the outer 70x70 walls)
-    const WALL_ROTATIONS: { [key: string]: [number, number, number] } = {
-        'north-wall': [0, 0, 0],
-        'south-wall': [0, Math.PI, 0],
-        'east-wall': [0, -Math.PI / 2, 0],
-        'west-wall': [0, Math.PI / 2, 0],
-    };
-
-    const WALL_AXIS_MAP: { [key: string]: { axis: 'x' | 'z', sign: 1 | -1 } } = {
-        'north-wall': { axis: 'z', sign: -1 }, // Z = -halfRoomSize
-        'south-wall': { axis: 'z', sign: 1 },  // Z = halfRoomSize
-        'east-wall': { axis: 'x', sign: 1 },   // X = halfRoomSize
-        'west-wall': { axis: 'x', sign: -1 },  // X = -halfRoomSize
-    };
-
+    // Dynamic Panel Configuration Generation (Panels moved to 50x50 and 30x30 inner walls)
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
+    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
 
-    // Iterate over the 7 segments
-    for (let i = 0; i < NUM_SEGMENTS; i++) {
-        // Calculate the center position of the segment along the wall axis
-        const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE; // -30, -20, ..., 30
-
-        // Iterate over the 4 walls
-        for (const wallNameBase of ['north-wall', 'south-wall', 'east-wall', 'west-wall']) {
+    // Iterate through all 28 panel keys (segment index 0 to 6)
+    for (let i = 0; i < 7; i++) { 
+        for (const wallNameBase of WALL_NAMES) {
             const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
             
-            // Check if this panel key exists in the configuration
             if (!GALLERY_PANEL_CONFIG[panelKey]) continue;
 
-            const rotation = WALL_ROTATIONS[wallNameBase];
-            const map = WALL_AXIS_MAP[wallNameBase];
-            
             let x = 0, z = 0;
-            
-            if (map.axis === 'z') {
-                x = segmentCenter;
-                z = map.sign * halfRoomSize;
-            } else { // map.axis === 'x'
-                x = map.sign * halfRoomSize;
-                z = segmentCenter;
-            }
+            let rotation: [number, number, number] = [0, 0, 0];
+            let depthSign = 0; // 1 for positive axis, -1 for negative axis
 
-            // Calculate offset to push the panel slightly into the room (opposite direction of wall sign)
-            const depthOffset = -map.sign * ARROW_DEPTH_OFFSET;
+            if (i <= 4) {
+                // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
+                const centerIndex = i - 2; 
+                const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
+                
+                // Panels face inwards (towards the center)
+                if (wallNameBase === 'north-wall') { // Z = -25, facing +Z
+                    x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1;
+                } else if (wallNameBase === 'south-wall') { // Z = 25, facing -Z
+                    x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1;
+                } else if (wallNameBase === 'east-wall') { // X = 25, facing -X
+                    x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1;
+                } else if (wallNameBase === 'west-wall') { // X = -25, facing +X
+                    x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1;
+                }
+            } else if (i >= 5 && i <= 6) {
+                // 30x30 Walls (Indices 5-6, 2 segments: -10, 10)
+                const centerMap = { 5: -10, 6: 10 };
+                const segmentCenter = centerMap[i as 5 | 6];
+                
+                // Panels face outwards (towards the 50x50 room)
+                if (wallNameBase === 'north-wall') { // Z = -15, facing -Z
+                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = -1;
+                } else if (wallNameBase === 'south-wall') { // Z = 15, facing +Z
+                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = 1;
+                } else if (wallNameBase === 'east-wall') { // X = 15, facing +X
+                    x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1;
+                } else if (wallNameBase === 'west-wall') { // X = -15, facing -X
+                    x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1;
+                }
+            } else {
+                continue;
+            }
+            
+            // Apply depth offset based on which axis the wall lies on
+            let finalX = x;
+            let finalZ = z;
+            
+            if (wallNameBase === 'east-wall' || wallNameBase === 'west-wall') {
+                // X wall, offset X
+                finalX += depthSign * ARROW_DEPTH_OFFSET;
+            } else {
+                // Z wall, offset Z
+                finalZ += depthSign * ARROW_DEPTH_OFFSET;
+            }
 
             dynamicPanelConfigs.push({
                 wallName: panelKey,
-                // Apply depth offset
-                position: [x + (map.axis === 'x' ? depthOffset : 0), panelYPosition, z + (map.axis === 'z' ? depthOffset : 0)],
+                position: [finalX, PANEL_Y_POSITION, finalZ],
                 rotation: rotation,
             });
         }
