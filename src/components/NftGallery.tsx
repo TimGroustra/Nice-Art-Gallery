@@ -309,15 +309,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 + 0.5; // Increased boundary to 5.5 to allow walking outside the walls
+    const roomSize = 10, wallHeight = 4;
+    const totalAreaSize = 70;
+    const boundary = totalAreaSize / 2; // New boundary is 35 units
     
-    // Create the outer floor for padding
+    // Create the outer floor for padding (now the main floor)
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
+    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(totalAreaSize, totalAreaSize), outerFloorMaterial);
     outerFloor.rotation.x = Math.PI / 2;
     scene.add(outerFloor);
 
-    // Create the inner floor with the image
+    // Create the inner floor with the image (scaled down to fit the original 10x10 area)
     const textureLoader = new THREE.TextureLoader();
     textureLoader.load('/floor.jpg', (texture) => {
         // Calculate inner plane dimensions based on texture aspect ratio
@@ -343,10 +345,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(innerFloor);
     });
 
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+    // Ceiling expanded to totalAreaSize
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(totalAreaSize, totalAreaSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = wallHeight;
     scene.add(ceiling);
+    
+    // Walls remain 10x10
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
     northWall.position.set(0, wallHeight / 2, -roomSize / 2);
@@ -428,15 +433,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
 
+    // Panel configurations adjusted to face outwards (relative to the 10x10 room center)
     const panelConfigs = [
-      // North Wall (Z = -5). Panel faces -Z (outwards). Position Z = -5 - offset. Rotation PI.
-      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      // South Wall (Z = 5). Panel faces +Z (outwards). Position Z = 5 + offset. Rotation 0.
-      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      // East Wall (X = 5). Panel faces +X (outwards). Position X = 5 + offset. Rotation PI/2.
-      { wallName: 'east-wall', position: [roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
-      // West Wall (X = -5). Panel faces -X (outwards). Position X = -5 - offset. Rotation -PI/2.
-      { wallName: 'west-wall', position: [-roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      // North Wall (Z = -5). Panel faces +Z (outwards). Position Z = -5 + offset. Rotation 0.
+      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      // South Wall (Z = 5). Panel faces -Z (outwards). Position Z = 5 - offset. Rotation PI.
+      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      // East Wall (X = 5). Panel faces -X (outwards). Position X = 5 - offset. Rotation -PI/2.
+      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      // West Wall (X = -5). Panel faces +X (outwards). Position X = -5 + offset. Rotation PI/2.
+      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
@@ -469,6 +475,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
       
+      // Note: Arrow rotations are relative to the panel's rotation.
+      // Prev arrow needs to point left (relative to viewer), so it's rotated PI relative to the panel's forward direction.
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
       const prevPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
