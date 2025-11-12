@@ -717,17 +717,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 const segmentCenter = centerMap[i as 5 | 6];
                 
                 // Panels must face OUTWARD (towards the 50x50 room)
-                if (wallNameBase === 'north-wall') { // Z = -15, faces -Z
-                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-                    // FIX: Set textOffsetSign to 1 to correct mirroring caused by 180 degree rotation relative to viewer
+                if (wallNameBase === 'north-wall') { // Z = -15. Viewer is North (Z < -15). Panel must face +Z (South).
+                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
                     textOffsetSign = 1; 
-                } else if (wallNameBase === 'south-wall') { // Z = 15, faces +Z
-                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+                } else if (wallNameBase === 'south-wall') { // Z = 15. Viewer is South (Z > 15). Panel must face -Z (North).
+                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
                     textOffsetSign = 1;
-                } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
+                } else if (wallNameBase === 'east-wall') { // X = 15. Viewer is East (X > 15). Panel must face -X (West).
                     x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                     textOffsetSign = 1;
-                } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
+                } else if (wallNameBase === 'west-wall') { // X = -15. Viewer is West (X < -15). Panel must face +X (East).
                     x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
                     textOffsetSign = 1;
                 }
