@@ -975,6 +975,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     window.addEventListener('resize', onWindowResize);
 
+    const reloadAllPanelContent = async () => {
+        console.log("WebGL context restored. Reloading all panel content...");
+        // Re-run content update for all panels
+        for (const panel of panelsRef.current) {
+            const source = getCurrentNftSource(panel.wallName);
+            if (source) {
+                await updatePanelContent(panel, source);
+                // Introduce a small delay between fetches to respect rate limits
+                await new Promise(resolve => setTimeout(resolve, 100)); 
+            }
+        }
+        // Restart video playback if controls are locked
+        manageVideoPlayback(controls.isLocked);
+    };
+
+    // Context Loss Handling
+    const canvas = renderer.domElement;
+    
+    const handleContextLost = (event: Event) => {
+        event.preventDefault();
+        console.warn("WebGL Context Lost. Screen may go white.");
+    };
+
+    const handleContextRestored = () => {
+        console.log("WebGL Context Restored. Reinitializing resources.");
+        // We must manually re-run the content update to regenerate CanvasTextures
+        reloadAllPanelContent();
+    };
+
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
+
+
     const fetchAndRenderPanelsSequentially = async () => {
       await initializeGalleryConfig();
       
@@ -999,6 +1032,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       document.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('wheel', onDocumentWheel);
       window.removeEventListener('resize', onWindowResize);
+      
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+      
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       
