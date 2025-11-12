@@ -702,7 +702,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // Outer side (facing +X, corridor)
         createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
         // Inner side (facing -X, inner room)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
         // West Inner Inner Inner Wall (X = -5)
         // Outer side (facing -X, corridor)
@@ -764,9 +764,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 } else if (wallNameBase === 'south-wall') { // Z = 25, faces -Z
                     x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
                 } else if (wallNameBase === 'east-wall') { // X = 25, faces -X
-                    x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+                    x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
                 } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
-                    x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
+                    x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 }
             } else if (i >= 5 && i <= 6) {
                 // 30x30 Walls (Indices 5-6, 2 segments: -10, 10)
@@ -775,9 +775,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 
                 // Panels must face OUTWARD (towards the 50x50 room)
                 if (wallNameBase === 'north-wall') { // Z = -15, faces -Z
-                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z'; // Flipped rotation for outward
+                    x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
                 } else if (wallNameBase === 'south-wall') { // Z = 15, faces +Z
-                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z'; // Flipped rotation for outward
+                    x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
                 } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
                     x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
