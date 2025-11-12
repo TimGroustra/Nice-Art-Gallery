@@ -2,29 +2,15 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { fetchNftMetadata, normalizeUrl, NftMetadata, NftAttribute } from '@/utils/nftFetcher';
+import { fetchNftMetadata, normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
-// Constants for geometry and room layout
-const ROOM_SIZE = 10;
-const GRID_HALF = 1; // For 3x3 grid (indices -1, 0, 1)
-const TOTAL_BOUNDARY = (GRID_HALF * 2 + 1) * ROOM_SIZE / 2 - 0.5; // 14.5
-const WALL_HEIGHT = 4;
-const PANEL_Y_POSITION = 1.8;
-const DOOR_WIDTH = 2.0;
-const DOOR_HEIGHT = 2.5;
-
-// Constants for panel elements
+// Constants for geometry
 const TEXT_PANEL_WIDTH = 2.5;
 const TITLE_HEIGHT = 0.5;
 const DESCRIPTION_HEIGHT = 1.5;
 const ATTRIBUTES_HEIGHT = 1.5;
 const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
-const ARROW_DEPTH_OFFSET = 0.02;
-const ARROW_PANEL_OFFSET = 1.5;
-const TEXT_DEPTH_OFFSET = 0.03;
-const TITLE_PANEL_WIDTH = 4.0;
-const TEXT_PANEL_OFFSET_X = 3.25;
 
 // Define types for the panel objects
 interface Panel {
@@ -294,7 +280,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 4.5); // Start position in the central room
+    camera.position.set(0, 1.6, 4.5); 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -322,186 +308,91 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    const boundary = TOTAL_BOUNDARY;
+    const roomSize = 10, wallHeight = 4, panelYPosition = 1.8, boundary = roomSize / 2 - 0.5;
     
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const floorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const ceilingMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
+    // Create the outer floor for padding
+    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
+    const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), outerFloorMaterial);
+    outerFloor.rotation.x = Math.PI / 2;
+    scene.add(outerFloor);
+
+    // Create the inner floor with the image
     const textureLoader = new THREE.TextureLoader();
+    textureLoader.load('/floor.jpg', (texture) => {
+        // Calculate inner plane dimensions based on texture aspect ratio
+        const padding = 1.0; // 1 unit of padding on each side
+        const maxInnerSize = roomSize - 2 * padding;
+        const imageAspect = texture.image.width / texture.image.height;
 
-    // --- Environment Generation: 3x3 Grid ---
+        let innerPlaneWidth, innerPlaneHeight;
+        if (imageAspect >= 1) { // Landscape or square
+            innerPlaneWidth = maxInnerSize;
+            innerPlaneHeight = maxInnerSize / imageAspect;
+        } else { // Portrait
+            innerPlaneHeight = maxInnerSize;
+            innerPlaneWidth = maxInnerSize * imageAspect;
+        }
 
-    const rooms: { i: number, j: number, x: number, z: number }[] = [];
-    for (let i = -GRID_HALF; i <= GRID_HALF; i++) {
-      for (let j = -GRID_HALF; j <= GRID_HALF; j++) {
-        rooms.push({ i, j, x: i * ROOM_SIZE, z: j * ROOM_SIZE });
-      }
-    }
-
-    // 1. Create Floors and Ceilings for all rooms
-    rooms.forEach(({ x, z, i, j }) => {
-      // Outer Floor (Base)
-      const outerFloor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), floorMaterial);
-      outerFloor.rotation.x = Math.PI / 2;
-      outerFloor.position.set(x, 0, z);
-      scene.add(outerFloor);
-
-      // Ceiling
-      const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), ceilingMaterial);
-      ceiling.rotation.x = Math.PI / 2;
-      ceiling.position.set(x, WALL_HEIGHT, z);
-      scene.add(ceiling);
-
-      // Load inner floor texture only for the central room (0, 0)
-      if (i === 0 && j === 0) {
-        textureLoader.load('/floor.jpg', (texture) => {
-            const padding = 1.0; 
-            const maxInnerSize = ROOM_SIZE - 2 * padding;
-            const imageAspect = texture.image.width / texture.image.height;
-
-            let innerPlaneWidth, innerPlaneHeight;
-            if (imageAspect >= 1) { 
-                innerPlaneWidth = maxInnerSize;
-                innerPlaneHeight = maxInnerSize / imageAspect;
-            } else { 
-                innerPlaneHeight = maxInnerSize;
-                innerPlaneWidth = maxInnerSize * imageAspect;
-            }
-
-            const innerFloorGeometry = new THREE.PlaneGeometry(innerPlaneWidth, innerPlaneHeight);
-            const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
-            const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
-            
-            innerFloor.rotation.x = Math.PI / 2;
-            innerFloor.position.y = 0.01; 
-            innerFloor.position.set(0, 0.01, 0); // Central room only
-            scene.add(innerFloor);
-        });
-      }
+        const innerFloorGeometry = new THREE.PlaneGeometry(innerPlaneWidth, innerPlaneHeight);
+        const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
+        const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
+        
+        innerFloor.rotation.x = Math.PI / 2;
+        innerFloor.position.y = 0.01; // Place slightly above the outer floor to prevent z-fighting
+        scene.add(innerFloor);
     });
 
-    // 2. Create Walls and Doorways
-    const createWallPlane = (width: number, height: number, x: number, y: number, z: number, rotation: THREE.Euler) => {
-        const geometry = new THREE.PlaneGeometry(width, height);
-        const mesh = new THREE.Mesh(geometry, wallMaterial);
-        mesh.position.set(x, y, z);
-        mesh.rotation.copy(rotation);
-        scene.add(mesh);
-    };
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, roomSize), new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = wallHeight;
+    scene.add(ceiling);
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const northWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    northWall.position.set(0, wallHeight / 2, -roomSize / 2);
+    scene.add(northWall);
+    const southWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    southWall.rotation.y = Math.PI;
+    southWall.position.set(0, wallHeight / 2, roomSize / 2);
+    scene.add(southWall);
+    const eastWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    eastWall.rotation.y = -Math.PI / 2;
+    eastWall.position.set(roomSize / 2, wallHeight / 2, 0);
+    scene.add(eastWall);
+    const westWall = new THREE.Mesh(new THREE.PlaneGeometry(roomSize, wallHeight), wallMaterial);
+    westWall.rotation.y = Math.PI / 2;
+    westWall.position.set(-roomSize / 2, wallHeight / 2, 0);
+    scene.add(westWall);
 
-    const createWallsForRoom = (i: number, j: number) => {
-        const centerX = i * ROOM_SIZE;
-        const centerZ = j * ROOM_SIZE;
-        const halfRoom = ROOM_SIZE / 2;
-        const segmentWidth = (ROOM_SIZE - DOOR_WIDTH) / 2;
-        
-        // Define wall configurations (relative position and rotation)
-        const wallConfigs = [
-            // North Wall (Z = centerZ - halfRoom, Rotation Y=0)
-            { zOffset: -halfRoom, rotation: new THREE.Euler(0, 0, 0), neighbor: { i: i, j: j - 1 } },
-            // South Wall (Z = centerZ + halfRoom, Rotation Y=PI)
-            { zOffset: halfRoom, rotation: new THREE.Euler(0, Math.PI, 0), neighbor: { i: i, j: j + 1 } },
-            // East Wall (X = centerX + halfRoom, Rotation Y=-PI/2)
-            { xOffset: halfRoom, rotation: new THREE.Euler(0, -Math.PI / 2, 0), neighbor: { i: i + 1, j: j } },
-            // West Wall (X = centerX - halfRoom, Rotation Y=PI/2)
-            { xOffset: -halfRoom, rotation: new THREE.Euler(0, Math.PI / 2, 0), neighbor: { i: i - 1, j: j } },
-        ];
-
-        wallConfigs.forEach(config => {
-            const { rotation, neighbor } = config;
-            
-            const isXWall = config.xOffset !== undefined; // East/West
-            const isZWall = config.zOffset !== undefined; // North/South
-
-            const neighborExists = neighbor.i >= -GRID_HALF && neighbor.i <= GRID_HALF && 
-                                   neighbor.j >= -GRID_HALF && neighbor.j <= GRID_HALF;
-            
-            const isBoundary = (isZWall && (neighbor.j < -GRID_HALF || neighbor.j > GRID_HALF)) ||
-                               (isXWall && (neighbor.i < -GRID_HALF || neighbor.i > GRID_HALF));
-
-            const wallX = isXWall ? centerX + config.xOffset! : centerX;
-            const wallZ = isZWall ? centerZ + config.zOffset! : centerZ;
-
-            if (isBoundary || !neighborExists) {
-                // Full wall
-                createWallPlane(ROOM_SIZE, WALL_HEIGHT, wallX, WALL_HEIGHT / 2, wallZ, rotation);
-            } else {
-                // Wall with doorway
-                const doorTopY = WALL_HEIGHT - (WALL_HEIGHT - DOOR_HEIGHT) / 2;
-                const doorBottomY = (WALL_HEIGHT - DOOR_HEIGHT) / 2;
-                const doorTopHeight = WALL_HEIGHT - DOOR_HEIGHT;
-                
-                // 1. Bottom segment (under the door)
-                createWallPlane(DOOR_WIDTH, WALL_HEIGHT - DOOR_HEIGHT, wallX, doorBottomY, wallZ, rotation);
-
-                // 2. Top segment (above the door)
-                createWallPlane(DOOR_WIDTH, doorTopHeight, wallX, doorTopY, wallZ, rotation);
-
-                // 3. Side segments (Left/Right relative to the wall)
-                const sideOffset = ROOM_SIZE / 2 - segmentWidth / 2;
-                
-                if (isZWall) { // North/South walls (X varies)
-                    // Left segment (West side)
-                    createWallPlane(segmentWidth, WALL_HEIGHT, centerX - sideOffset, WALL_HEIGHT / 2, wallZ, rotation);
-                    // Right segment (East side)
-                    createWallPlane(segmentWidth, WALL_HEIGHT, centerX + sideOffset, WALL_HEIGHT / 2, wallZ, rotation);
-                } else { // East/West walls (Z varies)
-                    // Left segment (North side)
-                    createWallPlane(segmentWidth, WALL_HEIGHT, wallX, WALL_HEIGHT / 2, centerZ - sideOffset, rotation);
-                    // Right segment (South side)
-                    createWallPlane(segmentWidth, WALL_HEIGHT, wallX, WALL_HEIGHT / 2, centerZ + sideOffset, rotation);
-                }
-            }
-        });
-    };
-    
-    // Iterate over the 3x3 grid indices (-1, 0, 1)
-    for (let i = -GRID_HALF; i <= GRID_HALF; i++) {
-        for (let j = -GRID_HALF; j <= GRID_HALF; j++) {
-            createWallsForRoom(i, j);
-        }
-    }
-
-    // 3. Lighting adjustments
-    
-    // Ambient and Hemisphere lights (kept)
-    scene.add(new THREE.AmbientLight(0x404050, 0.3));
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
-    hemiLight.position.set(0, WALL_HEIGHT, 0);
-    scene.add(hemiLight);
-
-    // Disco Lights (Central Room only)
     const lights: THREE.PointLight[] = [];
     const NUM_DISCO_LIGHTS = 3, discoLightHeight = 2.5, lightColors = [0xff0066, 0x00ffd5, 0xffff00];
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const pl = new THREE.PointLight(lightColors[i], 0.8, 15, 2);
-      // Positioned relative to the center room (0, 0)
       pl.position.set(Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3, discoLightHeight, Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * 3);
       scene.add(pl);
       lights.push(pl);
     }
+    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, wallHeight, 0);
+    scene.add(hemiLight);
 
-    // Add perimeter cove lighting (outer boundary walls)
-    const coveLightColor = 0x87CEEB; 
+    // Add glowing cove lighting
+    const coveLightColor = 0x87CEEB; // A soft sky blue glow
     const coveLightIntensity = 10;
-    const coveLightWidth = ROOM_SIZE;
+    const coveLightWidth = roomSize;
     const coveLightHeight = 0.1;
-    const totalHalfSize = (GRID_HALF * 2 + 1) * ROOM_SIZE / 2; // 15
-    const offset = 0.1;
-    const yPos = WALL_HEIGHT - 0.1;
 
     const createCoveLighting = (
         position: [number, number, number],
         rotation: [number, number, number],
-        width: number,
         order: THREE.EulerOrder = 'XYZ'
     ) => {
-        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, width, coveLightHeight);
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
         rectLight.position.set(...position);
         rectLight.rotation.set(rotation[0], rotation[1], rotation[2], order);
         scene.add(rectLight);
 
-        const glowGeo = new THREE.BoxGeometry(width, coveLightHeight, 0.02);
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
         const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
         const glowMesh = new THREE.Mesh(glowGeo, glowMat);
         glowMesh.position.set(...position);
@@ -509,23 +400,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(glowMesh);
     };
 
-    // Outer boundary walls (3 segments of ROOM_SIZE width each)
-    for (let i = -GRID_HALF; i <= GRID_HALF; i++) {
-        const x = i * ROOM_SIZE;
-        const z = i * ROOM_SIZE;
-        
-        // Outer North Wall (Z = -15)
-        createCoveLighting([x, yPos, -totalHalfSize + offset], [Math.PI / 2, 0, 0], coveLightWidth);
-        // Outer South Wall (Z = 15)
-        createCoveLighting([x, yPos, totalHalfSize - offset], [-Math.PI / 2, 0, 0], coveLightWidth);
-        // Outer West Wall (X = -15)
-        createCoveLighting([-totalHalfSize + offset, yPos, z], [-Math.PI / 2, Math.PI / 2, 0], coveLightWidth, 'YXZ');
-        // Outer East Wall (X = 15)
-        createCoveLighting([totalHalfSize - offset, yPos, z], [-Math.PI / 2, -Math.PI / 2, 0], coveLightWidth, 'YXZ');
-    }
+    const yPos = wallHeight - 0.1;
+    const offset = 0.1;
 
-    // 4. Place NFT Panels (Only in the central room (0, 0))
-    
+    // North
+    createCoveLighting([0, yPos, -roomSize / 2 + offset], [Math.PI / 2, 0, 0]);
+    // South
+    createCoveLighting([0, yPos, roomSize / 2 - offset], [-Math.PI / 2, 0, 0]);
+    // East
+    createCoveLighting([roomSize / 2 - offset, yPos, 0], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+    // West
+    createCoveLighting([-roomSize / 2 + offset, yPos, 0], [-Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
     const arrowShape = new THREE.Shape();
@@ -533,24 +419,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    
+    const ARROW_DEPTH_OFFSET = 0.02, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.03;
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     const { texture: placeholderTexture } = createTextTexture('Loading...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'white', { wordWrap: false });
     const placeholderMaterial = new THREE.MeshBasicMaterial({ map: placeholderTexture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
-    const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
-    const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
 
-    // Panel configurations relative to the central room (0, 0)
     const panelConfigs = [
-      // North Wall of Central Room (Z = -5)
-      { wallName: 'north-wall', position: [0, PANEL_Y_POSITION, -ROOM_SIZE / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
-      // South Wall of Central Room (Z = 5)
-      { wallName: 'south-wall', position: [0, PANEL_Y_POSITION, ROOM_SIZE / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
-      // East Wall of Central Room (X = 5)
-      { wallName: 'east-wall', position: [ROOM_SIZE / 2 - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, 0], rotation: [0, -Math.PI / 2, 0] },
-      // West Wall of Central Room (X = -5)
-      { wallName: 'west-wall', position: [-ROOM_SIZE / 2 + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, 0], rotation: [0, Math.PI / 2, 0] },
+      { wallName: 'north-wall', position: [0, panelYPosition, -roomSize / 2 + ARROW_DEPTH_OFFSET], rotation: [0, 0, 0] },
+      { wallName: 'south-wall', position: [0, panelYPosition, roomSize / 2 - ARROW_DEPTH_OFFSET], rotation: [0, Math.PI, 0] },
+      { wallName: 'east-wall', position: [roomSize / 2 - ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, -Math.PI / 2, 0] },
+      { wallName: 'west-wall', position: [-roomSize / 2 + ARROW_DEPTH_OFFSET, panelYPosition, 0], rotation: [0, Math.PI / 2, 0] },
     ];
 
     panelConfigs.forEach(config => {
@@ -566,10 +447,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       const basePosition = new THREE.Vector3(...config.position);
       
-      // Title
       const titleMesh = new THREE.Mesh(titleGeometry, placeholderMaterial.clone());
       titleMesh.rotation.set(...config.rotation);
-      const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; 
+      const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
       const titlePosition = basePosition.clone()
           .addScaledVector(upVector, titleYOffset)
           .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
@@ -584,14 +464,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
       
-      // Prev Arrow
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
       const prevPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
       scene.add(prevArrow);
       
-      // Next Arrow
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       nextArrow.rotation.set(...config.rotation);
       const nextPosition = new THREE.Vector3(...config.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
@@ -600,17 +478,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Attributes Panel (Right side)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
+      const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
       const attributesMesh = new THREE.Mesh(attributesGeometry, placeholderMaterial.clone());
       attributesMesh.rotation.set(...config.rotation);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
       scene.add(attributesMesh);
 
-      // Wall Title
+      const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); // Doubled width for wall title
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, placeholderMaterial.clone());
       wallTitleMesh.rotation.set(...config.rotation);
       const wallTitlePosition = new THREE.Vector3(...config.position);
-      wallTitlePosition.y = 3.2; 
+      wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
       scene.add(wallTitleMesh);
 
@@ -697,8 +576,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      
-      // Disco light animation (Central Room)
       lights.forEach((light, i) => {
         const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
         light.position.x = Math.cos(angle) * 3;
@@ -715,8 +592,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
-        
-        // Boundary check updated for 3x3 grid
         camera.position.y = 1.6;
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
