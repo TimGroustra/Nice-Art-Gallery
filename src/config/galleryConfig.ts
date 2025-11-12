@@ -69,13 +69,14 @@ export async function initializeGalleryConfig() {
       const totalSupply = await fetchTotalSupply(address);
       const name = await fetchCollectionName(address);
       
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      // Assuming token IDs are 1-indexed (1 to totalSupply). 
+      // fetchTotalSupply falls back to 100 if the call fails.
       const tokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
       tokenMap[address] = tokens;
       nameMap[address] = name;
       console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
 
-      // --- NEW: Pre-fetch and cache metadata for all tokens in this collection ---
+      // --- Pre-fetch and cache metadata for all tokens in this collection ---
       tokens.forEach(tokenId => {
         // We don't await here, just collect the promises
         prefetchPromises.push(getCachedNftMetadata(address, tokenId).catch(e => {
