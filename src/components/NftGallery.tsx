@@ -521,7 +521,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     // 4. Lighting Setup
-    // Removed disco lights
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; 
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
+      scene.add(pl);
+      lights.push(pl);
+    }
     scene.add(new THREE.AmbientLight(0x404050, 0.5));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, WALL_HEIGHT, 0);
@@ -863,9 +881,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      
-      // Removed disco light animation loop
-      
+      lights.forEach((light, i) => {
+        const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
+        light.position.x = Math.cos(angle) * lightRadius;
+        light.position.z = Math.sin(angle) * lightRadius;
+      });
+
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
@@ -932,6 +953,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
 
     fetchAndRenderPanelsSequentially();
+
+    animate();
 
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
