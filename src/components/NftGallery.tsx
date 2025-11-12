@@ -2,8 +2,8 @@ import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
-import { getCachedNftMetadata } from '@/utils/metadataCache';
-import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher'; // Only importing types/interfaces
+import { getCachedNftMetadata } from '@/utils/metadataCache'; // <-- Updated import
+import { normalizeUrl, NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Constants for geometry
@@ -211,7 +211,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
 
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
-      panel.mesh.material.needsUpdate = true; // Ensure Three.js updates the material
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
 
