@@ -519,6 +519,44 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     // --- END INNER INNER ROOM SETUP ---
 
+    // --- START CENTRAL PILLAR SETUP (10x10) ---
+    const PILLAR_SIZE = 10;
+    const HALF_PILLAR_SIZE = PILLAR_SIZE / 2; // 5
+    const PILLAR_HEIGHT = WALL_HEIGHT;
+    const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, roughness: 0.8, metalness: 0.1 });
+    const pillarSideGeometry = new THREE.PlaneGeometry(PILLAR_SIZE, PILLAR_HEIGHT);
+
+    // North side (Z = -5)
+    const pillarNorth = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
+    pillarNorth.position.set(0, PILLAR_HEIGHT / 2, -HALF_PILLAR_SIZE);
+    scene.add(pillarNorth);
+
+    // South side (Z = 5)
+    const pillarSouth = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
+    pillarSouth.rotation.y = Math.PI;
+    pillarSouth.position.set(0, PILLAR_HEIGHT / 2, HALF_PILLAR_SIZE);
+    scene.add(pillarSouth);
+
+    // East side (X = 5)
+    const pillarEast = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
+    pillarEast.rotation.y = -Math.PI / 2;
+    pillarEast.position.set(HALF_PILLAR_SIZE, PILLAR_HEIGHT / 2, 0);
+    scene.add(pillarEast);
+
+    // West side (X = -5)
+    const pillarWest = new THREE.Mesh(pillarSideGeometry, pillarMaterial.clone());
+    pillarWest.rotation.y = Math.PI / 2;
+    pillarWest.position.set(-HALF_PILLAR_SIZE, PILLAR_HEIGHT / 2, 0);
+    scene.add(pillarWest);
+
+    // Top surface (Ceiling of the pillar)
+    const pillarTopGeometry = new THREE.PlaneGeometry(PILLAR_SIZE, PILLAR_SIZE);
+    const pillarTop = new THREE.Mesh(pillarTopGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+    pillarTop.rotation.x = Math.PI / 2;
+    pillarTop.position.y = PILLAR_HEIGHT;
+    scene.add(pillarTop);
+    // --- END CENTRAL PILLAR SETUP ---
+
 
     // 4. Lighting Setup
     const lights: THREE.PointLight[] = [];
@@ -603,7 +641,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // South Inner Wall (Z = 25)
         // Outer side (facing +Z, corridor)
-        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
+        createCveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset], [-Math.PI / 2, 0, 0]);
         // Inner side (facing -Z, inner room)
         createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
         
@@ -898,8 +936,56 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         camera.position.y = 1.6;
+        
+        // --- Boundary Checks ---
+        
+        // 1. Outer boundary check (70x70)
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
+
+        // 2. Inner pillar boundary check (10x10 centered at 0,0)
+        const PILLAR_HALF_SIZE = 5.0;
+        const PUSH_MARGIN = 0.1; 
+
+        const currentX = camera.position.x;
+        const currentZ = camera.position.z;
+
+        const isInsidePillarX = currentX > -PILLAR_HALF_SIZE && currentX < PILLAR_HALF_SIZE;
+        const isInsidePillarZ = currentZ > -PILLAR_HALF_SIZE && currentZ < PILLAR_HALF_SIZE;
+
+        if (isInsidePillarX && isInsidePillarZ) {
+            // We are inside the pillar area. Find the closest edge to push out to.
+            
+            // Distances to the four edges:
+            const distToXMin = Math.abs(currentX - (-PILLAR_HALF_SIZE));
+            const distToXMax = Math.abs(currentX - PILLAR_HALF_SIZE);
+            const distToZMin = Math.abs(currentZ - (-PILLAR_HALF_SIZE));
+            const distToZMax = Math.abs(currentZ - PILLAR_HALF_SIZE);
+            
+            const minXDist = Math.min(distToXMin, distToXMax);
+            const minZDist = Math.min(distToZMin, distToZMax);
+            
+            if (minXDist < minZDist) {
+                // Push out in X direction
+                if (distToXMin < distToXMax) {
+                    // Closer to negative X boundary
+                    camera.position.x = -PILLAR_HALF_SIZE - PUSH_MARGIN;
+                } else {
+                    // Closer to positive X boundary
+                    camera.position.x = PILLAR_HALF_SIZE + PUSH_MARGIN;
+                }
+            } else {
+                // Push out in Z direction
+                if (distToZMin < distToZMax) {
+                    // Closer to negative Z boundary
+                    camera.position.z = -PILLAR_HALF_SIZE - PUSH_MARGIN;
+                } else {
+                    // Closer to positive Z boundary
+                    camera.position.z = PILLAR_HALF_SIZE + PUSH_MARGIN;
+                }
+            }
+        }
+        // --- End Boundary Checks ---
         
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(interactiveMeshes);
