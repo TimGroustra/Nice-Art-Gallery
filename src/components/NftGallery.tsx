@@ -686,7 +686,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Inner Inner Inner Cove Lighting (10x10)
     const innerInnerInnerYPos = WALL_HEIGHT - 0.1;
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
-    // Reusing innerInnerInnerSegmentCenters defined earlier in the useEffect scope
 
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Inner Inner Inner Wall (Z = -5)
@@ -756,16 +755,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
 
-    // Iterate over the 7 segments
+    // 1. Outer Wall Panels (70x70)
     for (let i = 0; i < NUM_SEGMENTS; i++) {
-        // Calculate the center position of the segment along the wall axis
         const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE; // -30, -20, ..., 30
 
-        // Iterate over the 4 walls
         for (const wallNameBase of ['north-wall', 'south-wall', 'east-wall', 'west-wall']) {
             const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
             
-            // Check if this panel key exists in the configuration
             if (!GALLERY_PANEL_CONFIG[panelKey]) continue;
 
             const rotation = WALL_ROTATIONS[wallNameBase];
@@ -792,6 +788,76 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             });
         }
     }
+    
+    // 2. Inner Wall Panels (50x50, 30x30, 10x10)
+    const INNER_WALL_GEOMETRY_CONFIGS = [
+        { 
+            prefix: 'inner-50', 
+            boundary: INNER_WALL_BOUNDARY, 
+            centers: [-20, -10, 10, 20], 
+            segmentMap: { '-20': 0, '-10': 1, '10': 3, '20': 4 }
+        },
+        { 
+            prefix: 'inner-30', 
+            boundary: INNER_INNER_WALL_BOUNDARY, 
+            centers: [-10, 10], 
+            segmentMap: { '-10': 0, '10': 2 }
+        },
+        { 
+            prefix: 'inner-10', 
+            boundary: INNER_INNER_INNER_WALL_BOUNDARY, 
+            centers: [0], 
+            segmentMap: { '0': 0 }
+        },
+    ];
+
+    INNER_WALL_GEOMETRY_CONFIGS.forEach(wallConfig => {
+        wallConfig.centers.forEach(segmentCenter => {
+            const segmentIndex = wallConfig.segmentMap[segmentCenter.toString()];
+            
+            for (const wallNameBase of ['north-wall', 'south-wall', 'east-wall', 'west-wall']) {
+                const rotation = WALL_ROTATIONS[wallNameBase];
+                const map = WALL_AXIS_MAP[wallNameBase];
+                
+                let x = 0, z = 0;
+                
+                if (map.axis === 'z') {
+                    x = segmentCenter;
+                    z = map.sign * wallConfig.boundary;
+                } else { // map.axis === 'x'
+                    x = map.sign * wallConfig.boundary;
+                    z = segmentCenter;
+                }
+
+                // 2a. Outer Facing Panel (Corridor side - pushed away from center)
+                // Offset: map.sign * ARROW_DEPTH_OFFSET
+                const outerDepthOffset = map.sign * ARROW_DEPTH_OFFSET;
+                const outerPanelKey = `${wallConfig.prefix}-${wallNameBase}-${segmentIndex}-outer` as keyof PanelConfig;
+                
+                if (GALLERY_PANEL_CONFIG[outerPanelKey]) {
+                    dynamicPanelConfigs.push({
+                        wallName: outerPanelKey,
+                        position: [x + (map.axis === 'x' ? outerDepthOffset : 0), panelYPosition, z + (map.axis === 'z' ? outerDepthOffset : 0)],
+                        rotation: rotation,
+                    });
+                }
+
+                // 2b. Inner Facing Panel (Inner Room side - pushed towards center)
+                // Offset: -map.sign * ARROW_DEPTH_OFFSET
+                const innerDepthOffset = -map.sign * ARROW_DEPTH_OFFSET;
+                const innerPanelKey = `${wallConfig.prefix}-${wallNameBase}-${segmentIndex}-inner` as keyof PanelConfig;
+
+                if (GALLERY_PANEL_CONFIG[innerPanelKey]) {
+                    dynamicPanelConfigs.push({
+                        wallName: innerPanelKey,
+                        position: [x + (map.axis === 'x' ? innerDepthOffset : 0), panelYPosition, z + (map.axis === 'z' ? innerDepthOffset : 0)],
+                        rotation: rotation,
+                    });
+                }
+            }
+        });
+    });
+
 
     // Clear existing panels before populating
     panelsRef.current = [];
