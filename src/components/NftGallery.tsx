@@ -919,7 +919,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
       lights.forEach((light, i) => {
-        const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
+        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Changed 0.0005 to 0.0001
         light.position.x = Math.cos(angle) * lightRadius;
         light.position.z = Math.sin(angle) * lightRadius;
       });
