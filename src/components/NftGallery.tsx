@@ -621,6 +621,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // Inner Inner Inner Cove Lighting (10x10)
+    const innerInnerYPos = WALL_HEIGHT - 0.1; // Re-declare or ensure scope is correct
     const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
 
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
@@ -660,6 +661,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     // Increased offset to ensure panels are clearly in front of the wall
     const ARROW_DEPTH_OFFSET = 0.1, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.11; 
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
     // Helper to create a unique placeholder material/texture combo
@@ -699,15 +701,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 // Panels must face INWARD (towards the 30x30 room/center)
                 if (wallNameBase === 'north-wall') { // Z = -25, faces +Z
                     x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+                    textOffsetSign = 1;
                 } else if (wallNameBase === 'south-wall') { // Z = 25, faces -Z
                     x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+                    textOffsetSign = 1;
                 } else if (wallNameBase === 'east-wall') { // X = 25, faces -X
                     x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+                    textOffsetSign = 1;
                 } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
                     x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
+                    textOffsetSign = 1;
                 }
-                // For 50x50 walls, the viewer is outside, looking in. Text panels should be on the sides. Default textOffsetSign=1 is correct.
-                textOffsetSign = 1;
             } else if (i >= 5 && i <= 6) {
                 // 30x30 Walls (Indices 5-6, 2 segments: -10, 10)
                 const centerMap = { 5: -10, 6: 10 };
@@ -716,18 +720,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 // Panels must face OUTWARD (towards the 50x50 room)
                 if (wallNameBase === 'north-wall') { // Z = -15, faces -Z
                     x = segmentCenter; z = -INNER_INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+                    // Flipped rotation relative to 50x50 North wall, so flip offset sign
+                    textOffsetSign = -1; 
                 } else if (wallNameBase === 'south-wall') { // Z = 15, faces +Z
                     x = segmentCenter; z = INNER_INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+                    // Same rotation as 50x50 South wall, so keep offset sign
+                    textOffsetSign = 1;
                 } else if (wallNameBase === 'east-wall') { // X = 15, faces +X
                     x = INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
+                    // Same rotation as 50x50 East wall, so keep offset sign
+                    textOffsetSign = 1;
                 } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
                     x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+                    // Same rotation as 50x50 West wall, so keep offset sign
+                    textOffsetSign = 1;
                 }
-                // For 30x30 walls, the viewer is outside, looking in. Text panels should be on the sides.
-                // However, the rotation of the panel is flipped (Math.PI difference) compared to the 50x50 walls on the same cardinal direction.
-                // If the panel rotation is flipped, the 'rightVector' is also flipped relative to the viewer's perspective.
-                // We need to flip the text offset sign for the 30x30 walls to keep the text panels on the outside of the wall segment.
-                textOffsetSign = -1;
             } else {
                 continue;
             }
@@ -782,8 +789,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       titleMesh.position.copy(titlePosition);
       scene.add(titleMesh);
 
-      // Description Panel (Left side relative to the NFT panel)
-      // Apply textOffsetSign: -1 * textOffsetSign means left side relative to the viewer
+      // Description Panel (Local Left side relative to the NFT panel)
+      // Offset is applied along the local X axis (rightVector), multiplied by the sign.
       const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X * config.textOffsetSign);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, createUniquePlaceholderMaterial('Loading Description...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray'));
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
@@ -805,8 +812,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
-      // Attributes Panel (Right side relative to the NFT panel)
-      // Apply textOffsetSign: 1 * textOffsetSign means right side relative to the viewer
+      // Attributes Panel (Local Right side relative to the NFT panel)
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X * config.textOffsetSign);
       const attributesMesh = new THREE.Mesh(attributesGeometry, createUniquePlaceholderMaterial('Loading Attributes...', TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray'));
       attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
