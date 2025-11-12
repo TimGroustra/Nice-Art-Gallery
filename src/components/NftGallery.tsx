@@ -944,7 +944,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.descriptionMesh.material.needsUpdate = true;
       }
     };
-    document.addEventListener('wheel', onDocumentWheel);
 
     const onDocumentWheel = (event: WheelEvent) => {
       if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
