@@ -244,6 +244,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Title update
       if (panel.titleMesh.material instanceof THREE.MeshBasicMaterial && panel.titleMesh.material.map) {
         panel.titleMesh.material.map.dispose();
+        (panel.titleMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
       const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
@@ -252,6 +253,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Description update
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
+        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
       const descriptionText = metadata.description;
       const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true });
@@ -266,6 +268,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Attributes update
       if (panel.attributesMesh.material instanceof THREE.MeshBasicMaterial && panel.attributesMesh.material.map) {
           panel.attributesMesh.material.map.dispose();
+          (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
       const attributes = metadata.attributes || [];
       panel.currentAttributes = attributes;
@@ -276,6 +279,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Wall title update
       if (panel.wallTitleMesh.material instanceof THREE.MeshBasicMaterial && panel.wallTitleMesh.material.map) {
         panel.wallTitleMesh.material.map.dispose();
+        (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
       const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
@@ -708,6 +712,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const updateDescriptionTexture = (panel: Panel) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
+        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
       const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
