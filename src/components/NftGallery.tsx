@@ -46,6 +46,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const panelsRef = useRef<Panel[]>([]);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isLocked, setIsLocked] = useState(false); 
+  const ambientLightRef = useRef<THREE.AmbientLight | null>(null);
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     if (videoRef.current) {
@@ -392,7 +393,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- End 70x70 Outer Room Walls ---
 
 
-    scene.add(new THREE.AmbientLight(0x404050, 0.3));
+    // Ambient Light Setup
+    const ambientLight = new THREE.AmbientLight(0x404050, 0.3);
+    ambientLightRef.current = ambientLight;
+    scene.add(ambientLight);
+
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, wallHeight, 0);
     scene.add(hemiLight);
@@ -617,7 +622,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
       
-      // Disco lights animation removed
+      // Ambient light color shift (slowly cycle hue)
+      if (ambientLightRef.current) {
+        // Cycle hue from 0 to 1 over 60 seconds (0.0000166 * 60 * 1000 = 1)
+        const hue = (time * 0.0000166) % 1; 
+        ambientLightRef.current.color.setHSL(hue, 0.5, 0.5); // Saturation 0.5, Lightness 0.5
+      }
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
