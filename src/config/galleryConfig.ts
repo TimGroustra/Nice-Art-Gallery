@@ -1,5 +1,4 @@
 import { fetchTotalSupply, fetchCollectionName } from '@/utils/nftFetcher';
-// Removed import { showLoading, dismissToast, showError } from '@/utils/toast';
 
 export interface NftCollection {
   name: string;
@@ -9,109 +8,87 @@ export interface NftCollection {
 }
 
 export interface PanelConfig {
-  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-1')
+  [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall')
 }
 
-// Collection addresses to be cycled through for the panels
-const contractAddresses = [
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // Electrogems
-];
+// The Panth.art collection address
+const PANTH_ART_ADDRESS = "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23";
 
-// Generate the gallery configuration dynamically
-const generateGalleryConfig = (): PanelConfig => {
-  const config: PanelConfig = {};
-  let contractIndex = 0;
+// The second collection address
+const SECOND_COLLECTION_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
-  const wallLayouts = [
-    { prefix: 'north', count: 7 },
-    { prefix: 'south', count: 7 },
-    { prefix: 'east', count: 7 },
-    { prefix: 'west', count: 7 },
-    { prefix: 'north-inner', count: 4 },
-    { prefix: 'south-inner', count: 4 },
-    { prefix: 'east-inner', count: 4 },
-    { prefix: 'west-inner', count: 4 },
-    { prefix: 'north-innermost', count: 2 },
-    { prefix: 'south-innermost', count: 2 },
-    { prefix: 'east-innermost', count: 2 },
-    { prefix: 'west-innermost', count: 2 },
-  ];
+// The third collection address
+const THIRD_COLLECTION_ADDRESS = "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31";
 
-  wallLayouts.forEach(layout => {
-    for (let i = 1; i <= layout.count; i++) {
-      const wallName = `${layout.prefix}-wall-${i}`;
-      config[wallName] = {
-        name: 'Loading...',
-        contractAddress: contractAddresses[contractIndex % contractAddresses.length],
-        tokenIds: [1], // Start with token 1 as placeholder
-        currentIndex: 0,
-      };
-      contractIndex++;
-    }
-  });
-
-  // Add central pillar walls
-  for (let i = 1; i <= 4; i++) {
-    const wallName = `center-pillar-${i}`;
-    config[wallName] = {
-      name: 'Loading...',
-      contractAddress: contractAddresses[contractIndex % contractAddresses.length],
-      tokenIds: [1],
-      currentIndex: 0,
-    };
-    contractIndex++;
-  }
-
-  return config;
-};
-
+// The fourth collection address
+const FOURTH_COLLECTION_ADDRESS = "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4";
 
 // Initial configuration structure (will be populated dynamically)
-let galleryConfig: PanelConfig = generateGalleryConfig();
+let galleryConfig: PanelConfig = {
+  'north-wall': {
+    name: 'Loading...',
+    contractAddress: PANTH_ART_ADDRESS,
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'south-wall': {
+    name: 'Loading...',
+    contractAddress: SECOND_COLLECTION_ADDRESS, // Assigned the new collection
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'east-wall': {
+    name: 'Loading...',
+    contractAddress: THIRD_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+  'west-wall': {
+    name: 'Loading...',
+    contractAddress: FOURTH_COLLECTION_ADDRESS, 
+    tokenIds: [1], // Start with token 1 as placeholder
+    currentIndex: 0,
+  },
+};
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  
-  try {
-    const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
+  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
 
-    const tokenMap: { [address: string]: number[] } = {};
-    const nameMap: { [address: string]: string } = {};
+  const tokenMap: { [address: string]: number[] } = {};
+  const nameMap: { [address: string]: string } = {};
 
-    for (const address of uniqueContracts) {
-      try {
-        const totalSupply = await fetchTotalSupply(address);
-        const name = await fetchCollectionName(address);
-        // Assuming token IDs are 1-indexed (1 to totalSupply)
-        tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-        nameMap[address] = name;
-        console.log(`[Gallery Config] Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
-      } catch (error) {
-        console.error(`[Gallery Config] Failed to initialize collection at ${address}:`, error);
-        // Fallback to placeholder if fetching fails
-        tokenMap[address] = [1];
-        nameMap[address] = "Unknown Collection (Failed)";
-      }
+  for (const address of uniqueContracts) {
+    try {
+      const totalSupply = await fetchTotalSupply(address);
+      const name = await fetchCollectionName(address);
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      nameMap[address] = name;
+      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+    } catch (error) {
+      console.error(`Failed to initialize collection at ${address}:`, error);
+      // Fallback to placeholder if fetching fails
+      tokenMap[address] = [1];
+      nameMap[address] = "Unknown Collection";
     }
-
-    // Update all panels using the fetched token lists and names
-    for (const wallName in galleryConfig) {
-      const config = galleryConfig[wallName];
-      const tokens = tokenMap[config.contractAddress];
-      const name = nameMap[config.contractAddress];
-      
-      if (tokens && tokens.length > 0) {
-        config.tokenIds = tokens;
-        config.currentIndex = 0; 
-      }
-      if (name) {
-        config.name = name;
-      }
-    }
-    console.log(`[Gallery Config] Gallery configuration fully initialized.`);
-  } catch (error) {
-    console.error("[Gallery Config] Critical failure during initialization:", error);
   }
+
+  // Update all panels using the fetched token lists and names
+  for (const wallName in galleryConfig) {
+    const config = galleryConfig[wallName];
+    const tokens = tokenMap[config.contractAddress];
+    const name = nameMap[config.contractAddress];
+    
+    if (tokens && tokens.length > 0) {
+      config.tokenIds = tokens;
+      config.currentIndex = 0; 
+    }
+    if (name) {
+      config.name = name;
+    }
+  }
+  console.log(`Gallery configuration fully initialized.`);
 }
 
 // Export the configuration object reference
