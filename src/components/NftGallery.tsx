@@ -584,7 +584,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // East Outer Wall (X = 25). Faces -X (Inward)
         createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
-        // West Outer Wall (X = -25)
+        // West Outer Wall (X = -25). Faces +X (Inward)
         createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
 
@@ -660,7 +660,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     // Increased offset to ensure panels are clearly in front of the wall
     const ARROW_DEPTH_OFFSET = 0.1, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.11; 
-    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
     // Helper to create a unique placeholder material/texture combo
@@ -676,7 +675,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); 
 
     // Dynamic Panel Configuration Generation (Panels moved to 50x50 and 30x30 inner walls)
-    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
+    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number], textOffsetSign: number }[] = [];
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
 
     // Iterate through all 28 panel keys (segment index 0 to 6)
@@ -690,6 +689,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             let rotation: [number, number, number] = [0, 0, 0];
             let depthSign = 0; // 1 for positive axis, -1 for negative axis
             let wallAxis: 'x' | 'z' = 'z';
+            let textOffsetSign = 1; // Default: text panels are placed to the right/left of the NFT panel
 
             if (i <= 4) {
                 // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
@@ -706,6 +706,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
                     x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
                 }
+                // For 50x50 walls, the viewer is outside, looking in. Text panels should be on the sides. Default textOffsetSign=1 is correct.
+                textOffsetSign = 1;
             } else if (i >= 5 && i <= 6) {
                 // 30x30 Walls (Indices 5-6, 2 segments: -10, 10)
                 const centerMap = { 5: -10, 6: 10 };
@@ -721,6 +723,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 } else if (wallNameBase === 'west-wall') { // X = -15, faces -X
                     x = -INNER_INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
                 }
+                // For 30x30 walls, the viewer is outside, looking in. Text panels should be on the sides.
+                // However, the rotation of the panel is flipped (Math.PI difference) compared to the 50x50 walls on the same cardinal direction.
+                // If the panel rotation is flipped, the 'rightVector' is also flipped relative to the viewer's perspective.
+                // We need to flip the text offset sign for the 30x30 walls to keep the text panels on the outside of the wall segment.
+                textOffsetSign = -1;
             } else {
                 continue;
             }
@@ -741,12 +748,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 wallName: panelKey,
                 position: [finalX, PANEL_Y_POSITION, finalZ],
                 rotation: rotation,
+                textOffsetSign: textOffsetSign,
             });
         }
     }
 
     // Clear existing panels before populating
     panelsRef.current = [];
+
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
 
     dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
@@ -773,10 +783,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(titleMesh);
 
       // Description Panel (Left side relative to the NFT panel)
-      const textGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
+      // Apply textOffsetSign: -1 * textOffsetSign means left side relative to the viewer
+      const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X * config.textOffsetSign);
       const descriptionMesh = new THREE.Mesh(descriptionGeometry, createUniquePlaceholderMaterial('Loading Description...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray'));
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      const descriptionPosition = textGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      const descriptionPosition = descriptionGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
       scene.add(descriptionMesh);
       
@@ -795,7 +806,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(nextArrow);
 
       // Attributes Panel (Right side relative to the NFT panel)
-      const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
+      // Apply textOffsetSign: 1 * textOffsetSign means right side relative to the viewer
+      const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X * config.textOffsetSign);
       const attributesMesh = new THREE.Mesh(attributesGeometry, createUniquePlaceholderMaterial('Loading Attributes...', TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray'));
       attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
