@@ -655,8 +655,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
       panelsRef.current.push(panel);
       
-      const source = getCurrentNftSource(config.wallName as keyof PanelConfig);
-      if (source) updatePanelContent(panel, source);
+      // We skip initial placeholder load here, it will be handled by the sequential fetch below
     });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
@@ -789,12 +788,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     window.addEventListener('resize', onWindowResize);
 
-    initializeGalleryConfig().then(() => {
-      panelsRef.current.forEach(panel => {
+    const fetchAndRenderPanelsSequentially = async () => {
+      await initializeGalleryConfig();
+      
+      // Process panels sequentially to avoid overwhelming the RPC provider
+      for (const panel of panelsRef.current) {
         const source = getCurrentNftSource(panel.wallName);
-        if (source) updatePanelContent(panel, source);
-      });
-    });
+        if (source) {
+          await updatePanelContent(panel, source);
+          // Introduce a small delay between fetches to respect rate limits
+          await new Promise(resolve => setTimeout(resolve, 100)); 
+        }
+      }
+    };
+
+    fetchAndRenderPanelsSequentially();
 
     animate();
 
