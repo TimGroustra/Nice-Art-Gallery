@@ -43,20 +43,7 @@ export interface NftMetadata {
   attributes?: NftAttribute[];
 }
 
-export async function fetchCollectionName(contractAddress: string): Promise<string> {
-  if (!contractAddress) {
-    throw new Error("Contract address must be provided.");
-  }
-  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
-  try {
-    const name = await contract.name();
-    console.log(`[NFT Fetcher] Fetched collection name for ${contractAddress}: ${name}`);
-    return name;
-  } catch (e) {
-    console.error(`Failed to call name() for ${contractAddress}:`, e);
-    return "Unknown Collection";
-  }
-}
+// Removed fetchCollectionName as it is now hardcoded in galleryConfig.ts
 
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
