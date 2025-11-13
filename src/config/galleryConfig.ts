@@ -1,4 +1,4 @@
-import { fetchTotalSupply } from '@/utils/nftFetcher';
+import { fetchTokenIds } from '@/utils/nftFetcher';
 
 export interface NftCollection {
   name: string;
@@ -153,13 +153,12 @@ export async function initializeGalleryConfig() {
 
   for (const address of uniqueContracts) {
     try {
-      const totalSupply = await fetchTotalSupply(address);
+      const tokenIds = await fetchTokenIds(address);
       // Collection name is now retrieved from the hardcoded map
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
       
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+      tokenMap[address] = tokenIds;
+      console.log(`Collection ${name} (${address}) initialized with ${tokenIds.length} tokens.`);
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails
