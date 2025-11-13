@@ -21,9 +21,11 @@ export interface NftSource {
 export function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
+  
   if (url.startsWith('ipfs://')) {
-    // Using a common public gateway
-    const normalized = url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    // Handle both ipfs:// and ipfs://ipfs/ formats
+    const path = url.replace(/^ipfs:\/\/(ipfs\/)?/, '');
+    const normalized = `https://ipfs.io/ipfs/${path}`;
     console.log(`[NFT Fetcher] Normalized IPFS URL: ${normalized}`);
     return normalized;
   }
@@ -42,8 +44,6 @@ export interface NftMetadata {
   source: string; // Original metadata URL (resolved tokenURI/uri)
   attributes?: NftAttribute[];
 }
-
-// Removed fetchCollectionName as it is now hardcoded in galleryConfig.ts
 
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
@@ -76,19 +76,37 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     }
   }
 
-  const metadataUrl = normalizeUrl(tokenUri!);
-  
-  if (!metadataUrl) {
+  if (!tokenUri) {
     throw new Error("Token URI resolved to an empty URL.");
   }
 
-  const res = await fetch(metadataUrl);
-  if (!res.ok) {
-    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
-    throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+  let json: any;
+  let metadataUrl = tokenUri;
+
+  // 3. Check for Data URI (Base64 encoded JSON)
+  if (tokenUri.startsWith('data:application/json;base64,')) {
+    console.log(`[NFT Fetcher] Detected Base64 Data URI for ${tokenId}.`);
+    try {
+      const base64String = tokenUri.split(',')[1];
+      const decodedString = atob(base64String);
+      json = JSON.parse(decodedString);
+      metadataUrl = 'In-line Base64 Data URI'; // Update source for display/logging
+    } catch (e) {
+      console.error(`Failed to parse Base64 Data URI for ${tokenId}.`, e);
+      throw new Error("Failed to parse Base64 metadata.");
+    }
+  } else {
+    // 4. Handle standard URL (HTTP or IPFS)
+    metadataUrl = normalizeUrl(tokenUri);
+    
+    const res = await fetch(metadataUrl);
+    if (!res.ok) {
+      console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+      throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+    }
+    
+    json = await res.json();
   }
-  
-  const json = await res.json();
 
   let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
   imageUrl = normalizeUrl(imageUrl);
