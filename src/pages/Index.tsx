@@ -1,9 +1,11 @@
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import React, { useState, useCallback } from "react";
+import { useElectropunksMetadataPopulator } from "@/hooks/useElectropunksMetadataPopulator";
 
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
+  useElectropunksMetadataPopulator();
 
   // Removed handlePanelClick as the modal is gone
 
