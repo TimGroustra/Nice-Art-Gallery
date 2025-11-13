@@ -77,6 +77,9 @@ const NUM_SEGMENTS_TO_USE = 5;
 // Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {};
 
+// Map to store fetched token IDs for each unique contract address
+const tokenMap: { [contractAddress: string]: number[] } = {};
+
 // Generate 20 panel configurations (4 walls * 5 segments)
 for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
     for (let j = 0; j < WALL_NAMES.length; j++) {
