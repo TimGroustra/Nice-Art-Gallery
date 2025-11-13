@@ -246,59 +246,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
-  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
-    
-    // Helper function for texture cleanup
-    const disposeTextureSafely = (mesh: THREE.Mesh) => {
-      if (mesh.material instanceof THREE.MeshBasicMaterial) {
-        if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-          mesh.material.map.dispose();
-          mesh.material.map = null;
-        }
-        mesh.material.dispose();
-      }
-    };
-
-    // --- Main NFT Mesh Cleanup ---
-    disposeTextureSafely(panel.mesh);
-    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
-    // --- End Main NFT Mesh Cleanup ---
-
-    panel.metadataUrl = '';
-    panel.isVideo = false;
-    if (panel.titleMesh) panel.titleMesh.visible = false;
-    if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-    if (panel.attributesMesh) panel.attributesMesh.visible = false;
-    if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
-    
-    // Ensure video cleanup
-    if (panel.videoElement) {
-      panel.videoElement.pause();
-      panel.videoElement.removeAttribute('src');
-      panel.videoElement = null;
-    }
-
-    if (!source) {
-        // This is a blank panel
-        const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || 'Blank Panel';
-        
-        // Wall title update
-        disposeTextureSafely(panel.wallTitleMesh);
-        const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
-        (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
-        panel.wallTitleMesh.visible = true;
-        
-        // Hide arrows for blank panels
-        panel.prevArrow.visible = false;
-        panel.nextArrow.visible = false;
-        
-        return;
-    }
-    
-    // Ensure arrows are visible for active panels
-    panel.prevArrow.visible = true;
-    panel.nextArrow.visible = true;
-
+  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     try {
       // Use the cached fetcher
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
@@ -310,10 +258,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // AWAIT the texture loading to ensure the image data is ready
       const texture = await loadTexture(imageUrl, panel, isVideo);
       
-      // --- Main NFT Mesh Update ---
+      // Helper function for texture cleanup
+      const disposeTextureSafely = (mesh: THREE.Mesh) => {
+        if (mesh.material instanceof THREE.MeshBasicMaterial) {
+          if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
+            mesh.material.map.dispose();
+            mesh.material.map = null;
+          }
+          mesh.material.dispose();
+        }
+      };
+
+      // --- Main NFT Mesh Cleanup ---
       disposeTextureSafely(panel.mesh);
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide, transparent: false, opacity: 1 });
-      // --- End Main NFT Mesh Update ---
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      // --- End Main NFT Mesh Cleanup ---
 
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
@@ -356,12 +315,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.error(`Error updating panel ${panel.wallName}:`, error);
       showError(`Failed to load NFT for ${panel.wallName}.`);
       
-      // Fallback cleanup (keep panel dark gray)
+      // Fallback cleanup
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         panel.mesh.material.map?.dispose();
         panel.mesh.material.dispose();
       }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: false, opacity: 1 });
+      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
       panel.metadataUrl = '';
       panel.isVideo = false;
       if (panel.titleMesh) panel.titleMesh.visible = false;
@@ -833,14 +792,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
       const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
-      prevArrow.visible = false; // Start hidden
       scene.add(prevArrow);
       
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
-      nextArrow.visible = false; // Start hidden
       scene.add(nextArrow);
 
       // Attributes Panel (Right side relative to the NFT panel)
@@ -1017,8 +974,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         raycaster.setFromCamera(center, camera);
         const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]));
         
-        // --- Arrow Visibility Logic ---
-        let panelUnderCursor: Panel | null = null;
+        panelsRef.current.forEach(p => {
+          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
+          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
+        });
+        
         currentTargetedPanel = null;
         currentTargetedArrow = null;
         currentTargetedDescriptionPanel = null;
@@ -1026,39 +986,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
           const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh || p.descriptionMesh === intersectedMesh);
-          
           if (panel) {
-            panelUnderCursor = panel;
             if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
             else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
               currentTargetedArrow = intersectedMesh;
+              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
             } else if (intersectedMesh === panel.descriptionMesh) {
               currentTargetedDescriptionPanel = panel;
             }
           }
         }
-        
-        panelsRef.current.forEach(p => {
-          const isTargeted = p === panelUnderCursor;
-          const isArrow = p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow;
-          
-          // Only show arrows if the panel is targeted AND it's not a blank panel (i.e., has tokenIds)
-          const hasTokens = GALLERY_PANEL_CONFIG[p.wallName]?.tokenIds.length > 0;
-          
-          if (hasTokens) {
-            p.prevArrow.visible = isTargeted;
-            p.nextArrow.visible = isTargeted;
-          } else {
-            // Ensure arrows are hidden for blank panels
-            p.prevArrow.visible = false;
-            p.nextArrow.visible = false;
-          }
-
-          // Highlight the specific arrow if it's the one being hovered over
-          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(p.prevArrow === currentTargetedArrow ? ARROW_COLOR_HOVER : ARROW_COLOR_DEFAULT);
-          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(p.nextArrow === currentTargetedArrow ? ARROW_COLOR_HOVER : ARROW_COLOR_DEFAULT);
-        });
-        // --- End Arrow Visibility Logic ---
       }
       prevTime = time;
       renderer.render(scene, camera);
@@ -1076,9 +1013,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // Re-run content update for all panels
         for (const panel of panelsRef.current) {
             const source = getCurrentNftSource(panel.wallName);
-            await updatePanelContent(panel, source);
-            // Introduce a small delay between fetches to respect rate limits
-            await new Promise(resolve => setTimeout(resolve, 100)); 
+            if (source) {
+                await updatePanelContent(panel, source);
+                // Introduce a small delay between fetches to respect rate limits
+                await new Promise(resolve => setTimeout(resolve, 100)); 
+            }
         }
         // Restart video playback if controls are locked
         manageVideoPlayback(controls.isLocked);
@@ -1108,9 +1047,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
         const source = getCurrentNftSource(panel.wallName);
-        await updatePanelContent(panel, source);
-        // Introduce a small delay between fetches to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+        if (source) {
+          await updatePanelContent(panel, source);
+          // Introduce a small delay between fetches to respect rate limits
+          await new Promise(resolve => setTimeout(resolve, 100)); 
+        }
       }
     };
 
