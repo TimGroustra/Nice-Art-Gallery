@@ -147,6 +147,45 @@ for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
     };
 }
 
+/**
+ * Fetches token IDs that have successfully cached metadata/images for a given contract.
+ * If no cached data exists, it falls back to fetching the total supply.
+ */
+async function getAvailableTokenIds(address: string): Promise<number[]> {
+    // Check if we should limit the collection to only cached tokens (e.g., ElectroPunks)
+    if (address === ELECTROPUNKS_ADDRESS) {
+        console.log(`[Config] Limiting ElectroPunks (${address}) to cached tokens only.`);
+        
+        const { data, error } = await supabase
+            .from('gallery_nft_metadata')
+            .select('token_id')
+            .eq('contract_address', address)
+            .not('image', 'is', null) // Ensure image URL is present
+            .order('token_id', { ascending: true });
+
+        if (error) {
+            console.error(`[Config] Failed to fetch cached token IDs for ${address}:`, error);
+            // Fallback to total supply if the query fails
+            return Array.from({ length: await fetchTotalSupply(address) }, (_, i) => i + 1);
+        }
+
+        const cachedTokenIds = data.map(row => Number(row.token_id));
+        
+        if (cachedTokenIds.length === 0) {
+            console.warn(`[Config] No cached tokens found for ElectroPunks. Falling back to total supply.`);
+            // If no tokens are cached yet, we must fall back to total supply to allow initial fetching
+            return Array.from({ length: await fetchTotalSupply(address) }, (_, i) => i + 1);
+        }
+        
+        return cachedTokenIds;
+    }
+
+    // Default behavior: fetch total supply and assume 1-indexed tokens
+    const totalSupply = await fetchTotalSupply(address);
+    return Array.from({ length: totalSupply }, (_, i) => i + 1);
+}
+
+
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
   const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress))).filter(addr => addr !== "");
@@ -155,10 +194,8 @@ export async function initializeGalleryConfig() {
 
   for (const address of uniqueContracts) {
     try {
-      // Use fetchTotalSupply for ALL collections
-      const totalSupply = await fetchTotalSupply(address);
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      const tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      // Use the new function to determine available token IDs
+      const tokenIds = await getAvailableTokenIds(address);
       
       tokenMap[address] = tokenIds;
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
@@ -204,7 +241,7 @@ export const GALLERY_PANEL_CONFIG = galleryConfig;
 // Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || config.contractAddress === "") return null;
+  if (!config || config.contractAddress === "" || config.tokenIds.length === 0) return null;
   const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,
