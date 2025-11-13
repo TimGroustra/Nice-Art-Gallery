@@ -1,10 +1,9 @@
 import { JsonRpcProvider, Contract } from "ethers";
-import { supabase } from "@/integrations/supabase/client"; // Correctly import the initialized client
+import { supabase } from "@/integrations/supabase/client";
 
 // Ankr RPC endpoint for Electroneum (only used for totalSupply)
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
-// Removed: const supabase = createClient();
 
 const erc721And1155Abi = [
   "function name() view returns (string)",
@@ -82,6 +81,10 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   // 2. Cache Miss: Call Edge Function to fetch and cache
   console.log(`[NFT Fetcher] Cache miss for ${contractAddress}/${tokenId}. Calling Edge Function.`);
   
+  // Get current session token (or use anon key if no session)
+  const sessionResponse = await supabase.auth.getSession();
+  const accessToken = sessionResponse.data.session?.access_token || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aWdpaXJsc2RiaG1tY3F2em5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwODg4ODYsImV4cCI6MjA2NzY2NDg4Nn0.o2YAwA8zeQL9lB0WD3vlBJFRZafcjypxlYDwwCQx_U0";
+  
   // NOTE: We must use the full hardcoded URL path for Edge Functions
   const EDGE_FUNCTION_URL = `https://yvigiirlsdbhmmcqvznk.supabase.co/functions/v1/fetch-and-cache-nft-metadata`;
 
@@ -89,7 +92,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${supabase.auth.session()?.access_token || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aWdpaXJsc2RiaG1tY3F2em5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwODg4ODYsImV4cCI6MjA2NzY2NDg4Nn0.o2YAwA8zeQL9lB0WD3vlBJFRZafcjypxlYDwwCQx_U0"}`,
+      'Authorization': `Bearer ${accessToken}`,
     },
     body: JSON.stringify({ contractAddress, tokenId }),
   });
