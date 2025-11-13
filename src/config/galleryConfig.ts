@@ -60,7 +60,7 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4": "Verdant Kin",
   "0x3446c31703CA826F368B981E50971A00eA4C23be": "Limitless: Different Worlds",
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469": "Richard Ells on a Skateboard",
-  [ETN_VIDEO_NFT_ADDRESS]: "ETN Video NFT", // Updated entry
+  [ETN_VIDEO_NFT_ADDRESS]: "Pope's Legendary Coffee", // Updated entry
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1": "Club Watches",
   "0xc107C97710972e964d59000f610c07262638B508": "Non-Fungible Comrades",
   "0xcff0d88Ed5311bAB09178b6ec19A464100880984": "ElectroGems",
@@ -168,7 +168,7 @@ export async function initializeGalleryConfig() {
     // Special case: If it's the single-token video NFT, force token ID 1
     if (address === ETN_VIDEO_NFT_ADDRESS) {
         tokenMap[address] = [1];
-        console.log(`Collection ETN Video NFT (${address}) initialized with 1 token (forced).`);
+        console.log(`Collection Pope's Legendary Coffee (${address}) initialized with 1 token (forced).`);
         continue;
     }
     
