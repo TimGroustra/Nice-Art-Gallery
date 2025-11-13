@@ -5,6 +5,7 @@ import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, upd
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
+import { createGifTexture } from '@/utils/gifTexture'; // Import the new utility
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -22,6 +23,7 @@ interface Panel {
   wallName: keyof PanelConfig;
   metadataUrl: string;
   isVideo: boolean;
+  isGif: boolean; // New flag for GIF content
   prevArrow: THREE.Mesh;
   nextArrow: THREE.Mesh;
   titleMesh: THREE.Mesh;
@@ -33,8 +35,9 @@ interface Panel {
   descriptionScrollY: number;
   descriptionTextHeight: number;
   currentAttributes: NftAttribute[];
-  // NEW: Dedicated video element for this panel
+  // Dedicated media elements/controls
   videoElement: HTMLVideoElement | null;
+  gifStopFunction: (() => void) | null; // Function to stop GIF animation loop
 }
 
 interface NftGalleryProps {
@@ -183,42 +186,60 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
-  // Helper function to determine if content is video
+  // Helper function to determine if content is video or GIF
   const isVideoContent = (contentType: string, url: string) => {
       return contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i);
   };
+  
+  const isGifContent = (contentType: string, url: string) => {
+      return contentType === "image/gif" || url.match(/\.gif(\?|$)/i);
+  };
 
-  // Refactored loadTexture to return a Promise
-  const loadTexture = useCallback((url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
+  // Helper function for texture cleanup
+  const disposeTextureSafely = (mesh: THREE.Mesh) => {
+    if (mesh.material instanceof THREE.MeshBasicMaterial) {
+      if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
+        mesh.material.map.dispose();
+        mesh.material.map = null;
+      }
+      mesh.material.dispose();
+    }
+  };
+
+  // Refactored loadTexture to handle Video, GIF, and Image
+  const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
+    const isGif = isGifContent(contentType, url);
 
-    // Cleanup existing video element if type changes or URL changes
-    if (panel.videoElement && (!isVideo || panel.videoElement.src !== url)) {
+    // --- Cleanup previous media ---
+    if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
         panel.videoElement = null;
     }
+    if (panel.gifStopFunction) {
+        panel.gifStopFunction();
+        panel.gifStopFunction = null;
+    }
+    // --- End Cleanup ---
 
     if (isVideo) {
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
         if (!videoEl) {
-            // Create a new video element if it doesn't exist for this panel
             videoEl = document.createElement('video');
             videoEl.playsInline = true;
             videoEl.autoplay = true;
             videoEl.loop = true;
             videoEl.muted = true;
-            videoEl.style.display = 'none'; // Keep it hidden
+            videoEl.style.display = 'none';
             videoEl.crossOrigin = 'anonymous'; 
             panel.videoElement = videoEl;
         }
 
-        // Set new source and load
         videoEl.src = url;
         videoEl.load();
         
-        // Start playback if controls are locked
         if ((window as any).galleryControls?.isLocked?.()) {
              videoEl.play().catch(e => console.warn("Video playback prevented:", e));
         }
@@ -226,21 +247,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const videoTexture = new THREE.VideoTexture(videoEl);
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
-        videoTexture.needsUpdate = true;
         
-        // Video textures are ready immediately
         resolve(videoTexture);
       });
     }
     
-    // If it's not a video, ensure we clean up any existing video element for this panel
-    if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
+    if (isGif) {
+        try {
+            const { texture, stop } = await createGifTexture(url);
+            panel.gifStopFunction = stop;
+            return texture;
+        } catch (error) {
+            console.error("Failed to load animated GIF, falling back to static image load:", error);
+            // Fall through to image loader if GIF decoding fails
+        }
     }
     
-    // Use TextureLoader wrapped in a Promise for asynchronous image/GIF loading
+    // Default: Image/Static GIF/Fallback
     return new Promise((resolve, reject) => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous'); 
@@ -259,17 +282,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
-  // Helper function for texture cleanup
-  const disposeTextureSafely = (mesh: THREE.Mesh) => {
-    if (mesh.material instanceof THREE.MeshBasicMaterial) {
-      if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-        mesh.material.map.dispose();
-        mesh.material.map = null;
-      }
-      mesh.material.dispose();
-    }
-  };
-
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
     const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
 
@@ -285,15 +297,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
     panel.metadataUrl = '';
     panel.isVideo = false;
+    panel.isGif = false; // Reset GIF flag
     if (panel.titleMesh) panel.titleMesh.visible = false;
     if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
     if (panel.attributesMesh) panel.attributesMesh.visible = false;
     
-    // Ensure video cleanup on failure/reset
+    // Ensure media cleanup on failure/reset
     if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
         panel.videoElement = null;
+    }
+    if (panel.gifStopFunction) {
+        panel.gifStopFunction();
+        panel.gifStopFunction = null;
     }
     
     // Handle blank panel case immediately
@@ -308,6 +325,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       const contentUrl = metadata.contentUrl;
       const isVideo = isVideoContent(metadata.contentType, contentUrl);
+      const isGif = isGifContent(metadata.contentType, contentUrl);
       
       // AWAIT the texture loading to ensure the image data is ready
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
@@ -319,6 +337,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
+      panel.isGif = isGif;
 
       // Title update
       disposeTextureSafely(panel.titleMesh);
@@ -346,7 +365,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image/GIF NFT: ${metadata.title}`);
+      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
       console.error(`Error loading NFT content for ${panel.wallName}:`, error);
@@ -944,9 +963,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // --- END ---
 
       const panel: Panel = {
-        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
+        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
         attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-        videoElement: null, // Initialize video element as null
+        videoElement: null, gifStopFunction: null, // Initialize new properties
       };
       panelsRef.current.push(panel);
       
@@ -1205,6 +1224,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.videoElement.removeAttribute('src');
           // Note: We don't remove the video element from the DOM as it was never added, 
           // but we ensure it's paused and its source is cleared.
+        }
+        if (panel.gifStopFunction) {
+            panel.gifStopFunction();
         }
       });
 
