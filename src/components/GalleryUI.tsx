@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { X, Volume2, VolumeX } from 'lucide-react';
-// Removed Dialog imports
+import { X, Volume2, VolumeX, Zap } from 'lucide-react';
+import { triggerElectroPunksCache } from '@/utils/nftFetcher';
+import { showLoading, dismissToast } from '@/utils/toast';
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -9,9 +10,9 @@ interface GalleryUIProps {
 }
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
-  // Removed modal state: isModalOpen, modalMetadata
   const [isMuted, setIsMuted] = useState(true); // Default to true
   const [hasMedia, setHasMedia] = useState(false); // Combined state for video/music presence
+  const [isCaching, setIsCaching] = useState(false);
 
   // Polling/Interval to check media state from NftGallery
   useEffect(() => {
@@ -44,6 +45,27 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     }
   };
   
+  const handleCacheTrigger = async () => {
+    if (isCaching) return;
+    setIsCaching(true);
+    let toastId: string | undefined;
+    
+    try {
+      toastId = showLoading("Starting ElectroPunks cache process (this may take several minutes)...");
+      
+      const result = await triggerElectroPunksCache();
+      
+      dismissToast(toastId);
+      alert(`Cache Triggered: ${result.message}\nSummary: ${result.summary}`);
+      
+    } catch (error) {
+      dismissToast(toastId);
+      alert(`Cache failed to start: ${error.message}`);
+    } finally {
+      setIsCaching(false);
+    }
+  };
+  
   return (
     <>
       {/* Overlay UI (Top Left) */}
@@ -51,12 +73,25 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         
         {/* Instructions */}
         {instructionsVisible && (
-          <div 
-            id="instructions" 
-            className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
-            onClick={onLockClick}
-          >
-            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle mute.
+          <div className="flex flex-col gap-2 pointer-events-auto">
+            <div 
+              id="instructions" 
+              className="bg-black/50 text-white p-3 rounded-md cursor-pointer"
+              onClick={onLockClick}
+            >
+              Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle mute.
+            </div>
+            
+            {/* Cache Button */}
+            <Button 
+              variant="secondary" 
+              className="bg-blue-600 hover:bg-blue-700 text-white border border-blue-800"
+              onClick={handleCacheTrigger}
+              disabled={isCaching}
+            >
+              <Zap className="h-4 w-4 mr-2" />
+              {isCaching ? "Caching..." : "Trigger ElectroPunks Cache"}
+            </Button>
           </div>
         )}
         
