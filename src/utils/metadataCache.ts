@@ -37,8 +37,9 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
       metadataCache.set(key, result.metadata);
       return result.metadata;
     } else {
-      // Access reason and error only when result.ok is false
-      console.warn(`[Metadata Cache] Failed to fetch metadata for ${key}. Reason: ${result.reason}`, result.error);
+      // Since result.ok is false, we can safely assert the type for logging
+      const errorResult = result as { ok: false; reason: string; error?: string };
+      console.warn(`[Metadata Cache] Failed to fetch metadata for ${key}. Reason: ${errorResult.reason}`, errorResult.error);
       return null;
     }
   })();
