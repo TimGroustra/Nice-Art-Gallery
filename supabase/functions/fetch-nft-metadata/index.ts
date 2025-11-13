@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 import { ethers } from "https://esm.sh/ethers@6.7.0";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.44.4'
 
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -29,6 +30,16 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    {
+      auth: {
+        persistSession: false,
+      },
+    }
+  );
+
   try {
     const { contractAddress, tokenId } = await req.json();
     console.log(`[Function] Attempting to fetch metadata for ${contractAddress}/${tokenId}`);
@@ -44,14 +55,12 @@ serve(async (req) => {
     try {
       // Try ERC-721 standard
       tokenUri = await contract.tokenURI(tokenId);
-      console.log(`[Function] tokenURI (ERC-721) result: ${tokenUri}`);
     } catch (e) {
       try {
         // Try ERC-1155 standard
         let uriTemplate = await contract.uri(tokenId);
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
-        console.log(`[Function] uri (ERC-1155) result: ${tokenUri}`);
       } catch (e2) {
         console.error(`[Function] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
         throw new Error("Failed to retrieve token URI from contract.");
@@ -69,25 +78,76 @@ serve(async (req) => {
     const res = await fetch(metadataUrl);
     
     if (!res.ok) {
-      // Log the failure status and URL for debugging
       console.error(`[Function] Failed to fetch metadata from ${metadataUrl}: Status ${res.status} ${res.statusText}`);
       throw new Error(`Failed to fetch metadata from external source: Status ${res.status}`);
     }
     
     const json = await res.json();
 
-    let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
-    imageUrl = normalizeUrl(imageUrl);
+    let externalImageUrl = json.image || json.image_url || json.imageURI || json.gif;
+    externalImageUrl = normalizeUrl(externalImageUrl);
+    
+    if (!externalImageUrl) {
+        console.warn(`[Function] No image URL found in metadata for ${tokenId}.`);
+    }
+
+    let finalImageUrl = externalImageUrl;
+    
+    // --- Image Caching Logic ---
+    if (externalImageUrl) {
+        const imageRes = await fetch(externalImageUrl);
+        if (imageRes.ok) {
+            const imageBlob = await imageRes.blob();
+            // Determine file extension based on content type
+            const contentType = imageBlob.type;
+            let fileExtension = 'png'; // Default fallback
+            if (contentType.includes('jpeg') || contentType.includes('jpg')) fileExtension = 'jpg';
+            else if (contentType.includes('gif')) fileExtension = 'gif';
+            else if (contentType.includes('webp')) fileExtension = 'webp';
+            else if (contentType.includes('mp4')) fileExtension = 'mp4';
+            else if (contentType.includes('webm')) fileExtension = 'webm';
+            
+            const storagePath = `electropunks/${tokenId}.${fileExtension}`;
+            
+            console.log(`[Function] Uploading image to storage path: ${storagePath}`);
+
+            const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('nft_images') // Using the confirmed 'nft_images' bucket
+                .upload(storagePath, imageBlob, {
+                    cacheControl: '3600',
+                    upsert: true,
+                    contentType: imageBlob.type,
+                });
+
+            if (uploadError) {
+                console.error(`[Function] Failed to upload image to storage:`, uploadError);
+                // Fallback to external URL if upload fails
+            } else {
+                // Get the public URL for the uploaded image
+                const { data: publicUrlData } = supabase.storage
+                    .from('nft_images')
+                    .getPublicUrl(storagePath);
+                
+                if (publicUrlData?.publicUrl) {
+                    finalImageUrl = publicUrlData.publicUrl;
+                    console.log(`[Function] Image successfully cached at: ${finalImageUrl}`);
+                }
+            }
+        } else {
+            console.warn(`[Function] Failed to fetch external image for caching: Status ${imageRes.status}`);
+        }
+    }
+    // --- End Image Caching Logic ---
 
     const metadata = {
       title: json.name || `Token #${tokenId}`,
       description: json.description || '(No description)',
-      image: imageUrl || '',
+      image: finalImageUrl, // Use the local Supabase URL if successful, otherwise external URL
       source: metadataUrl,
       attributes: json.attributes || [],
     };
     
-    console.log(`[Function] Successfully fetched metadata for ${tokenId}. Title: ${metadata.title}`);
+    console.log(`[Function] Successfully processed metadata for ${tokenId}. Title: ${metadata.title}`);
 
     return new Response(JSON.stringify(metadata), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
