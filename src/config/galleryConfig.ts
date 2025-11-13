@@ -13,7 +13,7 @@ export interface PanelConfig {
 
 const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
 const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-const ETN_VIDEO_NFT_ADDRESS = "0xAcb0bd4EF927A2f4989c731eD6e2213326A02445"; // New ERC-1155 Video NFT
+const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C"; // Updated ERC-1155 Video NFT address
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
@@ -60,7 +60,7 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4": "Verdant Kin",
   "0x3446c31703CA826F368B981E50971A00eA4C23be": "Limitless: Different Worlds",
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469": "Richard Ells on a Skateboard",
-  [ETN_VIDEO_NFT_ADDRESS]: "ETN Video NFT", // New entry
+  [ETN_VIDEO_NFT_ADDRESS]: "ETN Video NFT", // Updated entry
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1": "Club Watches",
   "0xc107C97710972e964d59000f610c07262638B508": "Non-Fungible Comrades",
   "0xcff0d88Ed5311bAB09178b6ec19A464100880984": "ElectroGems",
