@@ -98,14 +98,15 @@ serve(async (req) => {
         const imageRes = await fetch(externalImageUrl);
         if (imageRes.ok) {
             const imageBlob = await imageRes.blob();
+            
             // Determine file extension based on content type
-            const contentType = imageBlob.type;
             let fileExtension = 'png'; // Default fallback
-            if (contentType.includes('jpeg') || contentType.includes('jpg')) fileExtension = 'jpg';
-            else if (contentType.includes('gif')) fileExtension = 'gif';
-            else if (contentType.includes('webp')) fileExtension = 'webp';
-            else if (contentType.includes('mp4')) fileExtension = 'mp4';
-            else if (contentType.includes('webm')) fileExtension = 'webm';
+            if (imageBlob.type) {
+                const parts = imageBlob.type.split('/');
+                if (parts.length === 2) {
+                    fileExtension = parts[1].toLowerCase().replace('jpeg', 'jpg');
+                }
+            }
             
             const storagePath = `electropunks/${tokenId}.${fileExtension}`;
             
