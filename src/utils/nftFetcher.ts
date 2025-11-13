@@ -90,7 +90,9 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   // Try ERC-721 standard (tokenURI)
   try {
     tokenUri = await contract.tokenURI(tokenId);
+    console.log(`[NFT Fetcher] ERC-721 tokenURI success for ${contractAddress}/${tokenId}.`);
   } catch (e) {
+    console.warn(`[NFT Fetcher] ERC-721 tokenURI failed for ${contractAddress}/${tokenId}. Trying ERC-1155 uri. Error:`, e);
     // If ERC-721 fails, try ERC-1155 standard (uri)
     try {
       let uriTemplate = await contract.uri(tokenId);
@@ -103,8 +105,9 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
       } else {
         tokenUri = uriTemplate;
       }
+      console.log(`[NFT Fetcher] ERC-1155 uri success for ${contractAddress}/${tokenId}.`);
     } catch (e2) {
-      console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
+      console.error(`[NFT Fetcher] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
       throw new Error("Failed to retrieve token URI from contract.");
     }
   }
