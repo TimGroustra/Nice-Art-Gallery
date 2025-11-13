@@ -171,7 +171,7 @@ export async function fetchTokenIds(contractAddress: string): Promise<number[]> 
 
         for (const log of logs) {
           if (log.topics.length === 4) { // Standard ERC-721 Transfer event
-            const tokenId = Number(ethers.toBigInt(log.topics[3]));
+            const tokenId = Number(BigInt(log.topics[3]));
             tokenIds.add(tokenId);
           }
         }
