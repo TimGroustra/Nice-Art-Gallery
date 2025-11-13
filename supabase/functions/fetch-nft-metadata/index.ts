@@ -40,9 +40,11 @@ serve(async (req) => {
     let tokenUri: string | undefined;
     
     try {
+      // Try ERC-721 standard
       tokenUri = await contract.tokenURI(tokenId);
     } catch (e) {
       try {
+        // Try ERC-1155 standard
         let uriTemplate = await contract.uri(tokenId);
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
@@ -60,7 +62,9 @@ serve(async (req) => {
 
     const res = await fetch(metadataUrl);
     if (!res.ok) {
-      throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+      // Log the failure status and URL for debugging
+      console.error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+      throw new Error(`Failed to fetch metadata from external source: Status ${res.status}`);
     }
     
     const json = await res.json();
@@ -81,6 +85,8 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
+    // Ensure error response includes CORS headers and logs the error
+    console.error("Edge Function execution error:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
