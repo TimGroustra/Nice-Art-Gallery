@@ -1,11 +1,13 @@
 import { toast } from "sonner";
 
 export const showSuccess = (message: string) => {
-  // Toasts disabled by user request.
+  // Notifications disabled
+  // toast.success(message);
 };
 
 export const showError = (message: string) => {
-  // Toasts disabled by user request.
+  // Notifications disabled
+  // toast.error(message);
 };
 
 export const showLoading = (message: string) => {

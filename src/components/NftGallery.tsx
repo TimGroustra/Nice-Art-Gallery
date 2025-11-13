@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
-import { NftMetadata, NftSource, NftAttribute, resolveIpfsWithFallback, fetchAndDecodeImage } from '@/utils/nftFetcher';
+import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
@@ -15,9 +15,6 @@ const TITLE_HEIGHT = 0.5;
 const DESCRIPTION_HEIGHT = 1.5;
 const ATTRIBUTES_HEIGHT = 1.5;
 const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
-
-// Fallback URL for when all IPFS gateways fail
-const FALLBACK_IMAGE_URL = '/placeholder.svg'; 
 
 // Define types for the panel objects
 interface Panel {
@@ -169,7 +166,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
-  const bgMusicRef = useRef<THREE.Audio | null>(null); // Ref for background music
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
@@ -177,7 +173,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (shouldPlay) {
                 const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
                 if (controlsLocked) {
-                    // Videos are created muted, so we only play them if controls are locked
                     panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
                 }
             } else {
@@ -188,18 +183,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   // Refactored loadTexture to return a Promise
-  const loadTexture = useCallback(async (url: string, panel: Panel, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
-    
-    // 1. Resolve the URL robustly using fallbacks
-    const resolvedUrl = await resolveIpfsWithFallback(url);
-    const finalUrl = resolvedUrl || FALLBACK_IMAGE_URL;
-    
-    if (finalUrl === FALLBACK_IMAGE_URL) {
-        console.warn(`[Texture Loader] All gateways failed for ${url}. Using fallback image.`);
-    }
-
+  const loadTexture = useCallback((url: string, panel: Panel, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
     if (isVideo) {
-      // If it's a video, we use the URL directly for the VideoTexture
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
         if (!videoEl) {
@@ -208,7 +193,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             videoEl.playsInline = true;
             videoEl.autoplay = true;
             videoEl.loop = true;
-            videoEl.muted = true; // Default to muted
+            videoEl.muted = true;
             videoEl.style.display = 'none'; // Keep it hidden
             videoEl.crossOrigin = 'anonymous'; // Added crossOrigin for video
             panel.videoElement = videoEl;
@@ -216,7 +201,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Stop previous playback and set new source
         videoEl.pause();
-        videoEl.src = finalUrl;
+        videoEl.src = url;
         videoEl.load();
         
         // Start playback if controls are locked
@@ -242,24 +227,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    // Use the robust fetchAndDecodeImage utility for images
-    try {
-        const img = await fetchAndDecodeImage(finalUrl);
-        const texture = new THREE.Texture(img);
-        texture.needsUpdate = true;
-        return texture;
-    } catch (e) {
-        console.error('Error loading or decoding image:', finalUrl, e);
-        // Fallback to a simple texture loader for the fallback image URL if the robust method fails
-        if (finalUrl !== FALLBACK_IMAGE_URL) {
-            console.warn(`Attempting simple load of fallback image: ${FALLBACK_IMAGE_URL}`);
-            const fallbackTexture = await new Promise<THREE.Texture>((resolve, reject) => {
-                new THREE.TextureLoader().load(FALLBACK_IMAGE_URL, resolve, undefined, reject);
-            });
-            return fallbackTexture;
-        }
-        throw e; // If even the fallback fails, re-throw
-    }
+    // Use TextureLoader wrapped in a Promise for asynchronous image loading
+    return new Promise((resolve, reject) => {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous'); // Added crossOrigin setting for image loader
+        
+        loader.load(url, 
+            (texture) => {
+                resolve(texture);
+            }, 
+            undefined, 
+            (error) => {
+                console.error('Error loading texture:', url, error);
+                showError(`Failed to load image: ${url.substring(0, 50)}...`);
+                reject(error);
+            }
+        );
+    });
   }, []);
 
   // Helper function for texture cleanup
@@ -373,70 +357,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const controls = new PointerLockControls(camera, renderer.domElement);
     
-    // --- Audio Setup ---
-    const listener = new THREE.AudioListener();
-    camera.add(listener);
-
-    const sound = new THREE.Audio(listener);
-    const audioLoader = new THREE.AudioLoader();
-
-    audioLoader.load('/Canvas Dreams.mp3', function(buffer) {
-        sound.setBuffer(buffer);
-        sound.setLoop(true);
-        sound.setVolume(0); // Default volume set to 0 (muted)
-        bgMusicRef.current = sound;
-    });
-    // --- End Audio Setup ---
-
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
       // Check if ANY panel has a video element
       hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
-      // Check if background music is loaded
-      hasMusic: () => bgMusicRef.current !== null,
-      // Check if ALL active media (video or music) is muted
+      // Check if ALL active video elements are muted
       isMuted: () => {
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
-        const videoMuted = activeVideos.length === 0 || activeVideos.every(p => p.videoElement!.muted);
-        const musicMuted = !bgMusicRef.current || bgMusicRef.current.getVolume() === 0;
-        
-        const hasAnyMedia = activeVideos.length > 0 || bgMusicRef.current;
-
-        if (!hasAnyMedia) return true;
-        
-        // If both exist, both must be muted. If only one exists, it must be muted.
-        if (activeVideos.length > 0 && bgMusicRef.current) {
-            return videoMuted && musicMuted;
-        } else if (activeVideos.length > 0) {
-            return videoMuted;
-        } else if (bgMusicRef.current) {
-            return musicMuted;
-        }
-        return true;
+        if (activeVideos.length === 0) return true;
+        return activeVideos.every(p => p.videoElement!.muted);
       },
-      // Toggle mute on ALL active media
+      // Toggle mute on ALL active video elements
       toggleMute: () => { 
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
-        
-        // Determine the current mute state based on existing media
-        // We check if the music is muted (volume 0) or if any video is muted (assuming they are synced)
-        let currentlyMuted = true;
-        if (bgMusicRef.current && bgMusicRef.current.getVolume() > 0) {
-            currentlyMuted = false;
-        } else if (activeVideos.length > 0 && activeVideos[0].videoElement!.muted === false) {
-            currentlyMuted = false;
-        }
-        
-        const newMuteState = !currentlyMuted;
-        
-        // Toggle video mute
-        activeVideos.forEach(p => {
-            p.videoElement!.muted = newMuteState;
-        });
-        
-        // Toggle music volume
-        if (bgMusicRef.current) {
-            bgMusicRef.current.setVolume(newMuteState ? 0 : 0.5);
+        if (activeVideos.length > 0) {
+          const currentlyMuted = activeVideos[0].videoElement!.muted;
+          activeVideos.forEach(p => {
+            p.videoElement!.muted = !currentlyMuted;
+          });
         }
       },
       isLocked: () => controls.isLocked, 
@@ -448,22 +386,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       setInstructionsVisible(false);
       // Start playback for all active videos
       manageVideoPlayback(true);
-      
-      // Start music playback on lock (it will start muted, volume 0)
-      if (bgMusicRef.current && !bgMusicRef.current.isPlaying) {
-          bgMusicRef.current.play();
-      }
     });
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
       // Pause playback for all active videos
       manageVideoPlayback(false);
-      
-      // Pause music playback on unlock
-      if (bgMusicRef.current && bgMusicRef.current.isPlaying) {
-          bgMusicRef.current.pause();
-      }
     });
 
     // --- ROOM GEOMETRY SETUP (50x50) ---
@@ -696,7 +624,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
         // North Inner Inner Wall (Z = -15)
-        // Outer side (in corridor, faces -Z)
+        // Outer side (facing -Z, corridor)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
         // Inner side (facing +Z, inner room)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
@@ -1033,11 +961,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         case 'KeyA': moveLeft = true; break;
         case 'KeyS': moveBackward = true; break;
         case 'KeyD': moveRight = true; break;
-        case 'KeyM': 
-          if (controls.isLocked) {
-            (window as any).galleryControls?.toggleMute?.();
-          }
-          break;
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -1269,12 +1192,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.videoElement.removeAttribute('src');
         }
       });
-      
-      // Cleanup background music
-      if (bgMusicRef.current) {
-          bgMusicRef.current.stop();
-          bgMusicRef.current = null;
-      }
 
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh) {

@@ -5,6 +5,8 @@ import React, { useState, useCallback } from "react";
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
 
+  // Removed handlePanelClick as the modal is gone
+
   const handleLockClick = useCallback(() => {
     const galleryControls = (window as any).galleryControls;
     if (galleryControls && galleryControls.lockControls) {

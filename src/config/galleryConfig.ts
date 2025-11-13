@@ -1,5 +1,4 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
-import { supabase } from '@/integrations/supabase/client';
 
 export interface NftCollection {
   name: string;
@@ -14,7 +13,6 @@ export interface PanelConfig {
 
 const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
 const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-export const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43";
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
@@ -38,7 +36,7 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 29 (Verdant Kin)
   "0x3446c31703CA826F368B981E50971A00eA4C23be", // 30 (Limitless: Different Worlds)
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 31 (Richard Ells on a Skateboard)
-  ELECTROPUNKS_ADDRESS, // 32 (ElectroPunks)
+  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 32 (ElectroPunks)
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 33 (Club Watches)
   "0xc107C97710972e964d59000f610c07262638B508", // 34 (Non-Fungible Comrades)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 35 (Electric Eels)
@@ -147,64 +145,6 @@ for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
     };
 }
 
-/**
- * Fetches token IDs that have successfully cached metadata/images for a given contract.
- * If no cached data exists, it falls back to fetching the total supply.
- */
-async function getAvailableTokenIds(address: string): Promise<number[]> {
-    // Check if we should limit the collection to only cached tokens (e.g., ElectroPunks)
-    if (address === ELECTROPUNKS_ADDRESS) {
-        console.log(`[Config] Checking cached token IDs for ElectroPunks (${address}).`);
-        
-        const { data, error } = await supabase
-            .from('gallery_nft_metadata')
-            .select('token_id')
-            .eq('contract_address', address)
-            .not('image', 'is', null) // Ensure image URL is present
-            .order('token_id', { ascending: true });
-
-        if (error) {
-            console.error(`[Config] Failed to fetch cached token IDs for ${address}:`, error);
-            // Fallback to total supply if the query fails (though this is unlikely to work for EP)
-            return Array.from({ length: await fetchTotalSupply(address) }, (_, i) => i + 1);
-        }
-
-        const cachedTokenIds = data.map(row => Number(row.token_id));
-        
-        if (cachedTokenIds.length === 0) {
-            console.warn(`[Config] No cached tokens found for ElectroPunks. Triggering Rarible fetch...`);
-            
-            // --- CRITICAL: Trigger Rarible Fetch and Bulk Cache ---
-            try {
-                console.log("Invoking 'fetch-rarible-metadata' Edge Function...");
-                const { data: fetchResult, error: fetchError } = await supabase.functions.invoke('fetch-rarible-metadata', {
-                    // No body needed, the function knows the contract address
-                });
-                
-                if (fetchError) {
-                    console.error("Failed to trigger Rarible metadata fetch:", fetchError);
-                } else {
-                    console.log("Rarible metadata fetch successfully triggered. Result:", fetchResult);
-                    console.log("Please wait a moment and refresh the page to see the cached NFTs.");
-                }
-            } catch (e) {
-                console.error("Exception during Rarible fetch trigger:", e);
-            }
-            
-            // Return empty array immediately. The gallery will reload on next visit/refresh 
-            // once the caching function completes.
-            return [];
-        }
-        
-        return cachedTokenIds;
-    }
-
-    // Default behavior: fetch total supply and assume 1-indexed tokens
-    const totalSupply = await fetchTotalSupply(address);
-    return Array.from({ length: totalSupply }, (_, i) => i + 1);
-}
-
-
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
   const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress))).filter(addr => addr !== "");
@@ -213,12 +153,13 @@ export async function initializeGalleryConfig() {
 
   for (const address of uniqueContracts) {
     try {
-      // Use the new function to determine available token IDs
-      const tokenIds = await getAvailableTokenIds(address);
-      
-      tokenMap[address] = tokenIds;
+      const totalSupply = await fetchTotalSupply(address);
+      // Collection name is now retrieved from the hardcoded map
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
-      console.log(`Collection ${name} (${address}) initialized with ${tokenIds.length} tokens.`);
+      
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails
@@ -242,10 +183,11 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      
-      // Standard indexing logic for all panels
+      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
       const segmentIndexMatch = wallName.match(/-(\d+)$/);
       const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
+      
+      // Start index is segment index modulo total tokens available
       config.currentIndex = segmentIndex % tokens.length; 
     }
     // Name is already set during initial galleryConfig population
@@ -260,7 +202,7 @@ export const GALLERY_PANEL_CONFIG = galleryConfig;
 // Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || config.contractAddress === "" || config.tokenIds.length === 0) return null;
+  if (!config || config.contractAddress === "") return null;
   const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,

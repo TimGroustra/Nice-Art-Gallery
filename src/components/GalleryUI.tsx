@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, Volume2, VolumeX } from 'lucide-react';
+// Removed Dialog imports
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -8,23 +9,23 @@ interface GalleryUIProps {
 }
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
-  const [isMuted, setIsMuted] = useState(true); // Default to true
-  const [hasMedia, setHasMedia] = useState(false); // Combined state for video/music presence
+  // Removed modal state: isModalOpen, modalMetadata
+  const [isMuted, setIsMuted] = useState(true);
+  const [hasVideo, setHasVideo] = useState(false);
 
-  // Polling/Interval to check media state from NftGallery
+  // Removed openMetadataModal function
+
+  // Removed useEffect that exposed openMetadataModal globally
+
+  // Polling/Interval to check video state from NftGallery
   useEffect(() => {
     const interval = setInterval(() => {
       const galleryControls = (window as any).galleryControls;
       if (galleryControls) {
-        // Media state check
+        // Video state check
         const videoPresent = galleryControls.hasVideo();
-        const musicPresent = galleryControls.hasMusic();
-        const mediaPresent = videoPresent || musicPresent;
-        
-        setHasMedia(mediaPresent);
-        
-        // Only update isMuted if media is present, otherwise keep default (true)
-        if (mediaPresent) {
+        setHasVideo(videoPresent);
+        if (videoPresent) {
           setIsMuted(galleryControls.isMuted());
         }
       }
@@ -49,25 +50,23 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         
         {/* Instructions */}
         {instructionsVisible && (
-          <div className="flex flex-col gap-2 pointer-events-auto">
-            <div 
-              id="instructions" 
-              className="bg-black/50 text-white p-3 rounded-md cursor-pointer"
-              onClick={onLockClick}
-            >
-              Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle mute.
-            </div>
+          <div 
+            id="instructions" 
+            className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
+            onClick={onLockClick}
+          >
+            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor.
           </div>
         )}
         
         {/* Mute Toggle Button */}
-        {!instructionsVisible && hasMedia && (
+        {!instructionsVisible && hasVideo && (
           <Button 
             variant="secondary" 
             size="icon" 
             className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700"
             onClick={handleMuteToggle}
-            title={isMuted ? "Unmute Media (M)" : "Mute Media (M)"}
+            title={isMuted ? "Unmute Video" : "Mute Video"}
           >
             {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </Button>
