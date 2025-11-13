@@ -1,10 +1,10 @@
 import { JsonRpcProvider, Contract } from "ethers";
-import { createClient } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client"; // Correctly import the initialized client
 
 // Ankr RPC endpoint for Electroneum (only used for totalSupply)
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
-const supabase = createClient();
+// Removed: const supabase = createClient();
 
 const erc721And1155Abi = [
   "function name() view returns (string)",
