@@ -155,32 +155,10 @@ export async function initializeGalleryConfig() {
 
   for (const address of uniqueContracts) {
     try {
-      let tokenIds: number[];
-
-      if (address.toLowerCase() === ELECTROPUNKS_ADDRESS.toLowerCase()) {
-        console.log(`Fetching token IDs for ElectroPunks from Supabase...`);
-        const { data, error } = await supabase
-          .from('gallery_nft_metadata')
-          .select('token_id')
-          .eq('contract_address', address);
-
-        if (error) {
-          throw new Error(`Supabase error fetching ElectroPunks token IDs: ${error.message}`);
-        }
-        
-        if (!data || data.length === 0) {
-            console.warn(`No ElectroPunks entries found in Supabase for address ${address}. Falling back to total supply.`);
-            const totalSupply = await fetchTotalSupply(address);
-            tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
-        } else {
-            tokenIds = data.map(item => Number(item.token_id)).sort((a, b) => a - b);
-            console.log(`Found ${tokenIds.length} complete ElectroPunks entries.`);
-        }
-      } else {
-        const totalSupply = await fetchTotalSupply(address);
-        // Assuming token IDs are 1-indexed (1 to totalSupply)
-        tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      }
+      // Use fetchTotalSupply for ALL collections
+      const totalSupply = await fetchTotalSupply(address);
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      const tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
       
       tokenMap[address] = tokenIds;
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
@@ -193,7 +171,6 @@ export async function initializeGalleryConfig() {
   }
 
   // Update all panels using the fetched token lists
-  let electroGemPanelCounter = 0; // Counter for ElectroGem panels
   for (const wallName in galleryConfig) {
     const config = galleryConfig[wallName];
     
@@ -210,17 +187,10 @@ export async function initializeGalleryConfig() {
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
       
-      // Special logic for ElectroGems to ensure they start on different tokens
-      if (config.contractAddress.toLowerCase() === ELECTROGEMS_ADDRESS.toLowerCase()) {
-        // Use a counter to give each ElectroGem panel a unique starting index
-        config.currentIndex = (electroGemPanelCounter * 5) % tokens.length; // Multiplier provides more initial variety
-        electroGemPanelCounter++;
-      } else {
-        // Original logic for all other panels
-        const segmentIndexMatch = wallName.match(/-(\d+)$/);
-        const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
-        config.currentIndex = segmentIndex % tokens.length; 
-      }
+      // Standard indexing logic for all panels
+      const segmentIndexMatch = wallName.match(/-(\d+)$/);
+      const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
+      config.currentIndex = segmentIndex % tokens.length; 
     }
     // Name is already set during initial galleryConfig population
   }

@@ -108,7 +108,8 @@ serve(async (req) => {
                 }
             }
             
-            const storagePath = `electropunks/${tokenId}.${fileExtension}`;
+            // Use contract address as folder name for generalization
+            const storagePath = `${contractAddress}/${tokenId}.${fileExtension}`;
             
             console.log(`[Function] Uploading image to storage path: ${storagePath}`);
 
