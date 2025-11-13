@@ -12,7 +12,13 @@ export interface PanelConfig {
 }
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
+// The collections are now moved to the inner walls.
 const ALL_CONTRACT_ADDRESSES = [
+  // 20 blank addresses for the 50x50 outer wall panels
+  "", "", "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "", "", "",
+
+  // 20 collections for the inner walls (16 for 30x30, 4 for 10x10)
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0 (Planet ETN)
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1 (MEGA OGs)
   "", // 2 (BLANK PANEL - Previously Electro Bulls)
@@ -33,11 +39,6 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
   "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
-  // 16 blank addresses for the 30x30 inner wall panels
-  "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "",
-  // 4 blank addresses for the 10x10 center wall panels
-  "", "", "", "",
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
