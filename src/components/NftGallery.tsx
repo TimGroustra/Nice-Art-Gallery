@@ -673,7 +673,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+    // Make the initial panel material transparent to hide the placeholder box
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
@@ -683,10 +684,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_DEPTH_OFFSET = 0.15, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.16; 
     const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
-    // Helper to create a unique placeholder material/texture combo
-    const createUniquePlaceholderMaterial = (text: string, width: number, height: number, fontSize: number, color: string = 'white') => {
-        const { texture } = createTextTexture(text, width, height, fontSize, color, { wordWrap: false });
-        return new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    // Helper to create an empty, updatable material for text panels
+    const createTextPanelMaterial = () => {
+        return new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     };
 
     // Geometries defined once outside the loop
@@ -766,59 +766,57 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
       const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
       
-      // FIX: Initialize basePosition using indexed access
       const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       
-      // --- START FIX: Use unique placeholder materials ---
-      const titleMesh = new THREE.Mesh(titleGeometry, createUniquePlaceholderMaterial('Loading Title...', TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120));
+      // --- Create text panel meshes (initially invisible) ---
+      const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
       titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
       const titlePosition = basePosition.clone()
           .addScaledVector(upVector, titleYOffset)
           .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       titleMesh.position.copy(titlePosition);
+      titleMesh.visible = false; // Start invisible
       scene.add(titleMesh);
 
       // Description Panel (Left side relative to the NFT panel)
-      // Apply textOffsetSign: -1 * textOffsetSign means left side relative to the viewer
       const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X * config.textOffsetSign);
-      const descriptionMesh = new THREE.Mesh(descriptionGeometry, createUniquePlaceholderMaterial('Loading Description...', TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray'));
+      const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
       descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const descriptionPosition = descriptionGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       descriptionMesh.position.copy(descriptionPosition);
+      descriptionMesh.visible = false; // Start invisible
       scene.add(descriptionMesh);
       
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
-      // FIX: Initialize prevPosition using indexed access
       const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
       scene.add(prevArrow);
       
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
       nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // FIX: Initialize nextPosition using indexed access
       const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
 
       // Attributes Panel (Right side relative to the NFT panel)
-      // Apply textOffsetSign: 1 * textOffsetSign means right side relative to the viewer
       const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X * config.textOffsetSign);
-      const attributesMesh = new THREE.Mesh(attributesGeometry, createUniquePlaceholderMaterial('Loading Attributes...', TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray'));
+      const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
       attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
       attributesMesh.position.copy(attributesPosition);
+      attributesMesh.visible = false; // Start invisible
       scene.add(attributesMesh);
 
-      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createUniquePlaceholderMaterial('Loading Collection...', 8, 0.75, 120));
+      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
       wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
-      // FIX: Initialize wallTitlePosition using indexed access
       const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
+      wallTitleMesh.visible = false; // Start invisible
       scene.add(wallTitleMesh);
-      // --- END FIX ---
+      // --- END ---
 
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
