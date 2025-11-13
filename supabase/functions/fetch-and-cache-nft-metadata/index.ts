@@ -63,12 +63,15 @@ serve(async (req) => {
     // Try ERC-721 standard (tokenURI)
     try {
       tokenUri = await contract.tokenURI(tokenId);
+      console.log(`[Edge] Attempted ERC-721 tokenURI. Result: ${tokenUri}`);
     } catch (e) {
+      console.warn(`[Edge] ERC-721 tokenURI failed for ${contractAddress}/${tokenId}. Trying ERC-1155 fallback.`);
       // If ERC-721 fails, try ERC-1155 standard (uri)
       try {
         let uriTemplate = await contract.uri(tokenId);
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
+        console.log(`[Edge] ERC-721 failed, used ERC-1155 fallback. Result: ${tokenUri}`);
       } catch (e2) {
         console.error(`[Edge] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
         throw new Error("Failed to retrieve token URI from contract.");
@@ -90,6 +93,7 @@ serve(async (req) => {
       metadataUrl = 'In-line Base64 Data URI';
     } else {
       metadataUrl = normalizeUrl(tokenUri);
+      console.log(`[Edge] Final fetch URL: ${metadataUrl}`);
       
       const res = await fetch(metadataUrl);
       if (!res.ok) {
