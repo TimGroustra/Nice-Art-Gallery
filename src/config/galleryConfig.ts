@@ -13,32 +13,32 @@ export interface PanelConfig {
 
 // --- CONTRACT ADDRESSES (20 collections for 50x50 walls, segments 0-4) ---
 const CONTRACT_ADDRESSES_20 = [
-  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0
-  "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1
-  "0x8C9a0D62f194d7595E7e68373b0678E109aA3CD3", // 2
-  "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 3
-  "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // 4
-  "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // 5
-  "0xD7195E3c956Be88bA28dc0cbf65829dD7db6EA8a", // 6
-  "0xE76b450eE07CE833E10f9227F1Fbbc96e5f9514d", // 7
-  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // 8
-  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 9
-  "0x3446c31703CA826F368B981E50971A00eA4C23be", // 10
-  "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 11
-  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 12
-  "0xAcb0bd4EF927A2f4989c731eD6e2213326A02445", // 13
-  "0xae67aB41E3fe5a459A8602dCFe21684C6caB5703", // 14
-  "0x7782d0Af7642F0aE8bB40eFe36F83deE45DE9d55", // 15
-  "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c", // 16
-  "0x748723AF17899E3C2C1cA682be2733Bca87FDDc8", // 17
-  "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18
-  "0xD5bBD743A47cD60e23FDA16Abf56F3aaA813Fe47", // 19
+  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0 (Planet ETN)
+  "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1 (MEGA OGs)
+  "", // 2 (BLANK PANEL - Previously Electro Bulls)
+  "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 3 (Electroneum x Rarible)
+  "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // 4 (Baby Pandas)
+  "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // 5 (ETN Rock)
+  "0xD7195E3c956Be88bA28dc0cbf65829dD7db6EA8a", // 6 (ElectroFox)
+  "0xE76b450eE07CE833E10f9227F1Fbbc96e5f9514d", // 7 (HoneyBadgers)
+  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // 8 (Thirst & Thunder)
+  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 9 (Verdant Kin)
+  "0x3446c31703CA826F368B981E50971A00eA4C23be", // 10 (Limitless: Different Worlds)
+  "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 11 (Richard Ells on a Skateboard)
+  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 12 (ElectroPunks)
+  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches)
+  "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades)
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems)
+  "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c", // 16 (Electroneum 2.0)
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
+  "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
+  "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31": "Planet ETN",
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399": "MEGA OGs",
-  "0x8C9a0D62f194d7595E7e68373b0678E109aA3CD3": "Electro Bulls",
+  // Removed Electro Bulls entry
   "0x939548A645AD1C3164d82A168735DB1558c9EFDD": "Electroneum x Rarible",
   "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF": "Baby Pandas",
   "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42": "ETN Rock",
@@ -49,13 +49,13 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x3446c31703CA826F368B981E50971A00eA4C23be": "Limitless: Different Worlds",
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469": "Richard Ells on a Skateboard",
   "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43": "ElectroPunks",
-  "0xAcb0bd4EF927A2f4989c731eD6e2213326A02445": "Voyage",
-  "0xae67aB41E3fe5a459A8602dCFe21684C6caB5703": "New App Celebration",
-  "0x7782d0Af7642F0aE8bB40eFe36F83deE45DE9d55": "Alien Transmission",
+  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1": "Club Watches",
+  "0xc107C97710972e964d59000f610c07262638B508": "Non-Fungible Comrades",
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984": "ElectroGems",
   "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c": "Electroneum 2.0",
-  "0x748723AF17899E3C2C1cA682be2733Bca87FDDc8": "Blue Catto",
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b": "Electric Legends",
   "0xF91290684eb728f6715EFF0b50018105B6B31658": "Electric Eels",
-  "0xD5bBD743A47cD60e23FDA16Abf56F3aaA813Fe47": "Thunder Swords",
+  "0x1760321f42A9BE39b39c779D92373769d829ef48": "The Three Graces of the Sea",
 };
 
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
@@ -86,7 +86,7 @@ for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
 
 // Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress)));
+  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress))).filter(addr => addr !== "");
 
   const tokenMap: { [address: string]: number[] } = {};
 
@@ -109,6 +109,15 @@ export async function initializeGalleryConfig() {
   // Update all panels using the fetched token lists
   for (const wallName in galleryConfig) {
     const config = galleryConfig[wallName];
+    
+    // Handle blank panel case
+    if (config.contractAddress === "") {
+        config.name = "Blank Panel";
+        config.tokenIds = [];
+        config.currentIndex = 0;
+        continue;
+    }
+    
     const tokens = tokenMap[config.contractAddress];
     
     if (tokens && tokens.length > 0) {
@@ -132,7 +141,7 @@ export const GALLERY_PANEL_CONFIG = galleryConfig;
 // Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config) return null;
+  if (!config || config.contractAddress === "") return null;
   const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,
@@ -143,7 +152,7 @@ export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
 // Utility function to update the current index (used by NftGallery)
 export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || config.tokenIds.length === 0) return false;
+  if (!config || config.tokenIds.length === 0 || config.contractAddress === "") return false;
 
   let newIndex = config.currentIndex;
   const maxIndex = config.tokenIds.length - 1;
