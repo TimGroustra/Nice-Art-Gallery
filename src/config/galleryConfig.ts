@@ -11,8 +11,8 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
-// --- CONTRACT ADDRESSES (20 collections for 50x50 walls, segments 0-4) ---
-const CONTRACT_ADDRESSES_20 = [
+// --- CONTRACT ADDRESSES (20 for outer walls + 16 for inner walls) ---
+const ALL_CONTRACT_ADDRESSES = [
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0 (Planet ETN)
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1 (MEGA OGs)
   "", // 2 (BLANK PANEL - Previously Electro Bulls)
@@ -33,6 +33,9 @@ const CONTRACT_ADDRESSES_20 = [
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
   "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
+  // 16 blank addresses for the new inner wall panels
+  "", "", "", "", "", "", "", "",
+  "", "", "", "", "", "", "", "",
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
@@ -73,12 +76,44 @@ for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
         
         // Map sequentially using index k = (j * 5) + i
         const k = (j * 5) + i;
-        const contractAddress = CONTRACT_ADDRESSES_20[k];
+        const contractAddress = ALL_CONTRACT_ADDRESSES[k];
 
         galleryConfig[panelKey] = {
             name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
             contractAddress: contractAddress,
             tokenIds: [1], // Start with token 1 as placeholder
+            currentIndex: 0,
+        };
+    }
+}
+
+// Generate 16 panel configurations for inner 30x30 walls
+const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
+const NUM_INNER_SEGMENTS_TO_USE = 2; // Segments at +/- 10
+
+for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) { // 0, 1
+    for (let j = 0; j < INNER_WALL_NAMES.length; j++) { // 0, 1, 2, 3
+        const wallNameBase = INNER_WALL_NAMES[j];
+        
+        // Inner and Outer panels for each segment
+        const panelKeyInner = `${wallNameBase}-inner-${i}`;
+        const panelKeyOuter = `${wallNameBase}-outer-${i}`;
+
+        // Calculate index k for the new contracts, starting from 20
+        const baseK = 20 + (i * INNER_WALL_NAMES.length * 2) + (j * 2);
+        const contractAddressInner = ALL_CONTRACT_ADDRESSES[baseK];
+        const contractAddressOuter = ALL_CONTRACT_ADDRESSES[baseK + 1];
+
+        galleryConfig[panelKeyInner] = {
+            name: CONTRACT_NAMES_MAP[contractAddressInner] || 'Unknown Collection',
+            contractAddress: contractAddressInner,
+            tokenIds: [1],
+            currentIndex: 0,
+        };
+        galleryConfig[panelKeyOuter] = {
+            name: CONTRACT_NAMES_MAP[contractAddressOuter] || 'Unknown Collection',
+            contractAddress: contractAddressOuter,
+            tokenIds: [1],
             currentIndex: 0,
         };
     }

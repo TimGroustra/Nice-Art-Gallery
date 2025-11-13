@@ -756,6 +756,76 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
     }
 
+    // Add configurations for inner 30x30 walls
+    const innerInnerWallBoundary = 15;
+    const innerInnerWallSegments = [-10, 10]; // The segments we are using (skipping 0)
+
+    innerInnerWallSegments.forEach((segmentCenter, i) => {
+        // North Inner Wall (Z = -15)
+        // Outer side (in corridor, faces -Z)
+        dynamicPanelConfigs.push({
+            wallName: `north-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, -innerInnerWallBoundary - ARROW_DEPTH_OFFSET],
+            rotation: [0, Math.PI, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces +Z)
+        dynamicPanelConfigs.push({
+            wallName: `north-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, -innerInnerWallBoundary + ARROW_DEPTH_OFFSET],
+            rotation: [0, 0, 0],
+            textOffsetSign: 1,
+        });
+
+        // South Inner Wall (Z = 15)
+        // Outer side (in corridor, faces +Z)
+        dynamicPanelConfigs.push({
+            wallName: `south-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, innerInnerWallBoundary + ARROW_DEPTH_OFFSET],
+            rotation: [0, 0, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces -Z)
+        dynamicPanelConfigs.push({
+            wallName: `south-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, innerInnerWallBoundary - ARROW_DEPTH_OFFSET],
+            rotation: [0, Math.PI, 0],
+            textOffsetSign: 1,
+        });
+
+        // East Inner Wall (X = 15)
+        // Outer side (in corridor, faces +X)
+        dynamicPanelConfigs.push({
+            wallName: `east-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [innerInnerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces -X)
+        dynamicPanelConfigs.push({
+            wallName: `east-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [innerInnerWallBoundary - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, -Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+
+        // West Inner Wall (X = -15)
+        // Outer side (in corridor, faces -X)
+        dynamicPanelConfigs.push({
+            wallName: `west-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [-innerInnerWallBoundary - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, -Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces +X)
+        dynamicPanelConfigs.push({
+            wallName: `west-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [-innerInnerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+    });
+
     // Clear existing panels before populating
     panelsRef.current = [];
 
