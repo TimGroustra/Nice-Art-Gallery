@@ -246,11 +246,52 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
+  // Helper function for texture cleanup
+  const disposeTextureSafely = (mesh: THREE.Mesh) => {
+    if (mesh.material instanceof THREE.MeshBasicMaterial) {
+      if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
+        mesh.material.map.dispose();
+        mesh.material.map = null;
+      }
+      mesh.material.dispose();
+    }
+  };
+
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+    const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
+
+    // --- 1. Always update Wall Title (Collection Name) first ---
+    disposeTextureSafely(panel.wallTitleMesh);
+    const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
+    (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
+    panel.wallTitleMesh.visible = true;
+    // --- End Wall Title Update ---
+
+    // --- 2. Reset NFT and Metadata panels ---
+    disposeTextureSafely(panel.mesh);
+    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
+    panel.metadataUrl = '';
+    panel.isVideo = false;
+    if (panel.titleMesh) panel.titleMesh.visible = false;
+    if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
+    if (panel.attributesMesh) panel.attributesMesh.visible = false;
+    
+    // Ensure video cleanup on failure/reset
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
+    
+    // Handle blank panel case immediately
+    if (source.contractAddress === "") {
+        // Wall title is already set to "Blank Panel"
+        return;
+    }
+
     try {
       // Use the cached fetcher
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-      const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
@@ -258,21 +299,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // AWAIT the texture loading to ensure the image data is ready
       const texture = await loadTexture(imageUrl, panel, isVideo);
       
-      // Helper function for texture cleanup
-      const disposeTextureSafely = (mesh: THREE.Mesh) => {
-        if (mesh.material instanceof THREE.MeshBasicMaterial) {
-          if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-            mesh.material.map.dispose();
-            mesh.material.map = null;
-          }
-          mesh.material.dispose();
-        }
-      };
-
-      // --- Main NFT Mesh Cleanup ---
+      // --- Main NFT Mesh Update ---
       disposeTextureSafely(panel.mesh);
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
-      // --- End Main NFT Mesh Cleanup ---
+      // --- End Main NFT Mesh Update ---
 
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
@@ -303,37 +333,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      // Wall title update
-      disposeTextureSafely(panel.wallTitleMesh);
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
-      (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
-      panel.wallTitleMesh.visible = true;
-
       showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
-      console.error(`Error updating panel ${panel.wallName}:`, error);
-      showError(`Failed to load NFT for ${panel.wallName}.`);
+      console.error(`Error loading NFT content for ${panel.wallName}:`, error);
+      showError(`Failed to load NFT content for ${panel.wallName}. Displaying collection name only.`);
       
-      // Fallback cleanup
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        panel.mesh.material.map?.dispose();
-        panel.mesh.material.dispose();
-      }
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 });
-      panel.metadataUrl = '';
-      panel.isVideo = false;
-      if (panel.titleMesh) panel.titleMesh.visible = false;
-      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-      if (panel.attributesMesh) panel.attributesMesh.visible = false;
-      if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
-      
-      // Ensure video cleanup on failure
-      if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
-      }
+      // If loading fails, the panel remains dark gray, but the wall title remains visible (set in step 1).
     }
   }, [loadTexture]);
 
@@ -1047,11 +1053,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
         const source = getCurrentNftSource(panel.wallName);
-        if (source) {
-          await updatePanelContent(panel, source);
-          // Introduce a small delay between fetches to respect rate limits
-          await new Promise(resolve => setTimeout(resolve, 100)); 
-        }
+        // We call updatePanelContent even if source is null (blank panel) to ensure the wall title is set.
+        // The function now handles the blank panel case internally.
+        await updatePanelContent(panel, source || { contractAddress: GALLERY_PANEL_CONFIG[panel.wallName].contractAddress, tokenId: 0 });
+        
+        // Introduce a small delay between fetches to respect rate limits
+        await new Promise(resolve => setTimeout(resolve, 100)); 
       }
     };
 
