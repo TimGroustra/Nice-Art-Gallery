@@ -154,7 +154,7 @@ for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
 async function getAvailableTokenIds(address: string): Promise<number[]> {
     // Check if we should limit the collection to only cached tokens (e.g., ElectroPunks)
     if (address === ELECTROPUNKS_ADDRESS) {
-        console.log(`[Config] Limiting ElectroPunks (${address}) to cached tokens only.`);
+        console.log(`[Config] Checking cached token IDs for ElectroPunks (${address}).`);
         
         const { data, error } = await supabase
             .from('gallery_nft_metadata')
@@ -165,16 +165,33 @@ async function getAvailableTokenIds(address: string): Promise<number[]> {
 
         if (error) {
             console.error(`[Config] Failed to fetch cached token IDs for ${address}:`, error);
-            // Fallback to total supply if the query fails
+            // Fallback to total supply if the query fails (though this is unlikely to work for EP)
             return Array.from({ length: await fetchTotalSupply(address) }, (_, i) => i + 1);
         }
 
         const cachedTokenIds = data.map(row => Number(row.token_id));
         
         if (cachedTokenIds.length === 0) {
-            console.warn(`[Config] No cached tokens found for ElectroPunks. Falling back to total supply.`);
-            // If no tokens are cached yet, we must fall back to total supply to allow initial fetching
-            return Array.from({ length: await fetchTotalSupply(address) }, (_, i) => i + 1);
+            console.warn(`[Config] No cached tokens found for ElectroPunks. Triggering Rarible fetch...`);
+            
+            // --- CRITICAL: Trigger Rarible Fetch and Bulk Cache ---
+            try {
+                const { error: fetchError } = await supabase.functions.invoke('fetch-rarible-metadata', {
+                    // No body needed, the function knows the contract address
+                });
+                
+                if (fetchError) {
+                    console.error("Failed to trigger Rarible metadata fetch:", fetchError);
+                } else {
+                    console.log("Rarible metadata fetch successfully triggered. Please refresh the page in a moment.");
+                }
+            } catch (e) {
+                console.error("Exception during Rarible fetch trigger:", e);
+            }
+            
+            // Return empty array immediately. The gallery will reload on next visit/refresh 
+            // once the caching function completes.
+            return [];
         }
         
         return cachedTokenIds;
