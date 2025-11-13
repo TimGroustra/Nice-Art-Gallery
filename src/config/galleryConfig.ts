@@ -26,13 +26,13 @@ const CONTRACT_ADDRESSES_20 = [
   "0x3446c31703CA826F368B981E50971A00eA4C23be", // 10
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 11
   "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 12
-  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches - Replaced Voyage)
-  "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades - Replaced New App Celebration)
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems - Replaced Alien Transmission)
+  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches)
+  "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades)
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems)
   "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c", // 16
-  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends - Replaced Blue Catto)
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18
-  "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea - Replaced Thunder Swords)
+  "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
