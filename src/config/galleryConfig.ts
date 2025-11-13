@@ -11,7 +11,7 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
-// --- CONTRACT ADDRESSES (20 for outer walls + 16 for inner walls) ---
+// --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 const ALL_CONTRACT_ADDRESSES = [
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0 (Planet ETN)
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1 (MEGA OGs)
@@ -33,9 +33,11 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
   "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
-  // 16 blank addresses for the new inner wall panels
+  // 16 blank addresses for the 30x30 inner wall panels
   "", "", "", "", "", "", "", "",
   "", "", "", "", "", "", "", "",
+  // 4 blank addresses for the 10x10 center wall panels
+  "", "", "", "",
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
@@ -117,6 +119,24 @@ for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) { // 0, 1
             currentIndex: 0,
         };
     }
+}
+
+// Generate 4 panel configurations for the central 10x10 walls (outer-facing)
+const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
+for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
+    const wallNameBase = CENTER_WALL_NAMES[i];
+    const panelKey = `${wallNameBase}-0`; // Only one segment
+
+    // Calculate index k for these contracts, starting from 36
+    const k = 36 + i;
+    const contractAddress = ALL_CONTRACT_ADDRESSES[k];
+
+    galleryConfig[panelKey] = {
+        name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
+        contractAddress: contractAddress,
+        tokenIds: [1],
+        currentIndex: 0,
+    };
 }
 
 // Function to initialize the gallery configuration

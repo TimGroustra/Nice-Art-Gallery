@@ -826,6 +826,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         });
     });
 
+    // Add configurations for the central 10x10 walls (outer-facing)
+    const centerWallBoundary = 5;
+    const centerWallSegmentCenter = 0;
+
+    // North Center Wall (Z = -5), facing -Z (outward)
+    dynamicPanelConfigs.push({
+        wallName: `north-center-wall-0` as keyof PanelConfig,
+        position: [centerWallSegmentCenter, PANEL_Y_POSITION, -centerWallBoundary - ARROW_DEPTH_OFFSET],
+        rotation: [0, Math.PI, 0],
+        textOffsetSign: 1,
+    });
+
+    // South Center Wall (Z = 5), facing +Z (outward)
+    dynamicPanelConfigs.push({
+        wallName: `south-center-wall-0` as keyof PanelConfig,
+        position: [centerWallSegmentCenter, PANEL_Y_POSITION, centerWallBoundary + ARROW_DEPTH_OFFSET],
+        rotation: [0, 0, 0],
+        textOffsetSign: 1,
+    });
+
+    // East Center Wall (X = 5), facing +X (outward)
+    dynamicPanelConfigs.push({
+        wallName: `east-center-wall-0` as keyof PanelConfig,
+        position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
+        rotation: [0, Math.PI / 2, 0],
+        textOffsetSign: 1,
+    });
+
+    // West Center Wall (X = -5), facing -X (outward)
+    dynamicPanelConfigs.push({
+        wallName: `west-center-wall-0` as keyof PanelConfig,
+        position: [-centerWallBoundary - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
+        rotation: [0, -Math.PI / 2, 0],
+        textOffsetSign: 1,
+    });
+
     // Clear existing panels before populating
     panelsRef.current = [];
 
