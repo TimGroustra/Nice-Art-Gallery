@@ -173,6 +173,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (shouldPlay) {
                 const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
                 if (controlsLocked) {
+                    // Attempt to play, ignoring promise rejection if user gesture is required
                     panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
                 }
             } else {
@@ -182,9 +183,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
+  // Helper function to determine if content is video
+  const isVideoContent = (contentType: string, url: string) => {
+      return contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i);
+  };
+
   // Refactored loadTexture to return a Promise
   const loadTexture = useCallback((url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
-    const isVideo = contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i);
+    const isVideo = isVideoContent(contentType, url);
+
+    // Cleanup existing video element if type changes or URL changes
+    if (panel.videoElement && (!isVideo || panel.videoElement.src !== url)) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
 
     if (isVideo) {
       return new Promise(resolve => {
@@ -197,12 +210,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             videoEl.loop = true;
             videoEl.muted = true;
             videoEl.style.display = 'none'; // Keep it hidden
-            videoEl.crossOrigin = 'anonymous'; // Added crossOrigin for video
+            videoEl.crossOrigin = 'anonymous'; 
             panel.videoElement = videoEl;
         }
 
-        // Stop previous playback and set new source
-        videoEl.pause();
+        // Set new source and load
         videoEl.src = url;
         videoEl.load();
         
@@ -212,7 +224,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
         
         const videoTexture = new THREE.VideoTexture(videoEl);
-        // Set filters for better video quality
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
         videoTexture.needsUpdate = true;
@@ -229,10 +240,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    // Use TextureLoader wrapped in a Promise for asynchronous image loading
+    // Use TextureLoader wrapped in a Promise for asynchronous image/GIF loading
     return new Promise((resolve, reject) => {
         const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous'); // Added crossOrigin setting for image loader
+        loader.setCrossOrigin('anonymous'); 
         
         loader.load(url, 
             (texture) => {
@@ -296,7 +307,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       
       const contentUrl = metadata.contentUrl;
-      const isVideo = metadata.contentType.startsWith('video/') || contentUrl.match(/\.(mp4|webm|ogg)(\?|$)/i);
+      const isVideo = isVideoContent(metadata.contentType, contentUrl);
       
       // AWAIT the texture loading to ensure the image data is ready
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
@@ -335,7 +346,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
+      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image/GIF NFT: ${metadata.title}`);
       
     } catch (error) {
       console.error(`Error loading NFT content for ${panel.wallName}:`, error);
@@ -1192,6 +1203,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (panel.videoElement) {
           panel.videoElement.pause();
           panel.videoElement.removeAttribute('src');
+          // Note: We don't remove the video element from the DOM as it was never added, 
+          // but we ensure it's paused and its source is cleared.
         }
       });
 

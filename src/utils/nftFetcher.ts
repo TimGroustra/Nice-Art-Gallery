@@ -68,6 +68,7 @@ export interface NftMetadata {
 async function parseMetadataObject(meta: any, baseUri?: string): Promise<Omit<NftMetadata, 'source'>> {
   const getField = (k: string) => meta[k] ?? meta.properties?.[k] ?? null;
 
+  // Prioritize animation_url for content, fallback to image
   let animation = meta.animation_url ?? meta.animationURL ?? getField("animation_url") ?? null;
   let image = meta.image ?? meta.image_url ?? meta.imageURL ?? null;
 
@@ -85,11 +86,11 @@ async function parseMetadataObject(meta: any, baseUri?: string): Promise<Omit<Nf
   const animationUrl = resolveUrl(animation);
   const imageUrl = resolveUrl(image);
 
-  // choose content: prefer animation/video when present
+  // Choose content: prefer animation/video when present
   const contentUrl = animationUrl ?? imageUrl ?? '';
   let contentType = "";
 
-  // attempt HEAD to detect type (non-blocking best-effort)
+  // 1. Attempt HEAD request to detect type (non-blocking best-effort)
   if (contentUrl && !contentUrl.startsWith('data:')) {
     try {
       const head = await fetch(contentUrl, { method: "HEAD" });
@@ -99,10 +100,20 @@ async function parseMetadataObject(meta: any, baseUri?: string): Promise<Omit<Nf
     }
   }
   
-  // Fallback content type detection based on extension
+  // 2. Fallback content type detection based on extension
   if (!contentType && contentUrl) {
       if (contentUrl.match(/\.(mp4|webm|ogg)(\?|$)/i)) contentType = 'video/mp4';
-      else if (contentUrl.match(/\.(png|jpg|jpeg|gif|webp)(\?|$)/i)) contentType = 'image/jpeg';
+      else if (contentUrl.match(/\.(gif)(\?|$)/i)) contentType = 'image/gif'; // Explicitly detect GIF
+      else if (contentUrl.match(/\.(png|jpg|jpeg|webp)(\?|$)/i)) contentType = 'image/jpeg';
+  }
+  
+  // 3. If animation URL was used but no type detected, assume video
+  if (!contentType && animationUrl && animationUrl === contentUrl) {
+      contentType = 'video/unknown';
+  }
+  // 4. If image URL was used but no type detected, assume image
+  if (!contentType && imageUrl && imageUrl === contentUrl) {
+      contentType = 'image/unknown';
   }
 
 
