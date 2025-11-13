@@ -961,6 +961,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         case 'KeyA': moveLeft = true; break;
         case 'KeyS': moveBackward = true; break;
         case 'KeyD': moveRight = true; break;
+        case 'KeyM': 
+          if (controls.isLocked) {
+            (window as any).galleryControls?.toggleMute?.();
+          }
+          break;
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {

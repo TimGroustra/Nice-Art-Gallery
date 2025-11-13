@@ -55,7 +55,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
             onClick={onLockClick}
           >
-            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor.
+            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle mute.
           </div>
         )}
         
@@ -66,7 +66,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             size="icon" 
             className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700"
             onClick={handleMuteToggle}
-            title={isMuted ? "Unmute Video" : "Mute Video"}
+            title={isMuted ? "Unmute Video (M)" : "Mute Video (M)"}
           >
             {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </Button>
