@@ -124,14 +124,24 @@ export async function fetchTokenIds(contractAddress: string): Promise<number[]> 
     
     if (supply > 0 && supply < 10000) { // Cap at 10k for enumeration to avoid timeouts
       const tokenIds: number[] = [];
-      const promises = [];
-      for (let i = 0; i < supply; i++) {
-        promises.push(contract.tokenByIndex(i));
+      const BATCH_SIZE = 50; // Process in batches to avoid rate limiting
+
+      for (let i = 0; i < supply; i += BATCH_SIZE) {
+        const batchPromises = [];
+        const end = Math.min(i + BATCH_SIZE, supply);
+        for (let j = i; j < end; j++) {
+          batchPromises.push(contract.tokenByIndex(j));
+        }
+        
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach(tokenIdBigInt => {
+          tokenIds.push(Number(tokenIdBigInt));
+        });
+        
+        console.log(`[NFT Fetcher] Enumerated tokens ${i} to ${end - 1} for ${contractAddress}`);
+        // Add a small delay between batches to be kind to the RPC
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-      const results = await Promise.all(promises);
-      results.forEach(tokenIdBigInt => {
-        tokenIds.push(Number(tokenIdBigInt));
-      });
       
       if (tokenIds.length > 0) {
         console.log(`[NFT Fetcher] Successfully enumerated ${tokenIds.length} tokens for ${contractAddress}.`);
