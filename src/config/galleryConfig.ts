@@ -80,6 +80,10 @@ let galleryConfig: PanelConfig = {};
 // Map to store fetched token IDs for each unique contract address
 const tokenMap: { [contractAddress: string]: number[] } = {};
 
+// Helper map to track the sequential index (k) used during initialization
+const panelSequentialIndexMap: { [wallName: string]: number } = {};
+let sequentialIndexCounter = 0;
+
 // Generate 20 panel configurations (4 walls * 5 segments)
 for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
     for (let j = 0; j < WALL_NAMES.length; j++) {
@@ -87,8 +91,9 @@ for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
         const panelKey = `${wallNameBase}-${i}`;
         
         // Map sequentially using index k = (j * 5) + i
-        const k = (j * 5) + i;
+        const k = sequentialIndexCounter++;
         const contractAddress = ALL_CONTRACT_ADDRESSES[k];
+        panelSequentialIndexMap[panelKey] = k;
 
         galleryConfig[panelKey] = {
             name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
@@ -112,9 +117,14 @@ for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) { // 0, 1
         const panelKeyOuter = `${wallNameBase}-outer-${i}`;
 
         // Calculate index k for the new contracts, starting from 20
-        const baseK = 20 + (i * INNER_WALL_NAMES.length * 2) + (j * 2);
-        const contractAddressInner = ALL_CONTRACT_ADDRESSES[baseK];
-        const contractAddressOuter = ALL_CONTRACT_ADDRESSES[baseK + 1];
+        const kInner = sequentialIndexCounter++;
+        const kOuter = sequentialIndexCounter++;
+        
+        const contractAddressInner = ALL_CONTRACT_ADDRESSES[kInner];
+        const contractAddressOuter = ALL_CONTRACT_ADDRESSES[kOuter];
+        
+        panelSequentialIndexMap[panelKeyInner] = kInner;
+        panelSequentialIndexMap[panelKeyOuter] = kOuter;
 
         galleryConfig[panelKeyInner] = {
             name: CONTRACT_NAMES_MAP[contractAddressInner] || 'Unknown Collection',
@@ -138,8 +148,9 @@ for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
     const panelKey = `${wallNameBase}-0`; // Only one segment
 
     // Calculate index k for these contracts, starting from 36
-    const k = 36 + i;
+    const k = sequentialIndexCounter++;
     const contractAddress = ALL_CONTRACT_ADDRESSES[k];
+    panelSequentialIndexMap[panelKey] = k;
 
     galleryConfig[panelKey] = {
         name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
@@ -198,12 +209,12 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
-      const segmentIndexMatch = wallName.match(/-(\d+)$/);
-      const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
       
-      // Start index is segment index modulo total tokens available
-      config.currentIndex = segmentIndex % tokens.length; 
+      // Use the sequential index (k) to determine the starting token index
+      const k = panelSequentialIndexMap[wallName];
+      
+      // Start index is sequential index modulo total tokens available
+      config.currentIndex = k % tokens.length; 
     }
     // Name is already set during initial galleryConfig population
   }
