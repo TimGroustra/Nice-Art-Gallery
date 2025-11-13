@@ -17,7 +17,7 @@ function getCacheKey(contractAddress: string, tokenId: number): NftCacheKey {
  * Fetches NFT metadata, utilizing a persistent Supabase cache, an in-memory cache, 
  * and deduplicating concurrent requests.
  * 
- * For ElectroPunks, it prioritizes external fetch (RPC/Edge Function) and uses Supabase cache as backup.
+ * For ElectroPunks, it relies exclusively on the Supabase cache.
  */
 export async function getCachedNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   const key = getCacheKey(contractAddress, tokenId);
@@ -37,74 +37,49 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
   const fetchOperation = async (): Promise<NftMetadata> => {
     
     let metadata: NftMetadata | null = null;
-    let fetchError: Error | null = null;
 
-    // --- A. Primary Fetch Strategy (External for ElectroPunks, Cache for others) ---
-    if (isElectroPunks) {
-      // Strategy 1: ElectroPunks - Try External Fetch first (RPC/Edge Function)
-      console.log(`[Cache] ElectroPunks: Prioritizing external fetch for ${key}...`);
-      try {
-        metadata = await fetchNftMetadata(contractAddress, tokenId);
-        console.log(`[Cache] ElectroPunks: External fetch successful.`);
-      } catch (e) {
-        fetchError = e as Error;
-        console.warn(`[Cache] ElectroPunks: External fetch failed. Falling back to Supabase cache. Error: ${fetchError.message}`);
-      }
-    }
+    // --- A. Primary Fetch Strategy: Check Persistent Supabase Cache ---
+    const { data: cachedData, error: cacheError } = await supabase
+      .from('gallery_nft_metadata')
+      .select('*')
+      .eq('contract_address', contractAddress)
+      .eq('token_id', tokenId)
+      .single();
 
-    if (!metadata) {
-      // Strategy 2: Check Persistent Supabase Cache (Primary for others, Secondary for ElectroPunks)
-      const { data: cachedData, error: cacheError } = await supabase
-        .from('gallery_nft_metadata')
-        .select('*')
-        .eq('contract_address', contractAddress)
-        .eq('token_id', tokenId)
-        .single();
-
-      if (cachedData) {
-        console.log(`[Cache] Hit for ${key} in Supabase.`);
-        metadata = {
-          title: cachedData.title || '',
-          description: cachedData.description || '',
-          image: cachedData.image || '',
-          source: cachedData.source || '',
-          attributes: cachedData.attributes as NftAttribute[] || [],
-        };
-      } else if (cacheError && cacheError.code !== 'PGRST116') { // PGRST116 = No rows found
-          console.warn(`[Cache] Supabase read error for ${key}:`, cacheError.message);
-      }
+    if (cachedData) {
+      console.log(`[Cache] Hit for ${key} in Supabase.`);
+      metadata = {
+        title: cachedData.title || '',
+        description: cachedData.description || '',
+        image: cachedData.image || '',
+        source: cachedData.source || '',
+        attributes: cachedData.attributes as NftAttribute[] || [],
+      };
+    } else if (cacheError && cacheError.code !== 'PGRST116') { // PGRST116 = No rows found
+        console.warn(`[Cache] Supabase read error for ${key}:`, cacheError.message);
     }
     
-    // --- B. Final Fallback (External Fetch if not ElectroPunks, or if ElectroPunks cache failed) ---
+    // --- B. Fallback Strategy ---
     if (!metadata) {
-        if (!isElectroPunks) {
-            // Strategy 3: Default collections - Fallback to External Fetcher (Edge Function) if cache missed
+        if (isElectroPunks) {
+            // CRITICAL CHANGE: If ElectroPunks metadata is not in cache, we assume it's unavailable.
+            console.warn(`[Cache] ElectroPunks: Cache miss for ${key}. Skipping external fetch due to known IPFS issues.`);
+            throw new Error(`ElectroPunks token ${tokenId} metadata not found in cache.`);
+        } else {
+            // Default collections: Fallback to External Fetcher (Edge Function) if cache missed
             console.log(`[Cache] Miss for ${key}. Fetching externally...`);
             metadata = await fetchNftMetadata(contractAddress, tokenId);
-        } else if (fetchError) {
-            // ElectroPunks failed both external and cache checks. Re-throw the original external error.
-            throw fetchError;
-        } else {
-            // ElectroPunks was fetched externally but returned null/empty data (shouldn't happen if fetchNftMetadata throws on error)
-            // If we reach here, it means the external fetch was skipped or succeeded but returned no data, and cache missed.
-            // Since we already tried external fetch for ElectroPunks, we assume failure if metadata is still null.
-            throw new Error(`Failed to retrieve metadata for ElectroPunks token ${tokenId} from RPC or cache.`);
+            
+            // Note: fetchNftMetadata (Edge Function) handles its own DB caching, so we only need memory cache here.
         }
     }
 
-    // --- C. Cache result in Supabase and memory ---
-    
-    // Only attempt to cache if we successfully retrieved metadata externally (i.e., if metadata.source is the external URL)
-    // Note: The Edge Function itself already handles DB caching, but if we fetched it here (Strategy 3), we need to ensure it's cached.
-    // Since Strategy 3 calls fetchNftMetadata, and fetchNftMetadata calls the Edge Function, and the Edge Function handles DB caching, 
-    // we only need to worry about the in-memory cache here.
-    
+    // --- C. Cache result in memory ---
     if (metadata) {
-        // Cache result in memory for the current session
         memoryCache.set(key, metadata);
     }
 
-    return metadata;
+    return metadata!;
   };
 
   // 3. Execute fetch operation and manage promise map
