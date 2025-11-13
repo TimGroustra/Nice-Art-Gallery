@@ -898,7 +898,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // East Center Wall (X = 5), facing +X (outward)
     dynamicPanelConfigs.push({
         wallName: `east-center-wall-0` as keyof PanelConfig,
-        position: [centerWallSegmentCenter, PANEL_Y_POSITION, centerWallBoundary + ARROW_DEPTH_OFFSET],
+        // FIX: Position should be X=5.15, Z=0
+        position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
         rotation: [0, Math.PI / 2, 0],
         textOffsetSign: 1,
     });
