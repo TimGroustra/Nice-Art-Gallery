@@ -26,13 +26,13 @@ const CONTRACT_ADDRESSES_20 = [
   "0x3446c31703CA826F368B981E50971A00eA4C23be", // 10
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 11
   "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 12
-  "0xAcb0bd4EF927A2f4989c731eD6e2213326A02445", // 13
-  "0xae67aB41E3fe5a459A8602dCFe21684C6caB5703", // 14
-  "0x7782d0Af7642F0aE8bB40eFe36F83deE45DE9d55", // 15
+  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches - Replaced Voyage)
+  "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades - Replaced New App Celebration)
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems - Replaced Alien Transmission)
   "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c", // 16
-  "0x748723AF17899E3C2C1cA682be2733Bca87FDDc8", // 17
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends - Replaced Blue Catto)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18
-  "0xD5bBD743A47cD60e23FDA16Abf56F3aaA813Fe47", // 19
+  "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea - Replaced Thunder Swords)
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
@@ -49,13 +49,15 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x3446c31703CA826F368B981E50971A00eA4C23be": "Limitless: Different Worlds",
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469": "Richard Ells on a Skateboard",
   "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43": "ElectroPunks",
-  "0xAcb0bd4EF927A2f4989c731eD6e2213326A02445": "Voyage",
-  "0xae67aB41E3fe5a459A8602dCFe21684C6caB5703": "New App Celebration",
-  "0x7782d0Af7642F0aE8bB40eFe36F83deE45DE9d55": "Alien Transmission",
+  // New Collections
+  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1": "Club Watches",
+  "0xc107C97710972e964d59000f610c07262638B508": "Non-Fungible Comrades",
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984": "ElectroGems",
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b": "Electric Legends",
+  "0x1760321f42A9BE39b39c779D92373769d829ef48": "The Three Graces of the Sea",
+  // Existing Collections
   "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c": "Electroneum 2.0",
-  "0x748723AF17899E3C2C1cA682be2733Bca87FDDc8": "Blue Catto",
   "0xF91290684eb728f6715EFF0b50018105B6B31658": "Electric Eels",
-  "0xD5bBD743A47cD60e23FDA16Abf56F3aaA813Fe47": "Thunder Swords",
 };
 
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
