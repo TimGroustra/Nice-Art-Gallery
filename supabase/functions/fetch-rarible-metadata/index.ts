@@ -50,7 +50,13 @@ async function fetchRaribleByCollection(collectionParam: string, size = 100, con
   qp.set("size", String(size));
   if (continuation) qp.set("continuation", continuation);
   const url = `${API_BASE}?${qp.toString()}`;
+  
+  console.log(`[Rarible Fetch] Requesting: ${url}`);
+  
   const res = await fetchWithTimeout(url, { method: "GET", headers: { "Accept": "application/json" }});
+  
+  console.log(`[Rarible Fetch] Response Status: ${res.status}`);
+  
   if (!res.ok) throw new Error(`Rarible API ${res.status} ${res.statusText} for collection ${collectionParam}`);
   const json = await res.json();
   return json;
@@ -140,6 +146,9 @@ async function processRaribleItem(item: any) {
     } catch (err) {
         out.error = err.message || String(err);
     }
+    
+    console.log(`[Item ${out.tokenId}] Image Resolved: ${out.imageResolved ? 'Yes' : 'No'} (Error: ${out.error || 'None'})`);
+    
     return out;
 }
 
@@ -202,13 +211,11 @@ serve(async (req) => {
     // Filter out items that failed to resolve an image
     const validItems = allResults.filter(item => item.imageResolved);
     
-    console.log(`Successfully fetched ${allResults.length} items. ${validItems.length} items have resolved images and will be cached.`);
+    console.log(`Successfully fetched ${allResults.length} items from Rarible. ${validItems.length} items have resolved images and will be cached.`);
 
     // --- Invoke Bulk Cache Function ---
     const { data: cacheData, error: cacheError } = await supabase.functions.invoke('bulk-cache-metadata', {
         body: { items: validItems },
-        // IMPORTANT: We must use the Service Role Key here since we are calling from server-to-server
-        // However, since we initialized the client with the Service Role Key, the invocation should work.
     });
 
     if (cacheError) {
