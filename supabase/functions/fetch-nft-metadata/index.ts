@@ -26,6 +26,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Helper function for fetch with timeout
+async function fetchWithTimeout(url: string, timeout: number = 10000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw new Error(`Fetch timed out after ${timeout}ms for URL: ${url}`);
+        }
+        throw error;
+    }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -77,6 +94,7 @@ serve(async (req) => {
     
     console.log(`[Function] Normalized metadata URL: ${metadataUrl}`);
 
+    // Fetch metadata JSON (using standard fetch, as this is usually fast)
     const res = await fetch(metadataUrl);
     
     if (!res.ok) {
@@ -98,7 +116,16 @@ serve(async (req) => {
     // --- Image Caching Logic ---
     if (externalImageUrl) {
         console.log(`[Function] Attempting to fetch external image: ${externalImageUrl}`);
-        const imageRes = await fetch(externalImageUrl);
+        
+        let imageRes: Response;
+        try {
+            // Use fetchWithTimeout for external image fetching (15 seconds timeout)
+            imageRes = await fetchWithTimeout(externalImageUrl, 15000); 
+        } catch (e) {
+            console.warn(`[Function] Failed to fetch external image due to timeout/error: ${e.message}`);
+            // Fallback to external URL if fetch fails
+            imageRes = { ok: false } as Response; 
+        }
         
         if (imageRes.ok) {
             const contentType = imageRes.headers.get('Content-Type') || 'image/png';
@@ -149,7 +176,7 @@ serve(async (req) => {
                 }
             }
         } else {
-            console.warn(`[Function] Failed to fetch external image for caching: Status ${imageRes.status} ${imageRes.statusText}`);
+            console.warn(`[Function] Skipping image caching due to fetch failure or timeout.`);
         }
     }
     // --- End Image Caching Logic ---
