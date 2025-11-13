@@ -250,6 +250,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     try {
       // Use the cached fetcher
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+      const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
       
       const imageUrl = metadata.image;
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
@@ -302,6 +303,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
+      // Wall title update
+      disposeTextureSafely(panel.wallTitleMesh);
+      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
+      (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
+      panel.wallTitleMesh.visible = true;
+
       showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
@@ -319,6 +326,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (panel.titleMesh) panel.titleMesh.visible = false;
       if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
       if (panel.attributesMesh) panel.attributesMesh.visible = false;
+      if (panel.wallTitleMesh) panel.wallTitleMesh.visible = false;
       
       // Ensure video cleanup on failure
       if (panel.videoElement) {
@@ -801,17 +809,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       attributesMesh.visible = false; // Start invisible
       scene.add(attributesMesh);
 
-      // Wall Title (Collection Name) - Always visible
       const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
       wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       wallTitlePosition.y = 3.2; // Position it above the main panel
       wallTitleMesh.position.copy(wallTitlePosition);
-      
-      const collectionName = GALLERY_PANEL_CONFIG[config.wallName as keyof PanelConfig]?.name || 'Collection';
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
-      (wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
-      wallTitleMesh.visible = true;
+      wallTitleMesh.visible = false; // Start invisible
       scene.add(wallTitleMesh);
       // --- END ---
 
@@ -846,9 +849,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         case 'KeyA': moveLeft = true; break;
         case 'KeyS': moveBackward = true; break;
         case 'KeyD': moveRight = true; break;
-        case 'KeyM':
-          (window as any).galleryControls?.toggleMute();
-          break;
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
