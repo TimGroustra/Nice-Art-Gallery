@@ -1,11 +1,11 @@
 import { toast } from "sonner";
 
 export const showSuccess = (message: string) => {
-  toast.success(message);
+  // Toasts disabled by user request.
 };
 
 export const showError = (message: string) => {
-  toast.error(message);
+  // Toasts disabled by user request.
 };
 
 export const showLoading = (message: string) => {
