@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
-import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
+import { NftMetadata, NftSource, NftAttribute, resolveIpfsWithFallback } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
@@ -15,6 +15,9 @@ const TITLE_HEIGHT = 0.5;
 const DESCRIPTION_HEIGHT = 1.5;
 const ATTRIBUTES_HEIGHT = 1.5;
 const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
+
+// Fallback URL for when all IPFS gateways fail
+const FALLBACK_IMAGE_URL = '/placeholder.svg'; 
 
 // Define types for the panel objects
 interface Panel {
@@ -185,7 +188,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   // Refactored loadTexture to return a Promise
-  const loadTexture = useCallback((url: string, panel: Panel, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
+  const loadTexture = useCallback(async (url: string, panel: Panel, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
+    
+    // 1. Resolve the URL robustly using fallbacks
+    const resolvedUrl = await resolveIpfsWithFallback(url);
+    const finalUrl = resolvedUrl || FALLBACK_IMAGE_URL;
+    
+    if (finalUrl === FALLBACK_IMAGE_URL) {
+        console.warn(`[Texture Loader] All gateways failed for ${url}. Using fallback image.`);
+    }
+
     if (isVideo) {
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
@@ -203,7 +215,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Stop previous playback and set new source
         videoEl.pause();
-        videoEl.src = url;
+        videoEl.src = finalUrl;
         videoEl.load();
         
         // Start playback if controls are locked
@@ -234,14 +246,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous'); // Added crossOrigin setting for image loader
         
-        loader.load(url, 
+        loader.load(finalUrl, 
             (texture) => {
                 resolve(texture);
             }, 
             undefined, 
             (error) => {
-                console.error('Error loading texture:', url, error);
-                showError(`Failed to load image: ${url.substring(0, 50)}...`);
+                console.error('Error loading texture:', finalUrl, error);
+                showError(`Failed to load image: ${finalUrl.substring(0, 50)}...`);
                 reject(error);
             }
         );
