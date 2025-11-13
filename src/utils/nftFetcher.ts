@@ -200,19 +200,3 @@ export async function fetchTotalSupply(contractAddress: string): Promise<number>
 
   return data.totalSupply;
 }
-
-/**
- * Triggers the Edge Function to proactively cache all ElectroPunks metadata and images.
- */
-export async function triggerElectroPunksCache(): Promise<{ message: string, summary: string }> {
-  const { data, error } = await supabase.functions.invoke('cache-electropunks', {
-    body: {},
-  });
-
-  if (error) {
-    console.error('Error invoking cache-electropunks function:', error);
-    throw new Error(error.message);
-  }
-
-  return data;
-}

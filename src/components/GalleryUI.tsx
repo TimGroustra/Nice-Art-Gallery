@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Volume2, VolumeX } from 'lucide-react';
+import { X, Volume2, VolumeX } from 'lucide-react';
+// Removed Dialog imports
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -8,6 +9,7 @@ interface GalleryUIProps {
 }
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
+  // Removed modal state: isModalOpen, modalMetadata
   const [isMuted, setIsMuted] = useState(true); // Default to true
   const [hasMedia, setHasMedia] = useState(false); // Combined state for video/music presence
 
@@ -49,14 +51,12 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         
         {/* Instructions */}
         {instructionsVisible && (
-          <div className="flex flex-col gap-2 pointer-events-auto">
-            <div 
-              id="instructions" 
-              className="bg-black/50 text-white p-3 rounded-md cursor-pointer"
-              onClick={onLockClick}
-            >
-              Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle mute.
-            </div>
+          <div 
+            id="instructions" 
+            className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
+            onClick={onLockClick}
+          >
+            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle mute.
           </div>
         )}
         
