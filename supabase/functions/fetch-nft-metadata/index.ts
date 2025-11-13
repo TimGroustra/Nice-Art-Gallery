@@ -101,14 +101,15 @@ serve(async (req) => {
         const imageRes = await fetch(externalImageUrl);
         
         if (imageRes.ok) {
-            console.log(`[Function] External image fetched successfully. Content-Type: ${imageRes.headers.get('Content-Type')}`);
+            const contentType = imageRes.headers.get('Content-Type') || 'image/png';
+            console.log(`[Function] External image fetched successfully. Content-Type: ${contentType}`);
             
-            const imageBlob = await imageRes.blob();
+            // Use arrayBuffer for more reliable upload in Deno
+            const imageBuffer = await imageRes.arrayBuffer();
+            const imagePayload = new Uint8Array(imageBuffer);
             
             // Determine file extension based on content type
             let fileExtension = 'png'; // Default fallback
-            let contentType = imageBlob.type;
-            
             if (contentType) {
                 const parts = contentType.split('/');
                 if (parts.length === 2) {
@@ -123,7 +124,7 @@ serve(async (req) => {
 
             const { data: uploadData, error: uploadError } = await supabase.storage
                 .from('nft_images')
-                .upload(storagePath, imageBlob, {
+                .upload(storagePath, imagePayload, {
                     cacheControl: '3600',
                     upsert: true,
                     contentType: contentType,
