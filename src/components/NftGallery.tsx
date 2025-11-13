@@ -4,7 +4,7 @@ import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
-import { showSuccess, showError } from '@/utils/toast';
+import { normalizeIpfsUrl } from '@/utils/ipfs';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -241,7 +241,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             undefined, 
             (error) => {
                 console.error('Error loading texture:', url, error);
-                showError(`Failed to load image: ${url.substring(0, 50)}...`);
                 reject(error);
             }
         );
@@ -295,7 +294,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Use the cached fetcher
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       
-      const imageUrl = metadata.image;
+      const imageUrl = normalizeIpfsUrl(metadata.image);
       const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
       
       // AWAIT the texture loading to ensure the image data is ready
@@ -334,13 +333,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
-
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
     } catch (error) {
       console.error(`Error loading NFT content for ${panel.wallName}:`, error);
-      showError(`Failed to load NFT content for ${panel.wallName}. Displaying collection name only.`);
-      
       // If loading fails, the panel remains dark gray, but the wall title remains visible (set in step 1).
     }
   }, [loadTexture]);

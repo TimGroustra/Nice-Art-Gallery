@@ -12,6 +12,7 @@ const corsHeaders = {
 const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43";
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new ethers.JsonRpcProvider(RPC_URL);
+const PREFERRED_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
 
 // --- ABIs ---
 const totalSupplyAbi = ["function totalSupply() view returns (uint256)"];
@@ -22,7 +23,7 @@ function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
   if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    return url.replace('ipfs://', PREFERRED_GATEWAY);
   }
   if (url.startsWith('http://')) {
     return url.replace('http://', 'https://');

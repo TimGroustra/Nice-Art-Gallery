@@ -3,6 +3,7 @@ import { ethers } from "https://esm.sh/ethers@6.7.0";
 
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new ethers.JsonRpcProvider(RPC_URL);
+const PREFERRED_GATEWAY = 'https://gateway.pinata.cloud/ipfs/';
 
 const erc721And1155Abi = [
   "function tokenURI(uint256 tokenId) view returns (string)",
@@ -16,7 +17,7 @@ function normalizeUrl(url: string): string {
   
   if (url.startsWith('ipfs://')) {
     // Use a reliable public HTTPS gateway for IPFS
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    return url.replace('ipfs://', PREFERRED_GATEWAY);
   }
   
   if (url.startsWith('http://')) {
