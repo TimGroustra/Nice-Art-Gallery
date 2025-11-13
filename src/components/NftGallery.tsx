@@ -449,7 +449,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS; // 50
     const WALL_HEIGHT = 4;
     const PANEL_Y_POSITION = 1.8;
-    const BOUNDARY = ROOM_SIZE / 2 - 0.5; // 24.5
+    const BOUNDARY = ROOM_SIZE / 2 - 0.5; // 24.5 (Player radius 0.5)
 
     const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
     const halfRoomSize = ROOM_SIZE / 2; // 25
@@ -673,7 +673,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
         // North Inner Inner Wall (Z = -15)
-        // Outer side (facing -Z, corridor)
+        // Outer side (in corridor, faces -Z)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
         // Inner side (facing +Z, inner room)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
@@ -898,7 +898,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // East Center Wall (X = 5), facing +X (outward)
     dynamicPanelConfigs.push({
         wallName: `east-center-wall-0` as keyof PanelConfig,
-        // FIX: Position should be X=5.15, Z=0
         position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
         rotation: [0, Math.PI / 2, 0],
         textOffsetSign: 1,
@@ -993,18 +992,87 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
 
-    // Collision constants for the 10x10 center room
-    const INNER_ROOM_MIN_X = -5 + 0.5; // Wall at -5, player radius 0.5
-    const INNER_ROOM_MAX_X = 5 - 0.5;   // Wall at 5
-    const INNER_ROOM_MIN_Z = -5 + 0.5;
-    const INNER_ROOM_MAX_Z = 5 - 0.5;
-    
-    // Collision constants for the 30x30 room (corridor boundaries)
-    const CORRIDOR_MIN_X = -15 + 0.5;
-    const CORRIDOR_MAX_X = 15 - 0.5;
-    const CORRIDOR_MIN_Z = -15 + 0.5;
-    const CORRIDOR_MAX_Z = 15 - 0.5;
+    // Collision constants
+    const PLAYER_RADIUS = 0.5;
+    const WALL_BOUNDARIES = [
+        // Outer 50x50 walls (handled by BOUNDARY check, but included for completeness)
+        { axis: 'x', pos: halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
+        { axis: 'x', pos: -halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
+        { axis: 'z', pos: halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
+        { axis: 'z', pos: -halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
+        
+        // Middle 30x30 walls (10 unit opening centered at 0)
+        { axis: 'x', pos: 15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        { axis: 'x', pos: -15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: 15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: -15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
 
+        // Inner 10x10 walls (10 unit opening centered at 0)
+        { axis: 'x', pos: 5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        { axis: 'x', pos: -5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: 5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: -5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+    ];
+
+    const checkCollisions = (camera: THREE.PerspectiveCamera, prevX: number, prevZ: number) => {
+        let newX = camera.position.x;
+        let newZ = camera.position.z;
+
+        // 1. Outer Boundary (50x50 room) - already handled by BOUNDARY constant
+        newX = Math.max(-boundary, Math.min(boundary, newX));
+        newZ = Math.max(-boundary, Math.min(boundary, newZ));
+
+        // 2. Check all internal walls
+        for (const wall of WALL_BOUNDARIES) {
+            const { axis, pos, opening } = wall;
+            
+            if (opening === null) continue; // Skip outer walls as they are handled by boundary
+
+            if (axis === 'x') {
+                const distance = newX - pos;
+                
+                // Check if player is trying to cross the wall boundary
+                if (Math.abs(distance) < PLAYER_RADIUS) {
+                    const otherAxisPos = newZ;
+                    
+                    // Check if player is NOT in the opening area
+                    if (otherAxisPos < opening.min || otherAxisPos > opening.max) {
+                        // Collision detected. Revert movement on the X axis.
+                        if (distance > 0) {
+                            // Player is on the positive side, push back to the wall boundary
+                            newX = pos + PLAYER_RADIUS;
+                        } else {
+                            // Player is on the negative side, push back to the wall boundary
+                            newX = pos - PLAYER_RADIUS;
+                        }
+                    }
+                }
+            } else if (axis === 'z') {
+                const distance = newZ - pos;
+                
+                // Check if player is trying to cross the wall boundary
+                if (Math.abs(distance) < PLAYER_RADIUS) {
+                    const otherAxisPos = newX;
+                    
+                    // Check if player is NOT in the opening area
+                    if (otherAxisPos < opening.min || otherAxisPos > opening.max) {
+                        // Collision detected. Revert movement on the Z axis.
+                        if (distance > 0) {
+                            // Player is on the positive side, push back to the wall boundary
+                            newZ = pos + PLAYER_RADIUS;
+                        } else {
+                            // Player is on the negative side, push back to the wall boundary
+                            newZ = pos - PLAYER_RADIUS;
+                        }
+                    }
+                }
+            }
+        }
+        
+        camera.position.x = newX;
+        camera.position.z = newZ;
+    };
+    
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
         case 'KeyW': moveForward = true; break;
@@ -1100,37 +1168,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveForward(-velocity.z * delta);
         
         // --- Collision Detection ---
-        
-        // 1. Outer Boundary (50x50 room)
-        camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
-        camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
-        
-        // 2. Inner 10x10 Room Walls (Collision)
-        const isInsideInnerRoom = camera.position.x > INNER_ROOM_MIN_X && camera.position.x < INNER_ROOM_MAX_X &&
-                                  camera.position.z > INNER_ROOM_MIN_Z && camera.position.z < INNER_ROOM_MAX_Z;
-
-        // The 30x30 walls have openings at X=0 and Z=0.
-        const isNearXAxisOpening = camera.position.z > -5 && camera.position.z < 5;
-        const isNearZAxisOpening = camera.position.x > -5 && camera.position.x < 5;
-
-        // If player is trying to enter the 10x10 room from the 30x30 corridor, block them unless they are in the central walkway (X=0 or Z=0)
-        if (isInsideInnerRoom) {
-            // Block movement into the 10x10 room if not aligned with the Z-axis walkway (X: -5 to 5)
-            if (camera.position.z < INNER_ROOM_MIN_Z && !isNearZAxisOpening) {
-                camera.position.z = INNER_ROOM_MIN_Z;
-            }
-            if (camera.position.z > INNER_ROOM_MAX_Z && !isNearZAxisOpening) {
-                camera.position.z = INNER_ROOM_MAX_Z;
-            }
-            
-            // Block movement into the 10x10 room if not aligned with the X-axis walkway (Z: -5 to 5)
-            if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
-                camera.position.x = INNER_ROOM_MIN_X;
-            }
-            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
-                camera.position.x = INNER_ROOM_MAX_X;
-            }
-        }
+        checkCollisions(camera, prevX, prevZ);
+        // --- End Collision Detection ---
         
         camera.position.y = 1.6;
         
