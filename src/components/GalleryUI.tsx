@@ -10,7 +10,7 @@ interface GalleryUIProps {
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   // Removed modal state: isModalOpen, modalMetadata
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(true); // Default to true
   const [hasMedia, setHasMedia] = useState(false); // Combined state for video/music presence
 
   // Polling/Interval to check media state from NftGallery
@@ -25,6 +25,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         
         setHasMedia(mediaPresent);
         
+        // Only update isMuted if media is present, otherwise keep default (true)
         if (mediaPresent) {
           setIsMuted(galleryControls.isMuted());
         }

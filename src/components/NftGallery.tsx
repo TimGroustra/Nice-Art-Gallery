@@ -174,6 +174,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (shouldPlay) {
                 const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
                 if (controlsLocked) {
+                    // Videos are created muted, so we only play them if controls are locked
                     panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
                 }
             } else {
@@ -194,7 +195,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             videoEl.playsInline = true;
             videoEl.autoplay = true;
             videoEl.loop = true;
-            videoEl.muted = true;
+            videoEl.muted = true; // Default to muted
             videoEl.style.display = 'none'; // Keep it hidden
             videoEl.crossOrigin = 'anonymous'; // Added crossOrigin for video
             panel.videoElement = videoEl;
@@ -368,7 +369,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     audioLoader.load('/Canvas Dreams.mp3', function(buffer) {
         sound.setBuffer(buffer);
         sound.setLoop(true);
-        sound.setVolume(0.5); // Default volume
+        sound.setVolume(0); // Default volume set to 0 (muted)
         bgMusicRef.current = sound;
     });
     // --- End Audio Setup ---
@@ -404,11 +405,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
         
         // Determine the current mute state based on existing media
+        // We check if the music is muted (volume 0) or if any video is muted (assuming they are synced)
         let currentlyMuted = true;
-        if (activeVideos.length > 0) {
-            currentlyMuted = activeVideos[0].videoElement!.muted;
-        } else if (bgMusicRef.current) {
-            currentlyMuted = bgMusicRef.current.getVolume() === 0;
+        if (bgMusicRef.current && bgMusicRef.current.getVolume() > 0) {
+            currentlyMuted = false;
+        } else if (activeVideos.length > 0 && activeVideos[0].videoElement!.muted === false) {
+            currentlyMuted = false;
         }
         
         const newMuteState = !currentlyMuted;
@@ -433,7 +435,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Start playback for all active videos
       manageVideoPlayback(true);
       
-      // Start music playback on lock
+      // Start music playback on lock (it will start muted, volume 0)
       if (bgMusicRef.current && !bgMusicRef.current.isPlaying) {
           bgMusicRef.current.play();
       }
@@ -680,7 +682,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
         // North Inner Inner Wall (Z = -15)
-        // Outer side (facing -Z, corridor)
+        // Outer side (in corridor, faces -Z)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
         // Inner side (facing +Z, inner room)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
