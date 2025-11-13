@@ -23,8 +23,8 @@ export function normalizeUrl(url: string): string {
 
 export function hex64(id: number | string): string {
   // returns 64-len lowercase hex (no 0x)
-  const bn = ethers.BigNumber.from(id.toString());
-  let hex = bn.toHexString().replace(/^0x/, "");
+  const bn = ethers.toBigInt(id.toString());
+  let hex = bn.toString(16).replace(/^0x/, "");
   hex = hex.padStart(64, "0").toLowerCase();
   return hex;
 }

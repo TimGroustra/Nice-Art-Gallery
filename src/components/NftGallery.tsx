@@ -188,11 +188,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
   // Helper function to determine if content is video or GIF
   const isVideoContent = (contentType: string, url: string) => {
-      return contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i);
+      return !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
   };
   
   const isGifContent = (contentType: string, url: string) => {
-      return contentType === "image/gif" || url.match(/\.gif(\?|$)/i);
+      return !!(contentType === "image/gif" || url.match(/\.gif(\?|$)/i));
   };
 
   // Helper function for texture cleanup

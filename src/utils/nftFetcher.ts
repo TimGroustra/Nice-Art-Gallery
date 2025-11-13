@@ -118,7 +118,7 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   // Construct contract with minimal combined ABI
   const contract = new Contract(contractAddress, [...ERC165, ...ERC721, ...ERC1155], provider);
   
-  // 1. Check for ERC-1155 support (best effort)
+  // 1. Check for ERC-165 support (best effort)
   const supportRes = await safeCall(contract, "supportsInterface", ["0xd9b67a26"]);
   const is1155 = supportRes.ok && !!supportRes.value;
 
@@ -208,8 +208,8 @@ export async function fetchTotalSupply(contractAddress: string): Promise<number 
   
   if (res.ok) {
     try {
-      // Use BigNumber conversion if available, otherwise direct Number conversion
-      const n = (res.value as ethers.BigNumber).toNumber?.() ?? Number(res.value);
+      // Use BigInt conversion if available, otherwise direct Number conversion
+      const n = Number(res.value);
       console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${n}`);
       return n;
     } catch (e) {
