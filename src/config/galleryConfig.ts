@@ -12,6 +12,7 @@ export interface PanelConfig {
 }
 
 const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
+const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
@@ -39,10 +40,10 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 33 (Club Watches)
   "0xc107C97710972e964d59000f610c07262638B508", // 34 (Non-Fungible Comrades)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 35 (Electric Eels)
-  "", // 36 (BLANK PANEL - Previously Electroneum 2.0)
-  "", // 37 (BLANK PANEL - Previously Electric Legends)
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 38 (ElectroGems)
-  "", // 39 (The Three Graces of the Sea -> now blank)
+  ELECTROGEMS_ADDRESS, // 36 (ElectroGems)
+  ELECTROGEMS_ADDRESS, // 37 (ElectroGems)
+  ELECTROGEMS_ADDRESS, // 38 (ElectroGems)
+  ELECTROGEMS_ADDRESS, // 39 (ElectroGems)
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
