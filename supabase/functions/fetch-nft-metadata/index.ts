@@ -15,7 +15,8 @@ function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
   if (url.startsWith('ipfs://')) {
-    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    // Using a more reliable public gateway
+    return url.replace('ipfs://', 'https://cloudflare-ipfs.com/ipfs/');
   }
   return url;
 }
