@@ -64,10 +64,18 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
       // ERC-1155 URI often contains {id} placeholder, which needs to be replaced.
       let uriTemplate = await contract.uri(tokenId);
       
-      // Replace {id} placeholder with the token ID in hex format (padded to 64 chars)
-      // This is a common convention for ERC-1155 metadata URIs.
+      // Replace {id} placeholder. We try both padded hex (common) and decimal (simpler)
       const hexId = tokenId.toString(16).padStart(64, '0');
+      const decimalId = tokenId.toString();
+      
+      // Try replacing hex ID first (standard ERC-1155)
       tokenUri = uriTemplate.replace('{id}', hexId);
+      
+      // If the template didn't contain {id} or if it was already resolved, this is fine.
+      // If the contract uses decimal ID, we try replacing that too, but only if the hex replacement didn't change the URI.
+      if (tokenUri === uriTemplate) {
+          tokenUri = uriTemplate.replace('{id}', decimalId);
+      }
       
       console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
     } catch (e2) {
