@@ -176,14 +176,16 @@ async function getAvailableTokenIds(address: string): Promise<number[]> {
             
             // --- CRITICAL: Trigger Rarible Fetch and Bulk Cache ---
             try {
-                const { error: fetchError } = await supabase.functions.invoke('fetch-rarible-metadata', {
+                console.log("Invoking 'fetch-rarible-metadata' Edge Function...");
+                const { data: fetchResult, error: fetchError } = await supabase.functions.invoke('fetch-rarible-metadata', {
                     // No body needed, the function knows the contract address
                 });
                 
                 if (fetchError) {
                     console.error("Failed to trigger Rarible metadata fetch:", fetchError);
                 } else {
-                    console.log("Rarible metadata fetch successfully triggered. Please refresh the page in a moment.");
+                    console.log("Rarible metadata fetch successfully triggered. Result:", fetchResult);
+                    console.log("Please wait a moment and refresh the page to see the cached NFTs.");
                 }
             } catch (e) {
                 console.error("Exception during Rarible fetch trigger:", e);
