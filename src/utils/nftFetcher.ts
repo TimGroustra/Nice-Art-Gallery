@@ -61,13 +61,18 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   } catch (e) {
     // 2. If ERC-721 fails, try ERC-1155 standard (uri)
     try {
-      // ERC-1155 URI often contains {id} placeholder, which needs to be replaced.
       let uriTemplate = await contract.uri(tokenId);
       
-      // Replace {id} placeholder with the token ID in hex format (padded to 64 chars)
-      // This is a common convention for ERC-1155 metadata URIs.
-      const hexId = tokenId.toString(16).padStart(64, '0');
-      tokenUri = uriTemplate.replace('{id}', hexId);
+      // ERC-1155 URI can be a template with {id}, or a base URI.
+      if (uriTemplate.includes('{id}')) {
+        // Standard placeholder found, replace it with the hex ID.
+        const hexId = tokenId.toString(16).padStart(64, '0');
+        tokenUri = uriTemplate.replace('{id}', hexId);
+      } else {
+        // No placeholder, assume it's a base URI and append the token ID.
+        // This is a common pattern for contracts like "Alien Transmission".
+        tokenUri = `${uriTemplate}${tokenId}`;
+      }
       
       console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
     } catch (e2) {
