@@ -4,9 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 const IPFS_GATEWAYS = [
   "https://cloudflare-ipfs.com/ipfs/",
   "https://dweb.link/ipfs/",
-  "https://ipfs.io/ipfs/",
+  "https://nftstorage.link/ipfs/",
   "https://gateway.pinata.cloud/ipfs/",
-  "https://nftstorage.link/ipfs/"
+  "https://ipfs.io/ipfs/" // Moved to last due to reported flakiness
 ];
 
 // Small helper: HEAD check with timeout
@@ -14,6 +14,7 @@ async function headOk(url: string, timeout = 4500): Promise<boolean> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
+    // Use fetch with HEAD method to quickly check availability
     const res = await fetch(url, { method: "HEAD", mode: "cors", signal: controller.signal });
     clearTimeout(id);
     return res.ok;
