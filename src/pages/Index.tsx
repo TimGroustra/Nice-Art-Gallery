@@ -1,11 +1,11 @@
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import React, { useState, useCallback } from "react";
-import { useElectropunksMetadataPopulator } from "@/hooks/useElectropunksMetadataPopulator";
+import { useTriggerElectropunksPopulator } from "@/hooks/useTriggerElectropunksPopulator";
 
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
-  useElectropunksMetadataPopulator();
+  useTriggerElectropunksPopulator();
 
   const handleLockClick = useCallback(() => {
     const galleryControls = (window as any).galleryControls;
