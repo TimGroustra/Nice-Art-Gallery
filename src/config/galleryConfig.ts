@@ -169,7 +169,7 @@ export async function initializeGalleryConfig() {
         }
         
         if (!data || data.length === 0) {
-            console.warn(`No ElectroPunks entries found in Supabase for address ${address}. The populator should run in the background. Falling back to total supply.`);
+            console.warn(`No ElectroPunks entries found in Supabase for address ${address}. Falling back to total supply.`);
             const totalSupply = await fetchTotalSupply(address);
             tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
         } else {

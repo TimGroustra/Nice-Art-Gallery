@@ -11,8 +11,8 @@ export function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
   if (url.startsWith('ipfs://')) {
-    // Using a more reliable public gateway
-    const normalized = url.replace('ipfs://', 'https://gateway.pinata.cloud/ipfs/');
+    // Using a common public gateway
+    const normalized = url.replace('ipfs://', 'https://ipfs.io/ipfs/');
     console.log(`[NFT Fetcher] Normalized IPFS URL: ${normalized}`);
     return normalized;
   }

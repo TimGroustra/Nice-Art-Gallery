@@ -13,8 +13,8 @@ function getCacheKey(contractAddress: string, tokenId: number): NftCacheKey {
 }
 
 /**
- * Fetches NFT metadata, prioritizing on-demand fetching and using Supabase as a fallback cache.
- * It also utilizes an in-memory cache and deduplicates concurrent requests.
+ * Fetches NFT metadata, utilizing a persistent Supabase cache, an in-memory cache, 
+ * and deduplicating concurrent requests.
  */
 export async function getCachedNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   const key = getCacheKey(contractAddress, tokenId);
@@ -29,73 +29,59 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
     return fetchPromises.get(key)!;
   }
 
-  // 3. Define the main fetch operation (External -> Supabase Fallback)
+  // 3. Define the main fetch operation (Supabase -> External)
   const fetchOperation = async (): Promise<NftMetadata> => {
-    try {
-      // 3a. Try fetching externally first (on-demand)
-      console.log(`[Cache] Attempting to fetch externally for ${key}...`);
-      const metadata = await fetchNftMetadata(contractAddress, tokenId);
+    // 3a. Check Persistent Supabase Cache
+    const { data: cachedData, error: cacheError } = await supabase
+      .from('gallery_nft_metadata')
+      .select('*')
+      .eq('contract_address', contractAddress)
+      .eq('token_id', tokenId)
+      .single();
 
-      // 3b. If successful, cache in Supabase for future fallbacks and in memory for current session
-      console.log(`[Cache] External fetch successful for ${key}. Caching...`);
-      const { error: insertError } = await supabase
-        .from('gallery_nft_metadata')
-        .upsert({
-          contract_address: contractAddress,
-          token_id: tokenId,
-          title: metadata.title,
-          description: metadata.description,
-          image: metadata.image,
-          source: metadata.source,
-          attributes: metadata.attributes,
-        }, { onConflict: 'contract_address, token_id' });
-
-      if (insertError) {
-        console.error(`[Cache] Failed to save metadata to Supabase for ${key}:`, insertError.message);
-      } else {
-        console.log(`[Cache] Successfully saved metadata for ${key} to Supabase.`);
-      }
-
+    if (cachedData) {
+      console.log(`[Cache] Hit for ${key} in Supabase.`);
+      const metadata: NftMetadata = {
+        title: cachedData.title || '',
+        description: cachedData.description || '',
+        image: cachedData.image || '',
+        source: cachedData.source || '',
+        attributes: cachedData.attributes as NftAttribute[] || [],
+      };
       memoryCache.set(key, metadata);
       return metadata;
-
-    } catch (externalError) {
-      // 3c. If external fetch fails, fallback to Supabase cache
-      console.warn(`[Cache] External fetch failed for ${key}: ${externalError.message}. Falling back to Supabase cache.`);
-      
-      const { data: cachedDataArray, error: cacheError } = await supabase
-        .from('gallery_nft_metadata')
-        .select('*')
-        .eq('contract_address', contractAddress)
-        .eq('token_id', tokenId)
-        .limit(1);
-
-      if (cacheError) {
-        console.error(`[Cache] Supabase fallback read error for ${key}:`, cacheError.message);
-        // If both external and Supabase fail, re-throw the original error
-        throw externalError;
-      }
-
-      const cachedData = cachedDataArray?.[0];
-
-      if (cachedData) {
-        console.log(`[Cache] Hit for ${key} in Supabase on fallback.`);
-        const metadata: NftMetadata = {
-          title: cachedData.title || '',
-          description: cachedData.description || '',
-          image: cachedData.image || '',
-          source: cachedData.source || '',
-          attributes: cachedData.attributes as NftAttribute[] || [],
-        };
-        // Cache in memory for the current session
-        memoryCache.set(key, metadata);
-        return metadata;
-      }
-
-      // 4. If both fail, re-throw the original error from the external fetch
-      console.error(`[Cache] Supabase fallback miss for ${key}. No data available.`);
-      throw externalError;
     }
+
+    if (cacheError && cacheError.code !== 'PGRST116') { // PGRST116 = No rows found
+        console.warn(`[Cache] Supabase read error for ${key}:`, cacheError.message);
+    }
+
+    // 3b. Fallback to External Fetcher (Edge Function)
+    console.log(`[Cache] Miss for ${key}. Fetching externally...`);
+    const metadata = await fetchNftMetadata(contractAddress, tokenId);
+
+    // 3c. Cache result in Supabase for future users
+    const { error: insertError } = await supabase
+      .from('gallery_nft_metadata')
+      .upsert({
+        contract_address: contractAddress,
+        token_id: tokenId,
+        title: metadata.title,
+        description: metadata.description,
+        image: metadata.image,
+        source: metadata.source,
+        attributes: metadata.attributes,
+      }, { onConflict: 'contract_address, token_id' });
+
+    if (insertError) {
+      console.error(`[Cache] Failed to save metadata to Supabase for ${key}:`, insertError.message);
+    } else {
+      console.log(`[Cache] Successfully saved metadata for ${key} to Supabase.`);
+    }
+
+    // Cache result in memory for the current session
+    memoryCache.set(key, metadata);
+    return metadata;
   };
 
   // 4. Execute fetch operation and manage promise map
