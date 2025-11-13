@@ -36,17 +36,14 @@ function toGatewayUrl(uri: string, gatewayBase: string): string {
 }
 
 /**
- * Tries multiple IPFS gateways sequentially with retries and exponential backoff
- * until a working URL is found. Returns the original URL if it's already HTTP(S) and works.
+ * Tries multiple IPFS gateways sequentially until a working URL is found.
  * @param uri The original URI (can be ipfs:// or http(s)://)
  * @returns A resolved, working HTTP(S) URL, or null if all attempts fail.
  */
 export async function resolveIpfsWithFallback(uri: string): Promise<string | null> {
   if (!uri) return null;
   
-  const triesPerGateway = 2;
   const headTimeout = 4500;
-  const backoffBase = 300;
 
   // 1. If it's already http(s) try it first
   if (/^https?:\/\//i.test(uri)) {
@@ -56,18 +53,82 @@ export async function resolveIpfsWithFallback(uri: string): Promise<string | nul
   // 2. Try all defined gateways
   for (const gw of IPFS_GATEWAYS) {
     const candidate = toGatewayUrl(uri, gw);
-    for (let attempt = 0; attempt < triesPerGateway; attempt++) {
-      if (await headOk(candidate, headTimeout)) {
-        console.log(`[NFT Fetcher] Resolved IPFS URI via gateway: ${gw}`);
-        return candidate;
-      }
-      // Exponential backoff
-      await new Promise(r => setTimeout(r, backoffBase * Math.pow(2, attempt)));
+    // We only need one successful HEAD check here; the actual loading/validation happens in NftGallery.tsx
+    if (await headOk(candidate, headTimeout)) {
+      console.log(`[NFT Fetcher] Resolved IPFS URI via gateway: ${gw}`);
+      return candidate;
     }
   }
   
   // 3. Nothing worked
   return null;
+}
+
+/**
+ * Fetches the resource, validates Content-Type, creates a Blob URL, and loads it into an Image element,
+ * ensuring decoding is attempted before resolving.
+ * This is the robust client-side loader to prevent Chrome security errors.
+ * @param url The resolved HTTPS URL.
+ * @returns A promise that resolves to a ready HTMLImageElement.
+ */
+export async function fetchAndDecodeImage(url: string): Promise<HTMLImageElement> {
+  // 1. Fetch resource and check content-type + size
+  const res = await fetch(url, { mode: "cors" });
+  if (!res.ok) throw new Error(`HTTP status ${res.status}`);
+  
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  if (!ct.startsWith("image/") && !ct.startsWith("video/")) {
+    throw new Error("Content-Type mismatch: " + ct);
+  }
+  
+  // For images, we use Blob URL to isolate the resource from the original origin/security context
+  if (ct.startsWith("image/")) {
+    const blob = await res.blob();
+    if (blob.size < 50) throw new Error("Image too small / truncated");
+    const blobUrl = URL.createObjectURL(blob);
+    
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      
+      img.onload = async () => {
+        try {
+          // Attempt to decode the image before creating the texture
+          if ('decode' in img) {
+            await img.decode();
+          }
+        } catch (e) {
+          // Decoding failed, but we still resolve the image element
+          console.warn("Image decode failed, proceeding anyway:", e);
+        }
+        
+        if (!img.naturalWidth && !img.naturalHeight) {
+          URL.revokeObjectURL(blobUrl);
+          return reject(new Error("Image loaded but has no pixel data."));
+        }
+        
+        URL.revokeObjectURL(blobUrl); // Revoke immediately after successful load/decode
+        resolve(img);
+      };
+      
+      img.onerror = (e) => {
+        URL.revokeObjectURL(blobUrl);
+        reject(new Error("Image load error: " + url));
+      };
+      
+      img.src = blobUrl;
+    });
+  }
+  
+  // For videos, we return a dummy image element or throw, as video handling is different
+  // In our case, NftGallery handles video elements directly using the URL.
+  if (ct.startsWith("video/")) {
+      // We don't need to load the video into an Image element, just return a dummy
+      // The caller (NftGallery) must handle video textures separately.
+      throw new Error("Resource is a video, not an image. Use the URL directly.");
+  }
+  
+  throw new Error("Unsupported content type.");
 }
 
 

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
-import { NftMetadata, NftSource, NftAttribute, resolveIpfsWithFallback } from '@/utils/nftFetcher';
+import { NftMetadata, NftSource, NftAttribute, resolveIpfsWithFallback, fetchAndDecodeImage } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
@@ -199,6 +199,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     if (isVideo) {
+      // If it's a video, we use the URL directly for the VideoTexture
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
         if (!videoEl) {
@@ -241,36 +242,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    // Use a custom promise to load and decode the image before creating the texture
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        
-        img.onload = async () => {
-            try {
-                // Attempt to decode the image before creating the texture
-                if ('decode' in img) {
-                    await img.decode();
-                }
-                if (img.naturalWidth === 0 || img.naturalHeight === 0) {
-                    throw new Error('Image loaded but has zero dimensions (invalid pixel data).');
-                }
-                const texture = new THREE.Texture(img);
-                texture.needsUpdate = true;
-                resolve(texture);
-            } catch (e) {
-                console.error('Error decoding image or invalid dimensions:', finalUrl, e);
-                reject(new Error(`Failed to decode image: ${finalUrl}`));
-            }
-        };
-        
-        img.onerror = (error) => {
-            console.error('Error loading image:', finalUrl, error);
-            reject(new Error(`Failed to load image: ${finalUrl}`));
-        };
-        
-        img.src = finalUrl;
-    });
+    // Use the robust fetchAndDecodeImage utility for images
+    try {
+        const img = await fetchAndDecodeImage(finalUrl);
+        const texture = new THREE.Texture(img);
+        texture.needsUpdate = true;
+        return texture;
+    } catch (e) {
+        console.error('Error loading or decoding image:', finalUrl, e);
+        // Fallback to a simple texture loader for the fallback image URL if the robust method fails
+        if (finalUrl !== FALLBACK_IMAGE_URL) {
+            console.warn(`Attempting simple load of fallback image: ${FALLBACK_IMAGE_URL}`);
+            const fallbackTexture = await new Promise<THREE.Texture>((resolve, reject) => {
+                new THREE.TextureLoader().load(FALLBACK_IMAGE_URL, resolve, undefined, reject);
+            });
+            return fallbackTexture;
+        }
+        throw e; // If even the fallback fails, re-throw
+    }
   }, []);
 
   // Helper function for texture cleanup
