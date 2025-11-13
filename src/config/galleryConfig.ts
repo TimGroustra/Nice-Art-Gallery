@@ -21,7 +21,7 @@ const ALL_CONTRACT_ADDRESSES = [
   // 20 collections for the inner walls (16 for 30x30, 4 for 10x10)
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0 (Planet ETN)
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1 (MEGA OGs)
-  "", // 2 (BLANK PANEL - Previously Electro Bulls)
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 2 (Electric Legends - MOVED)
   "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 3 (Electroneum x Rarible)
   "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // 4 (Baby Pandas)
   "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // 5 (ETN Rock)
@@ -36,7 +36,7 @@ const ALL_CONTRACT_ADDRESSES = [
   "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades)
   "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems)
   "", // 16 (BLANK PANEL - Previously Electroneum 2.0)
-  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
+  "", // 17 (BLANK PANEL - Previously Electric Legends)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
   "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
 ];
