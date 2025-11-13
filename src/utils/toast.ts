@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+// import { toast } from "sonner";
 
 export const showSuccess = (message: string) => {
   // Toasts disabled by user request.
@@ -9,9 +9,10 @@ export const showError = (message: string) => {
 };
 
 export const showLoading = (message: string) => {
-  return toast.loading(message);
+  // Toasts disabled by user request.
+  return "toast-disabled";
 };
 
 export const dismissToast = (toastId: string) => {
-  toast.dismiss(toastId);
+  // Toasts disabled by user request.
 };
