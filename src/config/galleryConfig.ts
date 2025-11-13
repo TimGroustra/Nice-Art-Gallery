@@ -193,6 +193,7 @@ export async function initializeGalleryConfig() {
   }
 
   // Update all panels using the fetched token lists
+  let electroGemPanelCounter = 0; // Counter for ElectroGem panels
   for (const wallName in galleryConfig) {
     const config = galleryConfig[wallName];
     
@@ -208,12 +209,18 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
-      const segmentIndexMatch = wallName.match(/-(\d+)$/);
-      const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
       
-      // Start index is segment index modulo total tokens available
-      config.currentIndex = segmentIndex % tokens.length; 
+      // Special logic for ElectroGems to ensure they start on different tokens
+      if (config.contractAddress.toLowerCase() === ELECTROGEMS_ADDRESS.toLowerCase()) {
+        // Use a counter to give each ElectroGem panel a unique starting index
+        config.currentIndex = (electroGemPanelCounter * 5) % tokens.length; // Multiplier provides more initial variety
+        electroGemPanelCounter++;
+      } else {
+        // Original logic for all other panels
+        const segmentIndexMatch = wallName.match(/-(\d+)$/);
+        const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
+        config.currentIndex = segmentIndex % tokens.length; 
+      }
     }
     // Name is already set during initial galleryConfig population
   }
