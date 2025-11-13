@@ -1,4 +1,5 @@
 import { JsonRpcProvider, Contract } from "ethers";
+import { supabase } from "@/integrations/supabase/client";
 
 // Ankr RPC endpoint for Electroneum
 const RPC_URL = "https://rpc.ankr.com/electroneum";
@@ -43,41 +44,65 @@ export interface NftMetadata {
   attributes?: NftAttribute[];
 }
 
-// Removed fetchCollectionName as it is now hardcoded in galleryConfig.ts
-
+/**
+ * Fetches NFT metadata, prioritizing the Supabase cache.
+ * Falls back to direct contract/metadata fetch if not found in cache.
+ */
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
     throw new Error("Contract address and token ID must be provided.");
   }
 
+  // 1. Check Supabase Cache
+  try {
+    const { data, error } = await supabase
+      .from('gallery_nft_metadata')
+      .select('title, description, image, source, attributes')
+      .eq('contract_address', contractAddress)
+      .eq('token_id', tokenId)
+      .single();
+
+    if (data) {
+      console.log(`[NFT Fetcher] Cache hit for ${contractAddress}/${tokenId}.`);
+      return {
+        title: data.title || `Token #${tokenId}`,
+        description: data.description || '(No description)',
+        image: data.image || '',
+        source: data.source || '',
+        attributes: data.attributes as NftAttribute[] || [],
+      };
+    }
+    if (error && error.code !== 'PGRST116') { // PGRST116 is "No rows found"
+      console.warn(`[NFT Fetcher] Supabase cache query error (non-404):`, error);
+    }
+  } catch (e) {
+    console.error("[NFT Fetcher] Error checking Supabase cache:", e);
+    // Continue to fallback if cache check fails
+  }
+
+  // 2. Fallback: Direct Contract Fetch (Slow Path)
+  console.log(`[NFT Fetcher] Cache miss for ${contractAddress}/${tokenId}. Falling back to slow fetch.`);
+  
   const contract = new Contract(contractAddress, erc721And1155Abi, provider);
   
   let tokenUri: string | undefined;
   
-  // 1. Try ERC-721 standard (tokenURI)
+  // Try ERC-721 standard (tokenURI)
   try {
     tokenUri = await contract.tokenURI(tokenId);
-    console.log(`[NFT Fetcher] Token URI (ERC-721) for ${tokenId}: ${tokenUri}`);
   } catch (e) {
-    // 2. If ERC-721 fails, try ERC-1155 standard (uri)
+    // If ERC-721 fails, try ERC-1155 standard (uri)
     try {
       let uriTemplate = await contract.uri(tokenId);
       
-      // ERC-1155 URI can be a template with {id}, a base URI, or a full URI.
       if (uriTemplate.includes('{id}')) {
-        // Case A: Standard placeholder found, replace it with the hex ID.
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
       } else if (uriTemplate.endsWith('/')) {
-        // Case B: Base URI found (e.g., "https://.../api/aliens/"), append token ID.
         tokenUri = `${uriTemplate}${tokenId}`;
       } else {
-        // Case C: No placeholder and no trailing slash, assume it's the full URI already.
-        // This handles cases like "Voyage" which might return ".../1.json" directly.
         tokenUri = uriTemplate;
       }
-      
-      console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
     } catch (e2) {
       console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
       throw new Error("Failed to retrieve token URI from contract.");
@@ -103,14 +128,18 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   
   console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
 
-
-  return {
+  const metadata: NftMetadata = {
     title: json.name || `Token #${tokenId}`,
     description: json.description || '(No description)',
     image: imageUrl || '',
     source: metadataUrl,
     attributes: json.attributes || [],
   };
+  
+  // Optional: If we successfully fetched via the slow path, we could try to cache it here too, 
+  // but for simplicity and to rely on the dedicated Edge Function, we skip client-side caching.
+
+  return metadata;
 }
 
 export async function fetchTotalSupply(contractAddress: string): Promise<number> {
