@@ -154,6 +154,13 @@ export async function initializeGalleryConfig() {
   const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress))).filter(addr => addr !== "");
 
   for (const address of uniqueContracts) {
+    // Special case: If it's the single-token video NFT, force token ID 1
+    if (address === ETN_VIDEO_NFT_ADDRESS) {
+        tokenMap[address] = [1];
+        console.log(`Collection ETN Video NFT (${address}) initialized with 1 token (forced).`);
+        continue;
+    }
+    
     try {
       const totalSupply = await fetchTotalSupply(address);
       
