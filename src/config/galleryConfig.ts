@@ -29,7 +29,7 @@ const CONTRACT_ADDRESSES_20 = [
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches)
   "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades)
   "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems)
-  "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c", // 16 (Electroneum 2.0)
+  "", // 16 (BLANK PANEL - Previously Electroneum 2.0)
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 17 (Electric Legends)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
   "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
@@ -38,7 +38,7 @@ const CONTRACT_ADDRESSES_20 = [
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31": "Planet ETN",
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399": "MEGA OGs",
-  // Removed Electro Bulls entry
+  // Index 2 is blank
   "0x939548A645AD1C3164d82A168735DB1558c9EFDD": "Electroneum x Rarible",
   "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF": "Baby Pandas",
   "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42": "ETN Rock",
@@ -52,7 +52,7 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1": "Club Watches",
   "0xc107C97710972e964d59000f610c07262638B508": "Non-Fungible Comrades",
   "0xcff0d88Ed5311bAB09178b6ec19A464100880984": "ElectroGems",
-  "0xc2DCd3A8cdAFb396DC9FCB606Ace530d1A106a1c": "Electroneum 2.0",
+  // Index 16 is blank
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b": "Electric Legends",
   "0xF91290684eb728f6715EFF0b50018105B6B31658": "Electric Eels",
   "0x1760321f42A9BE39b39c779D92373769d829ef48": "The Three Graces of the Sea",
