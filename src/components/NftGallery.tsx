@@ -282,7 +282,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
-  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource) => {
+  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
     const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
 
     // --- 1. Always update Wall Title (Collection Name) first ---
@@ -314,15 +314,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
     
     // Handle blank panel case immediately
-    if (source.contractAddress === "") {
+    if (!source || source.contractAddress === "") {
         // Wall title is already set to "Blank Panel"
         return;
     }
 
+    // --- 3. Fetch Metadata ---
+    const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+    
+    if (!metadata) {
+        // Graceful failure: metadata fetch failed (e.g., invalid token ID, contract call failed)
+        console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
+        
+        // Display a simple error message on the main panel
+        disposeTextureSafely(panel.mesh);
+        const { texture: errorTexture } = createTextTexture("NFT Unavailable", 2, 2, 80, 'red', { wordWrap: false });
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
+        
+        // Hide text panels
+        if (panel.titleMesh) panel.titleMesh.visible = false;
+        if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
+        if (panel.attributesMesh) panel.attributesMesh.visible = false;
+        
+        return;
+    }
+
     try {
-      // Use the cached fetcher
-      const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-      
       const contentUrl = metadata.contentUrl;
       const isVideo = isVideoContent(metadata.contentType, contentUrl);
       const isGif = isGifContent(metadata.contentType, contentUrl);
@@ -1018,7 +1035,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           const direction = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
           if (updatePanelIndex(panel.wallName, direction)) {
             const newSource = getCurrentNftSource(panel.wallName);
-            if (newSource) updatePanelContent(panel, newSource);
+            // We pass the new source, updatePanelContent handles null/blank panels
+            updatePanelContent(panel, newSource);
           }
         }
       }
@@ -1193,7 +1211,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const source = getCurrentNftSource(panel.wallName);
         // We call updatePanelContent even if source is null (blank panel) to ensure the wall title is set.
         // The function now handles the blank panel case internally.
-        await updatePanelContent(panel, source || { contractAddress: GALLERY_PANEL_CONFIG[panel.wallName].contractAddress, tokenId: 0 });
+        await updatePanelContent(panel, source);
         
         // Introduce a small delay between fetches to respect rate limits
         await new Promise(resolve => setTimeout(resolve, 100)); 

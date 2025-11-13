@@ -156,13 +156,19 @@ export async function initializeGalleryConfig() {
   for (const address of uniqueContracts) {
     try {
       const totalSupply = await fetchTotalSupply(address);
+      
+      // If totalSupply is null (function missing/reverts), use a safe default of 100
+      const total = totalSupply ?? 100; 
+      
       // Collection name is now retrieved from the hardcoded map
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
       
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+      // Assuming token IDs are 1-indexed (1 to total)
+      tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
+      console.log(`Collection ${name} (${address}) initialized with ${total} tokens.`);
     } catch (error) {
+      // This catch block should now only handle errors from fetchTotalSupply itself, 
+      // which should be rare since it uses safeCall internally.
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails
       tokenMap[address] = [1];

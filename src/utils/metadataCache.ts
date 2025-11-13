@@ -5,7 +5,7 @@ type NftCacheKey = string; // Format: 'contractAddress:tokenId'
 
 // Cache storage
 const metadataCache = new Map<NftCacheKey, NftMetadata>();
-const fetchPromises = new Map<NftCacheKey, Promise<NftMetadata>>();
+const fetchPromises = new Map<NftCacheKey, Promise<NftMetadata | null>>(); // Promise now resolves to NftMetadata or null
 
 function getCacheKey(contractAddress: string, tokenId: number): NftCacheKey {
   return `${contractAddress}:${tokenId}`;
@@ -13,8 +13,9 @@ function getCacheKey(contractAddress: string, tokenId: number): NftCacheKey {
 
 /**
  * Fetches NFT metadata, utilizing a cache and deduplicating concurrent requests.
+ * Returns NftMetadata on success, or null on failure (e.g., invalid token ID, network error).
  */
-export async function getCachedNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
+export async function getCachedNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata | null> {
   const key = getCacheKey(contractAddress, tokenId);
 
   // 1. Check synchronous cache
@@ -28,14 +29,23 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
   }
 
   // 3. Start new fetch
-  const fetchPromise = fetchNftMetadata(contractAddress, tokenId);
+  const fetchPromise = (async () => {
+    const result = await fetchNftMetadata(contractAddress, tokenId);
+    
+    if (result.ok) {
+      // Cache result upon success
+      metadataCache.set(key, result.metadata);
+      return result.metadata;
+    } else {
+      console.warn(`[Metadata Cache] Failed to fetch metadata for ${key}. Reason: ${result.reason}`, result.error);
+      return null;
+    }
+  })();
+  
   fetchPromises.set(key, fetchPromise);
 
   try {
     const metadata = await fetchPromise;
-    
-    // Cache result upon success
-    metadataCache.set(key, metadata);
     return metadata;
   } finally {
     // Remove promise regardless of success/failure to allow retries if needed, 

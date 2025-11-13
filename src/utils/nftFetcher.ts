@@ -1,50 +1,21 @@
 import { JsonRpcProvider, Contract, ethers } from "ethers";
+import { safeCall } from "./ethersSafe";
+import { normalizeUrl, hex64 } from "./urlUtils";
 
 // Ankr RPC endpoint for Electroneum
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
-const erc721And1155Abi = [
-  "function name() view returns (string)",
-  "function tokenURI(uint256 tokenId) view returns (string)", // ERC-721
-  "function uri(uint256 _id) view returns (string)", // ERC-1155
-  "function totalSupply() view returns (uint256)",
-  "function supportsInterface(bytes4) view returns (bool)" // ERC-165
-];
+// ABIs for safe calls
+const ERC165 = ["function supportsInterface(bytes4) view returns (bool)"];
+const ERC721 = ["function tokenURI(uint256) view returns (string)"];
+const ERC1155 = ["function uri(uint256) view returns (string)"];
+const TS_ABI = ["function totalSupply() view returns (uint256)"];
 
 // Define NftSource interface
 export interface NftSource {
   contractAddress: string;
   tokenId: number;
-}
-
-// --- IPFS and URL Utilities ---
-
-const IPFS_GATEWAYS = [
-  (p: string) => p.replace(/^ipfs:\/\/(ipfs\/)?/, "https://dweb.link/ipfs/"),
-  (p: string) => p.replace(/^ipfs:\/\/(ipfs\/)?/, "https://cloudflare-ipfs.com/ipfs/"),
-  (p: string) => p.replace(/^ipfs:\/\/(ipfs\/)?/, "https://ipfs.io/ipfs/")
-];
-
-export function normalizeUrl(url: string): string {
-  if (!url) return url;
-  url = url.trim();
-  if (url.startsWith('ipfs://')) {
-    // Try ordered gateways
-    for (const g of IPFS_GATEWAYS) {
-      const candidate = g(url);
-      return candidate;
-    }
-  }
-  return url;
-}
-
-function hex64(id: number | string): string {
-  // returns 64-len lowercase hex (no 0x)
-  const bn = ethers.BigNumber.from(id.toString());
-  let hex = bn.toHexString().replace(/^0x/, "");
-  hex = hex.padStart(64, "0").toLowerCase();
-  return hex;
 }
 
 // --- Metadata Types ---
@@ -62,6 +33,18 @@ export interface NftMetadata {
   source: string; // Original metadata URL (resolved tokenURI/uri)
   attributes?: NftAttribute[];
 }
+
+// --- Structured Result Types ---
+
+export type NftMetadataResult = {
+  ok: true;
+  metadata: NftMetadata;
+} | {
+  ok: false;
+  reason: string;
+  error?: string;
+};
+
 
 // --- Core Fetching Logic ---
 
@@ -127,99 +110,115 @@ async function parseMetadataObject(meta: any, baseUri?: string): Promise<Omit<Nf
 }
 
 
-export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
+export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadataResult> {
   if (!contractAddress || tokenId === undefined) {
-    throw new Error("Contract address and token ID must be provided.");
+    return { ok: false, reason: "invalid_input" };
   }
 
-  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
-  
-  let rawUri: string | null = null;
-  let is1155 = false;
+  // Construct contract with minimal combined ABI
+  const contract = new Contract(contractAddress, [...ERC165, ...ERC721, ...ERC1155], provider);
   
   // 1. Check for ERC-1155 support (best effort)
-  try {
-    // ERC-1155 interface ID: 0xd9b67a26
-    is1155 = await contract.supportsInterface("0xd9b67a26"); 
-  } catch (e) {
-    // Ignore if supportsInterface fails
-  }
+  const supportRes = await safeCall(contract, "supportsInterface", ["0xd9b67a26"]);
+  const is1155 = supportRes.ok && !!supportRes.value;
 
-  try {
-    if (is1155) {
-      rawUri = await contract.uri(tokenId);
-      // Replace {id} per EIP-1155: lowercase hex, 64 chars (no 0x)
-      if (rawUri && rawUri.includes("{id}")) {
-        rawUri = rawUri.replace("{id}", hex64(tokenId));
-      }
-    } else {
-      // Try ERC-721 tokenURI
-      rawUri = await contract.tokenURI(tokenId);
+  // 2. Retrieve URI
+  let uriRes;
+  if (is1155) {
+    uriRes = await safeCall(contract, "uri", [tokenId]);
+    if (!uriRes.ok) {
+      console.warn(`fetchNftMetadata: uri() failed for ${contractAddress}/${tokenId}:`, uriRes.error);
+      return { ok: false, reason: "uri_failed", error: uriRes.error };
     }
-  } catch (err: any) {
-    // Contract call failed (revert / invalid tokenId).
-    console.warn(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, err?.reason || err?.message || err);
-    throw new Error("Failed to retrieve token URI from contract.");
+  } else {
+    uriRes = await safeCall(contract, "tokenURI", [tokenId]);
+    if (!uriRes.ok) {
+      console.warn(`fetchNftMetadata: tokenURI() failed for ${contractAddress}/${tokenId}:`, uriRes.error);
+      return { ok: false, reason: "tokenURI_failed", error: uriRes.error };
+    }
   }
 
-  if (!rawUri) {
-    throw new Error("Token URI resolved to an empty URL.");
+  let rawUri = uriRes.value as string;
+  if (!rawUri) return { ok: false, reason: "empty_uri" };
+
+  if (is1155 && rawUri.includes("{id}")) {
+    rawUri = rawUri.replace("{id}", hex64(tokenId));
   }
 
   const metadataUrl = normalizeUrl(rawUri);
   
-  // Handle data:application/json;base64,...
-  if (metadataUrl.startsWith("data:application/json;base64,")) {
-    const b64 = metadataUrl.split(",")[1];
-    const jsonStr = atob(b64);
-    const meta = JSON.parse(jsonStr);
-    const parsed = await parseMetadataObject(meta, metadataUrl);
-    return { ...parsed, source: metadataUrl };
-  }
+  let meta: any = null;
+  let contentUrl: string = metadataUrl;
+  let contentType: string = "";
 
-  // Try to fetch JSON metadata
+  // 3. Fetch or parse metadata
   try {
-    const res = await fetch(metadataUrl);
-    if (!res.ok) {
-      throw new Error(`HTTP Status ${res.status}`);
+    // Handle data:application/json;base64,...
+    if (metadataUrl.startsWith("data:application/json;base64,")) {
+      const b64 = metadataUrl.split(",")[1];
+      const jsonStr = atob(b64);
+      meta = JSON.parse(jsonStr);
+    } else {
+      // Try to fetch JSON metadata
+      const res = await fetch(metadataUrl);
+      if (!res.ok) {
+        // If non-JSON (e.g., .mp4) we should treat it as direct media
+        contentType = res.headers.get("content-type") || "";
+        // contentUrl is already metadataUrl
+      } else {
+        contentType = res.headers.get("content-type") || "";
+        if (contentType.includes("application/json") || metadataUrl.endsWith(".json")) {
+          meta = await res.json();
+        } else {
+          // Fallback: treat as direct media (image/video/gif)
+          // contentUrl is already metadataUrl
+        }
+      }
     }
     
-    const contentType = res.headers.get("content-type") || "";
-
-    if (contentType.includes("application/json") || metadataUrl.endsWith(".json")) {
-      const meta = await res.json();
+    if (meta) {
       const parsed = await parseMetadataObject(meta, metadataUrl);
-      return { ...parsed, source: metadataUrl };
+      const finalMetadata: NftMetadata = { ...parsed, source: metadataUrl };
+      return { ok: true, metadata: finalMetadata };
+    } else {
+      // If we didn't get JSON metadata, we treat the URI as the content URL
+      const parsed = await parseMetadataObject({ image: metadataUrl }, metadataUrl);
+      const finalMetadata: NftMetadata = { ...parsed, source: metadataUrl };
+      return { ok: true, metadata: finalMetadata };
     }
-
-    // If it's not JSON, treat the URI itself as the media content URL
-    const parsed = await parseMetadataObject({ image: metadataUrl }, metadataUrl);
-    return { ...parsed, source: metadataUrl };
 
   } catch (e) {
-    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}. Falling back to direct media guess.`, e);
-    
+    console.error(`[NFT Fetcher] Error processing metadata from ${metadataUrl}.`, e);
     // Fallback: assume the URI is a direct media link
     const parsed = await parseMetadataObject({ image: metadataUrl }, metadataUrl);
-    return { ...parsed, source: metadataUrl };
+    const finalMetadata: NftMetadata = { ...parsed, source: metadataUrl };
+    return { ok: true, metadata: finalMetadata };
   }
 }
 
-export async function fetchTotalSupply(contractAddress: string): Promise<number> {
+export async function fetchTotalSupply(contractAddress: string): Promise<number | null> {
   if (!contractAddress) {
-    throw new Error("Contract address must be provided.");
+    return null;
   }
   
-  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
+  const contract = new Contract(contractAddress, TS_ABI, provider);
   
-  try {
-    const supply = await contract.totalSupply();
-    const total = Number(supply);
-    console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${total}`);
-    return total;
-  } catch (e) {
-    console.error(`Failed to call totalSupply for ${contractAddress}:`, e);
-    // Fallback to a reasonable default if the call fails (e.g., for ERC-1155 which often lacks totalSupply)
-    return 100; 
+  // Try totalSupply
+  const res = await safeCall(contract, "totalSupply", []);
+  
+  if (res.ok) {
+    try {
+      // Use BigNumber conversion if available, otherwise direct Number conversion
+      const n = (res.value as ethers.BigNumber).toNumber?.() ?? Number(res.value);
+      console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${n}`);
+      return n;
+    } catch (e) {
+      console.warn(`[NFT Fetcher] Failed to convert totalSupply result for ${contractAddress}.`, e);
+      return null;
+    }
+  } else {
+    console.warn(`[NFT Fetcher] Failed to call totalSupply for ${contractAddress}:`, res.error);
+    // Fallback to null if the call fails (common for non-enumerable ERC-721 or ERC-1155)
+    return null;
   }
 }
