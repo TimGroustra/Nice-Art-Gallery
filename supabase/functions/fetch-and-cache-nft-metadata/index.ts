@@ -27,6 +27,9 @@ const erc721And1155Abi = [
   "function uri(uint256 _id) view returns (string)", // ERC-1155
 ];
 
+// Hardcoded Electropunks address for specific handling
+const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43";
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -81,6 +84,16 @@ serve(async (req) => {
     if (!tokenUri) {
       throw new Error("Token URI resolved to an empty URL.");
     }
+    
+    // --- Electropunks Specific Fix ---
+    if (contractAddress.toLowerCase() === ELECTROPUNKS_ADDRESS.toLowerCase()) {
+        // If the URI looks like a base path (ends in / or doesn't have a file extension), append the token ID and .json
+        if (tokenUri.endsWith('/') || !tokenUri.includes('.')) {
+            tokenUri = `${tokenUri.replace(/\/$/, '')}/${tokenId}.json`;
+            console.log(`[Edge] Electropunks fix applied. New URI: ${tokenUri}`);
+        }
+    }
+    // --- End Fix ---
 
     let json: any;
     let metadataUrl = tokenUri;
