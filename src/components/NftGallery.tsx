@@ -995,74 +995,74 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Collision constants
     const PLAYER_RADIUS = 0.5;
     const WALL_BOUNDARIES = [
-        // Outer 50x50 walls (handled by BOUNDARY check, but included for completeness)
-        { axis: 'x', pos: halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
-        { axis: 'x', pos: -halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
-        { axis: 'z', pos: halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
-        { axis: 'z', pos: -halfRoomSize, min: -halfRoomSize, max: halfRoomSize, opening: null },
+        // Outer 50x50 walls (No opening)
+        { axis: 'x', pos: halfRoomSize, opening: null }, // X = 25
+        { axis: 'x', pos: -halfRoomSize, opening: null }, // X = -25
+        { axis: 'z', pos: halfRoomSize, opening: null }, // Z = 25
+        { axis: 'z', pos: -halfRoomSize, opening: null }, // Z = -25
         
-        // Middle 30x30 walls (10 unit opening centered at 0)
-        { axis: 'x', pos: 15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
-        { axis: 'x', pos: -15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
-        { axis: 'z', pos: 15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
-        { axis: 'z', pos: -15, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        // Middle 30x30 walls (10 unit opening centered at 0: -5 to 5)
+        { axis: 'x', pos: 15, opening: { min: -5, max: 5 } },
+        { axis: 'x', pos: -15, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: 15, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: -15, opening: { min: -5, max: 5 } },
 
-        // Inner 10x10 walls (10 unit opening centered at 0)
-        { axis: 'x', pos: 5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
-        { axis: 'x', pos: -5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
-        { axis: 'z', pos: 5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
-        { axis: 'z', pos: -5, min: -halfRoomSize, max: halfRoomSize, opening: { min: -5, max: 5 } },
+        // Inner 10x10 walls (10 unit opening centered at 0: -5 to 5)
+        { axis: 'x', pos: 5, opening: { min: -5, max: 5 } },
+        { axis: 'x', pos: -5, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: 5, opening: { min: -5, max: 5 } },
+        { axis: 'z', pos: -5, opening: { min: -5, max: 5 } },
     ];
 
     const checkCollisions = (camera: THREE.PerspectiveCamera, prevX: number, prevZ: number) => {
         let newX = camera.position.x;
         let newZ = camera.position.z;
 
-        // 1. Outer Boundary (50x50 room) - already handled by BOUNDARY constant
-        newX = Math.max(-boundary, Math.min(boundary, newX));
-        newZ = Math.max(-boundary, Math.min(boundary, newZ));
-
-        // 2. Check all internal walls
+        // 1. Check all walls (Outer and Inner)
         for (const wall of WALL_BOUNDARIES) {
             const { axis, pos, opening } = wall;
             
-            if (opening === null) continue; // Skip outer walls as they are handled by boundary
-
             if (axis === 'x') {
-                const distance = newX - pos;
+                // Check collision on X axis
+                const wallMin = pos - PLAYER_RADIUS;
+                const wallMax = pos + PLAYER_RADIUS;
                 
-                // Check if player is trying to cross the wall boundary
-                if (Math.abs(distance) < PLAYER_RADIUS) {
+                // Determine if the player crossed the wall plane
+                const crossedPositive = prevX < wallMin && newX >= wallMin;
+                const crossedNegative = prevX > wallMax && newX <= wallMax;
+                
+                if (crossedPositive || crossedNegative) {
                     const otherAxisPos = newZ;
                     
                     // Check if player is NOT in the opening area
-                    if (otherAxisPos < opening.min || otherAxisPos > opening.max) {
-                        // Collision detected. Revert movement on the X axis.
-                        if (distance > 0) {
-                            // Player is on the positive side, push back to the wall boundary
-                            newX = pos + PLAYER_RADIUS;
-                        } else {
-                            // Player is on the negative side, push back to the wall boundary
-                            newX = pos - PLAYER_RADIUS;
+                    if (opening === null || otherAxisPos < opening.min || otherAxisPos > opening.max) {
+                        // Collision detected. Constrain movement on the X axis.
+                        if (crossedPositive) {
+                            newX = wallMin; // Push back to the boundary
+                        } else if (crossedNegative) {
+                            newX = wallMax; // Push back to the boundary
                         }
                     }
                 }
             } else if (axis === 'z') {
-                const distance = newZ - pos;
+                // Check collision on Z axis
+                const wallMin = pos - PLAYER_RADIUS;
+                const wallMax = pos + PLAYER_RADIUS;
                 
-                // Check if player is trying to cross the wall boundary
-                if (Math.abs(distance) < PLAYER_RADIUS) {
+                // Determine if the player crossed the wall plane
+                const crossedPositive = prevZ < wallMin && newZ >= wallMin;
+                const crossedNegative = prevZ > wallMax && newZ <= wallMax;
+
+                if (crossedPositive || crossedNegative) {
                     const otherAxisPos = newX;
                     
                     // Check if player is NOT in the opening area
-                    if (otherAxisPos < opening.min || otherAxisPos > opening.max) {
-                        // Collision detected. Revert movement on the Z axis.
-                        if (distance > 0) {
-                            // Player is on the positive side, push back to the wall boundary
-                            newZ = pos + PLAYER_RADIUS;
-                        } else {
-                            // Player is on the negative side, push back to the wall boundary
-                            newZ = pos - PLAYER_RADIUS;
+                    if (opening === null || otherAxisPos < opening.min || otherAxisPos > opening.max) {
+                        // Collision detected. Constrain movement on the Z axis.
+                        if (crossedPositive) {
+                            newZ = wallMin; // Push back to the boundary
+                        } else if (crossedNegative) {
+                            newZ = wallMax; // Push back to the boundary
                         }
                     }
                 }
