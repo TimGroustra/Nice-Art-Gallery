@@ -241,22 +241,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.videoElement = null;
     }
     
-    // Use TextureLoader wrapped in a Promise for asynchronous image loading
+    // Use a custom promise to load and decode the image before creating the texture
     return new Promise((resolve, reject) => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous'); // Added crossOrigin setting for image loader
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
         
-        loader.load(finalUrl, 
-            (texture) => {
+        img.onload = async () => {
+            try {
+                // Attempt to decode the image before creating the texture
+                if ('decode' in img) {
+                    await img.decode();
+                }
+                if (img.naturalWidth === 0 || img.naturalHeight === 0) {
+                    throw new Error('Image loaded but has zero dimensions (invalid pixel data).');
+                }
+                const texture = new THREE.Texture(img);
+                texture.needsUpdate = true;
                 resolve(texture);
-            }, 
-            undefined, 
-            (error) => {
-                console.error('Error loading texture:', finalUrl, error);
-                showError(`Failed to load image: ${finalUrl.substring(0, 50)}...`);
-                reject(error);
+            } catch (e) {
+                console.error('Error decoding image or invalid dimensions:', finalUrl, e);
+                reject(new Error(`Failed to decode image: ${finalUrl}`));
             }
-        );
+        };
+        
+        img.onerror = (error) => {
+            console.error('Error loading image:', finalUrl, error);
+            reject(new Error(`Failed to load image: ${finalUrl}`));
+        };
+        
+        img.src = finalUrl;
     });
   }, []);
 

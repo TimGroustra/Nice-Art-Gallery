@@ -26,21 +26,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// Helper function for fetch with timeout
-async function fetchWithTimeout(url: string, timeout: number = 10000): Promise<Response> {
+// Helper function for fetch with timeout and retries
+async function fetchWithRetry(url: string, timeout: number = 15000, retries: number = 3): Promise<Response> {
     const controller = new AbortController();
-    const id = setTimeout(() => controller.abort(), timeout);
-    try {
-        const response = await fetch(url, { signal: controller.signal });
-        clearTimeout(id);
-        return response;
-    } catch (error) {
-        clearTimeout(id);
-        if (error instanceof DOMException && error.name === 'AbortError') {
-            throw new Error(`Fetch timed out after ${timeout}ms for URL: ${url}`);
+    let lastError: Error | null = null;
+    
+    for (let i = 0; i < retries; i++) {
+        const id = setTimeout(() => controller.abort(), timeout);
+        try {
+            const response = await fetch(url, { signal: controller.signal });
+            clearTimeout(id);
+            if (!response.ok) {
+                throw new Error(`HTTP status ${response.status}`);
+            }
+            return response;
+        } catch (error) {
+            clearTimeout(id);
+            lastError = error as Error;
+            console.warn(`[Fetch Retry] Attempt ${i + 1} failed for ${url}: ${lastError.message}. Retrying...`);
+            // Exponential backoff
+            await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)));
         }
-        throw error;
     }
+    throw new Error(`Failed to fetch URL after ${retries} attempts: ${url}. Last error: ${lastError?.message}`);
 }
 
 serve(async (req) => {
@@ -117,17 +125,16 @@ serve(async (req) => {
     if (externalImageUrl) {
         console.log(`[Function] Attempting to fetch external image: ${externalImageUrl}`);
         
-        let imageRes: Response;
+        let imageRes: Response | null = null;
         try {
-            // Use fetchWithTimeout for external image fetching (15 seconds timeout)
-            imageRes = await fetchWithTimeout(externalImageUrl, 15000); 
+            // Use fetchWithRetry for external image fetching (15 seconds timeout, 3 retries)
+            imageRes = await fetchWithRetry(externalImageUrl, 15000, 3); 
         } catch (e) {
-            console.warn(`[Function] Failed to fetch external image due to timeout/error: ${e.message}`);
-            // Fallback to external URL if fetch fails
-            imageRes = { ok: false } as Response; 
+            console.warn(`[Function] Failed to fetch external image after retries. Falling back to external URL. Error: ${e.message}`);
+            // imageRes remains null, finalImageUrl remains externalImageUrl
         }
         
-        if (imageRes.ok) {
+        if (imageRes && imageRes.ok) {
             const contentType = imageRes.headers.get('Content-Type') || 'image/png';
             console.log(`[Function] External image fetched successfully. Content-Type: ${contentType}`);
             
@@ -176,7 +183,8 @@ serve(async (req) => {
                 }
             }
         } else {
-            console.warn(`[Function] Skipping image caching due to fetch failure or timeout.`);
+            console.warn(`[Function] Skipping image caching due to fetch failure or timeout. Using external URL: ${externalImageUrl}`);
+            // finalImageUrl remains externalImageUrl
         }
     }
     // --- End Image Caching Logic ---
