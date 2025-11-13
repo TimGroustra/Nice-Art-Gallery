@@ -11,21 +11,21 @@ interface GalleryUIProps {
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   // Removed modal state: isModalOpen, modalMetadata
   const [isMuted, setIsMuted] = useState(true);
-  const [hasVideo, setHasVideo] = useState(false);
+  const [hasMedia, setHasMedia] = useState(false); // Combined state for video/music presence
 
-  // Removed openMetadataModal function
-
-  // Removed useEffect that exposed openMetadataModal globally
-
-  // Polling/Interval to check video state from NftGallery
+  // Polling/Interval to check media state from NftGallery
   useEffect(() => {
     const interval = setInterval(() => {
       const galleryControls = (window as any).galleryControls;
       if (galleryControls) {
-        // Video state check
+        // Media state check
         const videoPresent = galleryControls.hasVideo();
-        setHasVideo(videoPresent);
-        if (videoPresent) {
+        const musicPresent = galleryControls.hasMusic();
+        const mediaPresent = videoPresent || musicPresent;
+        
+        setHasMedia(mediaPresent);
+        
+        if (mediaPresent) {
           setIsMuted(galleryControls.isMuted());
         }
       }
@@ -60,13 +60,13 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         )}
         
         {/* Mute Toggle Button */}
-        {!instructionsVisible && hasVideo && (
+        {!instructionsVisible && hasMedia && (
           <Button 
             variant="secondary" 
             size="icon" 
             className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700"
             onClick={handleMuteToggle}
-            title={isMuted ? "Unmute Video (M)" : "Mute Video (M)"}
+            title={isMuted ? "Unmute Media (M)" : "Mute Media (M)"}
           >
             {isMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
           </Button>

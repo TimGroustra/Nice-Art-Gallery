@@ -166,6 +166,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
+  const bgMusicRef = useRef<THREE.Audio | null>(null); // Ref for background music
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
@@ -357,24 +358,69 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const controls = new PointerLockControls(camera, renderer.domElement);
     
+    // --- Audio Setup ---
+    const listener = new THREE.AudioListener();
+    camera.add(listener);
+
+    const sound = new THREE.Audio(listener);
+    const audioLoader = new THREE.AudioLoader();
+
+    audioLoader.load('/Canvas Dreams.mp3', function(buffer) {
+        sound.setBuffer(buffer);
+        sound.setLoop(true);
+        sound.setVolume(0.5); // Default volume
+        bgMusicRef.current = sound;
+    });
+    // --- End Audio Setup ---
+
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
       // Check if ANY panel has a video element
       hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
-      // Check if ALL active video elements are muted
+      // Check if background music is loaded
+      hasMusic: () => bgMusicRef.current !== null,
+      // Check if ALL active media (video or music) is muted
       isMuted: () => {
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
-        if (activeVideos.length === 0) return true;
-        return activeVideos.every(p => p.videoElement!.muted);
+        const videoMuted = activeVideos.length === 0 || activeVideos.every(p => p.videoElement!.muted);
+        const musicMuted = !bgMusicRef.current || bgMusicRef.current.getVolume() === 0;
+        
+        const hasAnyMedia = activeVideos.length > 0 || bgMusicRef.current;
+
+        if (!hasAnyMedia) return true;
+        
+        // If both exist, both must be muted. If only one exists, it must be muted.
+        if (activeVideos.length > 0 && bgMusicRef.current) {
+            return videoMuted && musicMuted;
+        } else if (activeVideos.length > 0) {
+            return videoMuted;
+        } else if (bgMusicRef.current) {
+            return musicMuted;
+        }
+        return true;
       },
-      // Toggle mute on ALL active video elements
+      // Toggle mute on ALL active media
       toggleMute: () => { 
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
+        
+        // Determine the current mute state based on existing media
+        let currentlyMuted = true;
         if (activeVideos.length > 0) {
-          const currentlyMuted = activeVideos[0].videoElement!.muted;
-          activeVideos.forEach(p => {
-            p.videoElement!.muted = !currentlyMuted;
-          });
+            currentlyMuted = activeVideos[0].videoElement!.muted;
+        } else if (bgMusicRef.current) {
+            currentlyMuted = bgMusicRef.current.getVolume() === 0;
+        }
+        
+        const newMuteState = !currentlyMuted;
+        
+        // Toggle video mute
+        activeVideos.forEach(p => {
+            p.videoElement!.muted = newMuteState;
+        });
+        
+        // Toggle music volume
+        if (bgMusicRef.current) {
+            bgMusicRef.current.setVolume(newMuteState ? 0 : 0.5);
         }
       },
       isLocked: () => controls.isLocked, 
@@ -386,12 +432,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       setInstructionsVisible(false);
       // Start playback for all active videos
       manageVideoPlayback(true);
+      
+      // Start music playback on lock
+      if (bgMusicRef.current && !bgMusicRef.current.isPlaying) {
+          bgMusicRef.current.play();
+      }
     });
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
       // Pause playback for all active videos
       manageVideoPlayback(false);
+      
+      // Pause music playback on unlock
+      if (bgMusicRef.current && bgMusicRef.current.isPlaying) {
+          bgMusicRef.current.pause();
+      }
     });
 
     // --- ROOM GEOMETRY SETUP (50x50) ---
@@ -1197,6 +1253,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.videoElement.removeAttribute('src');
         }
       });
+      
+      // Cleanup background music
+      if (bgMusicRef.current) {
+          bgMusicRef.current.stop();
+          bgMusicRef.current = null;
+      }
 
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
