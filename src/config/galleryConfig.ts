@@ -11,34 +11,38 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
+const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
+
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
 const ALL_CONTRACT_ADDRESSES = [
-  // 20 blank addresses for the 50x50 outer wall panels
-  "", "", "", "", "", "", "", "", "", "",
-  "", "", "", "", "", "", "", "", "", "",
+  // 20 panels for the 50x50 outer wall panels (Indices 0-19)
+  GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, 
+  GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS,
+  GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS,
+  GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS, GRACES_ADDRESS,
 
-  // 20 collections for the inner walls (16 for 30x30, 4 for 10x10)
-  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 0 (Planet ETN)
-  "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 1 (MEGA OGs)
-  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 2 (Electric Legends - MOVED)
-  "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 3 (Electroneum x Rarible)
-  "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // 4 (Baby Pandas)
-  "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // 5 (ETN Rock)
-  "0xD7195E3c956Be88bA28dc0cbf65829dD7db6EA8a", // 6 (ElectroFox)
-  "0xE76b450eE07CE833E10f9227F1Fbbc96e5f9514d", // 7 (HoneyBadgers)
-  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // 8 (Thirst & Thunder)
-  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 9 (Verdant Kin)
-  "0x3446c31703CA826F368B981E50971A00eA4C23be", // 10 (Limitless: Different Worlds)
-  "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 11 (Richard Ells on a Skateboard)
-  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 12 (ElectroPunks)
-  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches)
-  "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades)
-  "0xF91290684eb728f6715EFF0b50018105B6B31658", // 15 (Electric Eels)
-  "", // 16 (BLANK PANEL - Previously Electroneum 2.0)
-  "", // 17 (BLANK PANEL - Previously Electric Legends)
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 18 (ElectroGems)
-  "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
+  // 20 collections for the inner walls (16 for 30x30, 4 for 10x10) (Indices 20-39)
+  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 20 (Planet ETN)
+  "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 21 (MEGA OGs)
+  "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 22 (Electric Legends - MOVED)
+  "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 23 (Electroneum x Rarible)
+  "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // 24 (Baby Pandas)
+  "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // 25 (ETN Rock)
+  "0xD7195E3c956Be88bA28dc0cbf65829dD7db6EA8a", // 26 (ElectroFox)
+  "0xE76b450eE07CE833E10f9227F1Fbbc96e5f9514d", // 27 (HoneyBadgers)
+  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // 28 (Thirst & Thunder)
+  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 29 (Verdant Kin)
+  "0x3446c31703CA826F368B981E50971A00eA4C23be", // 30 (Limitless: Different Worlds)
+  "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 31 (Richard Ells on a Skateboard)
+  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 32 (ElectroPunks)
+  "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 33 (Club Watches)
+  "0xc107C97710972e964d59000f610c07262638B508", // 34 (Non-Fungible Comrades)
+  "0xF91290684eb728f6715EFF0b50018105B6B31658", // 35 (Electric Eels)
+  "", // 36 (BLANK PANEL - Previously Electroneum 2.0)
+  "", // 37 (BLANK PANEL - Previously Electric Legends)
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 38 (ElectroGems)
+  "", // 39 (The Three Graces of the Sea -> now blank)
 ];
 
 const CONTRACT_NAMES_MAP: { [key: string]: string } = {
