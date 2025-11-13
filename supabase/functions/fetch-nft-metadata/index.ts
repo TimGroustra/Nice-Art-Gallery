@@ -53,8 +53,9 @@ serve(async (req) => {
         tokenUri = uriTemplate.replace('{id}', hexId);
         console.log(`[Function] uri result: ${tokenUri}`);
       } catch (e2) {
-        console.error(`[Function] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
-        throw new Error("Failed to retrieve token URI from contract.");
+        console.error(`[Function] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}. Contract interaction failed.`, e2);
+        // Re-throw a specific error related to contract interaction failure
+        throw new Error("Contract interaction failed: Could not retrieve token URI.");
       }
     }
 
@@ -65,7 +66,15 @@ serve(async (req) => {
       throw new Error("Token URI resolved to an empty URL.");
     }
 
-    const res = await fetch(metadataUrl);
+    // --- Fetch Metadata from URL ---
+    let res;
+    try {
+        res = await fetch(metadataUrl);
+    } catch (fetchError) {
+        console.error(`[Function] Failed to fetch metadata from URL ${metadataUrl}:`, fetchError);
+        throw new Error(`Network error fetching metadata from URL.`);
+    }
+    
     if (!res.ok) {
       throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
     }
@@ -88,8 +97,10 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
-    console.error("[Function] Global error caught:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    // Catch specific errors and return a 500 response with the error message
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred in the Edge Function.";
+    console.error("[Function] Global error caught:", errorMessage);
+    return new Response(JSON.stringify({ error: errorMessage }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });

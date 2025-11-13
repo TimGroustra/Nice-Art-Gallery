@@ -32,12 +32,14 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
   // 3. Define the main fetch operation (Supabase -> External)
   const fetchOperation = async (): Promise<NftMetadata> => {
     // 3a. Check Persistent Supabase Cache
-    const { data: cachedData, error: cacheError } = await supabase
+    const { data: cachedDataArray, error: cacheError } = await supabase
       .from('gallery_nft_metadata')
       .select('*')
       .eq('contract_address', contractAddress)
       .eq('token_id', tokenId)
-      .single();
+      .limit(1); // Limit to 1 row
+
+    const cachedData = cachedDataArray?.[0];
 
     if (cachedData) {
       console.log(`[Cache] Hit for ${key} in Supabase.`);
@@ -52,7 +54,7 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
       return metadata;
     }
 
-    if (cacheError && cacheError.code !== 'PGRST116') { // PGRST116 = No rows found
+    if (cacheError) {
         console.warn(`[Cache] Supabase read error for ${key}:`, cacheError.message);
     }
 
