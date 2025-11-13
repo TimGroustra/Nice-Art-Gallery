@@ -9,13 +9,23 @@ const erc721And1155Abi = [
   "function uri(uint256 _id) view returns (string)",
 ];
 
-// Utility: normalize ipfs:// to https gateway
+// Utility: normalize ipfs:// to https gateway and ensure HTTPS protocol
 function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
+  
   if (url.startsWith('ipfs://')) {
+    // Use a reliable public HTTPS gateway for IPFS
     return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
   }
+  
+  if (url.startsWith('http://')) {
+    // Attempt to upgrade insecure HTTP links to HTTPS
+    console.warn(`[Function] Upgrading insecure HTTP URL to HTTPS: ${url}`);
+    return url.replace('http://', 'https://');
+  }
+  
+  // If it's already HTTPS or another protocol, return as is
   return url;
 }
 
@@ -54,7 +64,6 @@ serve(async (req) => {
         console.log(`[Function] uri result: ${tokenUri}`);
       } catch (e2) {
         console.error(`[Function] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}. Contract interaction failed.`, e2);
-        // Re-throw a specific error related to contract interaction failure
         throw new Error("Contract interaction failed: Could not retrieve token URI.");
       }
     }
@@ -82,12 +91,20 @@ serve(async (req) => {
     const json = await res.json();
 
     let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
+    
+    // Normalize the image URL and ensure it's secure
     imageUrl = normalizeUrl(imageUrl);
+    
+    // Final check: If the URL is still insecure (http://) or invalid, we must filter it out.
+    if (imageUrl && imageUrl.startsWith('http://')) {
+        console.error(`[Function] Insecure HTTP image URL detected after normalization: ${imageUrl}. Filtering out.`);
+        imageUrl = ''; // Filter out the insecure URL
+    }
 
     const metadata = {
       title: json.name || `Token #${tokenId}`,
       description: json.description || '(No description)',
-      image: imageUrl || '',
+      image: imageUrl || '', // Use the potentially filtered URL
       source: metadataUrl,
       attributes: json.attributes || [],
     };
