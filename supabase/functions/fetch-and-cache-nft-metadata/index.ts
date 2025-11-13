@@ -86,11 +86,13 @@ serve(async (req) => {
     }
     
     // --- Electropunks Specific Fix ---
+    // Check if the contract address matches (case-insensitive)
     if (contractAddress.toLowerCase() === ELECTROPUNKS_ADDRESS.toLowerCase()) {
-        // If the URI looks like a base path (ends in / or doesn't have a file extension), append the token ID and .json
-        if (tokenUri.endsWith('/') || !tokenUri.includes('.')) {
+        // If the URI doesn't end with a file extension (like .json, .txt, etc.), assume it's a base path.
+        // We check for a dot followed by 2-4 characters at the end of the string.
+        if (!/\.[a-z]{2,4}$/i.test(tokenUri)) {
             tokenUri = `${tokenUri.replace(/\/$/, '')}/${tokenId}.json`;
-            console.log(`[Edge] Electropunks fix applied. New URI: ${tokenUri}`);
+            console.log(`[Edge] Electropunks base URI fix applied. New URI: ${tokenUri}`);
         }
     }
     // --- End Fix ---
