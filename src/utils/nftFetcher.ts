@@ -1,15 +1,4 @@
-import { JsonRpcProvider, Contract } from "ethers";
-
-// Ankr RPC endpoint for Electroneum
-const RPC_URL = "https://rpc.ankr.com/electroneum";
-const provider = new JsonRpcProvider(RPC_URL);
-
-const erc721And1155Abi = [
-  "function name() view returns (string)",
-  "function tokenURI(uint256 tokenId) view returns (string)", // ERC-721
-  "function uri(uint256 _id) view returns (string)", // ERC-1155
-  "function totalSupply() view returns (uint256)"
-];
+import supabase from '@/integrations/supabase/client';
 
 // Define NftSource interface
 export interface NftSource {
@@ -43,66 +32,21 @@ export interface NftMetadata {
   attributes?: NftAttribute[];
 }
 
-// Removed fetchCollectionName as it is now hardcoded in galleryConfig.ts
-
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
     throw new Error("Contract address and token ID must be provided.");
   }
 
-  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
-  
-  let tokenUri: string | undefined;
-  
-  // 1. Try ERC-721 standard (tokenURI)
-  try {
-    tokenUri = await contract.tokenURI(tokenId);
-    console.log(`[NFT Fetcher] Token URI (ERC-721) for ${tokenId}: ${tokenUri}`);
-  } catch (e) {
-    // 2. If ERC-721 fails, try ERC-1155 standard (uri)
-    try {
-      // ERC-1155 URI often contains {id} placeholder, which needs to be replaced.
-      let uriTemplate = await contract.uri(tokenId);
-      
-      // Replace {id} placeholder with the token ID in hex format (padded to 64 chars)
-      // This is a common convention for ERC-1155 metadata URIs.
-      const hexId = tokenId.toString(16).padStart(64, '0');
-      tokenUri = uriTemplate.replace('{id}', hexId);
-      
-      console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
-    } catch (e2) {
-      console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
-      throw new Error("Failed to retrieve token URI from contract.");
-    }
+  const { data, error } = await supabase.functions.invoke('fetch-nft-metadata', {
+    body: { contractAddress, tokenId },
+  });
+
+  if (error) {
+    console.error('Error invoking fetch-nft-metadata function:', error);
+    throw new Error(error.message);
   }
 
-  const metadataUrl = normalizeUrl(tokenUri!);
-  
-  if (!metadataUrl) {
-    throw new Error("Token URI resolved to an empty URL.");
-  }
-
-  const res = await fetch(metadataUrl);
-  if (!res.ok) {
-    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
-    throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
-  }
-  
-  const json = await res.json();
-
-  let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
-  imageUrl = normalizeUrl(imageUrl);
-  
-  console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
-
-
-  return {
-    title: json.name || `Token #${tokenId}`,
-    description: json.description || '(No description)',
-    image: imageUrl || '',
-    source: metadataUrl,
-    attributes: json.attributes || [],
-  };
+  return data;
 }
 
 export async function fetchTotalSupply(contractAddress: string): Promise<number> {
@@ -110,16 +54,14 @@ export async function fetchTotalSupply(contractAddress: string): Promise<number>
     throw new Error("Contract address must be provided.");
   }
   
-  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
-  
-  try {
-    const supply = await contract.totalSupply();
-    const total = Number(supply);
-    console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${total}`);
-    return total;
-  } catch (e) {
-    console.error(`Failed to call totalSupply for ${contractAddress}:`, e);
-    // Fallback to a reasonable default if the call fails (e.g., for ERC-1155 which often lacks totalSupply)
-    return 100; 
+  const { data, error } = await supabase.functions.invoke('fetch-total-supply', {
+    body: { contractAddress },
+  });
+
+  if (error) {
+    console.error('Error invoking fetch-total-supply function:', error);
+    throw new Error(error.message);
   }
+
+  return data.totalSupply;
 }
