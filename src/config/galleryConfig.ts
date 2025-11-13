@@ -34,10 +34,10 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 12 (ElectroPunks)
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 13 (Club Watches)
   "0xc107C97710972e964d59000f610c07262638B508", // 14 (Non-Fungible Comrades)
-  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 15 (ElectroGems)
+  "0xF91290684eb728f6715EFF0b50018105B6B31658", // 15 (Electric Eels)
   "", // 16 (BLANK PANEL - Previously Electroneum 2.0)
   "", // 17 (BLANK PANEL - Previously Electric Legends)
-  "0xF91290684eb728f6715EFF0b50018105B6B31658", // 18 (Electric Eels)
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // 18 (ElectroGems)
   "0x1760321f42A9BE39b39c779D92373769d829ef48", // 19 (The Three Graces of the Sea)
 ];
 
