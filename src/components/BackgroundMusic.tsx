@@ -1,0 +1,54 @@
+import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+
+interface BackgroundMusicHandles {
+  play: () => void;
+  pause: () => void;
+  toggleMute: () => void;
+  isMuted: () => boolean;
+}
+
+const MUSIC_URL = "/audio/canvas-dreams.mp3";
+
+const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audio = new Audio(MUSIC_URL);
+    audio.loop = true;
+    audio.volume = 0.3; // Start at a reasonable background volume
+    audioRef.current = audio;
+
+    // Attempt to play immediately (might fail due to browser policy)
+    audio.play().catch(e => console.log("Autoplay blocked for background music:", e));
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
+
+  useImperativeHandle(ref, () => ({
+    play: () => {
+      if (audioRef.current) {
+        audioRef.current.play().catch(e => console.error("Failed to play music:", e));
+      }
+    },
+    pause: () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    },
+    toggleMute: () => {
+      if (audioRef.current) {
+        audioRef.current.muted = !audioRef.current.muted;
+      }
+    },
+    isMuted: () => {
+      return audioRef.current?.muted ?? true;
+    }
+  }));
+
+  return null; // This component renders nothing visible
+});
+
+export default BackgroundMusic;

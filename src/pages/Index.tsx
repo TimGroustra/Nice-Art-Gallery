@@ -1,22 +1,44 @@
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
-import React, { useState, useCallback } from "react";
+import BackgroundMusic from "@/components/BackgroundMusic";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+
+// Define the type for the music controls exposed via ref
+interface BackgroundMusicHandles {
+  play: () => void;
+  pause: () => void;
+  toggleMute: () => void;
+  isMuted: () => boolean;
+}
 
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
+  const musicRef = useRef<BackgroundMusicHandles>(null);
 
-  // Removed handlePanelClick as the modal is gone
+  // Expose music controls globally for GalleryUI to access
+  useEffect(() => {
+    (window as any).musicControls = {
+      toggleMute: () => musicRef.current?.toggleMute(),
+      isMuted: () => musicRef.current?.isMuted() ?? true,
+    };
+    return () => {
+      delete (window as any).musicControls;
+    };
+  }, []);
 
   const handleLockClick = useCallback(() => {
     const galleryControls = (window as any).galleryControls;
     if (galleryControls && galleryControls.lockControls) {
       galleryControls.lockControls();
     }
-    // The NftGallery component handles setting instructionsVisible=false on lock event internally.
+    // Attempt to start music playback upon user interaction (locking controls)
+    musicRef.current?.play();
   }, []);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
+      <BackgroundMusic ref={musicRef} />
+      
       {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
