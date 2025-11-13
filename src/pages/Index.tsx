@@ -34,6 +34,24 @@ const Index = () => {
     // Attempt to start music playback upon user interaction (locking controls)
     musicRef.current?.play();
   }, []);
+  
+  // Add keyboard listener for 'M' key to toggle music mute
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const galleryControls = (window as any).galleryControls;
+      const musicControls = (window as any).musicControls;
+      
+      // Only allow keyboard shortcuts when controls are locked (user is in the gallery)
+      if (galleryControls?.isLocked?.() && musicControls && event.code === 'KeyM') {
+        musicControls.toggleMute();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
