@@ -11,9 +11,8 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
-const GRACES_ADDRESS = "0x1760321f42A9BE39c779D92373769d829ef48";
+const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
 const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43"; // Restored ElectroPunks address
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
@@ -37,7 +36,7 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 29 (Verdant Kin)
   "0x3446c31703CA826F368B981E50971A00eA4C23be", // 30 (Limitless: Different Worlds)
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 31 (Richard Ells on a Skateboard)
-  ELECTROPUNKS_ADDRESS, // 32 (ElectroPunks)
+  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 32 (ElectroPunks)
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 33 (Club Watches)
   "0xc107C97710972e964d59000f610c07262638B508", // 34 (Non-Fungible Comrades)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 35 (Electric Eels)
@@ -158,12 +157,9 @@ export async function initializeGalleryConfig() {
       // Collection name is now retrieved from the hardcoded map
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
       
-      // Default: 1-indexed tokens (1 to totalSupply)
-      const tokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      
-      tokenMap[address] = tokens;
+      // Assuming token IDs are 1-indexed (1 to totalSupply)
+      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
       console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
-
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails

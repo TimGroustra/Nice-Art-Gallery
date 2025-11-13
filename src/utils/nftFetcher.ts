@@ -1,7 +1,6 @@
 import { JsonRpcProvider, Contract } from "ethers";
-import { supabase } from "@/integrations/supabase/client";
 
-// Ankr RPC endpoint for Electroneum (only used for totalSupply)
+// Ankr RPC endpoint for Electroneum
 const RPC_URL = "https://rpc.ankr.com/electroneum";
 const provider = new JsonRpcProvider(RPC_URL);
 
@@ -18,15 +17,14 @@ export interface NftSource {
   tokenId: number;
 }
 
-// Utility: normalize ipfs:// to https gateway (kept for consistency, though Edge Function handles it)
+// Utility: normalize ipfs:// to https gateway
 export function normalizeUrl(url: string): string {
   if (!url) return url;
   url = url.trim();
-  
   if (url.startsWith('ipfs://')) {
-    // Handle both ipfs:// and ipfs://ipfs/ formats
-    const path = url.replace(/^ipfs:\/\/(ipfs\/)?/, '');
-    const normalized = `https://ipfs.io/ipfs/${path}`;
+    // Using a common public gateway
+    const normalized = url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+    console.log(`[NFT Fetcher] Normalized IPFS URL: ${normalized}`);
     return normalized;
   }
   return url;
@@ -45,68 +43,66 @@ export interface NftMetadata {
   attributes?: NftAttribute[];
 }
 
-/**
- * Fetches NFT metadata, prioritizing Supabase cache, then calling the Edge Function 
- * to fetch from the blockchain/IPFS and cache the result.
- */
+// Removed fetchCollectionName as it is now hardcoded in galleryConfig.ts
+
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
     throw new Error("Contract address and token ID must be provided.");
   }
 
-  // 1. Check Supabase Cache
-  const { data: cachedData, error: selectError } = await supabase
-    .from('gallery_nft_metadata')
-    .select('*')
-    .eq('contract_address', contractAddress)
-    .eq('token_id', tokenId)
-    .single();
-
-  if (selectError && selectError.code !== 'PGRST116') { // PGRST116 is "No rows found"
-    console.error("Error checking Supabase cache:", selectError);
-    // Continue to Edge Function if there's a database error other than 'not found'
+  const contract = new Contract(contractAddress, erc721And1155Abi, provider);
+  
+  let tokenUri: string | undefined;
+  
+  // 1. Try ERC-721 standard (tokenURI)
+  try {
+    tokenUri = await contract.tokenURI(tokenId);
+    console.log(`[NFT Fetcher] Token URI (ERC-721) for ${tokenId}: ${tokenUri}`);
+  } catch (e) {
+    // 2. If ERC-721 fails, try ERC-1155 standard (uri)
+    try {
+      // ERC-1155 URI often contains {id} placeholder, which needs to be replaced.
+      let uriTemplate = await contract.uri(tokenId);
+      
+      // Replace {id} placeholder with the token ID in hex format (padded to 64 chars)
+      // This is a common convention for ERC-1155 metadata URIs.
+      const hexId = tokenId.toString(16).padStart(64, '0');
+      tokenUri = uriTemplate.replace('{id}', hexId);
+      
+      console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
+    } catch (e2) {
+      console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
+      throw new Error("Failed to retrieve token URI from contract.");
+    }
   }
 
-  if (cachedData) {
-    console.log(`[NFT Fetcher] Cache hit for ${contractAddress}/${tokenId}.`);
-    return {
-      title: cachedData.title || `Token #${tokenId}`,
-      description: cachedData.description || '(No description)',
-      image: cachedData.image || '',
-      source: cachedData.source || 'Supabase Cache',
-      attributes: cachedData.attributes || [],
-    };
+  const metadataUrl = normalizeUrl(tokenUri!);
+  
+  if (!metadataUrl) {
+    throw new Error("Token URI resolved to an empty URL.");
   }
 
-  // 2. Cache Miss: Call Edge Function to fetch and cache
-  console.log(`[NFT Fetcher] Cache miss for ${contractAddress}/${tokenId}. Calling Edge Function.`);
-  
-  // Get current session token (or use anon key if no session)
-  const sessionResponse = await supabase.auth.getSession();
-  const accessToken = sessionResponse.data.session?.access_token || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl2aWdpaXJsc2RiaG1tY3F2em5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwODg4ODYsImV4cCI6MjA2NzY2NDg4Nn0.o2YAwA8zeQL9lB0WD3vlBJFRZafcjypxlYDwwCQx_U0";
-  
-  // NOTE: We must use the full hardcoded URL path for Edge Functions
-  const EDGE_FUNCTION_URL = `https://yvigiirlsdbhmmcqvznk.supabase.co/functions/v1/fetch-and-cache-nft-metadata`;
-
-  const response = await fetch(EDGE_FUNCTION_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({ contractAddress, tokenId }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[NFT Fetcher] Edge Function failed: ${response.status} - ${errorText}`);
-    throw new Error(`Failed to fetch metadata via Edge Function: ${response.statusText}`);
+  const res = await fetch(metadataUrl);
+  if (!res.ok) {
+    console.error(`[NFT Fetcher] Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+    throw new Error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
   }
-
-  const metadata = await response.json();
   
-  // The Edge Function handles caching, so we just return the result.
-  return metadata as NftMetadata;
+  const json = await res.json();
+
+  let imageUrl = json.image || json.image_url || json.imageURI || json.gif;
+  imageUrl = normalizeUrl(imageUrl);
+  
+  console.log(`[NFT Fetcher] Final Image URL for ${tokenId}: ${imageUrl}`);
+
+
+  return {
+    title: json.name || `Token #${tokenId}`,
+    description: json.description || '(No description)',
+    image: imageUrl || '',
+    source: metadataUrl,
+    attributes: json.attributes || [],
+  };
 }
 
 export async function fetchTotalSupply(contractAddress: string): Promise<number> {
