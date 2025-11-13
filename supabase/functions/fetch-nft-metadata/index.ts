@@ -31,6 +31,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders })
   }
 
+  // Initialize Supabase client with Service Role Key for storage access
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -96,14 +97,20 @@ serve(async (req) => {
     
     // --- Image Caching Logic ---
     if (externalImageUrl) {
+        console.log(`[Function] Attempting to fetch external image: ${externalImageUrl}`);
         const imageRes = await fetch(externalImageUrl);
+        
         if (imageRes.ok) {
+            console.log(`[Function] External image fetched successfully. Content-Type: ${imageRes.headers.get('Content-Type')}`);
+            
             const imageBlob = await imageRes.blob();
             
             // Determine file extension based on content type
             let fileExtension = 'png'; // Default fallback
-            if (imageBlob.type) {
-                const parts = imageBlob.type.split('/');
+            let contentType = imageBlob.type;
+            
+            if (contentType) {
+                const parts = contentType.split('/');
                 if (parts.length === 2) {
                     fileExtension = parts[1].toLowerCase().replace('jpeg', 'jpg');
                 }
@@ -112,20 +119,22 @@ serve(async (req) => {
             // Use contract address as folder name for generalization
             const storagePath = `${contractAddress}/${tokenId}.${fileExtension}`;
             
-            console.log(`[Function] Uploading image to storage path: ${storagePath}`);
+            console.log(`[Function] Uploading image to storage path: ${storagePath} with Content-Type: ${contentType}`);
 
             const { data: uploadData, error: uploadError } = await supabase.storage
-                .from('nft_images') // Using the confirmed 'nft_images' bucket
+                .from('nft_images')
                 .upload(storagePath, imageBlob, {
                     cacheControl: '3600',
                     upsert: true,
-                    contentType: imageBlob.type,
+                    contentType: contentType,
                 });
 
             if (uploadError) {
                 console.error(`[Function] Failed to upload image to storage:`, uploadError);
                 // Fallback to external URL if upload fails
             } else {
+                console.log(`[Function] Image upload successful. Data:`, uploadData);
+                
                 // Get the public URL for the uploaded image
                 const { data: publicUrlData } = supabase.storage
                     .from('nft_images')
@@ -134,14 +143,17 @@ serve(async (req) => {
                 if (publicUrlData?.publicUrl) {
                     finalImageUrl = publicUrlData.publicUrl;
                     console.log(`[Function] Image successfully cached at: ${finalImageUrl}`);
+                } else {
+                    console.error(`[Function] Failed to get public URL for storage path: ${storagePath}`);
                 }
             }
         } else {
-            console.warn(`[Function] Failed to fetch external image for caching: Status ${imageRes.status}`);
+            console.warn(`[Function] Failed to fetch external image for caching: Status ${imageRes.status} ${imageRes.statusText}`);
         }
     }
     // --- End Image Caching Logic ---
 
+    // --- Database Metadata Caching ---
     const metadata = {
       title: json.name || `Token #${tokenId}`,
       description: json.description || '(No description)',
@@ -149,6 +161,26 @@ serve(async (req) => {
       source: metadataUrl,
       attributes: json.attributes || [],
     };
+    
+    // Cache result in Supabase for future users
+    const { error: insertError } = await supabase
+      .from('gallery_nft_metadata')
+      .upsert({
+        contract_address: contractAddress,
+        token_id: tokenId,
+        title: metadata.title,
+        description: metadata.description,
+        image: metadata.image,
+        source: metadata.source,
+        attributes: metadata.attributes,
+      }, { onConflict: 'contract_address, token_id' });
+
+    if (insertError) {
+      console.error(`[Function] Failed to save metadata to Supabase DB for ${contractAddress}/${tokenId}:`, insertError.message);
+    } else {
+      console.log(`[Function] Successfully saved metadata for ${contractAddress}/${tokenId} to Supabase DB.`);
+    }
+    // --- End Database Metadata Caching ---
     
     console.log(`[Function] Successfully processed metadata for ${tokenId}. Title: ${metadata.title}`);
 
