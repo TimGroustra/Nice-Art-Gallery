@@ -197,7 +197,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             videoEl.loop = true;
             videoEl.muted = true; // Default to muted
             videoEl.style.display = 'none'; // Keep it hidden
-            videoEl.crossOrigin = 'anonymous'; // IMPORTANT: Added crossOrigin for video
+            videoEl.crossOrigin = 'anonymous'; // Added crossOrigin for video
             panel.videoElement = videoEl;
         }
 
@@ -232,7 +232,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Use TextureLoader wrapped in a Promise for asynchronous image loading
     return new Promise((resolve, reject) => {
         const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous'); // IMPORTANT: Added crossOrigin setting for image loader
+        loader.setCrossOrigin('anonymous'); // Added crossOrigin setting for image loader
         
         loader.load(url, 
             (texture) => {
@@ -907,7 +907,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // East Center Wall (X = 5), facing +X (outward)
     dynamicPanelConfigs.push({
         wallName: `east-center-wall-0` as keyof PanelConfig,
-        position: [centerWallSegmentCenter, PANEL_Y_POSITION, centerWallBoundary + ARROW_DEPTH_OFFSET],
+        position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
         rotation: [0, Math.PI / 2, 0],
         textOffsetSign: 1,
     });
@@ -915,7 +915,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // West Center Wall (X = -5), facing -X (outward)
     dynamicPanelConfigs.push({
         wallName: `west-center-wall-0` as keyof PanelConfig,
-        position: [-centerWallSegmentCenter, PANEL_Y_POSITION, -centerWallBoundary - ARROW_DEPTH_OFFSET],
+        position: [-centerWallBoundary - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
         rotation: [0, -Math.PI / 2, 0],
         textOffsetSign: 1,
     });
