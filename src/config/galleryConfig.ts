@@ -1,4 +1,5 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface NftCollection {
   name: string;
@@ -13,6 +14,7 @@ export interface PanelConfig {
 
 const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
 const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
+const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43";
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
@@ -36,7 +38,7 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // 29 (Verdant Kin)
   "0x3446c31703CA826F368B981E50971A00eA4C23be", // 30 (Limitless: Different Worlds)
   "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // 31 (Richard Ells on a Skateboard)
-  "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43", // 32 (ElectroPunks)
+  ELECTROPUNKS_ADDRESS, // 32 (ElectroPunks)
   "0x9b852BD6965F050e9AB8eEd4c900742b1d01fdD1", // 33 (Club Watches)
   "0xc107C97710972e964d59000f610c07262638B508", // 34 (Non-Fungible Comrades)
   "0xF91290684eb728f6715EFF0b50018105B6B31658", // 35 (Electric Eels)
@@ -153,13 +155,36 @@ export async function initializeGalleryConfig() {
 
   for (const address of uniqueContracts) {
     try {
-      const totalSupply = await fetchTotalSupply(address);
-      // Collection name is now retrieved from the hardcoded map
-      const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
+      let tokenIds: number[];
+
+      if (address.toLowerCase() === ELECTROPUNKS_ADDRESS.toLowerCase()) {
+        console.log(`Fetching token IDs for ElectroPunks from Supabase...`);
+        const { data, error } = await supabase
+          .from('gallery_nft_metadata')
+          .select('token_id')
+          .eq('contract_address', address);
+
+        if (error) {
+          throw new Error(`Supabase error fetching ElectroPunks token IDs: ${error.message}`);
+        }
+        
+        if (!data || data.length === 0) {
+            console.warn(`No ElectroPunks entries found in Supabase for address ${address}. Falling back to total supply.`);
+            const totalSupply = await fetchTotalSupply(address);
+            tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
+        } else {
+            tokenIds = data.map(item => Number(item.token_id)).sort((a, b) => a - b);
+            console.log(`Found ${tokenIds.length} complete ElectroPunks entries.`);
+        }
+      } else {
+        const totalSupply = await fetchTotalSupply(address);
+        // Assuming token IDs are 1-indexed (1 to totalSupply)
+        tokenIds = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      }
       
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+      tokenMap[address] = tokenIds;
+      const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
+      console.log(`Collection ${name} (${address}) initialized with ${tokenIds.length} tokens.`);
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails
