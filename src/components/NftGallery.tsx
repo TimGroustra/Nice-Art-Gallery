@@ -183,7 +183,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   // Refactored loadTexture to return a Promise
-  const loadTexture = useCallback((url: string, panel: Panel, isVideo: boolean = false): Promise<THREE.Texture | THREE.VideoTexture> => {
+  const loadTexture = useCallback((url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
+    const isVideo = contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i);
+
     if (isVideo) {
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
@@ -293,11 +295,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Use the cached fetcher
       const metadata: NftMetadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       
-      const imageUrl = metadata.image;
-      const isVideo = imageUrl.endsWith('.mp4') || imageUrl.endsWith('.webm') || imageUrl.endsWith('.ogg');
+      const contentUrl = metadata.contentUrl;
+      const isVideo = metadata.contentType.startsWith('video/') || contentUrl.match(/\.(mp4|webm|ogg)(\?|$)/i);
       
       // AWAIT the texture loading to ensure the image data is ready
-      const texture = await loadTexture(imageUrl, panel, isVideo);
+      const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
       // --- Main NFT Mesh Update ---
       disposeTextureSafely(panel.mesh);
@@ -849,7 +851,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // East Center Wall (X = 5), facing +X (outward)
     dynamicPanelConfigs.push({
         wallName: `east-center-wall-0` as keyof PanelConfig,
-        position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
+        position: [centerWallSegmentCenter, PANEL_Y_POSITION, centerWallBoundary + ARROW_DEPTH_OFFSET],
         rotation: [0, Math.PI / 2, 0],
         textOffsetSign: 1,
     });
