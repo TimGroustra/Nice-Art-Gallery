@@ -16,6 +16,7 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
     const audio = new Audio(MUSIC_URL);
     audio.loop = true;
     audio.volume = 0.3; // Start at a reasonable background volume
+    audio.muted = true; // Mute by default
     audioRef.current = audio;
 
     // Attempt to play immediately (might fail due to browser policy)
