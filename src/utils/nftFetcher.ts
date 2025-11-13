@@ -1,4 +1,4 @@
-import { JsonRpcProvider, Contract, ethers } from "ethers";
+import { JsonRpcProvider, Contract } from "ethers";
 
 // Ankr RPC endpoint for Electroneum
 const RPC_URL = "https://rpc.ankr.com/electroneum";
@@ -8,9 +8,7 @@ const erc721And1155Abi = [
   "function name() view returns (string)",
   "function tokenURI(uint256 tokenId) view returns (string)", // ERC-721
   "function uri(uint256 _id) view returns (string)", // ERC-1155
-  "function totalSupply() view returns (uint256)",
-  "event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)",
-  "function tokenByIndex(uint256) view returns (uint256)"
+  "function totalSupply() view returns (uint256)"
 ];
 
 // Define NftSource interface
@@ -45,6 +43,8 @@ export interface NftMetadata {
   attributes?: NftAttribute[];
 }
 
+// Removed fetchCollectionName as it is now hardcoded in galleryConfig.ts
+
 export async function fetchNftMetadata(contractAddress: string, tokenId: number): Promise<NftMetadata> {
   if (!contractAddress || tokenId === undefined) {
     throw new Error("Contract address and token ID must be provided.");
@@ -64,18 +64,10 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
       // ERC-1155 URI often contains {id} placeholder, which needs to be replaced.
       let uriTemplate = await contract.uri(tokenId);
       
-      // Replace {id} placeholder. We try both padded hex (common) and decimal (simpler)
+      // Replace {id} placeholder with the token ID in hex format (padded to 64 chars)
+      // This is a common convention for ERC-1155 metadata URIs.
       const hexId = tokenId.toString(16).padStart(64, '0');
-      const decimalId = tokenId.toString();
-      
-      // Try replacing hex ID first (standard ERC-1155)
       tokenUri = uriTemplate.replace('{id}', hexId);
-      
-      // If the template didn't contain {id} or if it was already resolved, this is fine.
-      // If the contract uses decimal ID, we try replacing that too, but only if the hex replacement didn't change the URI.
-      if (tokenUri === uriTemplate) {
-          tokenUri = uriTemplate.replace('{id}', decimalId);
-      }
       
       console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
     } catch (e2) {
@@ -113,91 +105,21 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
   };
 }
 
-/**
- * Fetches all token IDs for a given ERC-721 contract address.
- * It first tries the enumerable extension (totalSupply + tokenByIndex).
- * If that fails, it falls back to scanning for Transfer events.
- */
-export async function fetchTokenIds(contractAddress: string): Promise<number[]> {
+export async function fetchTotalSupply(contractAddress: string): Promise<number> {
   if (!contractAddress) {
     throw new Error("Contract address must be provided.");
   }
+  
   const contract = new Contract(contractAddress, erc721And1155Abi, provider);
-
-  // Strategy 1: Try enumerable ERC-721
+  
   try {
-    const supplyBigInt = await contract.totalSupply();
-    const supply = Number(supplyBigInt);
-    console.log(`[NFT Fetcher] Total supply for ${contractAddress}: ${supply}. Attempting enumeration...`);
-    
-    if (supply > 0 && supply < 10000) { // Cap at 10k for enumeration to avoid timeouts
-      const tokenIds: number[] = [];
-      const promises = [];
-      for (let i = 0; i < supply; i++) {
-        promises.push(contract.tokenByIndex(i));
-      }
-      const results = await Promise.all(promises);
-      results.forEach(tokenIdBigInt => {
-        tokenIds.push(Number(tokenIdBigInt));
-      });
-      
-      if (tokenIds.length > 0) {
-        console.log(`[NFT Fetcher] Successfully enumerated ${tokenIds.length} tokens for ${contractAddress}.`);
-        return tokenIds.sort((a, b) => a - b);
-      }
-    }
-    throw new Error("Not enumerable or supply is zero/too large.");
+    const supply = await contract.totalSupply();
+    const total = Number(supply);
+    console.log(`[NFT Fetcher] Total Supply for ${contractAddress}: ${total}`);
+    return total;
   } catch (e) {
-    console.log(`[NFT Fetcher] Contract ${contractAddress} not enumerable. Falling back to event scan. Reason: ${(e as Error).message}`);
-    
-    // Strategy 2: Scan Transfer events
-    const fromBlock = 0;
-    const latestBlock = await provider.getBlockNumber();
-    const chunkSize = 20000;
-    const tokenIds = new Set<number>();
-
-    for (let startBlock = fromBlock; startBlock <= latestBlock; startBlock += chunkSize) {
-      const endBlock = Math.min(latestBlock, startBlock + chunkSize - 1);
-      console.log(`[NFT Fetcher] Scanning blocks ${startBlock} to ${endBlock} for ${contractAddress}`);
-      try {
-        const logs = await provider.getLogs({
-          address: contractAddress,
-          fromBlock: startBlock,
-          toBlock: endBlock,
-          topics: [ethers.id("Transfer(address,address,uint256)")]
-        });
-
-        for (const log of logs) {
-          if (log.topics.length === 4) { // Standard ERC-721 Transfer event
-            const tokenId = Number(ethers.toBigInt(log.topics[3]));
-            tokenIds.add(tokenId);
-          }
-        }
-      } catch (logError) {
-        console.error(`[NFT Fetcher] Error scanning logs for ${contractAddress} in blocks ${startBlock}-${endBlock}:`, logError);
-      }
-    }
-    
-    const finalTokenIds = Array.from(tokenIds);
-    if (finalTokenIds.length > 0) {
-      console.log(`[NFT Fetcher] Found ${finalTokenIds.length} unique tokens via event scan for ${contractAddress}.`);
-      return finalTokenIds.sort((a, b) => a - b);
-    }
-
-    // Final fallback: if no events found, try using totalSupply to generate sequential IDs
-    console.warn(`[NFT Fetcher] No tokens found via event scan for ${contractAddress}.`);
-    try {
-        const supplyBigInt = await contract.totalSupply();
-        const supply = Number(supplyBigInt);
-        if (supply > 0 && supply < 10000) {
-            console.log(`[NFT Fetcher] Final fallback: generating ${supply} sequential token IDs for ${contractAddress}.`);
-            return Array.from({ length: supply }, (_, i) => i + 1);
-        }
-    } catch (supplyError) {
-        console.error(`[NFT Fetcher] Final fallback to totalSupply failed for ${contractAddress}.`, supplyError);
-    }
-
-    console.error(`[NFT Fetcher] Could not determine token list for ${contractAddress}. Returning empty array.`);
-    return [];
+    console.error(`Failed to call totalSupply for ${contractAddress}:`, e);
+    // Fallback to a reasonable default if the call fails (e.g., for ERC-1155 which often lacks totalSupply)
+    return 100; 
   }
 }
