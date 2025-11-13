@@ -31,6 +31,8 @@ serve(async (req) => {
 
   try {
     const { contractAddress, tokenId } = await req.json();
+    console.log(`[Function] Fetching metadata for ${contractAddress}/${tokenId}`);
+    
     if (!contractAddress || tokenId === undefined) {
       throw new Error("Contract address and token ID must be provided.");
     }
@@ -40,19 +42,24 @@ serve(async (req) => {
     let tokenUri: string | undefined;
     
     try {
+      console.log(`[Function] Attempting tokenURI (ERC-721) for ${tokenId}`);
       tokenUri = await contract.tokenURI(tokenId);
+      console.log(`[Function] tokenURI result: ${tokenUri}`);
     } catch (e) {
+      console.warn(`[Function] tokenURI failed. Trying uri (ERC-1155). Error: ${e instanceof Error ? e.message : String(e)}`);
       try {
         let uriTemplate = await contract.uri(tokenId);
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
+        console.log(`[Function] uri result: ${tokenUri}`);
       } catch (e2) {
-        console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
+        console.error(`[Function] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
         throw new Error("Failed to retrieve token URI from contract.");
       }
     }
 
     const metadataUrl = normalizeUrl(tokenUri!);
+    console.log(`[Function] Normalized metadata URL: ${metadataUrl}`);
     
     if (!metadataUrl) {
       throw new Error("Token URI resolved to an empty URL.");
@@ -81,6 +88,7 @@ serve(async (req) => {
       status: 200,
     });
   } catch (error) {
+    console.error("[Function] Global error caught:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
