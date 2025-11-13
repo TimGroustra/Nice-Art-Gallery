@@ -31,6 +31,8 @@ serve(async (req) => {
 
   try {
     const { contractAddress, tokenId } = await req.json();
+    console.log(`[Function] Attempting to fetch metadata for ${contractAddress}/${tokenId}`);
+    
     if (!contractAddress || tokenId === undefined) {
       throw new Error("Contract address and token ID must be provided.");
     }
@@ -42,14 +44,16 @@ serve(async (req) => {
     try {
       // Try ERC-721 standard
       tokenUri = await contract.tokenURI(tokenId);
+      console.log(`[Function] tokenURI (ERC-721) result: ${tokenUri}`);
     } catch (e) {
       try {
         // Try ERC-1155 standard
         let uriTemplate = await contract.uri(tokenId);
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
+        console.log(`[Function] uri (ERC-1155) result: ${tokenUri}`);
       } catch (e2) {
-        console.error(`Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
+        console.error(`[Function] Failed to retrieve token URI/URI from contract for ${contractAddress}/${tokenId}.`, e2);
         throw new Error("Failed to retrieve token URI from contract.");
       }
     }
@@ -59,11 +63,14 @@ serve(async (req) => {
     if (!metadataUrl) {
       throw new Error("Token URI resolved to an empty URL.");
     }
+    
+    console.log(`[Function] Normalized metadata URL: ${metadataUrl}`);
 
     const res = await fetch(metadataUrl);
+    
     if (!res.ok) {
       // Log the failure status and URL for debugging
-      console.error(`Failed to fetch metadata from ${metadataUrl}: Status ${res.status}`);
+      console.error(`[Function] Failed to fetch metadata from ${metadataUrl}: Status ${res.status} ${res.statusText}`);
       throw new Error(`Failed to fetch metadata from external source: Status ${res.status}`);
     }
     
@@ -79,6 +86,8 @@ serve(async (req) => {
       source: metadataUrl,
       attributes: json.attributes || [],
     };
+    
+    console.log(`[Function] Successfully fetched metadata for ${tokenId}. Title: ${metadata.title}`);
 
     return new Response(JSON.stringify(metadata), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -86,7 +95,7 @@ serve(async (req) => {
     });
   } catch (error) {
     // Ensure error response includes CORS headers and logs the error
-    console.error("Edge Function execution error:", error.message);
+    console.error("[Function] Edge Function execution error:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
