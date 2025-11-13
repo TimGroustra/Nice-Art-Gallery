@@ -164,8 +164,6 @@ export async function initializeGalleryConfig() {
       // Fallback to placeholder if fetching fails
       tokenMap[address] = [1];
     }
-    // Add a delay between fetching each contract's token list
-    await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   // Update all panels using the fetched token lists
