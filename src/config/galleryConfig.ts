@@ -14,7 +14,7 @@ export interface PanelConfig {
 
 const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
 const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43";
+export const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43";
 
 // --- CONTRACT ADDRESSES (20 outer + 16 inner + 4 center) ---
 // The collections are now moved to the inner walls.
