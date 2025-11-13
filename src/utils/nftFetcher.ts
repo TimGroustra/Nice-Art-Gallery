@@ -1,4 +1,4 @@
-import supabase from '@/integrations/supabase/client';
+import { supabase } from '@/integrations/supabase/client';
 
 // Define NftSource interface
 export interface NftSource {
