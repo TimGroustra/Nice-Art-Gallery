@@ -63,15 +63,18 @@ export async function fetchNftMetadata(contractAddress: string, tokenId: number)
     try {
       let uriTemplate = await contract.uri(tokenId);
       
-      // ERC-1155 URI can be a template with {id}, or a base URI.
+      // ERC-1155 URI can be a template with {id}, a base URI, or a full URI.
       if (uriTemplate.includes('{id}')) {
-        // Standard placeholder found, replace it with the hex ID.
+        // Case A: Standard placeholder found, replace it with the hex ID.
         const hexId = tokenId.toString(16).padStart(64, '0');
         tokenUri = uriTemplate.replace('{id}', hexId);
-      } else {
-        // No placeholder, assume it's a base URI and append the token ID.
-        // This is a common pattern for contracts like "Alien Transmission".
+      } else if (uriTemplate.endsWith('/')) {
+        // Case B: Base URI found (e.g., "https://.../api/aliens/"), append token ID.
         tokenUri = `${uriTemplate}${tokenId}`;
+      } else {
+        // Case C: No placeholder and no trailing slash, assume it's the full URI already.
+        // This handles cases like "Voyage" which might return ".../1.json" directly.
+        tokenUri = uriTemplate;
       }
       
       console.log(`[NFT Fetcher] URI (ERC-1155) for ${tokenId}: ${tokenUri}`);
