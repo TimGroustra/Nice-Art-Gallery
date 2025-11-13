@@ -1,4 +1,4 @@
-import { fetchTotalSupply } from '@/utils/nftFetcher';
+import { fetchTokenIds } from '@/utils/nftFetcher';
 
 export interface NftCollection {
   name: string;
@@ -27,7 +27,7 @@ const ALL_CONTRACT_ADDRESSES = [
   "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // 20 (Planet ETN)
   "0x56B33D971AfC1d2CEA35f20599E8EF5094Ffd399", // 21 (MEGA OGs)
   "0x31cbb613D14cc85Cf3A8889007562E4B5cE9518b", // 22 (Electric Legends - MOVED)
-  "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 23 (Electroneum x Rarible)
+  "0x939548A645AD1C3164d82A168735DB1558c9EFDD": "0x939548A645AD1C3164d82A168735DB1558c9EFDD", // 23 (Electroneum x Rarible)
   "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // 24 (Baby Pandas)
   "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // 25 (ETN Rock)
   "0xD7195E3c956Be88bA28dc0cbf65829dD7db6EA8a", // 26 (ElectroFox)
@@ -153,13 +153,12 @@ export async function initializeGalleryConfig() {
 
   for (const address of uniqueContracts) {
     try {
-      const totalSupply = await fetchTotalSupply(address);
+      const tokenIds = await fetchTokenIds(address);
       // Collection name is now retrieved from the hardcoded map
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
       
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
-      console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+      tokenMap[address] = tokenIds;
+      console.log(`Collection ${name} (${address}) initialized with ${tokenIds.length} tokens.`);
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails
@@ -183,7 +182,22 @@ export async function initializeGalleryConfig() {
     
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      // Determine segment index from wallName (e.g., 'north-wall-3' -> 3)
+      
+      // --- CUSTOM LOGIC: Set ElectroPunks (0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43) to start at token 202 ---
+      if (config.contractAddress === "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43") {
+          const targetTokenId = 202;
+          const targetIndex = tokens.indexOf(targetTokenId);
+          if (targetIndex !== -1) {
+              config.currentIndex = targetIndex;
+              console.log(`Set ElectroPunks panel (${wallName}) to start at token ID ${targetTokenId}.`);
+              continue; // Skip default index calculation
+          } else {
+              console.warn(`Requested ElectroPunks token ID ${targetTokenId} not found in fetched list. Falling back to default index.`);
+          }
+      }
+      // --- END CUSTOM LOGIC ---
+
+      // Default index calculation based on segment index
       const segmentIndexMatch = wallName.match(/-(\d+)$/);
       const segmentIndex = segmentIndexMatch ? parseInt(segmentIndexMatch[1], 10) : 0;
       
