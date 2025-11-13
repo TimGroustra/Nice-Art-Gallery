@@ -11,7 +11,7 @@ export interface PanelConfig {
   [wallName: string]: NftCollection; // Key is the wall identifier (e.g., 'north-wall-0')
 }
 
-const GRACES_ADDRESS = "0x1760321f42A9BE39b39c779D92373769d829ef48";
+const GRACES_ADDRESS = "0x1760321f42A9BE39c779D92373769d829ef48";
 const ELECTROGEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
 const ELECTROPUNKS_ADDRESS = "0x0dD500d9eDEF4d0c4B0c50fa0C4faccB711FDA43"; // Restored ElectroPunks address
 
@@ -158,9 +158,12 @@ export async function initializeGalleryConfig() {
       // Collection name is now retrieved from the hardcoded map
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
       
-      // Assuming token IDs are 1-indexed (1 to totalSupply)
-      tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      // Default: 1-indexed tokens (1 to totalSupply)
+      const tokens = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      
+      tokenMap[address] = tokens;
       console.log(`Collection ${name} (${address}) initialized with ${totalSupply} tokens.`);
+
     } catch (error) {
       console.error(`Failed to initialize collection at ${address}:`, error);
       // Fallback to placeholder if fetching fails

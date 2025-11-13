@@ -85,15 +85,12 @@ serve(async (req) => {
       throw new Error("Token URI resolved to an empty URL.");
     }
     
-    // --- Electropunks Specific Fix ---
+    // --- Electropunks Specific Fix (More aggressive) ---
     // Check if the contract address matches (case-insensitive)
     if (contractAddress.toLowerCase() === ELECTROPUNKS_ADDRESS.toLowerCase()) {
-        // If the URI doesn't end with a file extension (like .json, .txt, etc.), assume it's a base path.
-        // We check for a dot followed by 2-4 characters at the end of the string.
-        if (!/\.[a-z]{2,4}$/i.test(tokenUri)) {
-            tokenUri = `${tokenUri.replace(/\/$/, '')}/${tokenId}.json`;
-            console.log(`[Edge] Electropunks base URI fix applied. New URI: ${tokenUri}`);
-        }
+        // Force append token ID and .json, ensuring no trailing slash issues
+        tokenUri = `${tokenUri.replace(/\/$/, '')}/${tokenId}.json`;
+        console.log(`[Edge] Electropunks aggressive URI fix applied. New URI: ${tokenUri}`);
     }
     // --- End Fix ---
 
