@@ -55,7 +55,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
             onClick={onLockClick}
           >
-            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor.
+            Click to enter gallery — WASD to move, mouse to look. M to mute/unmute. Press Esc to release cursor.
           </div>
         )}
         
