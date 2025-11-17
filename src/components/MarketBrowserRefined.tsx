@@ -2,6 +2,18 @@ import React, { useState, useMemo, useEffect, useRef } from "react";
 import { showError } from "@/utils/toast";
 import { probeMarketplaceServerSide, ProbeStatus } from "@/utils/marketProbeClient";
 
+const PANTH_ART_WHITELIST = new Set([
+  "0xc107C97710972e964d59000f610c07262638B508", // Non-Fungible Comrades
+  "0xD3Ec30829eb7DB12E96488c70EF715d96B2CCE42", // ETN Rock
+  "0x3fc7665B1F6033FF901405CdDF31C2E04B8A2AB4", // Verdant Kin
+  "0x9d4E0280B3732fCEAeEeCD870613aB30bCDA7A31", // Planet ETN AE
+  "0xe86fb488532e86d99574B9fed9D42ff4AC0FDE23", // Thirst & Thunder
+  "0x3446c31703CA826F368B981E50971A00eA4C23be", // Limitless: Different Worlds
+  "0xe6db26D4F86108D2E9C21924dEf563fA393B8469", // Richard Ells on a Skateboard
+  "0xcff0d88Ed5311bAB09178b6ec19A464100880984", // ElectroGems
+  "0xAb7Ad6b7A272B52C752D5087fA0FE238cC9BFadF", // Baby Pandas
+]);
+
 /**
  * Minimal marketplace templates for the three marketplaces you specified.
  * Uses {collection} and {tokenId} placeholders.
@@ -11,11 +23,19 @@ const MARKETPLACES = [
     id: "electroswap",
     name: "ElectroSwap",
     template: "https://app.electroswap.io/nfts/asset/{collection}/{tokenId}",
+    probeRequired: true,
   },
   {
     id: "rarible",
     name: "Rarible",
     template: "https://rarible.com/electroneum/items/{collection}:{tokenId}",
+    probeRequired: true,
+  },
+  {
+    id: "panth",
+    name: "Panth.art",
+    template: "https://panth.art/collections/{collection}/{tokenId}",
+    probeRequired: false,
   },
 ] as const;
 
@@ -69,12 +89,24 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
       return;
     }
 
-    // Set all to checking initially
+    // Set initial states based on probe requirement or whitelist
     const initialStates: Record<string, ProbeStatus> = {};
-    markets.forEach(m => initialStates[m.id] = "checking");
+    markets.forEach(m => {
+        if (m.probeRequired) {
+            initialStates[m.id] = "checking";
+        } else if (m.id === "panth") {
+            // Client-side check for Panth.art whitelist
+            const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
+            initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
+        } else {
+            // Default to checking if probe is not required but no specific logic exists
+            initialStates[m.id] = "checking";
+        }
+    });
     setProbeState(initialStates);
 
-    markets.forEach(market => {
+    // Trigger server-side probes only for markets that require it
+    markets.filter(m => m.probeRequired).forEach(market => {
       probeMarketplaceServerSide(market.id, collection, tokenId).then((res) => {
         if (mounted.current) {
           setProbeState(prev => ({ ...prev, [market.id]: res.status }));
@@ -93,7 +125,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
     
     const state = probeState[marketId];
     
-    // If we are still checking, do nothing
+    // If we are still checking, do nothing (only applies to probeRequired markets)
     if (state === "checking") return;
 
     // If unavailable or error, show error and stop
@@ -156,8 +188,8 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                 statusText = "Available";
                 statusColor = "#9fffba";
               } else if (state === "error") {
-                statusText = "Error"; // Changed text from "Error (Try anyway)"
-                statusColor = "#ff7a7a"; // Changed color to red for error
+                statusText = "Error"; 
+                statusColor = "#ff7a7a"; 
               }
 
               return (

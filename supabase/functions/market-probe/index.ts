@@ -40,7 +40,7 @@ async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 150
 type ProbeResult = { status: "available" | "unavailable" | "error"; reason?: string; probe?: string; url?: string };
 
 /**
- * Generic HTML probe (ElectroSwap / Panth / Rarible) with improved heuristics.
+ * Generic HTML probe (ElectroSwap / Rarible) with improved heuristics.
  */
 async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeResult> {
   try {
@@ -129,12 +129,6 @@ serve(async (req) => {
       const pageUrl = `https://app.electroswap.io/nfts/asset/${collection}/${tok}`;
       result = await probeHtmlPage(pageUrl, tok);
     } 
-    /* 
-    else if (marketplace === "panth") {
-      const pageUrl = `https://panth.art/collections/${collection}/${tok}`;
-      result = await probeHtmlPage(pageUrl, tok);
-    } 
-    */
     else {
       result = { status: "error", reason: "Unknown marketplace" };
     }
