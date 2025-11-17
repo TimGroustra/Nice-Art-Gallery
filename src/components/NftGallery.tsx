@@ -1053,6 +1053,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             collection: source.contractAddress,
             tokenId: source.tokenId,
           });
+          controls.unlock();
         }
       }
     };
