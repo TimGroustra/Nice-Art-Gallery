@@ -17,11 +17,6 @@ const MARKETPLACES = [
     name: "Rarible",
     template: "https://rarible.com/electroneum/items/{collection}:{tokenId}",
   },
-  {
-    id: "panth",
-    name: "Panth.art",
-    template: "https://panth.art/collections/{collection}/{tokenId}",
-  },
 ] as const;
 
 function buildUrls(collection: string, tokenId: string | number) {

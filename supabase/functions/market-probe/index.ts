@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Helper: timeout wrapper for fetch
-async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 15000) {
+async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 15000) { // Increased timeout to 15s
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   
@@ -46,14 +46,12 @@ async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeRes
   try {
     const r = await fetchTimeout(pageUrl, { method: "GET" }, 15000);
     if (!r) return { status: "error", reason: "no-response" };
-    
     // Treat 404/410 as definitive unavailability
-    if (r.status === 404 || r.status === 410) return { status: "unavailable", reason: `http-${r.status}` };
+    if (r.status === 404 || r.status === 410) return { status: "unavailable", reason: "404/410" };
 
     const text = await r.text();
     const dom = new JSDOM(text);
     const doc = dom.window.document;
-    const lowText = text.toLowerCase();
 
     // 1) Check JSON-LD scripts for tokenId
     const scripts = [...doc.querySelectorAll('script[type="application/ld+json"]')];
@@ -76,7 +74,7 @@ async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeRes
       return { status: "available", probe: "meta-title" };
     }
 
-    // 3) Panth/ElectroSwap specific markers: "View Token URI" link, "Type ERC721", "Listing", "Owner", image
+    // 3) Panth-specific markers: "View Token URI" link, "Type ERC721", "Listing", "Owner"
     const hasViewTokenUri = !![...doc.querySelectorAll("a")].find(a => (a.textContent || "").trim().toLowerCase().includes("view token uri") || (a.href || "").includes("ipfs.io"));
     const hasType = !![...doc.querySelectorAll("*")].find(n => (n.textContent || "").toLowerCase().includes("type erc721") || (n.textContent || "").toLowerCase().includes("type erc1155"));
     const hasListingOrOwner = !![...doc.querySelectorAll("*")].find(n => (n.textContent || "").toLowerCase().includes("listing") || (n.textContent || "").toLowerCase().includes("owner"));
@@ -84,55 +82,23 @@ async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeRes
 
     if (hasViewTokenUri || hasType || hasListingOrOwner || hasMainImage) {
       // additional check: ensure not a 404-like page
-      if (!/(not found|no item|invalid token|page not found|no results)/i.test(lowText)) {
-        return { status: "available", probe: "html-markers" };
+      const snippet = text.slice(0, 3000).toLowerCase();
+      if (!/(not found|no item|invalid token|page not found|no results)/i.test(snippet)) {
+        return { status: "available", probe: "panth-markers" };
       }
     }
 
     // 4) Negative signals: explicit "not found" phrases
-    if (/(not found|page not found|no item|invalid token|no results|not available)/i.test(lowText)) {
+    if (/(not found|page not found|no item|invalid token|no results|not available)/i.test(text.toLowerCase())) {
       return { status: "unavailable", probe: "html-heuristic-negative" };
     }
 
-    // 5) Fallback: 200 and long body -> available (for client-rendered pages that might not have markers in initial HTML)
-    if (r.status === 200 && text.length > 2000) {
-        return { status: "available", probe: "html-200-fallback" };
-    }
-
-    // Default to unavailable if no positive markers found
-    return { status: "unavailable", probe: "no-markers" };
-
+    // 5) Fallback: 200 but no negatives -> available
+    return { status: "available", probe: "html-200-fallback" };
   } catch (e) {
     console.error("HTML probe failed:", e);
     return { status: "error", reason: String(e) };
   }
-}
-
-/**
- * Probe Rarible using their API endpoint first, falling back to HTML if needed.
- */
-async function probeRarible(collection: string, tokenId: string): Promise<ProbeResult> {
-    // 1. Try Rarible API (fastest)
-    const apiCandidates = [
-        `https://api.rarible.org/v0.1/items/${encodeURIComponent(`${collection}:${tokenId}`)}`,
-        // Rarible often uses ETHEREUM chain prefix even for ETN NFTs on their API
-        `https://ethereum-api.rarible.org/v0.1/items/${encodeURIComponent(`ETHEREUM:${collection}:${tokenId}`)}`
-    ];
-
-    for (const url of apiCandidates) {
-        try {
-            const r = await fetchTimeout(url, { method: "GET", headers: { "Accept": "application/json" } }, 8000);
-            if (r && r.ok) {
-                return { status: "available", probe: "rarible-api", url };
-            }
-        } catch (e) {
-            // Ignore fetch errors for API candidates, try next one
-        }
-    }
-
-    // 2. Fallback to HTML probe on the main page
-    const pageUrl = `https://rarible.com/electroneum/items/${collection}:${tokenId}`;
-    return probeHtmlPage(pageUrl, tokenId);
 }
 
 
@@ -156,14 +122,20 @@ serve(async (req) => {
     let result: ProbeResult;
 
     if (marketplace === "rarible") {
-      result = await probeRarible(collection, tok);
+      // Use HTML probe for Rarible
+      const pageUrl = `https://rarible.com/electroneum/items/${collection}:${tok}`;
+      result = await probeHtmlPage(pageUrl, tok);
     } else if (marketplace === "electroswap") {
       const pageUrl = `https://app.electroswap.io/nfts/asset/${collection}/${tok}`;
       result = await probeHtmlPage(pageUrl, tok);
-    } else if (marketplace === "panth") {
+    } 
+    /* 
+    else if (marketplace === "panth") {
       const pageUrl = `https://panth.art/collections/${collection}/${tok}`;
       result = await probeHtmlPage(pageUrl, tok);
-    } else {
+    } 
+    */
+    else {
       result = { status: "error", reason: "Unknown marketplace" };
     }
 
