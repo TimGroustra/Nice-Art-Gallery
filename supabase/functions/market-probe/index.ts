@@ -128,10 +128,14 @@ serve(async (req) => {
     } else if (marketplace === "electroswap") {
       const pageUrl = `https://app.electroswap.io/nfts/asset/${collection}/${tok}`;
       result = await probeHtmlPage(pageUrl, tok);
-    } else if (marketplace === "panth") {
+    } 
+    /* 
+    else if (marketplace === "panth") {
       const pageUrl = `https://panth.art/collections/${collection}/${tok}`;
       result = await probeHtmlPage(pageUrl, tok);
-    } else {
+    } 
+    */
+    else {
       result = { status: "error", reason: "Unknown marketplace" };
     }
 

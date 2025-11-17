@@ -13,11 +13,6 @@ const MARKETPLACES = [
     template: "https://app.electroswap.io/nfts/asset/{collection}/{tokenId}",
   },
   {
-    id: "panth",
-    name: "Panth.art",
-    template: "https://panth.art/collections/{collection}/{tokenId}",
-  },
-  {
     id: "rarible",
     name: "Rarible",
     template: "https://rarible.com/electroneum/items/{collection}:{tokenId}",
