@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import { showError } from "@/utils/toast";
 
 /**
  * Minimal marketplace templates for the three marketplaces you specified.
@@ -125,8 +126,6 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
   const markets = useMemo(() => buildUrls(collection, tokenId), [collection, tokenId]);
   // track probe state per marketplace id
   const [probeState, setProbeState] = useState<Record<string, ProbeResult | "checking">>({});
-  const [selectedMarket, setSelectedMarket] = useState<string | null>(null);
-  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const mounted = useRef(true);
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -134,8 +133,6 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
   useEffect(() => {
     if (!open) {
       setProbeState({});
-      setSelectedMarket(null);
-      setIframeUrl(null);
     }
   }, [open, collection, tokenId]);
 
@@ -143,7 +140,6 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
   async function handleSelect(marketId: string) {
     const market = markets.find((m) => m.id === marketId);
     if (!market) return;
-    setSelectedMarket(marketId);
     setProbeState((s) => ({ ...s, [marketId]: "checking" }));
 
     const result = await probeUrl(market.url, 4000);
@@ -152,25 +148,12 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
 
     setProbeState((s) => ({ ...s, [marketId]: result }));
 
-    if (result === "available") {
-      // try to open popup; if blocked, show in iframe preview inside modal
+    if (result === "available" || result === "blocked") {
       const opened = openCenteredPopup(market.url, `${market.name} - ${collection}/${tokenId}`);
-      if (!opened) {
-        setIframeUrl(market.url);
-      } else {
+      if (opened) {
         onClose();
-      }
-      return;
-    }
-
-    if (result === "blocked") {
-      // CORS blocked — try open popup anyway (may work via direct navigation)
-      const opened = openCenteredPopup(market.url, `${market.name} - ${collection}/${tokenId}`);
-      if (!opened) {
-        // show iframe as fallback (will likely be blocked in iframe too)
-        setIframeUrl(market.url);
       } else {
-        onClose();
+        showError("Popup blocked. Please allow popups for this site.");
       }
       return;
     }
@@ -187,11 +170,21 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
       style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1400, background: "rgba(0,0,0,0.6)" }}
       onClick={() => onClose()}
     >
-      <div onClick={(e) => e.stopPropagation()} style={{ width: "min(980px, 94vw)", maxWidth: "980px", height: "70vh", background: "#0b1220", borderRadius: 12, overflow: "hidden", display: "grid", gridTemplateColumns: "1fr 520px" }}>
+      <div 
+        onClick={(e) => e.stopPropagation()} 
+        style={{ 
+          width: "min(500px, 94vw)", 
+          maxWidth: "500px", 
+          height: "auto", 
+          background: "#0b1220", 
+          borderRadius: 12, 
+          overflow: "hidden" 
+        }}
+      >
         {/* LEFT: marketplaces chooser */}
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ color: "#fff", fontSize: 18, fontWeight: 700 }}>Open token in marketplace</div>
-          <div style={{ color: "#9aa4b2", fontSize: 13 }}>Choose a marketplace. The page will load only after you select one.</div>
+          <div style={{ color: "#9aa4b2", fontSize: 13 }}>Choose a marketplace to open this token.</div>
 
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
             {markets.map((m) => {
@@ -252,31 +245,6 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
             <button onClick={() => onClose()} style={{ padding: "10px 12px", borderRadius: 8, background: "#18202a", color: "#cbd6e3", border: "1px solid rgba(255,255,255,0.03)" }}>
               Cancel
             </button>
-          </div>
-        </div>
-
-        {/* RIGHT: iframe preview area (only shown after selection or fallback) */}
-        <div style={{ background: "#000", display: "flex", flexDirection: "column" }}>
-          <div style={{ padding: 12, background: "#071425", color: "#cfe0ff", fontWeight: 600 }}>
-            {selectedMarket ? `${MARKETPLACES.find(mp => mp.id === selectedMarket)?.name} — ${collection}/${tokenId}` : "Preview"}
-          </div>
-
-          <div style={{ flex: 1, minHeight: 0 }}>
-            {iframeUrl ? (
-              <iframe
-                title="marketplace-preview"
-                src={iframeUrl}
-                style={{ width: "100%", height: "100%", border: 0 }}
-                sandbox="allow-forms allow-scripts allow-same-origin allow-popups allow-modals"
-              />
-            ) : (
-              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#888", padding: 20 }}>
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: 14, marginBottom: 6 }}>{selectedMarket ? "Attempting to open..." : "Select a marketplace to open this token"}</div>
-                  <div style={{ fontSize: 12, color: "#6e7a86" }}>{selectedMarket ? "If a popup is blocked, the page will be shown in this preview pane." : "No page will load until you choose a marketplace."}</div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
