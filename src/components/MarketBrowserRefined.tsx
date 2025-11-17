@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { showError } from "@/utils/toast";
+import { probeMarketplaceServerSide, ProbeStatus } from "@/utils/marketProbeClient";
 
 /**
  * Minimal marketplace templates for the three marketplaces you specified.
@@ -32,70 +33,6 @@ function buildUrls(collection: string, tokenId: string | number) {
   }));
 }
 
-/** simple timeout fetch helper */
-async function fetchWithTimeout(input: RequestInfo, init: RequestInit = {}, timeout = 4000) {
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const res = await fetch(input, { signal: controller.signal, ...init });
-    clearTimeout(id);
-    return res;
-  } finally {
-    clearTimeout(id);
-  }
-}
-
-/**
- * Probe a URL to determine availability.
- * Strategy:
- * 1) HEAD -> if ok => available
- * 2) GET Accept: application/json -> if JSON or HTML without 404 markers => available
- * 3) if 404 => unavailable
- * 4) if fetch fails due to CORS/network -> return "blocked"
- */
-type ProbeResult = "available" | "unavailable" | "blocked" | "error";
-
-async function probeUrl(url: string, timeout = 4000): Promise<ProbeResult> {
-  try {
-    // HEAD
-    try {
-      const head = await fetchWithTimeout(url, { method: "HEAD", mode: "cors" }, timeout);
-      if (head && head.ok) return "available";
-      if (head && (head.status === 404 || head.status === 410)) return "unavailable";
-    } catch {
-      // HEAD failed (likely CORS) — we'll continue to GET attempt
-    }
-
-    // GET (try JSON first)
-    try {
-      const getJson = await fetchWithTimeout(url, { method: "GET", headers: { Accept: "application/json" }, mode: "cors" }, timeout);
-      if (getJson && getJson.ok) {
-        const ct = (getJson.headers.get("content-type") || "").toLowerCase();
-        if (ct.includes("application/json")) {
-          // most likely an API/redirect; treat presence as available
-          return "available";
-        }
-        // fallthrough to text check
-        const text = await getJson.text();
-        const lower = text.slice(0, 2000).toLowerCase();
-        if (/(404|not found|page not found|no item|no token|invalid token)/i.test(lower)) return "unavailable";
-        return "available";
-      } else if (getJson && (getJson.status === 404 || getJson.status === 410)) {
-        return "unavailable";
-      }
-    } catch {
-      // GET failed (likely blocked by CORS)
-      return "blocked";
-    }
-
-    // fallback: unknown but not strictly blocked; mark blocked to be safe
-    return "blocked";
-  } catch (err) {
-    console.warn("probeUrl error", err);
-    return "error";
-  }
-}
-
 /** Try to open a centered popup. Returns true if succeeded. */
 function openCenteredPopup(url: string, title = "Marketplace", w = 1100, h = 800) {
   const dualScreenLeft = window.screenLeft ?? window.screenX ?? 0;
@@ -125,40 +62,58 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
 }) {
   const markets = useMemo(() => buildUrls(collection, tokenId), [collection, tokenId]);
   // track probe state per marketplace id
-  const [probeState, setProbeState] = useState<Record<string, ProbeResult | "checking">>({});
+  const [probeState, setProbeState] = useState<Record<string, ProbeStatus>>({});
   const mounted = useRef(true);
 
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
+  // Effect to trigger server-side probing when the modal opens
   useEffect(() => {
     if (!open) {
       setProbeState({});
-    }
-  }, [open, collection, tokenId]);
-
-  // When user selects a marketplace button -> probe the url (if not already probed) and then open page.
-  async function handleSelect(marketId: string) {
-    const market = markets.find((m) => m.id === marketId);
-    if (!market) return;
-    setProbeState((s) => ({ ...s, [marketId]: "checking" }));
-
-    const result = await probeUrl(market.url, 4000);
-
-    if (!mounted.current) return;
-
-    setProbeState((s) => ({ ...s, [marketId]: result }));
-
-    if (result === "available" || result === "blocked") {
-      const opened = openCenteredPopup(market.url, `${market.name} - ${collection}/${tokenId}`);
-      if (opened) {
-        onClose();
-      } else {
-        showError("Popup blocked. Please allow popups for this site.");
-      }
       return;
     }
 
-    // unavailable or error -> keep modal open and show error next to the button
+    // Set all to checking initially
+    const initialStates: Record<string, ProbeStatus> = {};
+    markets.forEach(m => initialStates[m.id] = "checking");
+    setProbeState(initialStates);
+
+    markets.forEach(market => {
+      probeMarketplaceServerSide(market.id, collection, tokenId).then((res) => {
+        if (mounted.current) {
+          setProbeState(prev => ({ ...prev, [market.id]: res.status }));
+          if (res.status === "error") {
+            console.error(`Probe error for ${market.name}:`, res.reason);
+          }
+        }
+      });
+    });
+  }, [open, collection, tokenId, markets]);
+
+  // When user selects a marketplace button -> open page immediately if available/error/blocked
+  function handleSelect(marketId: string) {
+    const market = markets.find((m) => m.id === marketId);
+    if (!market) return;
+    
+    const state = probeState[marketId];
+    
+    // If we are still checking, do nothing
+    if (state === "checking") return;
+
+    // If unavailable, show error and stop
+    if (state === "unavailable") {
+      showError(`${market.name} reported this token is unavailable.`);
+      return;
+    }
+
+    // If available or error (try anyway), open the popup
+    const opened = openCenteredPopup(market.url, `${market.name} - ${collection}/${tokenId}`);
+    if (opened) {
+      onClose();
+    } else {
+      showError("Popup blocked. Please allow popups for this site.");
+    }
   }
 
   if (!open) return null;
@@ -190,12 +145,30 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
             {markets.map((m) => {
               const state = probeState[m.id];
               const disabled = state === "unavailable";
-              const checking = state === "checking";
+              const checking = state === "checking" || state === undefined;
+              
+              let statusText = "Tap to open";
+              let statusColor = "#9aa4b2";
+
+              if (checking) {
+                statusText = "Checking…";
+                statusColor = "#9fb7ff";
+              } else if (disabled) {
+                statusText = "Not found";
+                statusColor = "#6e7a86";
+              } else if (state === "available") {
+                statusText = "Available";
+                statusColor = "#9fffba";
+              } else if (state === "error") {
+                statusText = "Error (Try anyway)";
+                statusColor = "#ffd37a";
+              }
+
               return (
                 <button
                   key={m.id}
                   onClick={() => handleSelect(m.id)}
-                  disabled={checking || disabled}
+                  disabled={checking} // Only disable if checking, or if explicitly unavailable (handled by handleSelect)
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -206,7 +179,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                     background: disabled ? "#1b2430" : checking ? "#0e3b66" : "#081020",
                     color: disabled ? "#6e7a86" : "#e6eef8",
                     border: "1px solid rgba(255,255,255,0.03)",
-                    cursor: checking || disabled ? "not-allowed" : "pointer",
+                    cursor: checking ? "not-allowed" : "pointer",
                     textAlign: "left"
                   }}
                 >
@@ -221,16 +194,10 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                         <svg width="18" height="18" viewBox="0 0 50 50" style={{ animation: "spin 1s linear infinite" }}>
                           <circle cx="25" cy="25" r="20" fill="none" stroke="#9fb7ff" strokeWidth="5" strokeLinecap="round" strokeDasharray="31.4 31.4"></circle>
                         </svg>
-                        <span style={{ fontSize: 13, color: "#9fb7ff" }}>Checking…</span>
+                        <span style={{ fontSize: 13, color: statusColor }}>{statusText}</span>
                       </div>
-                    ) : disabled ? (
-                      <span style={{ fontSize: 13, color: "#b3bccc" }}>Not found</span>
-                    ) : state === "available" ? (
-                      <span style={{ fontSize: 13, color: "#9fffba" }}>Open</span>
-                    ) : state === "blocked" ? (
-                      <span style={{ fontSize: 13, color: "#ffd37a" }}>Blocked (CORS)</span>
                     ) : (
-                      <span style={{ fontSize: 13, color: "#9aa4b2" }}>Tap to open</span>
+                      <span style={{ fontSize: 13, color: statusColor }}>{statusText}</span>
                     )}
                   </div>
                 </button>
