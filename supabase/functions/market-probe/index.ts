@@ -22,44 +22,7 @@ async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 600
 
 type ProbeResult = { status: "available" | "unavailable" | "error"; reason?: string; probe?: string; url?: string };
 
-// Rarible probe: try the official API endpoint(s)
-async function probeRarible(collection: string, tokenId: string): Promise<ProbeResult> {
-  // Build possible itemIds - try several common formats
-  const candidates = [
-    `${collection}:${tokenId}`,
-    `ETHEREUM:${collection}:${tokenId}`,
-  ];
-
-  // Public Rarible API base
-  const baseCandidates = [
-    "https://api.rarible.org/v0.1/items/",
-    "https://ethereum-api.rarible.org/v0.1/items/"
-  ];
-
-  for (const base of baseCandidates) {
-    for (const itemId of candidates) {
-      try {
-        const url = base + encodeURIComponent(itemId);
-        const r = await fetchTimeout(url, { method: "GET" }, 5000);
-        if (r && r.ok) {
-          // 200 -> token exists
-          return { status: "available", probe: "rarible-api", url };
-        } else if (r && r.status === 404) {
-          // explicit not found for this itemId - try next candidate
-          continue;
-        }
-      } catch (e) {
-        console.error("Rarible probe failed:", e);
-        // could be network error / rate limit; try next candidate
-      }
-    }
-  }
-
-  // nothing found
-  return { status: "unavailable", probe: "rarible-api" };
-}
-
-// Generic HTML probe (ElectroSwap / Panth / other)
+// Generic HTML probe (ElectroSwap / Panth / Rarible)
 async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeResult> {
   try {
     const r = await fetchTimeout(pageUrl, { method: "GET" }, 6000);
@@ -127,7 +90,9 @@ serve(async (req) => {
     let result: ProbeResult;
 
     if (marketplace === "rarible") {
-      result = await probeRarible(collection, tok);
+      // Use HTML probe for Rarible
+      const pageUrl = `https://rarible.com/electroneum/items/${collection}:${tok}`;
+      result = await probeHtmlPage(pageUrl, tok);
     } else if (marketplace === "electroswap") {
       const pageUrl = `https://app.electroswap.io/nfts/asset/${collection}/${tok}`;
       result = await probeHtmlPage(pageUrl, tok);

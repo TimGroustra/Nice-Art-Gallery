@@ -101,13 +101,13 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
     // If we are still checking, do nothing
     if (state === "checking") return;
 
-    // If unavailable, show error and stop
-    if (state === "unavailable") {
-      showError(`${market.name} reported this token is unavailable.`);
+    // If unavailable or error, show error and stop
+    if (state === "unavailable" || state === "error") {
+      showError(`${market.name} reported this token is unavailable or an error occurred during check.`);
       return;
     }
 
-    // If available or error (try anyway), open the popup
+    // If available, open the popup
     const opened = openCenteredPopup(market.url, `${market.name} - ${collection}/${tokenId}`);
     if (opened) {
       onClose();
@@ -144,7 +144,8 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
             {markets.map((m) => {
               const state = probeState[m.id];
-              const disabled = state === "unavailable";
+              // Disable if unavailable OR error
+              const disabled = state === "unavailable" || state === "error";
               const checking = state === "checking" || state === undefined;
               
               let statusText = "Tap to open";
@@ -153,22 +154,23 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
               if (checking) {
                 statusText = "Checking…";
                 statusColor = "#9fb7ff";
-              } else if (disabled) {
+              } else if (state === "unavailable") {
                 statusText = "Not found";
                 statusColor = "#6e7a86";
               } else if (state === "available") {
                 statusText = "Available";
                 statusColor = "#9fffba";
               } else if (state === "error") {
-                statusText = "Error (Try anyway)";
-                statusColor = "#ffd37a";
+                statusText = "Error"; // Changed text from "Error (Try anyway)"
+                statusColor = "#ff7a7a"; // Changed color to red for error
               }
 
               return (
                 <button
                   key={m.id}
                   onClick={() => handleSelect(m.id)}
-                  disabled={checking} // Only disable if checking, or if explicitly unavailable (handled by handleSelect)
+                  // Disable if checking OR disabled (unavailable/error)
+                  disabled={checking || disabled} 
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -179,7 +181,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                     background: disabled ? "#1b2430" : checking ? "#0e3b66" : "#081020",
                     color: disabled ? "#6e7a86" : "#e6eef8",
                     border: "1px solid rgba(255,255,255,0.03)",
-                    cursor: checking ? "not-allowed" : "pointer",
+                    cursor: checking || disabled ? "not-allowed" : "pointer",
                     textAlign: "left"
                   }}
                 >
