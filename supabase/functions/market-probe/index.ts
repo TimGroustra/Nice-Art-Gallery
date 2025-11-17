@@ -11,8 +11,15 @@ const corsHeaders = {
 async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 6000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
+  
+  // Add User-Agent header to mimic a browser
+  const headers = new Headers(opts.headers);
+  if (!headers.has('User-Agent')) {
+    headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
+  }
+
   try {
-    const res = await fetch(url, { signal: controller.signal, redirect: "follow", ...opts });
+    const res = await fetch(url, { signal: controller.signal, redirect: "follow", headers, ...opts });
     clearTimeout(id);
     return res;
   } finally {
