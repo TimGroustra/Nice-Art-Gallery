@@ -22,46 +22,61 @@ async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 600
 
 type ProbeResult = { status: "available" | "unavailable" | "error"; reason?: string; probe?: string; url?: string };
 
-// Generic HTML probe (ElectroSwap / Panth / Rarible)
+/**
+ * Generic HTML probe (ElectroSwap / Panth / Rarible) with improved heuristics.
+ */
 async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeResult> {
   try {
     const r = await fetchTimeout(pageUrl, { method: "GET" }, 6000);
-    if (!r) {
-      return { status: "error", reason: "no-response" };
-    }
+    if (!r) return { status: "error", reason: "no-response" };
+    // Treat 404/410 as definitive unavailability
     if (r.status === 404 || r.status === 410) return { status: "unavailable", reason: "404/410" };
 
     const text = await r.text();
     const dom = new JSDOM(text);
     const doc = dom.window.document;
 
-    // 1) check for JSON-LD or ld+json script blocks that reference token
+    // 1) Check JSON-LD scripts for tokenId
     const scripts = [...doc.querySelectorAll('script[type="application/ld+json"]')];
     for (const s of scripts) {
       try {
         const j = JSON.parse(s.textContent || "{}");
         const str = JSON.stringify(j).toLowerCase();
-        if (str.includes(tokenId.toLowerCase())) {
+        if (tokenId && str.includes(tokenId.toLowerCase())) {
           return { status: "available", probe: "json-ld" };
         }
       } catch {}
     }
 
-    // 2) check og:title / og:description meta tags
+    // 2) Check meta tags (og:title, og:description) and regular title
     const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute("content") || "";
     const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
-    const combined = (ogTitle + " " + ogDesc).toLowerCase();
-    if (combined.includes(tokenId.toLowerCase()) || combined.includes("token") || combined.includes("nft")) {
-      return { status: "available", probe: "og-meta" };
+    const title = doc.querySelector("title")?.textContent || "";
+    const combined = (ogTitle + " " + ogDesc + " " + title).toLowerCase();
+    if (combined && (combined.includes("nft") || combined.includes("token") || combined.includes(tokenId))) {
+      return { status: "available", probe: "meta-title" };
     }
 
-    // 3) Check for obvious "not found" phrases in page text
-    const pageSnippet = text.slice(0, 3000).toLowerCase();
-    if (/not found|page not found|no item|invalid token|no results|not available/i.test(pageSnippet)) {
-      return { status: "unavailable", probe: "html-heuristic" };
+    // 3) Panth-specific markers: "View Token URI" link, "Type ERC721", "Listing", "Owner"
+    const hasViewTokenUri = !![...doc.querySelectorAll("a")].find(a => (a.textContent || "").trim().toLowerCase().includes("view token uri") || (a.href || "").includes("ipfs.io"));
+    const hasType = !![...doc.querySelectorAll("*")].find(n => (n.textContent || "").toLowerCase().includes("type erc721") || (n.textContent || "").toLowerCase().includes("type erc1155"));
+    const hasListingOrOwner = !![...doc.querySelectorAll("*")].find(n => (n.textContent || "").toLowerCase().includes("listing") || (n.textContent || "").toLowerCase().includes("owner"));
+    const hasMainImage = !!doc.querySelector('img') || !!doc.querySelector('[role="img"]');
+
+    if (hasViewTokenUri || hasType || hasListingOrOwner || hasMainImage) {
+      // additional check: ensure not a 404-like page
+      const snippet = text.slice(0, 3000).toLowerCase();
+      if (!/(not found|no item|invalid token|page not found|no results)/i.test(snippet)) {
+        return { status: "available", probe: "panth-markers" };
+      }
     }
 
-    // 4) fallback: assume available if page returned 200 but we didn't detect negative signals
+    // 4) Negative signals: explicit "not found" phrases
+    if (/(not found|page not found|no item|invalid token|no results|not available)/i.test(text.toLowerCase())) {
+      return { status: "unavailable", probe: "html-heuristic-negative" };
+    }
+
+    // 5) Fallback: 200 but no negatives -> available
     return { status: "available", probe: "html-200-fallback" };
   } catch (e) {
     console.error("HTML probe failed:", e);
