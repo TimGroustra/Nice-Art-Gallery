@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 // Helper: timeout wrapper for fetch
-async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 10000) {
+async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 6000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   
@@ -34,7 +34,7 @@ type ProbeResult = { status: "available" | "unavailable" | "error"; reason?: str
  */
 async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeResult> {
   try {
-    const r = await fetchTimeout(pageUrl, { method: "GET" }, 10000);
+    const r = await fetchTimeout(pageUrl, { method: "GET" }, 6000);
     if (!r) return { status: "error", reason: "no-response" };
     // Treat 404/410 as definitive unavailability
     if (r.status === 404 || r.status === 410) return { status: "unavailable", reason: "404/410" };
