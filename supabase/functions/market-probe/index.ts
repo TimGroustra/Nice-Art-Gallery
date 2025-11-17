@@ -8,14 +8,24 @@ const corsHeaders = {
 };
 
 // Helper: timeout wrapper for fetch
-async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 6000) {
+async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 15000) { // Increased timeout to 15s
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   
-  // Add User-Agent header to mimic a browser
+  // Add realistic browser headers
   const headers = new Headers(opts.headers);
   if (!headers.has('User-Agent')) {
     headers.set('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
+  }
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8');
+  }
+  if (!headers.has('Accept-Language')) {
+    headers.set('Accept-Language', 'en-US,en;q=0.9');
+  }
+  // Add Referer for Panth.art specifically
+  if (url.includes("panth.art") && !headers.has('Referer')) {
+      headers.set('Referer', 'https://panth.art/');
   }
 
   try {
@@ -34,7 +44,7 @@ type ProbeResult = { status: "available" | "unavailable" | "error"; reason?: str
  */
 async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeResult> {
   try {
-    const r = await fetchTimeout(pageUrl, { method: "GET" }, 6000);
+    const r = await fetchTimeout(pageUrl, { method: "GET" }, 15000);
     if (!r) return { status: "error", reason: "no-response" };
     // Treat 404/410 as definitive unavailability
     if (r.status === 404 || r.status === 410) return { status: "unavailable", reason: "404/410" };
