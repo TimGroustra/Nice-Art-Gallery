@@ -133,7 +133,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
       >
         {/* LEFT: marketplaces chooser */}
         <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ color: "#fff", fontSize: 18, fontWeight: 700 }}>Open token in marketplace</div>
+          <div style={{ color: "#fff", fontSize: 18, fontWeight: 700 }}>View NFT in Marketplace</div>
           <div style={{ color: "#9aa4b2", fontSize: 13 }}>Choose a marketplace to open this token.</div>
 
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
