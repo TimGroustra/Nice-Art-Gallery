@@ -6,6 +6,7 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture'; // Import the new utility
+import { useMarketBrowser } from './marketBrowser';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -169,6 +170,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
+  const { openFor, ui } = useMarketBrowser();
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
@@ -1036,9 +1038,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           const direction = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
           if (updatePanelIndex(panel.wallName, direction)) {
             const newSource = getCurrentNftSource(panel.wallName);
-            // We pass the new source, updatePanelContent handles null/blank panels
             updatePanelContent(panel, newSource);
           }
+        }
+      } else if (currentTargetedPanel) {
+        const source = getCurrentNftSource(currentTargetedPanel.wallName);
+        if (source) {
+          openFor(source.contractAddress, source.tokenId);
         }
       }
     };
@@ -1263,11 +1269,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, openFor]);
 
   return (
     <>
       <div ref={mountRef} className="w-full h-full" />
+      {ui}
     </>
   );
 };
