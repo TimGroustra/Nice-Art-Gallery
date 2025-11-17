@@ -6,7 +6,7 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture'; // Import the new utility
-import { useMarketBrowser } from './marketBrowser';
+import { MarketBrowserRefined } from './MarketBrowserRefined';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -170,7 +170,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
-  const { openFor, ui } = useMarketBrowser();
+  const [marketBrowserState, setMarketBrowserState] = useState<{
+    open: boolean;
+    collection?: string;
+    tokenId?: string | number;
+  }>({ open: false });
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
@@ -1044,7 +1048,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       } else if (currentTargetedPanel) {
         const source = getCurrentNftSource(currentTargetedPanel.wallName);
         if (source) {
-          openFor(source.contractAddress, source.tokenId);
+          setMarketBrowserState({
+            open: true,
+            collection: source.contractAddress,
+            tokenId: source.tokenId,
+          });
         }
       }
     };
@@ -1269,12 +1277,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, openFor]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
       <div ref={mountRef} className="w-full h-full" />
-      {ui}
+      {marketBrowserState.open && (
+        <MarketBrowserRefined
+          collection={marketBrowserState.collection || ""}
+          tokenId={marketBrowserState.tokenId || ""}
+          open={marketBrowserState.open}
+          onClose={() => setMarketBrowserState({ open: false })}
+        />
+      )}
     </>
   );
 };
