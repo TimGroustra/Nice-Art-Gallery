@@ -212,7 +212,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                 >
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{m.name}</div>
-                    <div style={{ fontSize: 12, color: disabled ? "#6e7a86" : "#9aa4b2", marginTop: 4 }}>{m.url}</div>
+                    <div style={{ fontSize: 12, color: disabled ? "#6e7a86" : "#9aa4b2", marginTop: 4, wordBreak: 'break-all' }}>{m.url}</div>
                   </div>
 
                   <div style={{ minWidth: 120, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
