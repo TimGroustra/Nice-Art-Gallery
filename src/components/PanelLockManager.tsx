@@ -11,7 +11,7 @@ import {
   useConnect,
   useDisconnect,
 } from 'wagmi';
-import { readContract } from 'wagmi/actions';
+import { readContract } from '@wagmi/core';
 import { mainnet } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 import { http } from 'viem';
@@ -91,7 +91,7 @@ async function fetchTokenMetadata(contractAddress: string, tokenId: string) {
       args: [BigInt(tokenId)],
     });
     if (!tokenURI) return null;
-    const url = normalizeURI(tokenURI);
+    const url = normalizeURI(tokenURI as string);
     const resp = await fetch(url);
     if (!resp.ok) {
       console.warn('tokenURI fetch failed', resp.status, resp.statusText);
