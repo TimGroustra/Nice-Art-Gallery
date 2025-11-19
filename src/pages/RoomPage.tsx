@@ -26,7 +26,12 @@ const RoomPage = () => {
           <p className="text-red-200">Could not fetch active rooms: {error?.message || 'Unknown error'}</p>
         </div>
         <div className="mt-12">
-          <Button variant="outline" asChild>
+          <Button 
+            variant="outline" 
+            asChild
+            // Explicitly set default state for visibility against bg-gray-900, and neutralize hover effect
+            className="bg-gray-800 text-white border-gray-700 hover:bg-gray-800 hover:text-white hover:border-gray-700"
+          >
             <Link to="/">
               <Home className="mr-2 h-4 w-4" /> Back to Main Gallery
             </Link>
@@ -90,7 +95,12 @@ const RoomPage = () => {
         )}
       </div>
        <div className="mt-12">
-          <Button variant="outline" asChild>
+          <Button 
+            variant="outline" 
+            asChild
+            // Explicitly set default state for visibility against bg-gray-900, and neutralize hover effect
+            className="bg-gray-800 text-white border-gray-700 hover:bg-gray-800 hover:text-white hover:border-gray-700"
+          >
             <Link to="/">
               <Home className="mr-2 h-4 w-4" /> Back to Main Gallery
             </Link>
