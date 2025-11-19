@@ -294,7 +294,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
     if (!mountRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xaaaaaa);
+    scene.background = new THREE.Color(0x101010); // Darker background
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, -20);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -324,13 +324,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
     controls.addEventListener('lock', () => { setInstructionsVisible(false); manageVideoPlayback(true); });
     controls.addEventListener('unlock', () => { setInstructionsVisible(true); manageVideoPlayback(false); });
 
-    // --- ROOM GEOMETRY AND LIGHTING (abbreviated for brevity) ---
+    // --- ROOM GEOMETRY AND LIGHTING ---
     const ROOM_SIZE = 50, WALL_HEIGHT = 4, BOUNDARY = 24.5;
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
     const halfRoomSize = ROOM_SIZE / 2;
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
-    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
+    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0x222222, side: THREE.DoubleSide });
     for (let i = 0; i < NUM_SEGMENTS; i++) for (let j = 0; j < NUM_SEGMENTS; j++) {
         const x = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
         const z = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
@@ -338,7 +338,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
         floor.rotation.x = Math.PI / 2;
         floor.position.set(x, 0, z);
         scene.add(floor);
-        const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+        const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0x181818, side: THREE.DoubleSide }));
         ceiling.rotation.x = Math.PI / 2;
         ceiling.position.set(x, WALL_HEIGHT, z);
         scene.add(ceiling);
@@ -347,12 +347,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(NUM_SEGMENTS, NUM_SEGMENTS);
-        const innerFloor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide }));
+        const innerFloor = new THREE.Mesh(new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide }));
         innerFloor.rotation.x = Math.PI / 2;
         innerFloor.position.y = 0.01;
         scene.add(innerFloor);
     });
-    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x333333, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
     const segmentCenters = [-20, -10, 0, 10, 20];
     segmentCenters.forEach(center => {
@@ -388,6 +388,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
         west.rotation.y = Math.PI / 2; west.position.set(-5, WALL_HEIGHT / 2, center); scene.add(west);
     });
     scene.add(new THREE.AmbientLight(0x404050, 0.5));
+
+    // --- Cove Lighting ---
+    const coveLightIntensity = 3;
+    const coveLightWidth = 40;
+    const coveLightHeight = 2;
+    const coveY = WALL_HEIGHT - 0.5;
+
+    const coveLight1 = new THREE.RectAreaLight(0xffffff, coveLightIntensity, coveLightWidth, coveLightHeight);
+    coveLight1.position.set(0, coveY, 15);
+    coveLight1.lookAt(0, 0, 15);
+    scene.add(coveLight1);
+
+    const coveLight2 = new THREE.RectAreaLight(0xffffff, coveLightIntensity, coveLightWidth, coveLightHeight);
+    coveLight2.position.set(0, coveY, -15);
+    coveLight2.lookAt(0, 0, -15);
+    scene.add(coveLight2);
+
+    const coveLight3 = new THREE.RectAreaLight(0xffffff, coveLightIntensity, coveLightHeight, coveLightWidth);
+    coveLight3.position.set(15, coveY, 0);
+    coveLight3.lookAt(15, 0, 0);
+    scene.add(coveLight3);
+
+    const coveLight4 = new THREE.RectAreaLight(0xffffff, coveLightIntensity, coveLightHeight, coveLightWidth);
+    coveLight4.position.set(-15, coveY, 0);
+    coveLight4.lookAt(-15, 0, 0);
+    scene.add(coveLight4);
+
+    // --- Colorful Moving Lights ---
+    const movingLights: THREE.PointLight[] = [];
+    const lightColors = [0xff00ff, 0x00ffff, 0xffff00];
+    lightColors.forEach(color => {
+        const light = new THREE.PointLight(color, 1.5, 30);
+        scene.add(light);
+        movingLights.push(light);
+    });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
@@ -438,6 +473,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
+
+      const animateTime = time * 0.0005;
+      movingLights.forEach((light, i) => {
+          const angle = animateTime * 0.5 + i * (Math.PI * 2 / movingLights.length);
+          light.position.x = Math.sin(angle) * 18;
+          light.position.z = Math.cos(angle) * 18;
+          light.position.y = Math.sin(animateTime * 0.3 + i) * 1 + 2;
+      });
+
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10 * delta; velocity.z -= velocity.z * 10 * delta;
         direction.z = Number(moveForward) - Number(moveBackward);
