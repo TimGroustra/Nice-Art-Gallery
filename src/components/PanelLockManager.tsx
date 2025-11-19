@@ -11,7 +11,7 @@ import {
   useConnect,
   useDisconnect,
 } from 'wagmi';
-import { readContract } from '@wagmi/core';
+import { readContract } from 'wagmi/actions';
 import { mainnet } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 import { http } from 'viem';
@@ -330,7 +330,7 @@ function PanelLockManager({ initialPanels = 6 }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
           <h2 style={{ margin: 0 }}>Panel Lock Manager (Electrogem holders)</h2>
-          <div style={{ fontSize: 13, color: '#9fb0c8' }}>You must own {ERC721_MIN_BALANCE}+ electrogems to lock a panel</div>
+          <div style={{ fontSize: 13, color: '#9fb0c8' }}>You must own ${ERC721_MIN_BALANCE}+ electrogems to lock a panel</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {!isConnected ? (
@@ -375,7 +375,7 @@ function PanelLockManager({ initialPanels = 6 }) {
               <input placeholder="0x..." value={form.contract} onChange={e => setForm(prev => ({ ...prev, contract: e.target.value }))} style={input} />
               <label style={{ fontSize: 13 }}>Token ID</label>
               <input placeholder="123" value={form.tokenId} onChange={e => setForm(prev => ({ ...prev, tokenId: e.target.value }))} style={input} />
-              <label style={{ fontSize: 13 }}>Duration (days, max {MAX_LOCK_DAYS})</label>
+              <label style={{ fontSize: 13 }}>Duration (days, max ${MAX_LOCK_DAYS})</label>
               <input type="number" min={1} max={MAX_LOCK_DAYS} value={form.days} onChange={e => setForm(prev => ({ ...prev, days: Number(e.target.value || 1) }))} style={input} />
               <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
                 <button type="button" onClick={onPreviewFetch} style={btn}>Preview</button>
