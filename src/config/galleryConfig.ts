@@ -86,79 +86,85 @@ let galleryConfig: PanelConfig = {};
 const tokenMap: { [contractAddress: string]: number[] } = {};
 const panelSequentialIndexMap: { [wallName: string]: number } = {};
 
+/**
+ * Fetches a single custom room configuration from the database.
+ */
+export interface CustomRoomData {
+  id: string;
+  name: string;
+  description: string | null;
+  creator_address: string;
+  collection_address: string;
+  visual_effect: 'default' | 'disco' | 'cinematic';
+  audio_url: string | null;
+  start_time: string;
+  end_time: string;
+}
+
+// Placeholder for Supabase client import (assuming it's available)
+import { supabase } from '@/integrations/supabase/client';
+
+export async function getCustomRoomConfig(roomId: string): Promise<CustomRoomData | null> {
+  const { data, error } = await supabase
+    .from('custom_rooms')
+    .select('*')
+    .eq('id', roomId)
+    .single();
+
+  if (error) {
+    console.error("Error fetching custom room config:", error);
+    return null;
+  }
+  
+  // Check if the room is currently active
+  const now = new Date();
+  const startTime = new Date(data.start_time);
+  const endTime = new Date(data.end_time);
+
+  if (now < startTime || now > endTime) {
+    console.warn(`Room ${roomId} is currently inactive.`);
+    return null;
+  }
+
+  return data as CustomRoomData;
+}
+
+/**
+ * Initializes the gallery configuration based on a room ID.
+ * If roomId is 'default' or 1, 2, 3, it uses the predefined collections.
+ * If roomId is a UUID, it fetches the custom room data.
+ */
 export async function initializeGalleryConfig(roomId: string = 'default') {
   // Reset configuration for the new room
   galleryConfig = {};
   Object.keys(panelSequentialIndexMap).forEach(key => delete panelSequentialIndexMap[key]);
   let sequentialIndexCounter = 0;
 
-  const contractsForRoom = roomContracts[roomId] || roomContracts['default'];
+  let contractsToUse: string[] = [];
+  let isCustomRoom = false;
+  let customCollectionAddress: string | null = null;
+  let customRoomData: CustomRoomData | null = null;
 
-  // Generate 20 panel configurations (4 walls * 5 segments)
-  const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-  const NUM_SEGMENTS_TO_USE = 5;
-  for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
-      for (let j = 0; j < WALL_NAMES.length; j++) {
-          const wallNameBase = WALL_NAMES[j];
-          const panelKey = `${wallNameBase}-${i}`;
-          const k = sequentialIndexCounter++;
-          const contractAddress = contractsForRoom[k];
-          panelSequentialIndexMap[panelKey] = k;
-          galleryConfig[panelKey] = {
-              name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
-              contractAddress: contractAddress,
-              tokenIds: [1],
-              currentIndex: 0,
-          };
-      }
+  if (roomContracts[roomId]) {
+    // Predefined room (default, 1, 2, 3)
+    contractsToUse = roomContracts[roomId];
+  } else {
+    // Attempt to fetch custom room by UUID
+    customRoomData = await getCustomRoomConfig(roomId);
+    if (customRoomData) {
+      isCustomRoom = true;
+      customCollectionAddress = customRoomData.collection_address;
+      // For custom rooms, we only use one collection address, repeated across all panels.
+    } else {
+      // Fallback to default if custom room not found or inactive
+      contractsToUse = roomContracts['default'];
+    }
   }
 
-  // Generate 16 panel configurations for inner 30x30 walls
-  const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
-  const NUM_INNER_SEGMENTS_TO_USE = 2;
-  for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) {
-      for (let j = 0; j < INNER_WALL_NAMES.length; j++) {
-          const wallNameBase = INNER_WALL_NAMES[j];
-          const panelKeyInner = `${wallNameBase}-inner-${i}`;
-          const panelKeyOuter = `${wallNameBase}-outer-${i}`;
-          const kInner = sequentialIndexCounter++;
-          const kOuter = sequentialIndexCounter++;
-          const contractAddressInner = contractsForRoom[kInner];
-          const contractAddressOuter = contractsForRoom[kOuter];
-          panelSequentialIndexMap[panelKeyInner] = kInner;
-          panelSequentialIndexMap[panelKeyOuter] = kOuter;
-          galleryConfig[panelKeyInner] = {
-              name: CONTRACT_NAMES_MAP[contractAddressInner] || 'Unknown Collection',
-              contractAddress: contractAddressInner,
-              tokenIds: [1],
-              currentIndex: 0,
-          };
-          galleryConfig[panelKeyOuter] = {
-              name: CONTRACT_NAMES_MAP[contractAddressOuter] || 'Unknown Collection',
-              contractAddress: contractAddressOuter,
-              tokenIds: [1],
-              currentIndex: 0,
-          };
-      }
-  }
-
-  // Generate 4 panel configurations for the central 10x10 walls
-  const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
-  for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
-      const wallNameBase = CENTER_WALL_NAMES[i];
-      const panelKey = `${wallNameBase}-0`;
-      const k = sequentialIndexCounter++;
-      const contractAddress = contractsForRoom[k];
-      panelSequentialIndexMap[panelKey] = k;
-      galleryConfig[panelKey] = {
-          name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
-          contractAddress: contractAddress,
-          tokenIds: [1],
-          currentIndex: 0,
-      };
-  }
-
-  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress))).filter(addr => addr !== "");
+  // --- Step 1: Determine total tokens and generate token IDs ---
+  const uniqueContracts = isCustomRoom 
+    ? [customCollectionAddress!] 
+    : Array.from(new Set(contractsToUse)).filter(addr => addr !== "");
 
   for (const address of uniqueContracts) {
     if (address === ETN_VIDEO_NFT_ADDRESS) {
@@ -168,7 +174,8 @@ export async function initializeGalleryConfig(roomId: string = 'default') {
     }
     try {
       const totalSupply = await fetchTotalSupply(address);
-      const total = totalSupply ?? 100;
+      // Use a maximum of 100 tokens for predefined rooms to prevent excessive loading
+      const total = isCustomRoom ? (totalSupply ?? 100) : Math.min(totalSupply ?? 100, 100); 
       const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
       tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
       console.log(`Collection ${name} (${address}) initialized with ${total} tokens.`);
@@ -177,23 +184,142 @@ export async function initializeGalleryConfig(roomId: string = 'default') {
       tokenMap[address] = [1];
     }
   }
+  
+  // --- Step 2: Generate Panel Configurations ---
+  
+  if (isCustomRoom && customCollectionAddress) {
+    // --- Auto-scaling logic for custom rooms ---
+    const tokens = tokenMap[customCollectionAddress] || [1];
+    const totalTokens = tokens.length;
+    
+    // We need 40 panels total (20 outer, 16 inner, 4 center)
+    const NUM_PANELS = 40; 
+    
+    // Distribute tokens across the 40 panels
+    const allPanelKeys: string[] = [];
+    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+    const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
+    const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
 
-  for (const wallName in galleryConfig) {
-    const config = galleryConfig[wallName];
-    if (config.contractAddress === "") {
-        config.name = "Blank Panel";
-        config.tokenIds = [];
-        config.currentIndex = 0;
-        continue;
+    // Outer walls (20 panels)
+    for (let i = 0; i < 5; i++) {
+        for (const wallNameBase of WALL_NAMES) {
+            allPanelKeys.push(`${wallNameBase}-${i}`);
+        }
     }
-    const tokens = tokenMap[config.contractAddress];
-    if (tokens && tokens.length > 0) {
-      config.tokenIds = tokens;
-      const k = panelSequentialIndexMap[wallName];
-      config.currentIndex = k % tokens.length;
+    // Inner walls (16 panels)
+    for (let i = 0; i < 2; i++) {
+        for (const wallNameBase of INNER_WALL_NAMES) {
+            allPanelKeys.push(`${wallNameBase}-inner-${i}`);
+            allPanelKeys.push(`${wallNameBase}-outer-${i}`);
+        }
+    }
+    // Center walls (4 panels)
+    for (const wallNameBase of CENTER_WALL_NAMES) {
+        allPanelKeys.push(`${wallNameBase}-0`);
+    }
+    
+    // Assign tokens sequentially to panels, wrapping around if needed
+    for (let i = 0; i < NUM_PANELS; i++) {
+        const panelKey = allPanelKeys[i];
+        const tokenIndex = i % totalTokens;
+        
+        galleryConfig[panelKey] = {
+            name: customRoomData.name,
+            contractAddress: customCollectionAddress,
+            tokenIds: tokens,
+            currentIndex: tokenIndex,
+        };
+        panelSequentialIndexMap[panelKey] = i;
+    }
+    
+  } else {
+    // --- Fixed configuration for predefined rooms ---
+    
+    // Generate 20 panel configurations (4 walls * 5 segments)
+    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+    const NUM_SEGMENTS_TO_USE = 5;
+    for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
+        for (let j = 0; j < WALL_NAMES.length; j++) {
+            const wallNameBase = WALL_NAMES[j];
+            const panelKey = `${wallNameBase}-${i}`;
+            const k = sequentialIndexCounter++;
+            const contractAddress = contractsToUse[k];
+            panelSequentialIndexMap[panelKey] = k;
+            galleryConfig[panelKey] = {
+                name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
+                contractAddress: contractAddress,
+                tokenIds: [1],
+                currentIndex: 0,
+            };
+        }
+    }
+
+    // Generate 16 panel configurations for inner 30x30 walls
+    const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
+    const NUM_INNER_SEGMENTS_TO_USE = 2;
+    for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) {
+        for (let j = 0; j < INNER_WALL_NAMES.length; j++) {
+            const wallNameBase = INNER_WALL_NAMES[j];
+            const panelKeyInner = `${wallNameBase}-inner-${i}`;
+            const panelKeyOuter = `${wallNameBase}-outer-${i}`;
+            const kInner = sequentialIndexCounter++;
+            const kOuter = sequentialIndexCounter++;
+            const contractAddressInner = contractsToUse[kInner];
+            const contractAddressOuter = contractsToUse[kOuter];
+            panelSequentialIndexMap[panelKeyInner] = kInner;
+            panelSequentialIndexMap[panelKeyOuter] = kOuter;
+            galleryConfig[panelKeyInner] = {
+                name: CONTRACT_NAMES_MAP[contractAddressInner] || 'Unknown Collection',
+                contractAddress: contractAddressInner,
+                tokenIds: [1],
+                currentIndex: 0,
+            };
+            galleryConfig[panelKeyOuter] = {
+                name: CONTRACT_NAMES_MAP[contractAddressOuter] || 'Unknown Collection',
+                contractAddress: contractAddressOuter,
+                tokenIds: [1],
+                currentIndex: 0,
+            };
+        }
+    }
+
+    // Generate 4 panel configurations for the central 10x10 walls
+    const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
+    for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
+        const wallNameBase = CENTER_WALL_NAMES[i];
+        const panelKey = `${wallNameBase}-0`;
+        const k = sequentialIndexCounter++;
+        const contractAddress = contractsToUse[k];
+        panelSequentialIndexMap[panelKey] = k;
+        galleryConfig[panelKey] = {
+            name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
+            contractAddress: contractAddress,
+            tokenIds: [1],
+            currentIndex: 0,
+        };
+    }
+    
+    // Finalize token IDs for predefined rooms
+    for (const wallName in galleryConfig) {
+      const config = galleryConfig[wallName];
+      if (config.contractAddress === "") {
+          config.name = "Blank Panel";
+          config.tokenIds = [];
+          config.currentIndex = 0;
+          continue;
+      }
+      const tokens = tokenMap[config.contractAddress];
+      if (tokens && tokens.length > 0) {
+        config.tokenIds = tokens;
+        const k = panelSequentialIndexMap[wallName];
+        config.currentIndex = k % tokens.length;
+      }
     }
   }
+
   console.log(`Gallery configuration for room '${roomId}' fully initialized.`);
+  return customRoomData; // Return custom room data if available
 }
 
 export const GALLERY_PANEL_CONFIG = galleryConfig;

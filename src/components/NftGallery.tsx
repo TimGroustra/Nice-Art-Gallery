@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
-import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
+import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig, CustomRoomData } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
@@ -176,6 +176,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
+  const [roomData, setRoomData] = useState<CustomRoomData | null>(null);
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
@@ -464,7 +465,29 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    
+    // Dynamic Wall Material based on roomData
+    let wallColor = 0x444444;
+    let lightIntensity = 1.5;
+    let ambientIntensity = 0.5;
+    let coveLightColor = 0x87CEEB;
+    let coveLightIntensity = 10;
+    
+    if (roomData?.visual_effect === 'disco') {
+        wallColor = 0x111111;
+        lightIntensity = 3.0;
+        ambientIntensity = 0.1;
+        coveLightColor = 0xFF00FF;
+        coveLightIntensity = 15;
+    } else if (roomData?.visual_effect === 'cinematic') {
+        wallColor = 0x222222;
+        lightIntensity = 0.5;
+        ambientIntensity = 0.8;
+        coveLightColor = 0xFFFFFF;
+        coveLightIntensity = 5;
+    }
+
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
@@ -515,7 +538,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
-    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const innerWallMaterial = wallMaterial; // Use dynamic material
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
     innerSegmentCenters.forEach(segmentCenter => {
@@ -616,7 +639,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
 
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const colorIndex = i % lightColors.length;
-      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      const pl = new THREE.PointLight(lightColors[colorIndex], lightIntensity, lightDistance, lightDecay);
       pl.position.set(
         Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
         discoLightHeight, 
@@ -625,14 +648,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
       scene.add(pl);
       lights.push(pl);
     }
-    scene.add(new THREE.AmbientLight(0x404050, 0.5));
+    scene.add(new THREE.AmbientLight(0x404050, ambientIntensity));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
 
     // 5. Cove Lighting (Modular)
-    const coveLightColor = 0x87CEEB; 
-    const coveLightIntensity = 10;
     const coveLightWidth = ROOM_SEGMENT_SIZE; 
     const coveLightHeight = 0.1;
     const innerOffset = 0.1;
@@ -1093,11 +1114,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      lights.forEach((light, i) => {
-        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Changed 0.0005 to 0.0001
-        light.position.x = Math.cos(angle) * lightRadius;
-        light.position.z = Math.sin(angle) * lightRadius;
-      });
+      
+      // Disco effect: rotate lights and change color slightly
+      if (roomData?.visual_effect === 'disco') {
+          lights.forEach((light, i) => {
+            const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); 
+            light.position.x = Math.cos(angle) * lightRadius;
+            light.position.z = Math.sin(angle) * lightRadius;
+            
+            // Subtle color shift
+            const hue = (time * 0.00001 + i * 0.1) % 1;
+            light.color.setHSL(hue, 1, 0.5);
+          });
+      } else {
+          lights.forEach((light, i) => {
+            const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); 
+            light.position.x = Math.cos(angle) * lightRadius;
+            light.position.z = Math.sin(angle) * lightRadius;
+          });
+      }
+
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
@@ -1221,7 +1257,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
 
 
     const fetchAndRenderPanelsSequentially = async () => {
-      await initializeGalleryConfig(roomId);
+      const customData = await initializeGalleryConfig(roomId);
+      setRoomData(customData); // Store custom room data for dynamic effects
       
       // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
@@ -1279,7 +1316,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, roomId]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, roomId, roomData]);
 
   return (
     <>
