@@ -6,15 +6,14 @@ import React, { useEffect, useState } from 'react';
 import { ethers } from 'ethers';
 import {
   createConfig,
-  WagmiConfig,
+  WagmiProvider,
   useAccount,
   useConnect,
   useDisconnect,
-  readContract,
 } from 'wagmi';
+import { readContract } from 'wagmi/actions';
 import { mainnet } from 'wagmi/chains';
-import { InjectedConnector } from 'wagmi/connectors/injected';
-import { publicProvider } from 'wagmi/providers/public';
+import { injected } from 'wagmi/connectors';
 import { http } from 'viem';
 
 // ----- CONFIG -----
@@ -22,13 +21,13 @@ const ELECTROGEM_CONTRACT = '0xcff0d88Ed5311bAB09178b6ec19A464100880984' as cons
 const ERC721_MIN_BALANCE = 5;
 const MAX_LOCK_DAYS = 30;
 
-// wagmi config (modernized)
+// wagmi config (modernized for wagmi v2)
 const config = createConfig({
-  autoConnect: true,
-  connectors: [new InjectedConnector()],
-  publicClient: ({ chain }) => ({
-    transport: http(chain.rpcUrls.default.http[0]),
-  }),
+  chains: [mainnet],
+  connectors: [injected()],
+  transports: {
+    [mainnet.id]: http(),
+  },
 });
 
 // minimal ERC-721 ABI
@@ -162,9 +161,9 @@ function Modal({ open, onClose, children }: { open: boolean; onClose: () => void
 // ----- MAIN COMPONENT -----
 export default function PanelLockManagerWrapper() {
   return (
-    <WagmiConfig config={config}>
+    <WagmiProvider config={config}>
       <PanelLockManager />
-    </WagmiConfig>
+    </WagmiProvider>
   );
 }
 
