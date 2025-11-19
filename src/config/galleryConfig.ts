@@ -1,4 +1,5 @@
-import { fetchTotalSupply, getCachedNftMetadata } from '@/utils/nftFetcher';
+import { fetchTotalSupply } from '@/utils/nftFetcher';
+import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NftCollection {
