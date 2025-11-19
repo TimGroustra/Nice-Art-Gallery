@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Volume2, VolumeX } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -9,16 +10,11 @@ interface GalleryUIProps {
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   const [isVideoMuted, setIsVideoMuted] = useState(true);
-  // Removed isMusicMuted state as the button is being removed
   const [hasVideo, setHasVideo] = useState(false);
 
-  // Polling/Interval to check video state
   useEffect(() => {
     const interval = setInterval(() => {
       const galleryControls = (window as any).galleryControls;
-      // Removed musicControls check
-
-      // Video state check
       if (galleryControls) {
         const videoPresent = galleryControls.hasVideo();
         setHasVideo(videoPresent);
@@ -26,7 +22,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           setIsVideoMuted(galleryControls.isMuted());
         }
       }
-    }, 200); // Check state every 200ms
+    }, 200);
 
     return () => clearInterval(interval);
   }, []);
@@ -35,19 +31,14 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     const galleryControls = (window as any).galleryControls;
     if (galleryControls && galleryControls.toggleMute) {
       galleryControls.toggleMute();
-      // State update happens via the polling interval, but we can optimistically update it too
       setIsVideoMuted(prev => !prev);
     }
   };
-  
-  // Removed handleMusicMuteToggle
 
   return (
     <>
-      {/* Overlay UI (Top Left) */}
       <div className="fixed top-0 left-0 p-4 z-10 flex flex-col gap-3 pointer-events-none">
         
-        {/* Instructions */}
         {instructionsVisible && (
           <div 
             id="instructions" 
@@ -57,10 +48,18 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle music.
           </div>
         )}
-        
-        {/* Music Toggle Button REMOVED */}
 
-        {/* Video Mute Toggle Button (Only visible if video is present) */}
+        {instructionsVisible && (
+          <Link to="/panel-manager" className="pointer-events-auto w-fit">
+            <Button 
+              variant="secondary" 
+              className="bg-black/50 hover:bg-black/70 text-white border border-gray-700"
+            >
+              Manage Gallery Panels
+            </Button>
+          </Link>
+        )}
+        
         {!instructionsVisible && hasVideo && (
           <Button 
             variant="secondary" 
