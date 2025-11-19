@@ -1,10 +1,13 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface NftCollection {
   name: string;
   contractAddress: string;
   tokenIds: number[]; // Array of token IDs available in this collection
   currentIndex: number; // Index of the currently displayed token in the tokenIds array
+  isLocked?: boolean;
+  lockedByAddress?: string;
 }
 
 export interface PanelConfig {
@@ -71,133 +74,116 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
 };
 
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-// We only care about segments 0 through 4 (5 segments total)
 const NUM_SEGMENTS_TO_USE = 5; 
 
-// Initial configuration structure (will be populated dynamically)
 let galleryConfig: PanelConfig = {};
-
-// Map to store fetched token IDs for each unique contract address
 const tokenMap: { [contractAddress: string]: number[] } = {};
-
-// Helper map to track the sequential index (k) used during initialization
 const panelSequentialIndexMap: { [wallName: string]: number } = {};
-let sequentialIndexCounter = 0;
 
-// Generate 20 panel configurations (4 walls * 5 segments)
-for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
-    for (let j = 0; j < WALL_NAMES.length; j++) {
-        const wallNameBase = WALL_NAMES[j];
-        const panelKey = `${wallNameBase}-${i}`;
-        
-        // Map sequentially using index k = (j * 5) + i
-        const k = sequentialIndexCounter++;
-        const contractAddress = ALL_CONTRACT_ADDRESSES[k];
-        panelSequentialIndexMap[panelKey] = k;
+const generateInitialConfig = () => {
+  galleryConfig = {};
+  let sequentialIndexCounter = 0;
 
-        galleryConfig[panelKey] = {
-            name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
-            contractAddress: contractAddress,
-            tokenIds: [1], // Start with token 1 as placeholder
-            currentIndex: 0,
-        };
-    }
+  for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
+      for (let j = 0; j < WALL_NAMES.length; j++) {
+          const wallNameBase = WALL_NAMES[j];
+          const panelKey = `${wallNameBase}-${i}`;
+          const k = sequentialIndexCounter++;
+          const contractAddress = ALL_CONTRACT_ADDRESSES[k];
+          panelSequentialIndexMap[panelKey] = k;
+          galleryConfig[panelKey] = {
+              name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
+              contractAddress: contractAddress,
+              tokenIds: [1],
+              currentIndex: 0,
+          };
+      }
+  }
+
+  const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
+  const NUM_INNER_SEGMENTS_TO_USE = 2;
+  for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) {
+      for (let j = 0; j < INNER_WALL_NAMES.length; j++) {
+          const wallNameBase = INNER_WALL_NAMES[j];
+          const panelKeyInner = `${wallNameBase}-inner-${i}`;
+          const panelKeyOuter = `${wallNameBase}-outer-${i}`;
+          const kInner = sequentialIndexCounter++;
+          const kOuter = sequentialIndexCounter++;
+          const contractAddressInner = ALL_CONTRACT_ADDRESSES[kInner];
+          const contractAddressOuter = ALL_CONTRACT_ADDRESSES[kOuter];
+          panelSequentialIndexMap[panelKeyInner] = kInner;
+          panelSequentialIndexMap[panelKeyOuter] = kOuter;
+          galleryConfig[panelKeyInner] = { name: CONTRACT_NAMES_MAP[contractAddressInner] || 'Unknown Collection', contractAddress: contractAddressInner, tokenIds: [1], currentIndex: 0 };
+          galleryConfig[panelKeyOuter] = { name: CONTRACT_NAMES_MAP[contractAddressOuter] || 'Unknown Collection', contractAddress: contractAddressOuter, tokenIds: [1], currentIndex: 0 };
+      }
+  }
+
+  const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
+  for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
+      const wallNameBase = CENTER_WALL_NAMES[i];
+      const panelKey = `${wallNameBase}-0`;
+      const k = sequentialIndexCounter++;
+      const contractAddress = ALL_CONTRACT_ADDRESSES[k];
+      panelSequentialIndexMap[panelKey] = k;
+      galleryConfig[panelKey] = { name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection', contractAddress: contractAddress, tokenIds: [1], currentIndex: 0 };
+  }
 }
 
-// Generate 16 panel configurations for inner 30x30 walls
-const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
-const NUM_INNER_SEGMENTS_TO_USE = 2; // Segments at +/- 10
-
-for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) { // 0, 1
-    for (let j = 0; j < INNER_WALL_NAMES.length; j++) { // 0, 1, 2, 3
-        const wallNameBase = INNER_WALL_NAMES[j];
-        
-        // Inner and Outer panels for each segment
-        const panelKeyInner = `${wallNameBase}-inner-${i}`;
-        const panelKeyOuter = `${wallNameBase}-outer-${i}`;
-
-        // Calculate index k for the new contracts, starting from 20
-        const kInner = sequentialIndexCounter++;
-        const kOuter = sequentialIndexCounter++;
-        
-        const contractAddressInner = ALL_CONTRACT_ADDRESSES[kInner];
-        const contractAddressOuter = ALL_CONTRACT_ADDRESSES[kOuter];
-        
-        panelSequentialIndexMap[panelKeyInner] = kInner;
-        panelSequentialIndexMap[panelKeyOuter] = kOuter;
-
-        galleryConfig[panelKeyInner] = {
-            name: CONTRACT_NAMES_MAP[contractAddressInner] || 'Unknown Collection',
-            contractAddress: contractAddressInner,
-            tokenIds: [1],
-            currentIndex: 0,
-        };
-        galleryConfig[panelKeyOuter] = {
-            name: CONTRACT_NAMES_MAP[contractAddressOuter] || 'Unknown Collection',
-            contractAddress: contractAddressOuter,
-            tokenIds: [1],
-            currentIndex: 0,
-        };
-    }
-}
-
-// Generate 4 panel configurations for the central 10x10 walls (outer-facing)
-const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
-for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
-    const wallNameBase = CENTER_WALL_NAMES[i];
-    const panelKey = `${wallNameBase}-0`; // Only one segment
-
-    // Calculate index k for these contracts, starting from 36
-    const k = sequentialIndexCounter++;
-    const contractAddress = ALL_CONTRACT_ADDRESSES[k];
-    panelSequentialIndexMap[panelKey] = k;
-
-    galleryConfig[panelKey] = {
-        name: CONTRACT_NAMES_MAP[contractAddress] || 'Unknown Collection',
-        contractAddress: contractAddress,
-        tokenIds: [1],
-        currentIndex: 0,
-    };
-}
-
-// Function to initialize the gallery configuration
 export async function initializeGalleryConfig() {
-  const uniqueContracts = Array.from(new Set(Object.values(galleryConfig).map(c => c.contractAddress))).filter(addr => addr !== "");
+  generateInitialConfig();
 
-  for (const address of uniqueContracts) {
-    // Special case: If it's the single-token video NFT, force token ID 1
+  const { data: locks, error } = await supabase.from('panel_locks').select('*');
+  const lockMap = new Map();
+  if (error) {
+    console.error("Error fetching panel locks:", error);
+  } else {
+    const now = new Date();
+    locks
+      .filter(lock => new Date(lock.locked_until) > now)
+      .forEach(lock => lockMap.set(lock.panel_id, lock));
+  }
+
+  for (const wallName in galleryConfig) {
+    const config = galleryConfig[wallName];
+    const lock = lockMap.get(wallName);
+    if (lock) {
+      config.name = `Locked by ${lock.locked_by_address.slice(0, 6)}...`;
+      config.contractAddress = lock.contract_address;
+      config.tokenIds = [parseInt(lock.token_id, 10)];
+      config.currentIndex = 0;
+      config.isLocked = true;
+      config.lockedByAddress = lock.locked_by_address;
+    }
+  }
+
+  const uniqueContractsToFetch = Array.from(
+    new Set(
+      Object.values(galleryConfig)
+        .filter(c => !c.isLocked && c.contractAddress !== "")
+        .map(c => c.contractAddress)
+    )
+  );
+
+  for (const address of uniqueContractsToFetch) {
+    if (tokenMap[address]) continue;
     if (address === ETN_VIDEO_NFT_ADDRESS) {
         tokenMap[address] = [1];
-        console.log(`Collection Pope's Legendary Coffee (${address}) initialized with 1 token (forced).`);
         continue;
     }
-    
     try {
       const totalSupply = await fetchTotalSupply(address);
-      
-      // If totalSupply is null (function missing/reverts), use a safe default of 100
-      const total = totalSupply ?? 100; 
-      
-      // Collection name is now retrieved from the hardcoded map
-      const name = CONTRACT_NAMES_MAP[address] || "Unknown Collection";
-      
-      // Assuming token IDs are 1-indexed (1 to total)
+      const total = totalSupply ?? 100;
       tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
-      console.log(`Collection ${name} (${address}) initialized with ${total} tokens.`);
-    } catch (error) {
-      // This catch block should now only handle errors from fetchTotalSupply itself, 
-      // which should be rare since it uses safeCall internally.
-      console.error(`Failed to initialize collection at ${address}:`, error);
-      // Fallback to placeholder if fetching fails
+    } catch (e) {
+      console.error(`Failed to initialize collection at ${address}:`, e);
       tokenMap[address] = [1];
     }
   }
 
-  // Update all panels using the fetched token lists
   for (const wallName in galleryConfig) {
     const config = galleryConfig[wallName];
-    
-    // Handle blank panel case
+    if (config.isLocked) continue;
+
     if (config.contractAddress === "") {
         config.name = "Blank Panel";
         config.tokenIds = [];
@@ -206,26 +192,17 @@ export async function initializeGalleryConfig() {
     }
     
     const tokens = tokenMap[config.contractAddress];
-    
     if (tokens && tokens.length > 0) {
       config.tokenIds = tokens;
-      
-      // Use the sequential index (k) to determine the starting token index
       const k = panelSequentialIndexMap[wallName];
-      
-      // Start index is sequential index modulo total tokens available
-      config.currentIndex = k % tokens.length; 
+      config.currentIndex = k % tokens.length;
     }
-    // Name is already set during initial galleryConfig population
   }
   console.log(`Gallery configuration fully initialized.`);
 }
 
-// Export the configuration object reference
 export const GALLERY_PANEL_CONFIG = galleryConfig;
 
-
-// Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
   if (!config || config.contractAddress === "") return null;
@@ -236,17 +213,14 @@ export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   };
 };
 
-// Utility function to update the current index (used by NftGallery)
 export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || config.tokenIds.length === 0 || config.contractAddress === "") return false;
+  if (!config || config.isLocked || config.tokenIds.length <= 1 || config.contractAddress === "") return false;
 
   let newIndex = config.currentIndex;
-  const maxIndex = config.tokenIds.length - 1;
-
   if (direction === 'next') {
     newIndex = (newIndex + 1) % config.tokenIds.length;
-  } else if (direction === 'prev') {
+  } else {
     newIndex = (newIndex - 1 + config.tokenIds.length) % config.tokenIds.length;
   }
 
