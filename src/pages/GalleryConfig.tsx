@@ -29,7 +29,6 @@ interface PanelLock {
 }
 
 const REQUIRED_GEM_BALANCE = 10;
-const LOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const GalleryConfig = () => {
   const navigate = useNavigate();
@@ -45,6 +44,7 @@ const GalleryConfig = () => {
   const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfig>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [panelLocks, setPanelLocks] = useState<PanelLock[]>([]);
+  const [lockDurationDays, setLockDurationDays] = useState(1); // New state for lock duration
 
   // Helper function to check lock status
   const getLockStatus = useCallback((panelKey: string) => {
@@ -161,6 +161,12 @@ const GalleryConfig = () => {
         return;
     }
 
+    // --- Calculate Lock Duration ---
+    let days = Math.max(1, Number(lockDurationDays));
+    days = Math.min(30, days); // Max 30 days
+    const calculatedLockDurationMs = days * 24 * 60 * 60 * 1000;
+    // --- End Calculate Lock Duration ---
+
     // Ensure contract address is null if empty string
     const contractAddress = currentConfig.contract_address?.trim() || null;
     
@@ -183,7 +189,7 @@ const GalleryConfig = () => {
     }
     
     // 2. Update Panel Lock
-    const lockedUntil = new Date(Date.now() + LOCK_DURATION_MS).toISOString();
+    const lockedUntil = new Date(Date.now() + calculatedLockDurationMs).toISOString();
     const lockData = {
         panel_id: selectedPanelKey, // Use panel_key as panel_id
         contract_address: contractAddress || '0x', // Required by schema, use placeholder if null
@@ -199,7 +205,7 @@ const GalleryConfig = () => {
         toast.warning('Configuration saved, but failed to update panel lock.');
         console.error(lockError);
     } else {
-        toast.success(`Configuration saved and panel locked for 24 hours.`);
+        toast.success(`Configuration saved and panel locked for ${days} days.`);
         // Optimistically update local state
         setPanelLocks(prev => {
             const existingIndex = prev.findIndex(l => l.panel_id === selectedPanelKey);
@@ -372,6 +378,30 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
+                
+                {/* NEW LOCK DURATION FIELD */}
+                <div className="space-y-2">
+                  <Label htmlFor="lock_duration">Lock Duration (Days, Max 30)</Label>
+                  <Input
+                    id="lock_duration"
+                    name="lock_duration"
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={lockDurationDays}
+                    onChange={(e) => {
+                      const value = Number(e.target.value);
+                      // Only update if it's a valid number >= 1
+                      if (!isNaN(value) && value >= 1) {
+                        setLockDurationDays(value);
+                      }
+                    }}
+                    placeholder="1"
+                    disabled={isLoading || isPanelLockedByOther}
+                  />
+                </div>
+                {/* END NEW LOCK DURATION FIELD */}
+                
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
                     <Label htmlFor="show_collection" className="text-base">Show Entire Collection</Label>
@@ -387,7 +417,7 @@ const GalleryConfig = () => {
                   />
                 </div>
                 <Button onClick={handleSave} disabled={isLoading || isPanelLockedByOther}>
-                  {isLoading ? 'Saving...' : 'Save Configuration & Lock Panel'}
+                  {isLoading ? 'Saving...' : `Save Configuration & Lock Panel for ${lockDurationDays} Day${lockDurationDays > 1 ? 's' : ''}`}
                 </Button>
               </>
             )}
