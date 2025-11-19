@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 
+// Add this declaration to inform TypeScript about the window.ethereum object
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 // Electroneum Network Details
 const ELECTRONEUM_MAINNET = {
   chainId: '0x539', // 1337
