@@ -80,7 +80,7 @@ const Login: React.FC = () => {
                   className="w-full" 
                   disabled={isConnecting}
                 >
-                  <LogIn className="mr-2 h-4 w-4" /> Connect Injected Wallet (e.g., MetaMask)
+                  <LogIn className="mr-2 h-4 w-4" /> Connect Browser Wallet
                 </Button>
               )}
               
