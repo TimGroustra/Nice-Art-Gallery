@@ -93,9 +93,9 @@ export async function initializeGalleryConfig() {
     try {
       const metadata = await getCachedNftMetadata(address, 1);
       let collectionName = metadata?.title || 'Unnamed Collection';
-      // Strip token-specific parts like " #123" from the end of the title
+      // Strip token-specific parts like " #123" or "Fragment 1" from the end of the title
       if (collectionName) {
-        collectionName = collectionName.replace(/\s*#\d+$/, '').trim();
+        collectionName = collectionName.replace(/\s+(#|fragment|token)?\s*\d+$/i, '').trim();
       }
       collectionNameMap[address] = collectionName;
     } catch (e) {

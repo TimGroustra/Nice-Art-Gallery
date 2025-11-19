@@ -370,7 +370,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       disposeTextureSafely(panel.titleMesh);
       let displayTitle = metadata.title;
       if (displayTitle) {
-        displayTitle = displayTitle.replace(/\s*#\d+$/, '').trim();
+        // More robustly strip token identifiers from the end of the title
+        displayTitle = displayTitle.replace(/\s+(#|fragment|token)?\s*\d+$/i, '').trim();
       }
       const { texture: titleTexture } = createTextTexture(displayTitle, 4.0, 0.5, 120, 'white', { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;

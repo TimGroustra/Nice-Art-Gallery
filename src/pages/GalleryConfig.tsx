@@ -67,9 +67,9 @@ const GalleryConfig = () => {
         const metadata = await getCachedNftMetadata(currentConfig.contract_address, 1);
         if (metadata) {
           let collectionName = metadata.title;
-          // Strip token-specific parts like " #123"
+          // Strip token-specific parts like " #123" or "Fragment 1"
           if (collectionName) {
-            collectionName = collectionName.replace(/\s*#\d+$/, '').trim();
+            collectionName = collectionName.replace(/\s+(#|fragment|token)?\s*\d+$/i, '').trim();
           }
           setCurrentConfig(prev => ({ ...prev, collection_name: collectionName }));
         } else {
