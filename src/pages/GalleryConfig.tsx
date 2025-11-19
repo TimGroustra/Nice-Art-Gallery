@@ -175,24 +175,34 @@ const GalleryConfig = () => {
     // --- Gem Token Selection ---
     let lockingGemTokenId: string | null = null;
     
-    if (lockStatus.isLockedByMe && lockStatus.lockingGemTokenId) {
-        // If already locked by me, reuse the existing gem token ID
+    if (lockStatus.isLockedByMe) {
+        // Case 1: User owns an active lock (extending/editing).
         lockingGemTokenId = lockStatus.lockingGemTokenId;
+        
+        // If the existing lock is missing a gem ID (e.g., legacy data), try to assign the first available one.
+        if (!lockingGemTokenId && availableTokens.length > 0) {
+            lockingGemTokenId = availableTokens[0];
+        }
+        // If availableTokens is empty, we proceed with the existing (possibly null) ID, allowing the save.
+        
     } else {
-        // If unlocked or locked by someone else (but expired), find a new available gem
+        // Case 2: Panel is unlocked or locked by someone else (expired/other user). Requires a new available gem.
         if (availableTokens.length === 0) {
             toast.error("No available ElectroGem tokens to lock this panel. You must own an unused gem.");
             setIsLoading(false);
             return;
         }
-        // Use the first available gem
+        // Use the first available gem for the new lock
         lockingGemTokenId = availableTokens[0];
     }
     
-    if (!lockingGemTokenId) {
-        toast.error("Failed to determine which ElectroGem token to use for locking.");
-        setIsLoading(false);
-        return;
+    // If we are trying to create a NEW lock (Case 2) and still don't have a gem ID, something is wrong.
+    if (!lockingGemTokenId && !lockStatus.isLockedByMe) {
+        if (availableTokens.length === 0) {
+             toast.error("No available ElectroGem tokens to lock this panel. You must own an unused gem.");
+             setIsLoading(false);
+             return;
+        }
     }
     // --- End Gem Token Selection ---
 
@@ -241,7 +251,9 @@ const GalleryConfig = () => {
         toast.warning('Configuration saved, but failed to update panel lock.');
         console.error(lockError);
     } else {
-        toast.success(`Configuration saved and panel locked for ${days} days using Gem #${lockingGemTokenId}.`);
+        // Determine the message based on whether a gem ID was used
+        const gemMessage = lockingGemTokenId ? ` using Gem #${lockingGemTokenId}` : '';
+        toast.success(`Configuration saved and panel locked for ${days} day${days > 1 ? 's' : ''}${gemMessage}.`);
         
         // Optimistically update local state and refetch available gems
         setPanelLocks(prev => {
@@ -348,7 +360,7 @@ const GalleryConfig = () => {
               </Button>
             </div>
             
-            {availableTokens.length === 0 && !isPanelLockedByOther && (
+            {availableTokens.length === 0 && !isPanelLockedByOther && !selectedPanelLockStatus.isLockedByMe && (
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>No Gems Available</AlertTitle>
@@ -373,7 +385,7 @@ const GalleryConfig = () => {
                     if (lockStatus.isLocked) {
                         const until = lockStatus.lockedUntil!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                         lockText = lockStatus.isLockedByMe 
-                            ? ` (Locked by you with Gem #${lockStatus.lockingGemTokenId})` 
+                            ? ` (Locked by you with Gem #${lockStatus.lockingGemTokenId || 'N/A'})` 
                             : ` (Locked until ${until})`;
                     }
 
@@ -411,11 +423,13 @@ const GalleryConfig = () => {
                         <AlertTitle>Lock Status</AlertTitle>
                         <AlertDescription>
                             {selectedPanelLockStatus.isLockedByMe && gemUsedForLock
-                                ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}.`
+                                ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}. Saving will extend the lock.`
+                                : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && nextAvailableGem
+                                ? `This panel is locked by you (legacy lock). Saving will assign available Gem #${nextAvailableGem} and extend the lock.`
+                                : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && !nextAvailableGem
+                                ? `This panel is locked by you (legacy lock). Saving will extend the lock without assigning a new Gem ID.`
                                 : !selectedPanelLockStatus.isLocked && nextAvailableGem
                                 ? `Saving will lock this panel using your available ElectroGem Token ID #${nextAvailableGem}.`
-                                : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock
-                                ? `This panel is locked by you, but the locking Gem ID is missing. Saving will attempt to use available Gem #${nextAvailableGem}.`
                                 : 'Select a panel to view lock details.'
                             }
                         </AlertDescription>
