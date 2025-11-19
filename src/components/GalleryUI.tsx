@@ -58,7 +58,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
               Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle music.
             </div>
             <div className="mt-2 pt-2 border-t border-gray-600">
-              <Link to="/custom" className="text-blue-300 hover:underline">
+              <Link to="/room" className="text-blue-300 hover:underline">
                 Or, explore other custom galleries.
               </Link>
             </div>

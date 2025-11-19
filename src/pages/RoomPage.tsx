@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
-const CustomPage = () => {
+const RoomPage = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center justify-center p-4">
       <div className="text-center mb-12">
@@ -54,4 +54,4 @@ const CustomPage = () => {
   );
 };
 
-export default CustomPage;
+export default RoomPage;
