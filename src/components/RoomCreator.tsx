@@ -65,11 +65,17 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
       let audio_url = null;
       if (values.audio_file && values.audio_file.length > 0) {
         const file = values.audio_file[0];
-        const filePath = `${userAddress}/${Date.now()}-${file.name}`;
+        // Sanitize filename by replacing spaces with underscores
+        const safeFileName = file.name.replace(/\s/g, '_');
+        const filePath = `${userAddress}/${Date.now()}-${safeFileName}`;
+        
         // NOTE: Assuming 'audio_uploads' bucket exists and is configured for public read
         const { data, error } = await supabase.storage.from('audio_uploads').upload(filePath, file);
 
-        if (error) throw new Error(`Audio upload failed: ${error.message}`);
+        if (error) {
+          console.error("Supabase Storage Upload Error:", error);
+          throw new Error(`Audio upload failed: ${error.message}. Please check bucket permissions.`);
+        }
         
         const { data: { publicUrl } } = supabase.storage.from('audio_uploads').getPublicUrl(data.path);
         audio_url = publicUrl;

@@ -19,8 +19,7 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
     audio.muted = true; // Mute by default
     audioRef.current = audio;
 
-    // Attempt to play immediately (might fail due to browser policy)
-    audio.play().catch(e => console.log("Autoplay blocked for background music:", e));
+    // Do NOT attempt to play here. Play must be triggered by user interaction.
 
     return () => {
       audio.pause();
@@ -31,7 +30,8 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
   useImperativeHandle(ref, () => ({
     play: () => {
       if (audioRef.current) {
-        audioRef.current.play().catch(e => console.error("Failed to play music:", e));
+        // Attempt to play only when explicitly called after user gesture
+        audioRef.current.play().catch(e => console.error("Failed to play music after user gesture:", e));
       }
     },
     pause: () => {

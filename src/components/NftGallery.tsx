@@ -208,9 +208,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     if (mesh.material instanceof THREE.MeshBasicMaterial) {
       if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
         mesh.material.map.dispose();
-        mesh.material.map = null;
+        mesh.material.map = null; // Explicitly nullify map reference
       }
-      mesh.material.dispose();
+      // Note: We do not dispose of the material itself here as it might be reused (e.g., text panels)
     }
   };
 
@@ -219,11 +219,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
 
-    // --- Cleanup previous media ---
+    // --- Cleanup previous media elements ---
     if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
+        // Do not set panel.videoElement = null here, as we might reuse the element
     }
     if (panel.gifStopFunction) {
         panel.gifStopFunction();
@@ -235,6 +235,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
         if (!videoEl) {
+            // Create video element if it doesn't exist
             videoEl = document.createElement('video');
             videoEl.playsInline = true;
             videoEl.autoplay = true;
@@ -252,12 +253,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
              videoEl.play().catch(e => console.warn("Video playback prevented:", e));
         }
         
+        // IMPORTANT: Always create a new VideoTexture instance when the source changes
         const videoTexture = new THREE.VideoTexture(videoEl);
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
+        videoTexture.format = THREE.RGBAFormat;
         
         resolve(videoTexture);
       });
+    }
+    
+    // If it was a video before, ensure the element is cleared if the new content is not video
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
     }
     
     if (isGif) {
@@ -301,7 +311,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     // --- End Wall Title Update ---
 
     // --- 2. Reset NFT and Metadata panels ---
-    disposeTextureSafely(panel.mesh);
+    // Dispose of the old map before setting the new one or placeholder
+    disposeTextureSafely(panel.mesh); 
     panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
     panel.metadataUrl = '';
     panel.isVideo = false;
@@ -314,7 +325,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
     if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
+        panel.videoElement = null; // Ensure element is removed if not needed
     }
     if (panel.gifStopFunction) {
         panel.gifStopFunction();
@@ -356,7 +367,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
       // --- Main NFT Mesh Update ---
-      disposeTextureSafely(panel.mesh);
+      // disposeTextureSafely(panel.mesh) was already called in step 2, but we ensure the new map is set
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       // --- End Main NFT Mesh Update ---
 
@@ -1294,8 +1305,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
         if (panel.videoElement) {
           panel.videoElement.pause();
           panel.videoElement.removeAttribute('src');
-          // Note: We don't remove the video element from the DOM as it was never added, 
-          // but we ensure it's paused and its source is cleared.
+          panel.videoElement = null; // Ensure element is nullified
         }
         if (panel.gifStopFunction) {
             panel.gifStopFunction();
@@ -1305,8 +1315,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
           obj.geometry.dispose();
-          if (Array.isArray(obj.material)) obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
-          else { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+          if (Array.isArray(obj.material)) obj.material.forEach(m => { 
+            if (m.map) m.map.dispose(); 
+            m.dispose(); 
+          });
+          else { 
+            if (obj.material.map) obj.material.map.dispose(); 
+            obj.material.dispose(); 
+          }
         }
       });
       renderer.dispose();
@@ -1331,6 +1347,4 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
       )}
     </>
   );
-};
-
-export default NftGallery;
+}
