@@ -48,11 +48,19 @@ export function useEthers() {
         } catch (switchError: any) {
           // This error code indicates that the chain has not been added to MetaMask.
           if (switchError.code === 4902) {
-            await window.ethereum.request({
-              method: 'wallet_addEthereumChain',
-              params: [ELECTRONEUM_MAINNET],
-            });
+            try {
+              await window.ethereum.request({
+                method: 'wallet_addEthereumChain',
+                params: [ELECTRONEUM_MAINNET],
+              });
+            } catch (addError: any) {
+              console.error('Error adding Electroneum network:', addError);
+              setError('Failed to add Electroneum network. Please check your wallet for a conflicting network configuration and try again.');
+              // Re-throw to stop the connection process
+              throw addError;
+            }
           } else {
+            // Re-throw other errors from switching chain
             throw switchError;
           }
         }
@@ -69,9 +77,12 @@ export function useEthers() {
 
     } catch (err: any) {
       console.error('Failed to connect wallet:', err);
-      setError(err.message || 'An unknown error occurred while connecting the wallet.');
+      // If an error message hasn't already been set by our specific catch blocks, set a generic one.
+      if (!error) {
+        setError(err.message || 'An unknown error occurred while connecting the wallet.');
+      }
     }
-  }, []);
+  }, [error]);
 
   useEffect(() => {
     if (window.ethereum) {
