@@ -71,7 +71,7 @@ const RoomPage = () => {
                   <p className="text-sm text-gray-500">
                     Active until: {format(new Date(room.end_time), 'PPP')}
                   </p>
-                  <Button asChild className="w-full bg-blue-600">
+                  <Button asChild className="w-full bg-blue-600 text-white">
                     <Link to={`/gallery/${room.id}`}>Enter Custom Gallery</Link>
                   </Button>
                 </CardContent>
