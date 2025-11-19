@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { useWallet } from '@/contexts/WalletContext';
 import { useGemBalance } from '@/hooks/use-gem-balance';
 import { Loader2, Wallet, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useAccount, useDisconnect } from 'wagmi'; // Import Wagmi hooks
 
 interface GalleryConfig {
   panel_key: string;
@@ -33,8 +33,12 @@ const LOCK_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 const GalleryConfig = () => {
   const navigate = useNavigate();
-  const { walletAddress, isConnected, disconnectWallet } = useWallet();
-  const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(walletAddress);
+  
+  // Use Wagmi hooks
+  const { address: walletAddress, isConnected } = useAccount();
+  const { disconnect } = useDisconnect();
+  
+  const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(walletAddress || null);
 
   const [panelKeys, setPanelKeys] = useState<string[]>([]);
   const [selectedPanelKey, setSelectedPanelKey] = useState<string>('');
@@ -65,7 +69,7 @@ const GalleryConfig = () => {
 
   // 1. Authentication and Authorization Check
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected || !walletAddress) {
       toast.warning("Please connect your wallet to access configuration.");
       navigate('/login');
       return;
@@ -76,9 +80,9 @@ const GalleryConfig = () => {
         toast.error(`Access denied. You need at least ${REQUIRED_GEM_BALANCE} ElectroGems to configure the gallery.`);
       }
     }
-  }, [isConnected, isBalanceLoading, balance, navigate]);
+  }, [isConnected, walletAddress, isBalanceLoading, balance, navigate]);
 
-  const isAuthorized = isConnected && !isBalanceLoading && balance !== null && balance >= REQUIRED_GEM_BALANCE;
+  const isAuthorized = isConnected && walletAddress && !isBalanceLoading && balance !== null && balance >= REQUIRED_GEM_BALANCE;
   
   // 2. Fetch Panel Keys and Locks (only if authorized)
   useEffect(() => {
@@ -95,7 +99,6 @@ const GalleryConfig = () => {
       setPanelKeys(keysData.map((item) => item.panel_key).sort());
       
       // Fetch all active locks
-      const now = new Date().toISOString();
       const { data: locksData, error: locksError } = await supabase
         .from('panel_locks')
         .select('panel_id, locked_by_address, locked_until');
@@ -255,7 +258,7 @@ const GalleryConfig = () => {
               <Wallet className="h-4 w-4" />
               Connected: {walletAddress?.substring(0, 6)}...{walletAddress?.substring(walletAddress.length - 4)}
             </p>
-            <Button variant="outline" onClick={disconnectWallet}>
+            <Button variant="outline" onClick={() => disconnect()}>
               Disconnect
             </Button>
           </div>
@@ -288,7 +291,7 @@ const GalleryConfig = () => {
               <p className="text-sm text-muted-foreground">
                 Balance: {balance} Gems (Required: {REQUIRED_GEM_BALANCE})
               </p>
-              <Button variant="outline" onClick={disconnectWallet}>
+              <Button variant="outline" onClick={() => disconnect()}>
                 Disconnect Wallet
               </Button>
             </div>

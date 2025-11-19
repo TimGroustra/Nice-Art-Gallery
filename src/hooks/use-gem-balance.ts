@@ -11,7 +11,7 @@ interface BalanceResult {
 /**
  * Checks the ElectroGem balance for a given wallet address using a serverless Edge Function.
  */
-export function useGemBalance(walletAddress: string | null): BalanceResult {
+export function useGemBalance(walletAddress: string | null | undefined): BalanceResult {
   const [balance, setBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

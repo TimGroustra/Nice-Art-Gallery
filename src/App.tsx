@@ -7,17 +7,18 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import GalleryConfig from "./pages/GalleryConfig";
 import Login from "./pages/Login";
-import { WalletProvider } from "./contexts/WalletContext";
+import { WagmiProvider } from 'wagmi';
+import { wagmiConfig } from '@/integrations/wagmi/config';
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <WalletProvider>
+    <WagmiProvider config={wagmiConfig}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
@@ -25,9 +26,9 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </WalletProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </WagmiProvider>
   </QueryClientProvider>
 );
 
