@@ -44,7 +44,12 @@ const RoomPage = () => {
       </div>
       
       <div className="flex justify-center w-full mb-8">
-        <Button variant="outline" asChild>
+        <Button 
+          variant="outline" 
+          asChild 
+          // Override hover state to match default outline appearance
+          className="hover:bg-transparent hover:text-white hover:border-gray-700"
+        >
           <Link to="/room-configuration">
             <GalleryHorizontal className="mr-2 h-4 w-4" /> Create Your Own Room
           </Link>
