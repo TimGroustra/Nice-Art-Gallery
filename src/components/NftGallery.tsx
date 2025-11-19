@@ -326,10 +326,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
 
     // --- ROOM GEOMETRY AND LIGHTING (abbreviated for brevity) ---
     const ROOM_SIZE = 50, WALL_HEIGHT = 4, BOUNDARY = 24.5;
-    // ... (Full geometry and lighting setup code remains here)
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
-    const PANEL_Y_POSITION = 1.8;
     const halfRoomSize = ROOM_SIZE / 2;
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
@@ -390,107 +388,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
         west.rotation.y = Math.PI / 2; west.position.set(-5, WALL_HEIGHT / 2, center); scene.add(west);
     });
     scene.add(new THREE.AmbientLight(0x404050, 0.5));
-    // ... (rest of lighting code)
-
-    const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
-    const ARROW_DEPTH_OFFSET = 0.15, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.16;
-    const createTextPanelMaterial = () => new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
-    const titleGeometry = new THREE.PlaneGeometry(4.0, TITLE_HEIGHT);
-    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
-    const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
-    const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
-    
-    const dynamicPanelConfigs: DynamicPanelConfig[] = Object.entries(GALLERY_PANEL_CONFIG).map(([wallName, config]) => {
-        // This part needs to be robust to derive position from wallName
-        const parts = wallName.split('-');
-        const wallDir = parts[0];
-        const segmentIndex = parseInt(parts[parts.length - 1], 10);
-        let x = 0, z = 0, rotY = 0;
-        const segmentCenter = (segmentIndex - 2) * 10;
-
-        if (wallName.includes('center')) {
-            if (wallDir === 'north') { z = -5; rotY = Math.PI; }
-            if (wallDir === 'south') { z = 5; rotY = 0; }
-            if (wallDir === 'east') { x = 5; rotY = Math.PI / 2; }
-            if (wallDir === 'west') { x = -5; rotY = -Math.PI / 2; }
-        } else if (wallName.includes('inner')) {
-            const innerSegmentCenter = (segmentIndex === 0 ? -10 : 10);
-            if (wallDir === 'north') { x = innerSegmentCenter; z = -15; rotY = parts.includes('outer') ? Math.PI : 0; }
-            if (wallDir === 'south') { x = innerSegmentCenter; z = 15; rotY = parts.includes('outer') ? 0 : Math.PI; }
-            if (wallDir === 'east') { z = innerSegmentCenter; x = 15; rotY = parts.includes('outer') ? Math.PI / 2 : -Math.PI / 2; }
-            if (wallDir === 'west') { z = innerSegmentCenter; x = -15; rotY = parts.includes('outer') ? -Math.PI / 2 : Math.PI / 2; }
-        } else {
-            if (wallDir === 'north') { x = segmentCenter; z = -BOUNDARY; rotY = 0; }
-            if (wallDir === 'south') { x = segmentCenter; z = BOUNDARY; rotY = Math.PI; }
-            if (wallDir === 'east') { z = segmentCenter; x = BOUNDARY; rotY = -Math.PI / 2; }
-            if (wallDir === 'west') { z = segmentCenter; x = -BOUNDARY; rotY = Math.PI / 2; }
-        }
-        
-        let posZ = z;
-        let posX = x;
-
-        if (rotY === 0) posZ += ARROW_DEPTH_OFFSET;
-        else if (rotY === Math.PI) posZ -= ARROW_DEPTH_OFFSET;
-        else if (rotY === -Math.PI / 2) posX -= ARROW_DEPTH_OFFSET;
-        else if (rotY === Math.PI / 2) posX += ARROW_DEPTH_OFFSET;
-
-        return { wallName, position: [posX, PANEL_Y_POSITION, posZ], rotation: [0, rotY, 0] };
-    });
-
-    panelsRef.current = [];
-    dynamicPanelConfigs.forEach(config => {
-      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-      mesh.position.set(...config.position);
-      mesh.rotation.set(...config.rotation);
-      scene.add(mesh);
-      
-      const wallRotation = new THREE.Euler(...config.rotation, 'XYZ');
-      const rightVec = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-      const upVec = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
-      const fwdVec = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
-      const basePos = new THREE.Vector3(...config.position);
-      
-      const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
-      titleMesh.rotation.set(...config.rotation);
-      titleMesh.position.copy(basePos.clone().addScaledVector(upVec, -1.35).addScaledVector(fwdVec, TEXT_DEPTH_OFFSET));
-      titleMesh.visible = false; scene.add(titleMesh);
-
-      const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
-      descriptionMesh.rotation.set(...config.rotation);
-      descriptionMesh.position.copy(basePos.clone().addScaledVector(rightVec, -3.25).addScaledVector(fwdVec, TEXT_DEPTH_OFFSET));
-      descriptionMesh.visible = false; scene.add(descriptionMesh);
-      
-      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
-      prevArrow.position.copy(basePos.clone().addScaledVector(rightVec, -ARROW_PANEL_OFFSET));
-      scene.add(prevArrow);
-      
-      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-      nextArrow.rotation.set(...config.rotation);
-      nextArrow.position.copy(basePos.clone().addScaledVector(rightVec, ARROW_PANEL_OFFSET));
-      scene.add(nextArrow);
-
-      const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
-      attributesMesh.rotation.set(...config.rotation);
-      attributesMesh.position.copy(basePos.clone().addScaledVector(rightVec, 3.25).addScaledVector(fwdVec, TEXT_DEPTH_OFFSET));
-      attributesMesh.visible = false; scene.add(attributesMesh);
-
-      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
-      wallTitleMesh.rotation.set(...config.rotation);
-      wallTitleMesh.position.copy(new THREE.Vector3(...config.position).setY(3.2));
-      wallTitleMesh.visible = false; scene.add(wallTitleMesh);
-
-      panelsRef.current.push({
-        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-        attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-        videoElement: null, gifStopFunction: null,
-      });
-    });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
@@ -599,15 +496,116 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
     };
     window.addEventListener('resize', onWindowResize);
 
-    const fetchAndRenderPanels = async () => {
+    const setupAndRenderGallery = async () => {
       await initializeGalleryConfig();
+
+      const panelGeometry = new THREE.PlaneGeometry(2, 2);
+      const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
+      const arrowShape = new THREE.Shape();
+      arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
+      const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+      const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
+      const ARROW_DEPTH_OFFSET = 0.15, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.16;
+      const createTextPanelMaterial = () => new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+      const titleGeometry = new THREE.PlaneGeometry(4.0, TITLE_HEIGHT);
+      const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+      const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
+      const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
+      const PANEL_Y_POSITION = 1.8;
+
+      const dynamicPanelConfigs: DynamicPanelConfig[] = Object.entries(GALLERY_PANEL_CONFIG).map(([wallName]) => {
+          const parts = wallName.split('-');
+          const wallDir = parts[0];
+          const segmentIndex = parseInt(parts[parts.length - 1], 10);
+          let x = 0, z = 0, rotY = 0;
+          const segmentCenter = (segmentIndex - 2) * 10;
+
+          if (wallName.includes('center')) {
+              if (wallDir === 'north') { z = -5; rotY = Math.PI; }
+              if (wallDir === 'south') { z = 5; rotY = 0; }
+              if (wallDir === 'east') { x = 5; rotY = Math.PI / 2; }
+              if (wallDir === 'west') { x = -5; rotY = -Math.PI / 2; }
+          } else if (wallName.includes('inner')) {
+              const innerSegmentCenter = (segmentIndex === 0 ? -10 : 10);
+              if (wallDir === 'north') { x = innerSegmentCenter; z = -15; rotY = parts.includes('outer') ? Math.PI : 0; }
+              if (wallDir === 'south') { x = innerSegmentCenter; z = 15; rotY = parts.includes('outer') ? 0 : Math.PI; }
+              if (wallDir === 'east') { z = innerSegmentCenter; x = 15; rotY = parts.includes('outer') ? Math.PI / 2 : -Math.PI / 2; }
+              if (wallDir === 'west') { z = innerSegmentCenter; x = -15; rotY = parts.includes('outer') ? -Math.PI / 2 : Math.PI / 2; }
+          } else {
+              if (wallDir === 'north') { x = segmentCenter; z = -BOUNDARY; rotY = 0; }
+              if (wallDir === 'south') { x = segmentCenter; z = BOUNDARY; rotY = Math.PI; }
+              if (wallDir === 'east') { z = segmentCenter; x = BOUNDARY; rotY = -Math.PI / 2; }
+              if (wallDir === 'west') { z = segmentCenter; x = -BOUNDARY; rotY = Math.PI / 2; }
+          }
+          
+          let posZ = z;
+          let posX = x;
+
+          if (rotY === 0) posZ += ARROW_DEPTH_OFFSET;
+          else if (rotY === Math.PI) posZ -= ARROW_DEPTH_OFFSET;
+          else if (rotY === -Math.PI / 2) posX -= ARROW_DEPTH_OFFSET;
+          else if (rotY === Math.PI / 2) posX += ARROW_DEPTH_OFFSET;
+
+          return { wallName, position: [posX, PANEL_Y_POSITION, posZ], rotation: [0, rotY, 0] };
+      });
+
+      panelsRef.current = [];
+      dynamicPanelConfigs.forEach(config => {
+        const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+        mesh.position.set(...config.position);
+        mesh.rotation.set(...config.rotation);
+        scene.add(mesh);
+        
+        const wallRotation = new THREE.Euler(...config.rotation, 'XYZ');
+        const rightVec = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+        const upVec = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
+        const fwdVec = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
+        const basePos = new THREE.Vector3(...config.position);
+        
+        const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
+        titleMesh.rotation.set(...config.rotation);
+        titleMesh.position.copy(basePos.clone().addScaledVector(upVec, -1.35).addScaledVector(fwdVec, TEXT_DEPTH_OFFSET));
+        titleMesh.visible = false; scene.add(titleMesh);
+
+        const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
+        descriptionMesh.rotation.set(...config.rotation);
+        descriptionMesh.position.copy(basePos.clone().addScaledVector(rightVec, -3.25).addScaledVector(fwdVec, TEXT_DEPTH_OFFSET));
+        descriptionMesh.visible = false; scene.add(descriptionMesh);
+        
+        const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+        prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
+        prevArrow.position.copy(basePos.clone().addScaledVector(rightVec, -ARROW_PANEL_OFFSET));
+        scene.add(prevArrow);
+        
+        const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+        nextArrow.rotation.set(...config.rotation);
+        nextArrow.position.copy(basePos.clone().addScaledVector(rightVec, ARROW_PANEL_OFFSET));
+        scene.add(nextArrow);
+
+        const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
+        attributesMesh.rotation.set(...config.rotation);
+        attributesMesh.position.copy(basePos.clone().addScaledVector(rightVec, 3.25).addScaledVector(fwdVec, TEXT_DEPTH_OFFSET));
+        attributesMesh.visible = false; scene.add(attributesMesh);
+
+        const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
+        wallTitleMesh.rotation.set(...config.rotation);
+        wallTitleMesh.position.copy(new THREE.Vector3(...config.position).setY(3.2));
+        wallTitleMesh.visible = false; scene.add(wallTitleMesh);
+
+        panelsRef.current.push({
+          mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
+          attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+          videoElement: null, gifStopFunction: null,
+        });
+      });
+
       for (const panel of panelsRef.current) {
         await updatePanelContent(panel, getCurrentNftSource(panel.wallName));
         await new Promise(resolve => setTimeout(resolve, 100));
       }
     };
 
-    fetchAndRenderPanels();
+    setupAndRenderGallery();
     animate();
 
     return () => {
