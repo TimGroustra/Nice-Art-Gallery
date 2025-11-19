@@ -11,7 +11,7 @@ import {
   useConnect,
   useDisconnect,
 } from 'wagmi';
-import { readContract } from '@wagmi/core';
+import { readContract } from 'wagmi/actions';
 import { mainnet } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 import { http } from 'viem';
