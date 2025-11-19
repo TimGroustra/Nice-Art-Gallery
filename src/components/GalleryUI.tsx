@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Volume2, VolumeX, Settings } from 'lucide-react';
-import { ConnectWalletButton } from './ConnectWalletButton';
+import { Volume2, VolumeX } from 'lucide-react';
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -10,19 +9,16 @@ interface GalleryUIProps {
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
   const [isVideoMuted, setIsVideoMuted] = useState(true);
+  // Removed isMusicMuted state as the button is being removed
   const [hasVideo, setHasVideo] = useState(false);
-  const [cogPosition, setCogPosition] = useState<{x: number, y: number} | null>(null);
 
-  useEffect(() => {
-    (window as any).uiControls = {
-        setCogPosition,
-    };
-    return () => { delete (window as any).uiControls; };
-  }, []);
-
+  // Polling/Interval to check video state
   useEffect(() => {
     const interval = setInterval(() => {
       const galleryControls = (window as any).galleryControls;
+      // Removed musicControls check
+
+      // Video state check
       if (galleryControls) {
         const videoPresent = galleryControls.hasVideo();
         setHasVideo(videoPresent);
@@ -30,26 +26,28 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           setIsVideoMuted(galleryControls.isMuted());
         }
       }
-    }, 200);
+    }, 200); // Check state every 200ms
 
     return () => clearInterval(interval);
   }, []);
 
   const handleVideoMuteToggle = () => {
     const galleryControls = (window as any).galleryControls;
-    if (galleryControls?.toggleMute) {
+    if (galleryControls && galleryControls.toggleMute) {
       galleryControls.toggleMute();
+      // State update happens via the polling interval, but we can optimistically update it too
       setIsVideoMuted(prev => !prev);
     }
   };
-
-  const handleCogClick = () => {
-    (window as any).galleryControls?.openLockModal();
-  };
+  
+  // Removed handleMusicMuteToggle
 
   return (
     <>
+      {/* Overlay UI (Top Left) */}
       <div className="fixed top-0 left-0 p-4 z-10 flex flex-col gap-3 pointer-events-none">
+        
+        {/* Instructions */}
         {instructionsVisible && (
           <div 
             id="instructions" 
@@ -60,6 +58,9 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </div>
         )}
         
+        {/* Music Toggle Button REMOVED */}
+
+        {/* Video Mute Toggle Button (Only visible if video is present) */}
         {!instructionsVisible && hasVideo && (
           <Button 
             variant="secondary" 
@@ -72,30 +73,6 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </Button>
         )}
       </div>
-
-      <div className="fixed top-0 right-0 p-4 z-10 pointer-events-auto">
-        <ConnectWalletButton />
-      </div>
-
-      {cogPosition && (
-        <div 
-          className="fixed z-20 pointer-events-auto" 
-          style={{ 
-            left: cogPosition.x, 
-            top: cogPosition.y, 
-            transform: 'translate(-50%, -50%)' 
-          }}
-        >
-          <Button 
-            size="icon" 
-            onClick={handleCogClick}
-            title="Lock this panel"
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-        </div>
-      )}
     </>
   );
 };
