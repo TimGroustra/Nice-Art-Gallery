@@ -92,7 +92,12 @@ export async function initializeGalleryConfig() {
     // Fetch collection name from token 1 metadata
     try {
       const metadata = await getCachedNftMetadata(address, 1);
-      collectionNameMap[address] = metadata?.title || 'Unnamed Collection';
+      let collectionName = metadata?.title || 'Unnamed Collection';
+      // Strip token-specific parts like " #123" from the end of the title
+      if (collectionName) {
+        collectionName = collectionName.replace(/\s*#\d+$/, '').trim();
+      }
+      collectionNameMap[address] = collectionName;
     } catch (e) {
       console.error(`Failed to get collection name for ${address}`, e);
       collectionNameMap[address] = 'Unnamed Collection';

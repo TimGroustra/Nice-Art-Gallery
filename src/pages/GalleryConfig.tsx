@@ -66,7 +66,12 @@ const GalleryConfig = () => {
         setIsNameLoading(true);
         const metadata = await getCachedNftMetadata(currentConfig.contract_address, 1);
         if (metadata) {
-          setCurrentConfig(prev => ({ ...prev, collection_name: metadata.title }));
+          let collectionName = metadata.title;
+          // Strip token-specific parts like " #123"
+          if (collectionName) {
+            collectionName = collectionName.replace(/\s*#\d+$/, '').trim();
+          }
+          setCurrentConfig(prev => ({ ...prev, collection_name: collectionName }));
         } else {
           setCurrentConfig(prev => ({ ...prev, collection_name: 'Unknown Collection' }));
           toast.warning('Could not retrieve collection name for this address.');
