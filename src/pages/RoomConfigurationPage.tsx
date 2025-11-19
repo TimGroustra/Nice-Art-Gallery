@@ -2,6 +2,7 @@ import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import RoomCreator from '@/components/RoomCreator'
 import { Link } from 'react-router-dom';
+import { GalleryHorizontal } from 'lucide-react';
 
 export default function RoomConfigurationPage() {
   const { isConnected, address } = useAccount()
@@ -27,9 +28,16 @@ export default function RoomConfigurationPage() {
       <div className="w-full max-w-4xl mx-auto">
         <header className="flex justify-between items-center py-4 border-b border-gray-700">
           <Link to="/" className="text-2xl font-bold hover:text-blue-400 transition-colors">Nice Art Gallery</Link>
-          <Button onClick={isConnected ? () => disconnect() : handleConnect} variant="secondary">
-            {isConnected ? `Disconnect: ${displayAddress}` : 'Connect Wallet'}
-          </Button>
+          <div className="flex space-x-4">
+            <Button asChild variant="outline" className="bg-gray-800 text-white border-gray-700 hover:bg-gray-700">
+              <Link to="/room">
+                <GalleryHorizontal className="mr-2 h-4 w-4" /> Back to Rooms
+              </Link>
+            </Button>
+            <Button onClick={isConnected ? () => disconnect() : handleConnect} variant="secondary">
+              {isConnected ? `Disconnect: ${displayAddress}` : 'Connect Wallet'}
+            </Button>
+          </div>
         </header>
         <main className="mt-8">
           {isConnected && address ? (
