@@ -172,6 +172,54 @@ const GalleryConfig = () => {
         return;
     }
 
+    // --- Calculate Lock Duration ---
+    let days = Number(lockDurationDays);
+    days = Math.max(0, Math.min(30, days)); // Allow 0, Max 30 days
+    
+    // 1. Save Gallery Config (Always save config changes)
+    const contractAddress = currentConfig.contract_address?.trim() || null;
+    const dataToUpsert = {
+      panel_key: selectedPanelKey,
+      collection_name: currentConfig.collection_name || null,
+      contract_address: contractAddress,
+      default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
+      show_collection: currentConfig.show_collection ?? true,
+    };
+
+    const { error: configError } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
+
+    if (configError) {
+      toast.error('Failed to save configuration.');
+      console.error(configError);
+      setIsLoading(false);
+      return;
+    }
+    
+    // --- Handle Unlocking (days === 0) ---
+    if (days === 0) {
+        if (lockStatus.isLockedByMe) {
+            // Delete the lock entry
+            const { error: deleteError } = await supabase.from('panel_locks').delete().eq('panel_id', selectedPanelKey);
+            
+            if (deleteError) {
+                toast.error('Configuration saved, but failed to unlock panel.');
+                console.error(deleteError);
+            } else {
+                toast.success(`Configuration saved and panel unlocked. ElectroGem #${lockStatus.lockingGemTokenId || 'N/A'} is now available.`);
+                // Optimistically update local state and refetch available gems
+                setPanelLocks(prev => prev.filter(l => l.panel_id !== selectedPanelKey));
+                refetchGems();
+            }
+        } else {
+            // Panel was already unlocked or locked by someone else (expired/other user)
+            toast.success('Configuration saved. Panel remains unlocked.');
+        }
+        setIsLoading(false);
+        return;
+    }
+    
+    // --- Handle Locking/Extending (days > 0) ---
+    
     // --- Gem Token Selection ---
     let lockingGemTokenId: string | null = null;
     
@@ -183,7 +231,6 @@ const GalleryConfig = () => {
         if (!lockingGemTokenId && availableTokens.length > 0) {
             lockingGemTokenId = availableTokens[0];
         }
-        // If availableTokens is empty, we proceed with the existing (possibly null) ID, allowing the save.
         
     } else {
         // Case 2: Panel is unlocked or locked by someone else (expired/other user). Requires a new available gem.
@@ -206,35 +253,9 @@ const GalleryConfig = () => {
     }
     // --- End Gem Token Selection ---
 
-    // --- Calculate Lock Duration ---
-    let days = Math.max(1, Number(lockDurationDays));
-    days = Math.min(30, days); // Max 30 days
     const calculatedLockDurationMs = days * 24 * 60 * 60 * 1000;
-    // --- End Calculate Lock Duration ---
-
-    // Ensure contract address is null if empty string
-    const contractAddress = currentConfig.contract_address?.trim() || null;
-    
-    const dataToUpsert = {
-      panel_key: selectedPanelKey,
-      collection_name: currentConfig.collection_name || null,
-      contract_address: contractAddress,
-      default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
-      show_collection: currentConfig.show_collection ?? true,
-    };
-
-    // 1. Save Gallery Config
-    const { error: configError } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
-
-    if (configError) {
-      toast.error('Failed to save configuration.');
-      console.error(configError);
-      setIsLoading(false);
-      return;
-    }
-    
-    // 2. Update Panel Lock
     const lockedUntil = new Date(Date.now() + calculatedLockDurationMs).toISOString();
+    
     const lockData = {
         panel_id: selectedPanelKey, // Use panel_key as panel_id
         contract_address: contractAddress || '0x', // Required by schema, use placeholder if null
@@ -244,7 +265,7 @@ const GalleryConfig = () => {
         locking_gem_token_id: lockingGemTokenId, // Use the selected/reused gem ID
     };
     
-    // Use upsert to create or update the lock
+    // 2. Update Panel Lock
     const { error: lockError } = await supabase.from('panel_locks').upsert(lockData, { onConflict: 'panel_id' });
 
     if (lockError) {
@@ -336,6 +357,10 @@ const GalleryConfig = () => {
   const isPanelLockedByOther = selectedPanelLockStatus.isLocked && !selectedPanelLockStatus.isLockedByMe;
   const gemUsedForLock = selectedPanelLockStatus.lockingGemTokenId;
   const nextAvailableGem = availableTokens[0];
+  
+  const saveButtonText = lockDurationDays === 0 
+    ? 'Save Configuration & Unlock Panel' 
+    : `Save Configuration & Lock Panel for ${lockDurationDays} Day${lockDurationDays > 1 ? 's' : ''}`;
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -423,11 +448,11 @@ const GalleryConfig = () => {
                         <AlertTitle>Lock Status</AlertTitle>
                         <AlertDescription>
                             {selectedPanelLockStatus.isLockedByMe && gemUsedForLock
-                                ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}. Saving will extend the lock.`
+                                ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}. Set duration to 0 to unlock.`
                                 : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && nextAvailableGem
-                                ? `This panel is locked by you (legacy lock). Saving will assign available Gem #${nextAvailableGem} and extend the lock.`
+                                ? `This panel is locked by you (legacy lock). Saving will assign available Gem #${nextAvailableGem} and extend the lock. Set duration to 0 to unlock.`
                                 : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && !nextAvailableGem
-                                ? `This panel is locked by you (legacy lock). Saving will extend the lock without assigning a new Gem ID.`
+                                ? `This panel is locked by you (legacy lock). Saving will extend the lock without assigning a new Gem ID. Set duration to 0 to unlock.`
                                 : !selectedPanelLockStatus.isLocked && nextAvailableGem
                                 ? `Saving will lock this panel using your available ElectroGem Token ID #${nextAvailableGem}.`
                                 : 'Select a panel to view lock details.'
@@ -472,18 +497,18 @@ const GalleryConfig = () => {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="lock_duration">Lock Duration (Days, Max 30)</Label>
+                  <Label htmlFor="lock_duration">Lock Duration (Days, 0 to Unlock, Max 30)</Label>
                   <Input
                     id="lock_duration"
                     name="lock_duration"
                     type="number"
-                    min={1}
+                    min={0}
                     max={30}
                     value={lockDurationDays}
                     onChange={(e) => {
                       const value = Number(e.target.value);
-                      // Only update if it's a valid number >= 1
-                      if (!isNaN(value) && value >= 1) {
+                      // Only update if it's a valid number >= 0
+                      if (!isNaN(value) && value >= 0) {
                         setLockDurationDays(value);
                       }
                     }}
@@ -508,9 +533,9 @@ const GalleryConfig = () => {
                 </div>
                 <Button 
                     onClick={handleSave} 
-                    disabled={isLoading || isPanelLockedByOther || (!selectedPanelLockStatus.isLockedByMe && availableTokens.length === 0)}
+                    disabled={isLoading || isPanelLockedByOther || (!selectedPanelLockStatus.isLockedByMe && availableTokens.length === 0 && lockDurationDays > 0)}
                 >
-                  {isLoading ? 'Saving...' : `Save Configuration & Lock Panel for ${lockDurationDays} Day${lockDurationDays > 1 ? 's' : ''}`}
+                  {isLoading ? 'Saving...' : saveButtonText}
                 </Button>
               </>
             )}
