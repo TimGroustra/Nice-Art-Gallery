@@ -19,28 +19,11 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
     audio.muted = true; // Mute by default
     audioRef.current = audio;
 
-    // Function to attempt playback after user interaction
-    const attemptPlay = () => {
-      if (audioRef.current) {
-        audioRef.current.play().catch(e => {
-          // console.warn("Autoplay blocked, waiting for user gesture:", e);
-        });
-      }
-    };
-
-    // Use pointerdown event on the window to capture the first user gesture
-    const onFirstInteract = () => {
-      attemptPlay();
-      window.removeEventListener('pointerdown', onFirstInteract);
-    };
-
-    window.addEventListener('pointerdown', onFirstInteract, { once: true });
+    // Attempt to play immediately (might fail due to browser policy)
+    audio.play().catch(e => console.log("Autoplay blocked for background music:", e));
 
     return () => {
-      window.removeEventListener('pointerdown', onFirstInteract);
-      if (audio.paused === false) {
-        audio.pause();
-      }
+      audio.pause();
       audio.currentTime = 0;
     };
   }, []);
@@ -48,8 +31,7 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
   useImperativeHandle(ref, () => ({
     play: () => {
       if (audioRef.current) {
-        // Attempt to play only when explicitly called after user gesture (e.g., locking controls)
-        audioRef.current.play().catch(e => console.error("Failed to play music after user gesture:", e));
+        audioRef.current.play().catch(e => console.error("Failed to play music:", e));
       }
     },
     pause: () => {

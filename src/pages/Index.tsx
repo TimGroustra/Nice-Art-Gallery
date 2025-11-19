@@ -1,4 +1,4 @@
-import { NftGallery } from "@/components/NftGallery";
+import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";
@@ -60,7 +60,6 @@ const Index = () => {
       {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
-        roomId="default"
       />
       
       {/* 2D Overlay UI */}

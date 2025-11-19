@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
-import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig, CustomRoomData } from '@/config/galleryConfig';
+import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
@@ -38,13 +38,11 @@ interface Panel {
   currentAttributes: NftAttribute[];
   // Dedicated media elements/controls
   videoElement: HTMLVideoElement | null;
-  videoTexture: THREE.VideoTexture | null; // Track the texture instance
   gifStopFunction: (() => void) | null; // Function to stop GIF animation loop
 }
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
-  roomId?: string;
 }
 
 // Global state for UI interaction
@@ -168,7 +166,7 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
 };
 
 
-export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId = 'default' }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
@@ -177,8 +175,6 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
-  // roomData is now stored in a ref to prevent re-initialization of the entire scene
-  const roomDataRef = useRef<CustomRoomData | null>(null); 
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
@@ -206,71 +202,57 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
   };
 
   // Helper function for texture cleanup
-  const disposeTextureSafely = useCallback((mesh: THREE.Mesh) => {
-    if (mesh.material instanceof THREE.MeshBasicMaterial || mesh.material instanceof THREE.MeshStandardMaterial || mesh.material instanceof THREE.MeshPhongMaterial) {
+  const disposeTextureSafely = (mesh: THREE.Mesh) => {
+    if (mesh.material instanceof THREE.MeshBasicMaterial) {
       if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
         mesh.material.map.dispose();
-        mesh.material.map = null; // Explicitly nullify map reference
+        mesh.material.map = null;
       }
-      // If it was a VideoTexture, dispose of the associated video element too
-      const panel = panelsRef.current.find(p => p.mesh === mesh);
-      if (panel) {
-          if (panel.videoTexture) {
-              panel.videoTexture.dispose();
-              panel.videoTexture = null;
-          }
-          if (panel.videoElement) {
-              panel.videoElement.pause();
-              panel.videoElement.removeAttribute('src');
-              // We keep the element reference nullified in the panel state
-              panel.videoElement = null;
-          }
-          // If it was a GIF, stop the loop
-          if (panel.gifStopFunction) {
-              panel.gifStopFunction();
-              panel.gifStopFunction = null;
-          }
-      }
+      mesh.material.dispose();
     }
-  }, []);
+  };
 
   // Refactored loadTexture to handle Video, GIF, and Image
-  const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture> => {
+  const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
 
-    // --- Cleanup previous media elements/textures associated with this panel ---
-    // Use the safe dispose function for cleanup
-    disposeTextureSafely(panel.mesh); 
+    // --- Cleanup previous media ---
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
+    if (panel.gifStopFunction) {
+        panel.gifStopFunction();
+        panel.gifStopFunction = null;
+    }
     // --- End Cleanup ---
 
     if (isVideo) {
       return new Promise(resolve => {
-        // Create a new video element for the new source
-        const videoEl = document.createElement('video');
-        videoEl.playsInline = true;
-        videoEl.autoplay = true;
-        videoEl.loop = true;
-        videoEl.muted = true;
-        videoEl.style.display = 'none';
-        videoEl.crossOrigin = 'anonymous'; 
-        
+        let videoEl = panel.videoElement;
+        if (!videoEl) {
+            videoEl = document.createElement('video');
+            videoEl.playsInline = true;
+            videoEl.autoplay = true;
+            videoEl.loop = true;
+            videoEl.muted = true;
+            videoEl.style.display = 'none';
+            videoEl.crossOrigin = 'anonymous'; 
+            panel.videoElement = videoEl;
+        }
+
         videoEl.src = url;
         videoEl.load();
-        
-        panel.videoElement = videoEl;
         
         if ((window as any).galleryControls?.isLocked?.()) {
              videoEl.play().catch(e => console.warn("Video playback prevented:", e));
         }
         
-        // IMPORTANT: Always create a new VideoTexture instance when the source changes
         const videoTexture = new THREE.VideoTexture(videoEl);
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
-        videoTexture.format = THREE.RGBAFormat;
-        
-        panel.videoTexture = videoTexture; // Store the new texture instance
         
         resolve(videoTexture);
       });
@@ -304,7 +286,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
             }
         );
     });
-  }, [disposeTextureSafely]);
+  }, []);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
     const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
@@ -317,15 +299,25 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     // --- End Wall Title Update ---
 
     // --- 2. Reset NFT and Metadata panels ---
-    // Dispose of the old map and associated media elements/textures
-    disposeTextureSafely(panel.mesh); 
+    disposeTextureSafely(panel.mesh);
     panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
     panel.metadataUrl = '';
     panel.isVideo = false;
     panel.isGif = false; // Reset GIF flag
-    if (panel.titleMesh) disposeTextureSafely(panel.titleMesh); panel.titleMesh.visible = false;
-    if (panel.descriptionMesh) disposeTextureSafely(panel.descriptionMesh); panel.descriptionMesh.visible = false;
-    if (panel.attributesMesh) disposeTextureSafely(panel.attributesMesh); panel.attributesMesh.visible = false;
+    if (panel.titleMesh) panel.titleMesh.visible = false;
+    if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
+    if (panel.attributesMesh) panel.attributesMesh.visible = false;
+    
+    // Ensure media cleanup on failure/reset
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
+    if (panel.gifStopFunction) {
+        panel.gifStopFunction();
+        panel.gifStopFunction = null;
+    }
     
     // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
@@ -362,6 +354,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
       // --- Main NFT Mesh Update ---
+      disposeTextureSafely(panel.mesh);
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       // --- End Main NFT Mesh Update ---
 
@@ -403,7 +396,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       
       // If loading fails, the panel remains dark gray, but the wall title remains visible (set in step 1).
     }
-  }, [loadTexture, disposeTextureSafely]); 
+  }, [loadTexture]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -412,8 +405,6 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, -20); // Moved spawn point to the outer corridor (Z=-20)
-    
-    // Ensure we only create the renderer once per effect run
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -469,30 +460,10 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
     const halfRoomSize = ROOM_SIZE / 2; // 25
     
-    // Dynamic Wall Material based on roomDataRef
-    let wallColor = 0x444444;
-    let lightIntensity = 1.5;
-    let ambientIntensity = 0.5;
-    let coveLightColor = 0x87CEEB;
-    let coveLightIntensity = 10;
-    
-    if (roomDataRef.current?.visual_effect === 'disco') {
-        wallColor = 0x111111;
-        lightIntensity = 3.0;
-        ambientIntensity = 0.1;
-        coveLightColor = 0xFF00FF;
-        coveLightIntensity = 15;
-    } else if (roomDataRef.current?.visual_effect === 'cinematic') {
-        wallColor = 0x222222;
-        lightIntensity = 0.5;
-        ambientIntensity = 0.8;
-        coveLightColor = 0xFFFFFF;
-        coveLightIntensity = 5;
-    }
-
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
+    const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
     const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
@@ -543,7 +514,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
-    const innerWallMaterial = wallMaterial; // Use dynamic material
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
     innerSegmentCenters.forEach(segmentCenter => {
@@ -644,7 +615,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
 
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const colorIndex = i % lightColors.length;
-      const pl = new THREE.PointLight(lightColors[colorIndex], lightIntensity, lightDistance, lightDecay);
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
       pl.position.set(
         Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
         discoLightHeight, 
@@ -653,12 +624,14 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       scene.add(pl);
       lights.push(pl);
     }
-    scene.add(new THREE.AmbientLight(0x404050, ambientIntensity));
+    scene.add(new THREE.AmbientLight(0x404050, 0.5));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
 
     // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
+    const coveLightIntensity = 10;
     const coveLightWidth = ROOM_SEGMENT_SIZE; 
     const coveLightHeight = 0.1;
     const innerOffset = 0.1;
@@ -706,7 +679,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
         // North Inner Inner Wall (Z = -15)
-        // Outer side (in corridor, faces -Z)
+        // Outer side (facing -Z, corridor)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
         // Inner side (facing +Z, inner room)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
@@ -749,7 +722,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
         // Outer side (facing +X, corridor)
         createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [-Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
         // Inner side (facing -X, inner room)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
         // West Wall (X = -5)
         // Outer side (facing -X, corridor)
@@ -1016,7 +989,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
         attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-        videoElement: null, videoTexture: null, gifStopFunction: null, // Initialize new properties
+        videoElement: null, gifStopFunction: null, // Initialize new properties
       };
       panelsRef.current.push(panel);
       
@@ -1119,26 +1092,11 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      
-      // Disco effect: rotate lights and change color slightly
-      if (roomDataRef.current?.visual_effect === 'disco') {
-          lights.forEach((light, i) => {
-            const angle = time * 0.0005 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); 
-            light.position.x = Math.cos(angle) * lightRadius;
-            light.position.z = Math.sin(angle) * lightRadius;
-            
-            // Subtle color shift
-            const hue = (time * 0.00001 + i * 0.1) % 1;
-            light.color.setHSL(hue, 1, 0.5);
-          });
-      } else {
-          lights.forEach((light, i) => {
-            const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); 
-            light.position.x = Math.cos(angle) * lightRadius;
-            light.position.z = Math.sin(angle) * lightRadius;
-          });
-      }
-
+      lights.forEach((light, i) => {
+        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Changed 0.0005 to 0.0001
+        light.position.x = Math.cos(angle) * lightRadius;
+        light.position.z = Math.sin(angle) * lightRadius;
+      });
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
@@ -1262,15 +1220,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
 
 
     const fetchAndRenderPanelsSequentially = async () => {
-      const customData = await initializeGalleryConfig(roomId);
-      roomDataRef.current = customData; // Store custom room data in ref
-      
-      // Re-apply lighting based on fetched room data
-      if (customData?.visual_effect === 'disco') {
-          // Note: We cannot easily update the materials of existing meshes (walls, floor) 
-          // without recreating them, which is complex inside an already running scene.
-          // We rely on the lighting update in the animate loop for dynamic effects.
-      }
+      await initializeGalleryConfig();
       
       // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
@@ -1303,62 +1253,24 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       
       // Cleanup individual video elements and Three.js resources
       panelsRef.current.forEach(panel => {
-        // Use the safe dispose function for the main mesh texture
-        disposeTextureSafely(panel.mesh); 
-        
-        // Dispose of text panel textures/materials
-        disposeTextureSafely(panel.titleMesh);
-        disposeTextureSafely(panel.descriptionMesh);
-        disposeTextureSafely(panel.attributesMesh);
-        disposeTextureSafely(panel.wallTitleMesh);
-        
-        // Dispose of geometries and materials for all meshes
-        if (panel.mesh.geometry) panel.mesh.geometry.dispose();
-        if (panel.prevArrow.geometry) panel.prevArrow.geometry.dispose();
-        if (panel.nextArrow.geometry) panel.nextArrow.geometry.dispose();
-        if (panel.titleMesh.geometry) panel.titleMesh.geometry.dispose();
-        if (panel.descriptionMesh.geometry) panel.descriptionMesh.geometry.dispose();
-        if (panel.attributesMesh.geometry) panel.attributesMesh.geometry.dispose();
-        if (panel.wallTitleMesh.geometry) panel.wallTitleMesh.geometry.dispose();
-        
-        if (panel.mesh.material) {
-            if (Array.isArray(panel.mesh.material)) panel.mesh.material.forEach(m => m.dispose());
-            else panel.mesh.material.dispose();
+        if (panel.videoElement) {
+          panel.videoElement.pause();
+          panel.videoElement.removeAttribute('src');
+          // Note: We don't remove the video element from the DOM as it was never added, 
+          // but we ensure it's paused and its source is cleared.
         }
-        if (panel.prevArrow.material) (panel.prevArrow.material as THREE.Material).dispose();
-        if (panel.nextArrow.material) (panel.nextArrow.material as THREE.Material).dispose();
-        if (panel.titleMesh.material) (panel.titleMesh.material as THREE.Material).dispose();
-        if (panel.descriptionMesh.material) (panel.descriptionMesh.material as THREE.Material).dispose();
-        if (panel.attributesMesh.material) (panel.attributesMesh.material as THREE.Material).dispose();
-        if (panel.wallTitleMesh.material) (panel.wallTitleMesh.material as THREE.Material).dispose();
+        if (panel.gifStopFunction) {
+            panel.gifStopFunction();
+        }
       });
 
-      // Dispose of shared geometries/materials
-      segmentGeometry.dispose();
-      outerFloorMaterial.dispose();
-      wallMaterial.dispose();
-      panelGeometry.dispose();
-      arrowGeometry.dispose();
-      titleGeometry.dispose();
-      descriptionGeometry.dispose();
-      attributesGeometry.dispose();
-      wallTitleGeometry.dispose();
-      panelMaterial.dispose();
-      arrowMaterial.dispose();
-      
-      // Clean up lights and other scene objects
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
-          if (obj.geometry && !panelsRef.current.some(p => p.mesh === obj || p.prevArrow === obj || p.nextArrow === obj || p.titleMesh === obj || p.descriptionMesh === obj || p.attributesMesh === obj || p.wallTitleMesh === obj)) {
-              obj.geometry.dispose();
-          }
-          if (obj.material && !panelsRef.current.some(p => p.mesh === obj || p.prevArrow === obj || p.nextArrow === obj || p.titleMesh === obj || p.descriptionMesh === obj || p.attributesMesh === obj || p.wallTitleMesh === obj)) {
-              if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
-              else obj.material.dispose();
-          }
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
+          else { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
         }
       });
-      
       renderer.dispose();
       
       delete (window as any).galleryControls;
@@ -1366,7 +1278,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, roomId, disposeTextureSafely]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
@@ -1381,4 +1293,6 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       )}
     </>
   );
-}
+};
+
+export default NftGallery;
