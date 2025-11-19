@@ -45,7 +45,7 @@ const CONTRACT_NAMES_MAP: { [key: string]: string } = {
   "0xF91290684eb728f6715EFF0b50018105B6B31658": "Electric Eels", "0x1760321f42A9BE39b39c779D92373769d829ef48": "The Three Graces of the Sea",
 };
 
-let galleryConfig: PanelConfig = {};
+const galleryConfig: PanelConfig = {};
 const tokenMap: { [contractAddress: string]: number[] } = {};
 const panelSequentialIndexMap: { [wallName: string]: number } = {};
 
@@ -86,7 +86,12 @@ const generateDefaultConfig = () => {
 };
 
 export async function initializeGalleryConfig() {
-  galleryConfig = generateDefaultConfig();
+  const newConfig = generateDefaultConfig();
+  
+  // Clear the old config and copy properties from the new one,
+  // ensuring the exported reference is updated.
+  Object.keys(galleryConfig).forEach(key => delete galleryConfig[key]);
+  Object.assign(galleryConfig, newConfig);
 
   // Fetch active panel locks from Supabase
   const { data: locks, error } = await supabase
