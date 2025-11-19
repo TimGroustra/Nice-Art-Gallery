@@ -367,7 +367,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       getTargetedPanel: () => currentTargetedPanel,
       openLockModal: () => {
         if (currentTargetedPanel) {
-          setLockModalState({ open: true, panelId: currentTargetedPanel.wallName });
+          setLockModalState({ open: true, panelId: String(currentTargetedPanel.wallName) });
         }
       },
     };
