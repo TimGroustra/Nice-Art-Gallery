@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import NftGallery from "@/components/NftGallery";
+import { NftGallery } from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";

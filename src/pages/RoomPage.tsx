@@ -59,24 +59,29 @@ const RoomPage = () => {
                 <p className="text-sm text-gray-500 mt-2">Be the first to create one!</p>
             </div>
         ) : (
-            rooms.map((room) => (
-              <Card key={room.id} className="bg-gray-800 border-gray-700 hover:border-blue-500 transition-colors">
-                <CardHeader>
-                  <CardTitle className="text-blue-300">{room.name}</CardTitle>
-                  <CardDescription className="text-gray-400">
-                    {room.description || `Featuring collection: ${room.collection_address.slice(0, 6)}...`}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-gray-500">
-                    Active until: {format(new Date(room.end_time), 'PPP')}
-                  </p>
-                  <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
-                    <Link to={`/gallery/${room.id}`}>Enter Custom Gallery</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))
+            rooms.map((room) => {
+              const firstPanelContract = room.panels?.[0]?.contract;
+              const displayContract = firstPanelContract ? `${firstPanelContract.slice(0, 6)}...${firstPanelContract.slice(-4)}` : 'No NFTs configured';
+
+              return (
+                <Card key={room.id} className="bg-gray-800 border-gray-700 hover:border-blue-500 transition-colors">
+                  <CardHeader>
+                    <CardTitle className="text-blue-300">{room.name}</CardTitle>
+                    <CardDescription className="text-gray-400">
+                      {room.description || `Featuring: ${displayContract}`}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <p className="text-sm text-gray-500">
+                      Active until: {format(new Date(room.end_time), 'PPP')}
+                    </p>
+                    <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
+                      <Link to={`/gallery/${room.id}`}>Enter Custom Gallery</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })
         )}
       </div>
        <div className="mt-12">
