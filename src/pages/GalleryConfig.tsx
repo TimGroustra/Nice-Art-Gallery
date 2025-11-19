@@ -29,7 +29,7 @@ interface PanelLock {
   locking_gem_token_id: string | null; // New field
 }
 
-const REQUIRED_GEM_BALANCE = 10;
+const REQUIRED_GEM_BALANCE = 5;
 
 // Helper function to format wallet address
 const formatWalletAddress = (address: string | undefined | null) => {
