@@ -36,7 +36,7 @@ const Login: React.FC = () => {
 
   // Use known string IDs for comparison
   const injectedConnector = connectors.find(c => c.id === 'injected');
-  const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
+  // WalletConnect connector is no longer needed
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
@@ -84,16 +84,7 @@ const Login: React.FC = () => {
                 </Button>
               )}
               
-              {walletConnectConnector && (
-                <Button 
-                  onClick={() => handleConnect(walletConnectConnector.id)} 
-                  variant="outline" 
-                  className="w-full" 
-                  disabled={isConnecting}
-                >
-                  <Wallet className="mr-2 h-4 w-4" /> Connect WalletConnect
-                </Button>
-              )}
+              {/* WalletConnect button removed */}
 
               <p className="text-xs text-muted-foreground text-center pt-2">
                 Please ensure your wallet is set to the Electroneum network.
