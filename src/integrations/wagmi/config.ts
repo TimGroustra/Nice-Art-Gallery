@@ -1,5 +1,5 @@
 import { createConfig, http } from 'wagmi';
-import { injected, walletConnect } from 'wagmi/connectors';
+import { injected } from 'wagmi/connectors';
 import { defineChain } from 'viem';
 
 // 1. Define the Electroneum chain
@@ -24,7 +24,7 @@ export const wagmiConfig = createConfig({
   chains: [electroneum],
   connectors: [
     injected(),
-    walletConnect({ projectId: 'YOUR_WALLETCONNECT_PROJECT_ID' }), // Placeholder Project ID
+    // WalletConnect connector removed as it requires a valid project ID
   ],
   transports: {
     [electroneum.id]: http(),
