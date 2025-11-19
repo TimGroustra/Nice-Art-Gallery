@@ -1,9 +1,9 @@
+import { useParams } from 'react-router-dom';
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 
-// Define the type for the music controls exposed via ref
 interface BackgroundMusicHandles {
   play: () => void;
   pause: () => void;
@@ -11,11 +11,11 @@ interface BackgroundMusicHandles {
   isMuted: () => boolean;
 }
 
-const Index = () => {
+const CustomGalleryPage = () => {
+  const { roomId } = useParams<{ roomId: string }>();
   const [instructionsVisible, setInstructionsVisible] = useState(true);
   const musicRef = useRef<BackgroundMusicHandles>(null);
 
-  // Expose music controls globally for GalleryUI to access
   useEffect(() => {
     (window as any).musicControls = {
       toggleMute: () => musicRef.current?.toggleMute(),
@@ -31,17 +31,14 @@ const Index = () => {
     if (galleryControls && galleryControls.lockControls) {
       galleryControls.lockControls();
     }
-    // Attempt to start music playback upon user interaction (locking controls)
     musicRef.current?.play();
   }, []);
-  
-  // Add keyboard listener for 'M' key to toggle music mute
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const galleryControls = (window as any).galleryControls;
       const musicControls = (window as any).musicControls;
       
-      // Only allow keyboard shortcuts when controls are locked (user is in the gallery)
       if (galleryControls?.isLocked?.() && musicControls && event.code === 'KeyM') {
         musicControls.toggleMute();
       }
@@ -57,13 +54,11 @@ const Index = () => {
     <div className="relative w-screen h-screen overflow-hidden">
       <BackgroundMusic ref={musicRef} />
       
-      {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
-        roomId="default"
+        roomId={roomId}
       />
       
-      {/* 2D Overlay UI */}
       <GalleryUI 
         instructionsVisible={instructionsVisible} 
         onLockClick={handleLockClick}
@@ -72,4 +67,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default CustomGalleryPage;

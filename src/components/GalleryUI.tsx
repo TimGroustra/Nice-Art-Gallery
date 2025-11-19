@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Volume2, VolumeX } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -51,10 +52,16 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
         {instructionsVisible && (
           <div 
             id="instructions" 
-            className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
-            onClick={onLockClick}
+            className="bg-black/50 text-white p-3 rounded-md pointer-events-auto"
           >
-            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle music.
+            <div className="cursor-pointer" onClick={onLockClick}>
+              Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle music.
+            </div>
+            <div className="mt-2 pt-2 border-t border-gray-600">
+              <Link to="/custom" className="text-blue-300 hover:underline">
+                Or, explore other custom galleries.
+              </Link>
+            </div>
           </div>
         )}
         

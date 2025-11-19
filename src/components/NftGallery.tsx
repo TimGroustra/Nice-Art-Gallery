@@ -43,6 +43,7 @@ interface Panel {
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
+  roomId?: string;
 }
 
 // Global state for UI interaction
@@ -166,7 +167,7 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
 };
 
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId = 'default' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
@@ -1220,7 +1221,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     const fetchAndRenderPanelsSequentially = async () => {
-      await initializeGalleryConfig();
+      await initializeGalleryConfig(roomId);
       
       // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
@@ -1278,7 +1279,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, roomId]);
 
   return (
     <>
