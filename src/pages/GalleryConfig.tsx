@@ -385,7 +385,7 @@ const GalleryConfig = () => {
               </Button>
             </div>
             
-            {availableTokens.length === 0 && !isPanelLockedByOther && !selectedPanelLockStatus.isLockedByMe && (
+            {availableTokens.length === 0 && !isPanelLockedByOther && !selectedPanelLockStatus.isLockedByMe && lockDurationDays > 0 && (
                 <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertTitle>No Gems Available</AlertTitle>
@@ -462,13 +462,13 @@ const GalleryConfig = () => {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="collection_name">Collection Name</Label>
+                  <Label htmlFor="collection_name">Display Name</Label>
                   <Input
                     id="collection_name"
                     name="collection_name"
                     value={currentConfig.collection_name || ''}
                     onChange={handleInputChange}
-                    placeholder="e.g., My Awesome NFTs"
+                    placeholder="e.g., My Awesome Gallery Display"
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
