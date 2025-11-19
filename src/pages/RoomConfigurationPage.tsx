@@ -2,7 +2,6 @@ import { useAccount, useConnect, useDisconnect } from 'wagmi'
 import { Button } from '@/components/ui/button'
 import RoomCreator from '@/components/RoomCreator'
 import { Link } from 'react-router-dom';
-import { injected } from 'wagmi/connectors';
 
 export default function RoomConfigurationPage() {
   const { isConnected, address } = useAccount()
@@ -11,7 +10,8 @@ export default function RoomConfigurationPage() {
 
   const handleConnect = () => {
     // Try to connect using the first available injected connector (e.g., MetaMask)
-    const injectedConnector = connectors.find(c => c.id === injected.id);
+    // The ID for the injected connector is typically 'injected'.
+    const injectedConnector = connectors.find(c => c.id === 'injected');
     if (injectedConnector) {
       connect({ connector: injectedConnector });
     } else {
