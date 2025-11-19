@@ -289,18 +289,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
-    const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
-    const collectionName = collectionConfig?.name || '...';
-    const canBrowse = collectionConfig?.tokenIds.length > 1;
+    const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
 
-    // --- 1. Always update Wall Title and Arrow Visibility ---
+    // --- 1. Always update Wall Title (Collection Name) first ---
     disposeTextureSafely(panel.wallTitleMesh);
     const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
     (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
     panel.wallTitleMesh.visible = true;
-    panel.prevArrow.visible = canBrowse;
-    panel.nextArrow.visible = canBrowse;
-    // --- End Wall Title/Arrow Update ---
+    // --- End Wall Title Update ---
 
     // --- 2. Reset NFT and Metadata panels ---
     disposeTextureSafely(panel.mesh);
@@ -325,6 +321,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
+        // Wall title is already set to "Blank Panel"
         return;
     }
 
