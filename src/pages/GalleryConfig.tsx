@@ -9,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { useGemBalance } from '@/hooks/use-gem-balance';
-import { Loader2, Wallet, AlertTriangle } from 'lucide-react';
+import { Loader2, Wallet, AlertTriangle, Gem } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAccount, useDisconnect } from 'wagmi'; // Import Wagmi hooks
+import { useAvailableGems } from '@/hooks/use-available-gems'; // Import new hook
 
 interface GalleryConfig {
   panel_key: string;
@@ -26,6 +26,7 @@ interface PanelLock {
   panel_id: string;
   locked_by_address: string;
   locked_until: string; // ISO string
+  locking_gem_token_id: string | null; // New field
 }
 
 const REQUIRED_GEM_BALANCE = 10;
@@ -37,19 +38,26 @@ const GalleryConfig = () => {
   const { address: walletAddress, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
   
-  const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(walletAddress || null);
+  // Use new hook for gem token management
+  const { 
+    availableTokens, 
+    ownedTokens, 
+    isLoading: isGemsLoading, 
+    error: gemsError, 
+    refetch: refetchGems 
+  } = useAvailableGems(walletAddress || null);
 
   const [panelKeys, setPanelKeys] = useState<string[]>([]);
   const [selectedPanelKey, setSelectedPanelKey] = useState<string>('');
   const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfig>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [panelLocks, setPanelLocks] = useState<PanelLock[]>([]);
-  const [lockDurationDays, setLockDurationDays] = useState(1); // New state for lock duration
+  const [lockDurationDays, setLockDurationDays] = useState(1);
 
   // Helper function to check lock status
   const getLockStatus = useCallback((panelKey: string) => {
     const lock = panelLocks.find(l => l.panel_id === panelKey);
-    if (!lock) return { isLocked: false, isLockedByMe: false, lockedUntil: null };
+    if (!lock) return { isLocked: false, isLockedByMe: false, lockedUntil: null, lockingGemTokenId: null };
 
     const lockedUntilDate = new Date(lock.locked_until);
     const now = new Date();
@@ -59,11 +67,12 @@ const GalleryConfig = () => {
         return { 
             isLocked: true, 
             isLockedByMe, 
-            lockedUntil: lockedUntilDate 
+            lockedUntil: lockedUntilDate,
+            lockingGemTokenId: lock.locking_gem_token_id
         };
     }
     // Lock expired, treat as unlocked
-    return { isLocked: false, isLockedByMe: false, lockedUntil: null };
+    return { isLocked: false, isLockedByMe: false, lockedUntil: null, lockingGemTokenId: null };
   }, [panelLocks, walletAddress]);
 
 
@@ -75,14 +84,15 @@ const GalleryConfig = () => {
       return;
     }
     
-    if (!isBalanceLoading && balance !== null) {
-      if (balance < REQUIRED_GEM_BALANCE) {
+    // Authorization check now uses ownedTokens.length
+    if (!isGemsLoading && ownedTokens.length > 0) {
+      if (ownedTokens.length < REQUIRED_GEM_BALANCE) {
         toast.error(`Access denied. You need at least ${REQUIRED_GEM_BALANCE} ElectroGems to configure the gallery.`);
       }
     }
-  }, [isConnected, walletAddress, isBalanceLoading, balance, navigate]);
+  }, [isConnected, walletAddress, isGemsLoading, ownedTokens.length, navigate]);
 
-  const isAuthorized = isConnected && walletAddress && !isBalanceLoading && balance !== null && balance >= REQUIRED_GEM_BALANCE;
+  const isAuthorized = isConnected && walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
   
   // 2. Fetch Panel Keys and Locks (only if authorized)
   useEffect(() => {
@@ -98,10 +108,10 @@ const GalleryConfig = () => {
       }
       setPanelKeys(keysData.map((item) => item.panel_key).sort());
       
-      // Fetch all active locks
+      // Fetch all active locks, including the new gem token ID
       const { data: locksData, error: locksError } = await supabase
         .from('panel_locks')
-        .select('panel_id, locked_by_address, locked_until');
+        .select('panel_id, locked_by_address, locked_until, locking_gem_token_id');
         
       if (locksError) {
         console.error('Failed to fetch panel locks:', locksError);
@@ -110,6 +120,7 @@ const GalleryConfig = () => {
         setPanelLocks(locksData.map(lock => ({
             ...lock,
             panel_id: lock.panel_id,
+            locking_gem_token_id: lock.locking_gem_token_id,
         })));
       }
     };
@@ -161,6 +172,30 @@ const GalleryConfig = () => {
         return;
     }
 
+    // --- Gem Token Selection ---
+    let lockingGemTokenId: string | null = null;
+    
+    if (lockStatus.isLockedByMe && lockStatus.lockingGemTokenId) {
+        // If already locked by me, reuse the existing gem token ID
+        lockingGemTokenId = lockStatus.lockingGemTokenId;
+    } else {
+        // If unlocked or locked by someone else (but expired), find a new available gem
+        if (availableTokens.length === 0) {
+            toast.error("No available ElectroGem tokens to lock this panel. You must own an unused gem.");
+            setIsLoading(false);
+            return;
+        }
+        // Use the first available gem
+        lockingGemTokenId = availableTokens[0];
+    }
+    
+    if (!lockingGemTokenId) {
+        toast.error("Failed to determine which ElectroGem token to use for locking.");
+        setIsLoading(false);
+        return;
+    }
+    // --- End Gem Token Selection ---
+
     // --- Calculate Lock Duration ---
     let days = Math.max(1, Number(lockDurationDays));
     days = Math.min(30, days); // Max 30 days
@@ -196,6 +231,7 @@ const GalleryConfig = () => {
         token_id: String(dataToUpsert.default_token_id), // Required by schema
         locked_by_address: walletAddress!,
         locked_until: lockedUntil,
+        locking_gem_token_id: lockingGemTokenId, // Use the selected/reused gem ID
     };
     
     // Use upsert to create or update the lock
@@ -205,16 +241,23 @@ const GalleryConfig = () => {
         toast.warning('Configuration saved, but failed to update panel lock.');
         console.error(lockError);
     } else {
-        toast.success(`Configuration saved and panel locked for ${days} days.`);
-        // Optimistically update local state
+        toast.success(`Configuration saved and panel locked for ${days} days using Gem #${lockingGemTokenId}.`);
+        
+        // Optimistically update local state and refetch available gems
         setPanelLocks(prev => {
             const existingIndex = prev.findIndex(l => l.panel_id === selectedPanelKey);
-            const newLock = { panel_id: selectedPanelKey, locked_by_address: walletAddress!, locked_until: lockedUntil };
+            const newLock: PanelLock = { 
+                panel_id: selectedPanelKey, 
+                locked_by_address: walletAddress!, 
+                locked_until: lockedUntil,
+                locking_gem_token_id: lockingGemTokenId,
+            };
             if (existingIndex !== -1) {
                 return [...prev.slice(0, existingIndex), newLock, ...prev.slice(existingIndex + 1)];
             }
             return [...prev, newLock];
         });
+        refetchGems(); // Crucial to update the list of available gems
     }
 
     setIsLoading(false);
@@ -237,25 +280,25 @@ const GalleryConfig = () => {
           <CardDescription>Gallery configuration requires a connected wallet with sufficient ElectroGem balance.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {isBalanceLoading && (
+          {isGemsLoading && (
             <div className="flex items-center space-x-2 text-primary">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Checking ElectroGem balance for {walletAddress?.substring(0, 6)}...</span>
+              <span>Checking ElectroGem ownership for {walletAddress?.substring(0, 6)}...</span>
             </div>
           )}
-          {balanceError && (
+          {gemsError && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Balance Check Error</AlertTitle>
-              <AlertDescription>Could not verify balance: {balanceError}</AlertDescription>
+              <AlertTitle>Ownership Check Error</AlertTitle>
+              <AlertDescription>Could not verify ownership: {gemsError}</AlertDescription>
             </Alert>
           )}
-          {balance !== null && balance < REQUIRED_GEM_BALANCE && (
+          {ownedTokens.length > 0 && ownedTokens.length < REQUIRED_GEM_BALANCE && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Insufficient Balance</AlertTitle>
               <AlertDescription>
-                You currently hold {balance} ElectroGems. You need at least {REQUIRED_GEM_BALANCE} to access configuration.
+                You currently hold {ownedTokens.length} ElectroGems. You need at least {REQUIRED_GEM_BALANCE} to access configuration.
               </AlertDescription>
             </Alert>
           )}
@@ -279,6 +322,8 @@ const GalleryConfig = () => {
 
   const selectedPanelLockStatus = getLockStatus(selectedPanelKey);
   const isPanelLockedByOther = selectedPanelLockStatus.isLocked && !selectedPanelLockStatus.isLockedByMe;
+  const gemUsedForLock = selectedPanelLockStatus.lockingGemTokenId;
+  const nextAvailableGem = availableTokens[0];
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -294,13 +339,25 @@ const GalleryConfig = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                Balance: {balance} Gems (Required: {REQUIRED_GEM_BALANCE})
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Gem className="h-4 w-4 text-primary" />
+                Owned Gems: {ownedTokens.length} | Available for Lock: {availableTokens.length}
               </p>
               <Button variant="outline" onClick={() => disconnect()}>
                 Disconnect Wallet
               </Button>
             </div>
+            
+            {availableTokens.length === 0 && !isPanelLockedByOther && (
+                <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>No Gems Available</AlertTitle>
+                    <AlertDescription>
+                        You must have at least one ElectroGem token that is not currently locking another panel to save a new configuration.
+                    </AlertDescription>
+                </Alert>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="panel-select">Panel Key</Label>
               <Select onValueChange={setSelectedPanelKey} value={selectedPanelKey}>
@@ -315,7 +372,9 @@ const GalleryConfig = () => {
                     let lockText = '';
                     if (lockStatus.isLocked) {
                         const until = lockStatus.lockedUntil!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        lockText = lockStatus.isLockedByMe ? ' (Locked by you)' : ` (Locked until ${until})`;
+                        lockText = lockStatus.isLockedByMe 
+                            ? ` (Locked by you with Gem #${lockStatus.lockingGemTokenId})` 
+                            : ` (Locked until ${until})`;
                     }
 
                     return (
@@ -344,6 +403,25 @@ const GalleryConfig = () => {
                         </AlertDescription>
                     </Alert>
                 )}
+                
+                {/* Gem Status Display */}
+                {selectedPanelKey && (
+                    <Alert variant="default" className="bg-secondary">
+                        <Gem className="h-4 w-4" />
+                        <AlertTitle>Lock Status</AlertTitle>
+                        <AlertDescription>
+                            {selectedPanelLockStatus.isLockedByMe && gemUsedForLock
+                                ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}.`
+                                : !selectedPanelLockStatus.isLocked && nextAvailableGem
+                                ? `Saving will lock this panel using your available ElectroGem Token ID #${nextAvailableGem}.`
+                                : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock
+                                ? `This panel is locked by you, but the locking Gem ID is missing. Saving will attempt to use available Gem #${nextAvailableGem}.`
+                                : 'Select a panel to view lock details.'
+                            }
+                        </AlertDescription>
+                    </Alert>
+                )}
+
                 <div className="space-y-2">
                   <Label htmlFor="collection_name">Collection Name</Label>
                   <Input
@@ -379,7 +457,6 @@ const GalleryConfig = () => {
                   />
                 </div>
                 
-                {/* NEW LOCK DURATION FIELD */}
                 <div className="space-y-2">
                   <Label htmlFor="lock_duration">Lock Duration (Days, Max 30)</Label>
                   <Input
@@ -400,7 +477,6 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
-                {/* END NEW LOCK DURATION FIELD */}
                 
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
@@ -416,7 +492,10 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
-                <Button onClick={handleSave} disabled={isLoading || isPanelLockedByOther}>
+                <Button 
+                    onClick={handleSave} 
+                    disabled={isLoading || isPanelLockedByOther || (!selectedPanelLockStatus.isLockedByMe && availableTokens.length === 0)}
+                >
                   {isLoading ? 'Saving...' : `Save Configuration & Lock Panel for ${lockDurationDays} Day${lockDurationDays > 1 ? 's' : ''}`}
                 </Button>
               </>
