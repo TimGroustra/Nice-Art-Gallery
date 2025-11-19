@@ -48,6 +48,8 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
   const form = useForm<z.infer<typeof roomFormSchema>>({
     resolver: zodResolver(roomFormSchema),
     defaultValues: {
+      name: '', // Ensure name is initialized
+      description: '', // Ensure description is initialized
       visual_effect: 'default',
       duration_days: 7,
       panels: [{ contract: '', tokenId: 1 }],
@@ -104,6 +106,8 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
       dismissToast(toastId);
       showSuccess("Room created successfully!");
       form.reset({
+        name: '',
+        description: '',
         visual_effect: 'default',
         duration_days: 7,
         panels: [{ contract: '', tokenId: 1 }],
@@ -135,7 +139,7 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
           <FormField control={form.control} name="name" render={({ field }) => (
             <FormItem>
               <FormLabel>Room Name</FormLabel>
-              <FormControl><Input placeholder="My Awesome Gallery" {...field} className="bg-gray-700 border-gray-600 text-white" /></FormControl>
+              <FormControl><Input placeholder="My Awesome Gallery" {...field} value={field.value ?? ''} className="bg-gray-700 border-gray-600 text-white" /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -143,7 +147,7 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
           <FormField control={form.control} name="description" render={({ field }) => (
             <FormItem>
               <FormLabel>Description</FormLabel>
-              <FormControl><Textarea placeholder="A collection of my favorite pieces." {...field} className="bg-gray-700 border-gray-600 text-white" /></FormControl>
+              <FormControl><Textarea placeholder="A collection of my favorite pieces." {...field} value={field.value ?? ''} className="bg-gray-700 border-gray-600 text-white" /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
@@ -213,7 +217,7 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
                   <FormField control={form.control} name={`panels.${index}.contract`} render={({ field }) => (
                     <FormItem className="md:col-span-2">
                       <FormLabel>Contract Address</FormLabel>
-                      <FormControl><Input placeholder="0x..." {...field} className="bg-gray-600 border-gray-500 text-white" /></FormControl>
+                      <FormControl><Input placeholder="0x..." {...field} value={field.value ?? ''} className="bg-gray-600 border-gray-500 text-white" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />

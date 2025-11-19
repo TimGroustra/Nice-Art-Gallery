@@ -38,6 +38,7 @@ interface Panel {
   currentAttributes: NftAttribute[];
   // Dedicated media elements/controls
   videoElement: HTMLVideoElement | null;
+  videoTexture: THREE.VideoTexture | null; // Track the texture instance
   gifStopFunction: (() => void) | null; // Function to stop GIF animation loop
 }
 
@@ -210,20 +211,40 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
         mesh.material.map.dispose();
         mesh.material.map = null; // Explicitly nullify map reference
       }
-      // Note: We do not dispose of the material itself here as it might be reused (e.g., text panels)
+      // If it was a VideoTexture, dispose of the associated video element too
+      const panel = panelsRef.current.find(p => p.mesh === mesh);
+      if (panel && panel.videoTexture) {
+          panel.videoTexture.dispose();
+          panel.videoTexture = null;
+          if (panel.videoElement) {
+              panel.videoElement.pause();
+              panel.videoElement.removeAttribute('src');
+              // We keep the element reference nullified in the panel state
+              panel.videoElement = null;
+          }
+      }
+      // If it was a GIF, stop the loop
+      if (panel && panel.gifStopFunction) {
+          panel.gifStopFunction();
+          panel.gifStopFunction = null;
+      }
     }
   };
 
   // Refactored loadTexture to handle Video, GIF, and Image
-  const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
+  const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture> => {
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
 
-    // --- Cleanup previous media elements ---
+    // --- Cleanup previous media elements/textures associated with this panel ---
+    if (panel.videoTexture) {
+        panel.videoTexture.dispose();
+        panel.videoTexture = null;
+    }
     if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
-        // Do not set panel.videoElement = null here, as we might reuse the element
+        panel.videoElement = null;
     }
     if (panel.gifStopFunction) {
         panel.gifStopFunction();
@@ -233,21 +254,19 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
 
     if (isVideo) {
       return new Promise(resolve => {
-        let videoEl = panel.videoElement;
-        if (!videoEl) {
-            // Create video element if it doesn't exist
-            videoEl = document.createElement('video');
-            videoEl.playsInline = true;
-            videoEl.autoplay = true;
-            videoEl.loop = true;
-            videoEl.muted = true;
-            videoEl.style.display = 'none';
-            videoEl.crossOrigin = 'anonymous'; 
-            panel.videoElement = videoEl;
-        }
-
+        // Create a new video element for the new source
+        const videoEl = document.createElement('video');
+        videoEl.playsInline = true;
+        videoEl.autoplay = true;
+        videoEl.loop = true;
+        videoEl.muted = true;
+        videoEl.style.display = 'none';
+        videoEl.crossOrigin = 'anonymous'; 
+        
         videoEl.src = url;
         videoEl.load();
+        
+        panel.videoElement = videoEl;
         
         if ((window as any).galleryControls?.isLocked?.()) {
              videoEl.play().catch(e => console.warn("Video playback prevented:", e));
@@ -259,15 +278,10 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
         videoTexture.magFilter = THREE.LinearFilter;
         videoTexture.format = THREE.RGBAFormat;
         
+        panel.videoTexture = videoTexture; // Store the new texture instance
+        
         resolve(videoTexture);
       });
-    }
-    
-    // If it was a video before, ensure the element is cleared if the new content is not video
-    if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
     }
     
     if (isGif) {
@@ -311,26 +325,15 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
     // --- End Wall Title Update ---
 
     // --- 2. Reset NFT and Metadata panels ---
-    // Dispose of the old map before setting the new one or placeholder
+    // Dispose of the old map and associated media elements/textures
     disposeTextureSafely(panel.mesh); 
     panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
     panel.metadataUrl = '';
     panel.isVideo = false;
     panel.isGif = false; // Reset GIF flag
-    if (panel.titleMesh) panel.titleMesh.visible = false;
-    if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-    if (panel.attributesMesh) panel.attributesMesh.visible = false;
-    
-    // Ensure media cleanup on failure/reset
-    if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.removeAttribute('src');
-        panel.videoElement = null; // Ensure element is removed if not needed
-    }
-    if (panel.gifStopFunction) {
-        panel.gifStopFunction();
-        panel.gifStopFunction = null;
-    }
+    if (panel.titleMesh) disposeTextureSafely(panel.titleMesh); panel.titleMesh.visible = false;
+    if (panel.descriptionMesh) disposeTextureSafely(panel.descriptionMesh); panel.descriptionMesh.visible = false;
+    if (panel.attributesMesh) disposeTextureSafely(panel.attributesMesh); panel.attributesMesh.visible = false;
     
     // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
@@ -367,7 +370,6 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
       // --- Main NFT Mesh Update ---
-      // disposeTextureSafely(panel.mesh) was already called in step 2, but we ensure the new map is set
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       // --- End Main NFT Mesh Update ---
 
@@ -409,7 +411,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       
       // If loading fails, the panel remains dark gray, but the wall title remains visible (set in step 1).
     }
-  }, [loadTexture]);
+  }, [loadTexture, disposeTextureSafely]); // Added disposeTextureSafely to dependency array
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1022,7 +1024,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       const panel: Panel = {
         mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
         attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-        videoElement: null, gifStopFunction: null, // Initialize new properties
+        videoElement: null, videoTexture: null, gifStopFunction: null, // Initialize new properties
       };
       panelsRef.current.push(panel);
       
@@ -1302,26 +1304,52 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, 
       
       // Cleanup individual video elements and Three.js resources
       panelsRef.current.forEach(panel => {
-        if (panel.videoElement) {
-          panel.videoElement.pause();
-          panel.videoElement.removeAttribute('src');
-          panel.videoElement = null; // Ensure element is nullified
-        }
-        if (panel.gifStopFunction) {
-            panel.gifStopFunction();
-        }
+        // Use the safe dispose function for the main mesh texture
+        disposeTextureSafely(panel.mesh); 
+        
+        // Dispose of text panel textures/materials
+        disposeTextureSafely(panel.titleMesh);
+        disposeTextureSafely(panel.descriptionMesh);
+        disposeTextureSafely(panel.attributesMesh);
+        disposeTextureSafely(panel.wallTitleMesh);
+        
+        // Dispose of geometries and materials for all meshes
+        if (panel.mesh.geometry) panel.mesh.geometry.dispose();
+        if (panel.prevArrow.geometry) panel.prevArrow.geometry.dispose();
+        if (panel.nextArrow.geometry) panel.nextArrow.geometry.dispose();
+        if (panel.titleMesh.geometry) panel.titleMesh.geometry.dispose();
+        if (panel.descriptionMesh.geometry) panel.descriptionMesh.geometry.dispose();
+        if (panel.attributesMesh.geometry) panel.attributesMesh.geometry.dispose();
+        if (panel.wallTitleMesh.geometry) panel.wallTitleMesh.geometry.dispose();
+        
+        if (panel.mesh.material) (panel.mesh.material as THREE.Material).dispose();
+        if (panel.prevArrow.material) (panel.prevArrow.material as THREE.Material).dispose();
+        if (panel.nextArrow.material) (panel.nextArrow.material as THREE.Material).dispose();
+        if (panel.titleMesh.material) (panel.titleMesh.material as THREE.Material).dispose();
+        if (panel.descriptionMesh.material) (panel.descriptionMesh.material as THREE.Material).dispose();
+        if (panel.attributesMesh.material) (panel.attributesMesh.material as THREE.Material).dispose();
+        if (panel.wallTitleMesh.material) (panel.wallTitleMesh.material as THREE.Material).dispose();
       });
 
+      // Dispose of shared geometries/materials
+      panelGeometry.dispose();
+      arrowGeometry.dispose();
+      titleGeometry.dispose();
+      descriptionGeometry.dispose();
+      attributesGeometry.dispose();
+      wallTitleGeometry.dispose();
+      panelMaterial.dispose();
+      arrowMaterial.dispose();
+      
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh) {
-          obj.geometry.dispose();
-          if (Array.isArray(obj.material)) obj.material.forEach(m => { 
-            if (m.map) m.map.dispose(); 
-            m.dispose(); 
-          });
-          else { 
-            if (obj.material.map) obj.material.map.dispose(); 
-            obj.material.dispose(); 
+          // We already disposed of panel geometries/materials above, but clean up others
+          if (obj.geometry && !panelsRef.current.some(p => p.mesh === obj || p.prevArrow === obj || p.nextArrow === obj || p.titleMesh === obj || p.descriptionMesh === obj || p.attributesMesh === obj || p.wallTitleMesh === obj)) {
+              obj.geometry.dispose();
+          }
+          if (obj.material && !panelsRef.current.some(p => p.mesh === obj || p.prevArrow === obj || p.nextArrow === obj || p.titleMesh === obj || p.descriptionMesh === obj || p.attributesMesh === obj || p.wallTitleMesh === obj)) {
+              if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+              else obj.material.dispose();
           }
         }
       });
