@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
 interface GalleryConfig {
@@ -12,6 +13,7 @@ interface GalleryConfig {
   collection_name: string | null;
   contract_address: string | null;
   default_token_id: number | null;
+  show_collection: boolean | null;
 }
 
 const GalleryConfig = () => {
@@ -43,7 +45,7 @@ const GalleryConfig = () => {
     if (error) {
       toast.error(`Failed to fetch config for ${panelKey}`);
       console.error(error);
-      setCurrentConfig({ panel_key: panelKey }); // Set key so user can create a new one
+      setCurrentConfig({ panel_key: panelKey, show_collection: true }); // Set key so user can create a new one
     } else {
       setCurrentConfig(data);
     }
@@ -67,6 +69,7 @@ const GalleryConfig = () => {
       collection_name: currentConfig.collection_name || null,
       contract_address: currentConfig.contract_address || null,
       default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
+      show_collection: currentConfig.show_collection ?? true,
     };
 
     const { error } = await supabase.from('gallery_config').upsert(dataToUpsert);
@@ -83,6 +86,10 @@ const GalleryConfig = () => {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setCurrentConfig((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSwitchChange = (checked: boolean) => {
+    setCurrentConfig((prev) => ({ ...prev, show_collection: checked }));
   };
 
   return (
@@ -143,6 +150,20 @@ const GalleryConfig = () => {
                     value={currentConfig.default_token_id || ''}
                     onChange={handleInputChange}
                     placeholder="e.g., 1"
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="show_collection" className="text-base">Show Entire Collection</Label>
+                    <p className="text-sm text-muted-foreground">
+                      If enabled, users can browse all tokens. If disabled, only the default token will be shown.
+                    </p>
+                  </div>
+                  <Switch
+                    id="show_collection"
+                    checked={currentConfig.show_collection ?? true}
+                    onCheckedChange={handleSwitchChange}
                     disabled={isLoading}
                   />
                 </div>

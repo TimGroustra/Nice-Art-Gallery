@@ -6,6 +6,7 @@ export interface NftCollection {
   contractAddress: string;
   tokenIds: number[];
   currentIndex: number;
+  show_collection: boolean;
 }
 
 export interface PanelConfig {
@@ -26,6 +27,7 @@ const createBlankPanel = (): NftCollection => ({
   contractAddress: '',
   tokenIds: [],
   currentIndex: 0,
+  show_collection: true,
 });
 
 // Generate 20 panel configurations for the outer 50x50 walls
@@ -66,7 +68,7 @@ export async function initializeGalleryConfig() {
   if (error) {
     console.error("Failed to fetch gallery config from Supabase:", error);
     for (const wallName in galleryConfig) {
-      galleryConfig[wallName] = { name: 'Error Loading', contractAddress: '', tokenIds: [], currentIndex: 0 };
+      galleryConfig[wallName] = { name: 'Error Loading', contractAddress: '', tokenIds: [], currentIndex: 0, show_collection: true };
     }
     return;
   }
@@ -104,7 +106,15 @@ export async function initializeGalleryConfig() {
     if (configFromDb && configFromDb.contract_address) {
       const contractAddress = configFromDb.contract_address;
       const defaultTokenId = configFromDb.default_token_id || 1;
-      const tokens = tokenMap[contractAddress] || [defaultTokenId];
+      const showCollection = configFromDb.show_collection ?? true;
+
+      let tokens: number[];
+      if (showCollection) {
+        tokens = tokenMap[contractAddress] || [defaultTokenId];
+      } else {
+        tokens = [defaultTokenId];
+      }
+      
       const startIndex = Math.max(0, tokens.indexOf(defaultTokenId));
 
       galleryConfig[panelKey] = {
@@ -112,6 +122,7 @@ export async function initializeGalleryConfig() {
         contractAddress: contractAddress,
         tokenIds: tokens,
         currentIndex: startIndex,
+        show_collection: showCollection,
       };
     } else {
       galleryConfig[panelKey] = {
@@ -119,6 +130,7 @@ export async function initializeGalleryConfig() {
         contractAddress: '',
         tokenIds: [],
         currentIndex: 0,
+        show_collection: true,
       };
     }
   }

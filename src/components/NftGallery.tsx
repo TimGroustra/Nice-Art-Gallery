@@ -322,6 +322,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
         // Wall title is already set to "Blank Panel"
+        const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+        const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+        panel.prevArrow.visible = showArrows;
+        panel.nextArrow.visible = showArrows;
         return;
     }
 
@@ -396,6 +400,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       // If loading fails, the panel remains dark gray, but the wall title remains visible (set in step 1).
     }
+
+    // --- 4. Update Arrow Visibility ---
+    const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+    const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+    panel.prevArrow.visible = showArrows;
+    panel.nextArrow.visible = showArrows;
+    // --- End Arrow Visibility Update ---
+
   }, [loadTexture]);
 
   useEffect(() => {
