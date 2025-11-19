@@ -41,6 +41,12 @@ interface NftGalleryProps {
   setTargetedPanel: (panel: { wallName: string, updateContent: (source: NftSource) => void } | null) => void;
 }
 
+interface DynamicPanelConfig {
+  wallName: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+}
+
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedDescriptionPanel: Panel | null = null;
 
@@ -399,12 +405,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
     
-    const dynamicPanelConfigs = Object.entries(GALLERY_PANEL_CONFIG).map(([wallName, config]) => {
+    const dynamicPanelConfigs: DynamicPanelConfig[] = Object.entries(GALLERY_PANEL_CONFIG).map(([wallName, config]) => {
         // This part needs to be robust to derive position from wallName
         const parts = wallName.split('-');
         const wallDir = parts[0];
         const segmentIndex = parseInt(parts[parts.length - 1], 10);
-        let x = 0, z = 0, rotY = 0, depthSign = 1, wallAxis = 'z';
+        let x = 0, z = 0, rotY = 0;
         const segmentCenter = (segmentIndex - 2) * 10;
 
         if (wallName.includes('center')) {
@@ -425,12 +431,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
             if (wallDir === 'west') { z = segmentCenter; x = -BOUNDARY; rotY = Math.PI / 2; }
         }
         
-        if (rotY === 0) z += ARROW_DEPTH_OFFSET;
-        else if (rotY === Math.PI) z -= ARROW_DEPTH_OFFSET;
-        else if (rotY === -Math.PI / 2) x -= ARROW_DEPTH_OFFSET;
-        else if (rotY === Math.PI / 2) x += ARROW_DEPTH_OFFSET;
+        let posZ = z;
+        let posX = x;
 
-        return { wallName, position: [x, PANEL_Y_POSITION, z], rotation: [0, rotY, 0] };
+        if (rotY === 0) posZ += ARROW_DEPTH_OFFSET;
+        else if (rotY === Math.PI) posZ -= ARROW_DEPTH_OFFSET;
+        else if (rotY === -Math.PI / 2) posX -= ARROW_DEPTH_OFFSET;
+        else if (rotY === Math.PI / 2) posX += ARROW_DEPTH_OFFSET;
+
+        return { wallName, position: [posX, PANEL_Y_POSITION, posZ], rotation: [0, rotY, 0] };
     });
 
     panelsRef.current = [];
@@ -574,7 +583,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, setTarg
         if (currentTargetedPanelRef.current !== newTargetedPanel) {
             currentTargetedPanelRef.current = newTargetedPanel;
             setTargetedPanel(newTargetedPanel ? {
-                wallName: newTargetedPanel.wallName,
+                wallName: String(newTargetedPanel.wallName),
                 updateContent: (source) => updatePanelContent(newTargetedPanel!, source)
             } : null);
         }
