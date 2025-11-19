@@ -30,7 +30,6 @@ const roomFormSchema = z.object({
   name: z.string().min(3, "Name must be at least 3 characters."),
   description: z.string().optional(),
   visual_effect: z.enum(['default', 'disco', 'cinematic']),
-  audio_file: z.custom<FileList>().optional(),
   start_time: z.date({ required_error: "A start date is required." }),
   duration_days: z.coerce.number().int().min(1, "Duration must be at least 1 day.").max(30, "Duration cannot exceed 30 days."),
   panels: z.array(panelSchema).min(1, "You must configure at least 1 panel.").max(20, "Maximum of 20 panels allowed."),
@@ -48,8 +47,8 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
   const form = useForm<z.infer<typeof roomFormSchema>>({
     resolver: zodResolver(roomFormSchema),
     defaultValues: {
-      name: '', // Ensure name is initialized
-      description: '', // Ensure description is initialized
+      name: '',
+      description: '',
       visual_effect: 'default',
       duration_days: 7,
       panels: [{ contract: '', tokenId: 1 }],
@@ -64,24 +63,8 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
   async function onSubmit(values: z.infer<typeof roomFormSchema>) {
     const toastId = showLoading("Creating your room...");
     try {
-      let audio_url = null;
-      if (values.audio_file && values.audio_file.length > 0) {
-        const file = values.audio_file[0];
-        // Sanitize filename by replacing spaces with underscores
-        const safeFileName = file.name.replace(/\s/g, '_');
-        const filePath = `${userAddress}/${Date.now()}-${safeFileName}`;
-        
-        // NOTE: Assuming 'audio_uploads' bucket exists and is configured for public read
-        const { data, error } = await supabase.storage.from('audio_uploads').upload(filePath, file);
-
-        if (error) {
-          console.error("Supabase Storage Upload Error:", error);
-          throw new Error(`Audio upload failed: ${error.message}. Please check bucket permissions.`);
-        }
-        
-        const { data: { publicUrl } } = supabase.storage.from('audio_uploads').getPublicUrl(data.path);
-        audio_url = publicUrl;
-      }
+      // Custom audio upload is disabled, so audio_url is always null
+      const audio_url = null; 
 
       const end_time = new Date(values.start_time);
       end_time.setDate(end_time.getDate() + values.duration_days);
@@ -167,13 +150,7 @@ export default function RoomCreator({ userAddress }: { userAddress: `0x${string}
                 <FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="audio_file" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Background Music (Optional)</FormLabel>
-                <FormControl><Input type="file" accept="audio/*" onChange={(e) => field.onChange(e.target.files)} className="bg-gray-700 border-gray-600 text-white file:text-white" /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            {/* Removed audio_file field */}
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
