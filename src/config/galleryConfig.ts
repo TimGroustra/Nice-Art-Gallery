@@ -1,5 +1,4 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
-import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface NftCollection {
@@ -86,24 +85,7 @@ export async function initializeGalleryConfig() {
   );
 
   const tokenMap: { [contractAddress: string]: number[] } = {};
-  const collectionNameMap: { [contractAddress: string]: string } = {};
-
   for (const address of uniqueContracts) {
-    // Fetch collection name from token 1 metadata
-    try {
-      const metadata = await getCachedNftMetadata(address, 1);
-      let collectionName = metadata?.title || 'Unnamed Collection';
-      // Strip token-specific parts like " #123" or "Fragment 1" from the end of the title
-      if (collectionName) {
-        collectionName = collectionName.replace(/\s+(#|fragment|token)?\s*\d+$/i, '').trim();
-      }
-      collectionNameMap[address] = collectionName;
-    } catch (e) {
-      console.error(`Failed to get collection name for ${address}`, e);
-      collectionNameMap[address] = 'Unnamed Collection';
-    }
-
-    // Fetch total supply
     if (address === ETN_VIDEO_NFT_ADDRESS) {
       tokenMap[address] = [1];
       continue;
@@ -136,7 +118,7 @@ export async function initializeGalleryConfig() {
       const startIndex = Math.max(0, tokens.indexOf(defaultTokenId));
 
       galleryConfig[panelKey] = {
-        name: collectionNameMap[contractAddress] || 'Unnamed Collection',
+        name: configFromDb.collection_name || 'Unnamed Collection',
         contractAddress: contractAddress,
         tokenIds: tokens,
         currentIndex: startIndex,

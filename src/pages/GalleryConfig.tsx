@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { getCachedNftMetadata } from '@/utils/metadataCache';
 
 interface GalleryConfig {
   panel_key: string;
@@ -22,7 +21,6 @@ const GalleryConfig = () => {
   const [selectedPanelKey, setSelectedPanelKey] = useState<string>('');
   const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfig>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [isNameLoading, setIsNameLoading] = useState(false);
 
   useEffect(() => {
     const fetchPanelKeys = async () => {
@@ -59,35 +57,6 @@ const GalleryConfig = () => {
       fetchPanelConfig(selectedPanelKey);
     }
   }, [selectedPanelKey, fetchPanelConfig]);
-
-  useEffect(() => {
-    const fetchCollectionName = async () => {
-      if (currentConfig.contract_address && /^(0x)?[0-9a-fA-F]{40}$/.test(currentConfig.contract_address)) {
-        setIsNameLoading(true);
-        const metadata = await getCachedNftMetadata(currentConfig.contract_address, 1);
-        if (metadata) {
-          let collectionName = metadata.title;
-          // Strip token-specific parts like " #123" or "Fragment 1"
-          if (collectionName) {
-            collectionName = collectionName.replace(/\s+(#|fragment|token)?\s*\d+$/i, '').trim();
-          }
-          setCurrentConfig(prev => ({ ...prev, collection_name: collectionName }));
-        } else {
-          setCurrentConfig(prev => ({ ...prev, collection_name: 'Unknown Collection' }));
-          toast.warning('Could not retrieve collection name for this address.');
-        }
-        setIsNameLoading(false);
-      } else if (selectedPanelKey) {
-        setCurrentConfig(prev => ({ ...prev, collection_name: '' }));
-      }
-    };
-
-    const timer = setTimeout(() => {
-      fetchCollectionName();
-    }, 500); // Debounce the fetch to avoid spamming requests while typing
-
-    return () => clearTimeout(timer);
-  }, [currentConfig.contract_address, selectedPanelKey]);
 
   const handleSave = async () => {
     if (!selectedPanelKey) {
@@ -156,8 +125,9 @@ const GalleryConfig = () => {
                     id="collection_name"
                     name="collection_name"
                     value={currentConfig.collection_name || ''}
-                    placeholder={isNameLoading ? 'Fetching name...' : 'Auto-fetched from contract'}
-                    disabled
+                    onChange={handleInputChange}
+                    placeholder="e.g., My Awesome NFTs"
+                    disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-2">
