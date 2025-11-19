@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { injected, walletConnect } from 'wagmi/connectors';
 import { Loader2, Wallet, LogIn, X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -35,8 +34,9 @@ const Login: React.FC = () => {
     toast.info("Wallet disconnected.");
   };
 
-  const injectedConnector = connectors.find(c => c.id === injected.id);
-  const walletConnectConnector = connectors.find(c => c.id === walletConnect.id);
+  // Use known string IDs for comparison
+  const injectedConnector = connectors.find(c => c.id === 'injected');
+  const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
