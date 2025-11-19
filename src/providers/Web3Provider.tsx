@@ -1,24 +1,13 @@
 "use client";
 
 import React from 'react';
-import { createWeb3Modal } from '@web3modal/wagmi/react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { injected } from 'wagmi/connectors';
 
 // 0. Setup queryClient
 const queryClient = new QueryClient();
-
-// 1. Get projectId from https://cloud.walletconnect.com
-const projectId = "a5853e742e5536f6f3798a87e3f65562"; // Replace with your own Project ID
-
-// 2. Create wagmiConfig
-const metadata = {
-  name: 'Nice Art Gallery',
-  description: 'Create your own custom NFT gallery rooms.',
-  url: 'https://web3modal.com', // origin must match your domain & subdomain
-  icons: ['https://avatars.githubusercontent.com/u/37784886']
-};
 
 // Define custom chain for Electroneum
 const electroneum = {
@@ -33,19 +22,20 @@ const electroneum = {
   },
 } as const;
 
+// 1. Create wagmiConfig using injected connector
 const config = createConfig({
   chains: [electroneum, mainnet],
+  connectors: [
+    injected(),
+    // You can add other connectors here if needed, but injected is usually enough for local testing.
+  ],
   transports: {
     [electroneum.id]: http(),
     [mainnet.id]: http(),
   },
 });
 
-createWeb3Modal({
-  wagmiConfig: config,
-  projectId,
-  enableAnalytics: true,
-});
+// NOTE: We are removing createWeb3Modal and relying on custom UI/injected provider.
 
 export function Web3Provider({ children }: { children: React.ReactNode }) {
   return (
