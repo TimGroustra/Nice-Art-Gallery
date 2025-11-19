@@ -31,6 +31,15 @@ interface PanelLock {
 
 const REQUIRED_GEM_BALANCE = 10;
 
+// Helper function to format wallet address
+const formatWalletAddress = (address: string | undefined | null) => {
+    if (!address) return 'N/A';
+    const len = address.length;
+    if (len <= 10) return address;
+    return `${address.substring(0, 6)}...${address.substring(len - 4)}`;
+};
+
+
 const GalleryConfig = () => {
   const navigate = useNavigate();
   
@@ -316,7 +325,7 @@ const GalleryConfig = () => {
           {isGemsLoading && (
             <div className="flex items-center space-x-2 text-primary">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Checking ElectroGem ownership for {walletAddress?.substring(0, 6)}...</span>
+              <span>Checking ElectroGem ownership for {formatWalletAddress(walletAddress)}...</span>
             </div>
           )}
           {gemsError && (
@@ -338,7 +347,7 @@ const GalleryConfig = () => {
           <div className="flex justify-between items-center pt-4">
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <Wallet className="h-4 w-4" />
-              Connected: {walletAddress?.substring(0, 6)}...{walletAddress?.substring(walletAddress.length - 4)}
+              Connected: {formatWalletAddress(walletAddress)}
             </p>
             <Button variant="outline" onClick={() => disconnect()}>
               Disconnect
@@ -371,7 +380,7 @@ const GalleryConfig = () => {
           <CardHeader>
             <CardTitle>Gallery Configuration</CardTitle>
             <CardDescription>
-              Editing panel configuration for wallet: {walletAddress?.substring(0, 6)}...
+              Editing panel configuration for wallet: {formatWalletAddress(walletAddress)}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
