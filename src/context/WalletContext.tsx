@@ -1,6 +1,12 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { ethers } from 'ethers';
 
+declare global {
+  interface Window {
+    ethereum: any;
+  }
+}
+
 const TOKEN_CONTRACT_ADDRESS = '0xcff0d88Ed5311bAB09178b6ec19A464100880984';
 const MIN_BALANCE = 5;
 
@@ -128,13 +134,11 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     };
 
     if (window.ethereum) {
-      // @ts-ignore
       window.ethereum.on('accountsChanged', handleAccountsChanged);
     }
 
     return () => {
       if (window.ethereum) {
-        // @ts-ignore
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
       }
     };
