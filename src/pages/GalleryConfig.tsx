@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
+import NftPreviewPane from '@/components/NftPreviewPane';
 
 interface GalleryConfig {
   panel_key: string;
@@ -42,12 +43,15 @@ const GalleryConfig = () => {
     }
     setIsLoading(true);
     const { data, error } = await supabase.from('gallery_config').select('*').eq('panel_key', panelKey).single();
-    if (error) {
+    if (error && error.code !== 'PGRST116') { // PGRST116 means 'no rows found'
       toast.error(`Failed to fetch config for ${panelKey}`);
       console.error(error);
       setCurrentConfig({ panel_key: panelKey, show_collection: true }); // Set key so user can create a new one
-    } else {
+    } else if (data) {
       setCurrentConfig(data);
+    } else {
+      // No existing config found, initialize with defaults
+      setCurrentConfig({ panel_key: panelKey, show_collection: true, default_token_id: 1 });
     }
     setIsLoading(false);
   }, []);
@@ -64,21 +68,25 @@ const GalleryConfig = () => {
       return;
     }
     setIsLoading(true);
+    
+    // Ensure contract address is null if empty string
+    const contractAddress = currentConfig.contract_address?.trim() || null;
+    
     const dataToUpsert = {
       panel_key: selectedPanelKey,
       collection_name: currentConfig.collection_name || null,
-      contract_address: currentConfig.contract_address || null,
+      contract_address: contractAddress,
       default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
       show_collection: currentConfig.show_collection ?? true,
     };
 
-    const { error } = await supabase.from('gallery_config').upsert(dataToUpsert);
+    const { error } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
 
     if (error) {
       toast.error('Failed to save configuration.');
       console.error(error);
     } else {
-      toast.success('Configuration saved successfully!');
+      toast.success('Configuration saved successfully! Restart the gallery to see changes.');
     }
     setIsLoading(false);
   };
@@ -94,7 +102,9 @@ const GalleryConfig = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        {/* Configuration Card (Left Column) */}
         <Card>
           <CardHeader>
             <CardTitle>Gallery Configuration</CardTitle>
@@ -174,6 +184,14 @@ const GalleryConfig = () => {
             )}
           </CardContent>
         </Card>
+        
+        {/* Preview Pane (Right Column) */}
+        <div className="lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
+          <NftPreviewPane
+            contractAddress={currentConfig.contract_address || null}
+            tokenId={currentConfig.default_token_id ? Number(currentConfig.default_token_id) : null}
+          />
+        </div>
       </div>
     </div>
   );
