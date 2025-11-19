@@ -26,7 +26,7 @@ export default function RoomConfigurationPage() {
     <div className="min-h-screen bg-gray-900 text-white flex flex-col items-center p-4">
       <div className="w-full max-w-4xl mx-auto">
         <header className="flex justify-between items-center py-4 border-b border-gray-700">
-          <Link to="/" className="text-2xl font-bold transition-colors">Nice Art Gallery</Link>
+          <Link to="/" className="text-2xl font-bold hover:text-blue-400 transition-colors">Nice Art Gallery</Link>
           <Button onClick={isConnected ? () => disconnect() : handleConnect} variant="secondary">
             {isConnected ? `Disconnect: ${displayAddress}` : 'Connect Wallet'}
           </Button>

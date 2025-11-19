@@ -60,7 +60,7 @@ const RoomPage = () => {
             </div>
         ) : (
             rooms.map((room) => (
-              <Card key={room.id} className="bg-gray-800 border-gray-700 transition-colors">
+              <Card key={room.id} className="bg-gray-800 border-gray-700 hover:border-blue-500 transition-colors">
                 <CardHeader>
                   <CardTitle className="text-blue-300">{room.name}</CardTitle>
                   <CardDescription className="text-gray-400">
@@ -71,7 +71,7 @@ const RoomPage = () => {
                   <p className="text-sm text-gray-500">
                     Active until: {format(new Date(room.end_time), 'PPP')}
                   </p>
-                  <Button asChild className="w-full bg-blue-600 text-white">
+                  <Button asChild className="w-full bg-blue-600 hover:bg-blue-700">
                     <Link to={`/gallery/${room.id}`}>Enter Custom Gallery</Link>
                   </Button>
                 </CardContent>
