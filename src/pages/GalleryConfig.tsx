@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
+import { useWallet } from '@/contexts/WalletContext';
+import { useGemBalance } from '@/hooks/use-gem-balance';
+import { Loader2, Wallet, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface GalleryConfig {
   panel_key: string;
@@ -17,13 +22,39 @@ interface GalleryConfig {
   show_collection: boolean | null;
 }
 
+const REQUIRED_GEM_BALANCE = 10;
+
 const GalleryConfig = () => {
+  const navigate = useNavigate();
+  const { walletAddress, isConnected, disconnectWallet } = useWallet();
+  const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(walletAddress);
+
   const [panelKeys, setPanelKeys] = useState<string[]>([]);
   const [selectedPanelKey, setSelectedPanelKey] = useState<string>('');
   const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfig>>({});
   const [isLoading, setIsLoading] = useState(false);
 
+  // 1. Authentication and Authorization Check
   useEffect(() => {
+    if (!isConnected) {
+      toast.warning("Please connect your wallet to access configuration.");
+      navigate('/login');
+      return;
+    }
+    
+    if (!isBalanceLoading && balance !== null) {
+      if (balance < REQUIRED_GEM_BALANCE) {
+        toast.error(`Access denied. You need at least ${REQUIRED_GEM_BALANCE} ElectroGems to configure the gallery.`);
+      }
+    }
+  }, [isConnected, isBalanceLoading, balance, navigate]);
+
+  const isAuthorized = isConnected && !isBalanceLoading && balance !== null && balance >= REQUIRED_GEM_BALANCE;
+  
+  // 2. Fetch Panel Keys (only if authorized)
+  useEffect(() => {
+    if (!isAuthorized) return;
+
     const fetchPanelKeys = async () => {
       const { data, error } = await supabase.from('gallery_config').select('panel_key');
       if (error) {
@@ -34,7 +65,7 @@ const GalleryConfig = () => {
       }
     };
     fetchPanelKeys();
-  }, []);
+  }, [isAuthorized]);
 
   const fetchPanelConfig = useCallback(async (panelKey: string) => {
     if (!panelKey) {
@@ -57,12 +88,16 @@ const GalleryConfig = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedPanelKey) {
+    if (isAuthorized && selectedPanelKey) {
       fetchPanelConfig(selectedPanelKey);
     }
-  }, [selectedPanelKey, fetchPanelConfig]);
+  }, [selectedPanelKey, fetchPanelConfig, isAuthorized]);
 
   const handleSave = async () => {
+    if (!isAuthorized) {
+      toast.error('You are not authorized to save configurations.');
+      return;
+    }
     if (!selectedPanelKey) {
       toast.error('Please select a panel to configure.');
       return;
@@ -100,6 +135,54 @@ const GalleryConfig = () => {
     setCurrentConfig((prev) => ({ ...prev, show_collection: checked }));
   };
 
+  const renderUnauthorizedState = () => (
+    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+      <Card className="w-full max-w-lg">
+        <CardHeader>
+          <CardTitle>Access Required</CardTitle>
+          <CardDescription>Gallery configuration requires a connected wallet with sufficient ElectroGem balance.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isBalanceLoading && (
+            <div className="flex items-center space-x-2 text-primary">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span>Checking ElectroGem balance for {walletAddress?.substring(0, 6)}...</span>
+            </div>
+          )}
+          {balanceError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Balance Check Error</AlertTitle>
+              <AlertDescription>Could not verify balance: {balanceError}</AlertDescription>
+            </Alert>
+          )}
+          {balance !== null && balance < REQUIRED_GEM_BALANCE && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Insufficient Balance</AlertTitle>
+              <AlertDescription>
+                You currently hold {balance} ElectroGems. You need at least {REQUIRED_GEM_BALANCE} to access configuration.
+              </AlertDescription>
+            </Alert>
+          )}
+          <div className="flex justify-between items-center pt-4">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Wallet className="h-4 w-4" />
+              Connected: {walletAddress?.substring(0, 6)}...{walletAddress?.substring(walletAddress.length - 4)}
+            </p>
+            <Button variant="outline" onClick={disconnectWallet}>
+              Disconnect
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  if (!isAuthorized) {
+    return renderUnauthorizedState();
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -108,9 +191,16 @@ const GalleryConfig = () => {
         <Card>
           <CardHeader>
             <CardTitle>Gallery Configuration</CardTitle>
-            <CardDescription>Select a panel to edit its NFT collection and token.</CardDescription>
+            <CardDescription>
+              Editing panel configuration for wallet: {walletAddress?.substring(0, 6)}...
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="flex justify-end">
+              <Button variant="outline" onClick={disconnectWallet}>
+                Disconnect Wallet
+              </Button>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="panel-select">Panel Key</Label>
               <Select onValueChange={setSelectedPanelKey} value={selectedPanelKey}>
