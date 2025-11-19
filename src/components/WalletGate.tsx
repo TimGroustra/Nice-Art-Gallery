@@ -11,9 +11,9 @@ const WalletGate = () => {
       <div className="text-center p-8 bg-gray-800 rounded-lg shadow-xl max-w-md">
         <h1 className="text-3xl font-bold mb-4">Welcome to the Art Gallery</h1>
         <p className="text-gray-300 mb-6">
-          To enter, you must hold at least 5 ElectroGems NFTs.
+          This gallery runs on the Electroneum network.
           <br />
-          (Contract: 0xcff0...0984)
+          To enter, you must hold at least 5 ElectroGems NFTs.
         </p>
         
         <Button 

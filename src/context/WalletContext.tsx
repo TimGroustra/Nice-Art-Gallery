@@ -4,6 +4,19 @@ import { ethers } from 'ethers';
 const TOKEN_CONTRACT_ADDRESS = '0xcff0d88Ed5311bAB09178b6ec19A464100880984';
 const MIN_BALANCE = 5;
 
+// Electroneum Network Configuration
+const ELECTRONEUM_NETWORK = {
+  chainId: '0x6887', // 26759 in hex
+  chainName: 'Electroneum',
+  nativeCurrency: {
+    name: 'Electroneum',
+    symbol: 'ETN',
+    decimals: 18,
+  },
+  rpcUrls: ['https://rpc.electroneum.com'],
+  blockExplorerUrls: ['https://blockexplorer.electroneum.com'],
+};
+
 const ERC721_ABI = [
   "function balanceOf(address owner) view returns (uint256)"
 ];
@@ -43,6 +56,33 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const switchToElectroneumNetwork = async () => {
+    if (!window.ethereum) throw new Error("MetaMask is not installed");
+
+    try {
+      await window.ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: ELECTRONEUM_NETWORK.chainId }],
+      });
+    } catch (switchError: any) {
+      // This error code indicates that the chain has not been added to MetaMask.
+      if (switchError.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [ELECTRONEUM_NETWORK],
+          });
+        } catch (addError) {
+          console.error("Failed to add Electroneum network", addError);
+          throw new Error("Failed to add the Electroneum network to your wallet.");
+        }
+      } else {
+        console.error("Failed to switch to Electroneum network", switchError);
+        throw new Error("Failed to switch to the Electroneum network. Please do it manually in your wallet.");
+      }
+    }
+  };
+
   const connectWallet = async () => {
     if (typeof window.ethereum === 'undefined') {
       setError("Please install MetaMask!");
@@ -53,6 +93,8 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
 
     try {
+      await switchToElectroneumNetwork();
+
       const provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
