@@ -167,7 +167,7 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
 };
 
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId = 'default' }) => {
+export const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId = 'default' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false); 
@@ -712,7 +712,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, roomId 
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
         // North Inner Inner Wall (Z = -15)
-        // Outer side (facing -Z, corridor)
+        // Outer side (in corridor, faces -Z)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [Math.PI / 2, 0, 0]);
         // Inner side (facing +Z, inner room)
         createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
