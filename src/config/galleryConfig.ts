@@ -1,6 +1,5 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
 import { supabase } from '@/integrations/supabase/client';
-import { PANEL_KEYS } from './panelKeys';
 
 export interface NftCollection {
   name: string;
@@ -21,50 +20,15 @@ const tokenMap: { [contractAddress: string]: number[] } = {};
 
 // Function to initialize the gallery configuration by fetching from Supabase
 export async function initializeGalleryConfig() {
-  console.log("Initializing and verifying gallery configuration...");
+  console.log("Initializing gallery configuration from database...");
 
-  // 1. Fetch existing config from Supabase to check for missing keys
-  const { data: existingConfig, error: fetchError } = await supabase
-    .from('gallery_config')
-    .select('panel_key');
-
-  if (fetchError) {
-    console.error("FATAL: Could not fetch existing gallery configuration.", fetchError);
-    galleryConfig = {};
-    return;
-  }
-
-  // 2. Identify missing keys by comparing against the canonical list
-  const existingKeys = new Set(existingConfig.map(item => item.panel_key));
-  const missingKeys = PANEL_KEYS.filter(key => !existingKeys.has(key));
-
-  // 3. If there are missing keys, insert them with default values
-  if (missingKeys.length > 0) {
-    console.log(`Found ${missingKeys.length} missing panel configurations. Creating them now...`);
-    const newRows = missingKeys.map(key => ({
-      panel_key: key,
-      collection_name: 'Blank Panel',
-      contract_address: '',
-      default_token_id: 1,
-    }));
-
-    const { error: insertError } = await supabase.from('gallery_config').insert(newRows);
-
-    if (insertError) {
-      console.error("Failed to insert missing panel configurations.", insertError);
-    } else {
-      console.log("Successfully created missing panel configurations.");
-    }
-  }
-
-  // 4. Fetch the complete, final configuration from the database
-  console.log("Fetching final gallery configuration from database...");
   const { data: dbConfig, error } = await supabase
     .from('gallery_config')
     .select('panel_key, collection_name, contract_address, default_token_id');
 
   if (error) {
     console.error("FATAL: Could not load gallery configuration from Supabase.", error);
+    // In case of failure, the gallery will be empty.
     galleryConfig = {};
     return;
   }
@@ -87,13 +51,15 @@ export async function initializeGalleryConfig() {
     try {
       const totalSupply = await fetchTotalSupply(address);
       if (totalSupply !== null) {
+        // If total supply is available, create an array of token IDs from 1 to total
         tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
       } else {
+        // If total supply is not available (e.g., non-enumerable contract), mark it for fallback
         tokenMap[address] = [];
       }
     } catch (err) {
       console.error(`Failed to initialize collection at ${address}:`, err);
-      tokenMap[address] = [];
+      tokenMap[address] = []; // Mark for fallback on any error
     }
   }
 
@@ -103,20 +69,25 @@ export async function initializeGalleryConfig() {
     if (panel.contractAddress) {
       const tokens = tokenMap[panel.contractAddress];
       if (tokens && tokens.length > 0) {
+        // Case 1: Total supply was fetched successfully
         panel.tokenIds = tokens;
         const defaultTokenIndex = tokens.indexOf(item.default_token_id);
         panel.currentIndex = defaultTokenIndex !== -1 ? defaultTokenIndex : 0;
       } else {
+        // Case 2: Fallback for contracts where totalSupply failed.
+        // We only know about the default token ID, so we create a list with just that one.
         panel.tokenIds = [item.default_token_id || 1];
-        panel.currentIndex = 0;
+        panel.currentIndex = 0; // There's only one token in our list.
       }
     } else {
+        // Handle blank panels
         panel.name = "Blank Panel";
         panel.tokenIds = [];
         panel.currentIndex = 0;
     }
   }
   
+  // Atomically update the global config object
   galleryConfig = newConfig;
   console.log("Gallery configuration fully initialized.");
 }
@@ -138,7 +109,7 @@ export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
 // Utility function to update the current index (used by NftGallery)
 export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || config.tokenIds.length <= 1) return false;
+  if (!config || config.tokenIds.length <= 1) return false; // No change if 1 or 0 tokens
 
   let newIndex = config.currentIndex;
   if (direction === 'next') {

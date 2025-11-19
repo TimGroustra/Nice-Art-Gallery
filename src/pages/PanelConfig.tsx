@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { PANEL_KEYS } from '@/config/panelKeys';
 
 const ADMIN_NFT_CONTRACT = '0xcff0d88Ed5311bAB09178b6ec19A464100880984';
 const MINIMUM_NFT_BALANCE = 5;
@@ -52,17 +53,43 @@ const PanelConfigPage = () => {
     setStatus('loading');
     const { data, error } = await supabase
       .from('gallery_config')
-      .select('*')
-      .order('panel_key', { ascending: true });
+      .select('*');
 
     if (error) {
       console.error('Error fetching config:', error);
       setErrorMessage('Failed to load gallery configuration from the database.');
       setStatus('error');
-    } else {
-      setConfig(data as PanelConfig[]);
-      setStatus('authorized'); // Back to authorized state after loading
+      return;
     }
+
+    // Create a map of existing configs for easy lookup
+    const existingConfigMap = new Map<string, PanelConfig>();
+    if (data) {
+      (data as PanelConfig[]).forEach(item => {
+        existingConfigMap.set(item.panel_key, item);
+      });
+    }
+
+    // Create the full config list, merging db data with the canonical list of keys
+    const fullConfig = PANEL_KEYS.map(key => {
+      if (existingConfigMap.has(key)) {
+        return existingConfigMap.get(key)!;
+      } else {
+        // Create a default entry for a missing panel
+        return {
+          panel_key: key,
+          collection_name: 'Blank Panel',
+          contract_address: '',
+          default_token_id: 1,
+        };
+      }
+    });
+
+    // Sort the final list for consistent display
+    fullConfig.sort((a, b) => a.panel_key.localeCompare(b.panel_key));
+
+    setConfig(fullConfig);
+    setStatus('authorized');
   }, []);
 
   useEffect(() => {
