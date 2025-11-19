@@ -50,11 +50,16 @@ export async function initializeGalleryConfig() {
   for (const address of uniqueContracts) {
     try {
       const totalSupply = await fetchTotalSupply(address);
-      const total = totalSupply ?? 100; // Fallback to 100 if total supply is not available
-      tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
+      if (totalSupply !== null) {
+        // If total supply is available, create an array of token IDs from 1 to total
+        tokenMap[address] = Array.from({ length: totalSupply }, (_, i) => i + 1);
+      } else {
+        // If total supply is not available (e.g., non-enumerable contract), mark it for fallback
+        tokenMap[address] = [];
+      }
     } catch (err) {
       console.error(`Failed to initialize collection at ${address}:`, err);
-      tokenMap[address] = [1]; // Fallback to a single token
+      tokenMap[address] = []; // Mark for fallback on any error
     }
   }
 
@@ -64,9 +69,15 @@ export async function initializeGalleryConfig() {
     if (panel.contractAddress) {
       const tokens = tokenMap[panel.contractAddress];
       if (tokens && tokens.length > 0) {
+        // Case 1: Total supply was fetched successfully
         panel.tokenIds = tokens;
         const defaultTokenIndex = tokens.indexOf(item.default_token_id);
         panel.currentIndex = defaultTokenIndex !== -1 ? defaultTokenIndex : 0;
+      } else {
+        // Case 2: Fallback for contracts where totalSupply failed.
+        // We only know about the default token ID, so we create a list with just that one.
+        panel.tokenIds = [item.default_token_id || 1];
+        panel.currentIndex = 0; // There's only one token in our list.
       }
     } else {
         // Handle blank panels
@@ -87,7 +98,7 @@ export const GALLERY_PANEL_CONFIG = galleryConfig;
 // Utility function to get the current NFT source for a wall
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || !config.contractAddress) return null;
+  if (!config || !config.contractAddress || config.tokenIds.length === 0) return null;
   const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,
@@ -98,7 +109,7 @@ export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
 // Utility function to update the current index (used by NftGallery)
 export const updatePanelIndex = (wallName: keyof PanelConfig, direction: 'next' | 'prev') => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || config.tokenIds.length === 0) return false;
+  if (!config || config.tokenIds.length <= 1) return false; // No change if 1 or 0 tokens
 
   let newIndex = config.currentIndex;
   if (direction === 'next') {
