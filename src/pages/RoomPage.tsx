@@ -47,8 +47,8 @@ const RoomPage = () => {
         <Button 
           variant="outline" 
           asChild 
-          // Override hover state to match default outline appearance
-          className="hover:bg-transparent hover:text-white hover:border-gray-700"
+          // Explicitly set default state for visibility against bg-gray-900, and neutralize hover effect
+          className="bg-gray-800 text-white border-gray-700 hover:bg-gray-800 hover:text-white hover:border-gray-700"
         >
           <Link to="/room-configuration">
             <GalleryHorizontal className="mr-2 h-4 w-4" /> Create Your Own Room
