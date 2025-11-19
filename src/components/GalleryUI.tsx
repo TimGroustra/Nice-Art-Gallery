@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Volume2, VolumeX } from 'lucide-react';
+import { Volume2, VolumeX, LogOut } from 'lucide-react';
+import { useWallet } from '@/context/WalletContext';
 
 interface GalleryUIProps {
   instructionsVisible: boolean;
@@ -11,6 +12,7 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
   const [isVideoMuted, setIsVideoMuted] = useState(true);
   // Removed isMusicMuted state as the button is being removed
   const [hasVideo, setHasVideo] = useState(false);
+  const { address, disconnectWallet } = useWallet();
 
   // Polling/Interval to check video state
   useEffect(() => {
@@ -40,7 +42,10 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
     }
   };
   
-  // Removed handleMusicMuteToggle
+  const formatAddress = (addr: string | null) => {
+    if (!addr) return '';
+    return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  };
 
   return (
     <>
@@ -73,6 +78,24 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </Button>
         )}
       </div>
+
+      {/* Wallet Info (Top Right) */}
+      {!instructionsVisible && address && (
+        <div className="fixed top-0 right-0 p-4 z-10 flex items-center gap-3 pointer-events-auto">
+          <div className="bg-black/50 text-white p-2 px-3 rounded-md text-sm">
+            {formatAddress(address)}
+          </div>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="bg-black/50 hover:bg-black/70 text-white border border-gray-700"
+            onClick={disconnectWallet}
+            title="Disconnect Wallet"
+          >
+            <LogOut className="h-5 w-5" />
+          </Button>
+        </div>
+      )}
     </>
   );
 };

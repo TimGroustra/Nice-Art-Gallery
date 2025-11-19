@@ -2,6 +2,8 @@ import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { useWallet } from "@/context/WalletContext";
+import WalletGate from "@/components/WalletGate";
 
 // Define the type for the music controls exposed via ref
 interface BackgroundMusicHandles {
@@ -11,7 +13,7 @@ interface BackgroundMusicHandles {
   isMuted: () => boolean;
 }
 
-const Index = () => {
+const GalleryContent = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
   const musicRef = useRef<BackgroundMusicHandles>(null);
 
@@ -69,6 +71,17 @@ const Index = () => {
       />
     </div>
   );
+};
+
+
+const Index = () => {
+  const { canEnter } = useWallet();
+
+  if (!canEnter) {
+    return <WalletGate />;
+  }
+
+  return <GalleryContent />;
 };
 
 export default Index;
