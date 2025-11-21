@@ -73,6 +73,16 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
           </Button>
         )}
       </div>
+      
+      {/* Crosshair (only visible when controls are locked) */}
+      {!instructionsVisible && (
+        <div 
+          className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-20"
+        >
+          <div className="absolute top-1/2 left-0 w-full h-px bg-white/50 -translate-y-1/2"></div>
+          <div className="absolute top-0 left-1/2 w-px h-full bg-white/50 -translate-x-1/2"></div>
+        </div>
+      )}
     </>
   );
 };
