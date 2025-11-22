@@ -29,7 +29,7 @@ const MARKETPLACES = [
     id: "rarible",
     name: "Rarible",
     template: "https://rarible.com/electroneum/items/{collection}:{tokenId}",
-    probeRequired: true,
+    probeRequired: false, // Changed from true to false
   },
   {
     id: "panth",
@@ -94,13 +94,15 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
     markets.forEach(m => {
         if (m.probeRequired) {
             initialStates[m.id] = "checking";
-        } else if (m.id === "panth") {
-            // Client-side check for Panth.art whitelist
-            const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
-            initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
         } else {
-            // Default to checking if probe is not required but no specific logic exists
-            initialStates[m.id] = "checking";
+            // For markets that don't require a probe
+            if (m.id === "panth") {
+                const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
+                initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
+            } else {
+                // For other non-probed markets (like Rarible), assume available.
+                initialStates[m.id] = "available";
+            }
         }
     });
     setProbeState(initialStates);
