@@ -61,9 +61,11 @@ const Index = () => {
 
       {/* Gallery Config Button */}
       <div className="fixed top-4 right-4 z-20">
-        <Link to="/gallery-config">
-          <Button>Gallery Configuration</Button>
-        </Link>
+        <Button asChild>
+          <Link to="/gallery-config" target="_blank" rel="noopener noreferrer">
+            Gallery Configuration
+          </Link>
+        </Button>
       </div>
       
       {/* 3D Canvas */}
