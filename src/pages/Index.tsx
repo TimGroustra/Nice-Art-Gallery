@@ -2,6 +2,8 @@ import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
 // Define the type for the music controls exposed via ref
 interface BackgroundMusicHandles {
@@ -56,6 +58,13 @@ const Index = () => {
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       <BackgroundMusic ref={musicRef} />
+
+      {/* Gallery Config Button */}
+      <div className="fixed top-4 right-4 z-20">
+        <Link to="/gallery-config">
+          <Button>Gallery Configuration</Button>
+        </Link>
+      </div>
       
       {/* 3D Canvas */}
       <NftGallery 
