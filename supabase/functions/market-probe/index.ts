@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import { JSDOM } from "https://esm.sh/jsdom@24.1.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -40,61 +39,62 @@ async function fetchTimeout(url: string, opts: RequestInit = {}, timeoutMs = 150
 type ProbeResult = { status: "available" | "unavailable" | "error"; reason?: string; probe?: string; url?: string };
 
 /**
- * Generic HTML probe (ElectroSwap / Rarible) with improved heuristics.
+ * Generic HTML probe (ElectroSwap / Rarible) using robust text matching instead of JSDOM.
  */
 async function probeHtmlPage(pageUrl: string, tokenId: string): Promise<ProbeResult> {
   try {
     const r = await fetchTimeout(pageUrl, { method: "GET" }, 15000);
     if (!r) return { status: "error", reason: "no-response" };
-    // Treat 404/410 as definitive unavailability
     if (r.status === 404 || r.status === 410) return { status: "unavailable", reason: "404/410" };
 
     const text = await r.text();
-    const dom = new JSDOM(text);
-    const doc = dom.window.document;
+    const lowerText = text.toLowerCase();
 
-    // 1) Check JSON-LD scripts for tokenId
-    const scripts = [...doc.querySelectorAll('script[type="application/ld+json"]')];
-    for (const s of scripts) {
+    // 1) Negative signals: explicit "not found" phrases (check this first)
+    if (/(not found|page not found|no item|invalid token|no results|not available|doesn't exist)/i.test(lowerText)) {
+      return { status: "unavailable", probe: "html-heuristic-negative" };
+    }
+
+    // 2) Check JSON-LD scripts for tokenId
+    const jsonLdRegex = /<script type="application\/ld\+json">(.*?)<\/script>/gs;
+    let match;
+    while ((match = jsonLdRegex.exec(text)) !== null) {
       try {
-        const j = JSON.parse(s.textContent || "{}");
-        const str = JSON.stringify(j).toLowerCase();
+        const jsonContent = JSON.parse(match[1]);
+        const str = JSON.stringify(jsonContent).toLowerCase();
         if (tokenId && str.includes(tokenId.toLowerCase())) {
           return { status: "available", probe: "json-ld" };
         }
       } catch {}
     }
 
-    // 2) Check meta tags (og:title, og:description) and regular title
-    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute("content") || "";
-    const ogDesc = doc.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
-    const title = doc.querySelector("title")?.textContent || "";
+    // 3) Check meta tags (og:title, og:description) and regular title
+    const titleMatch = text.match(/<title>(.*?)<\/title>/i);
+    const ogTitleMatch = text.match(/<meta property="og:title" content="(.*?)"/i);
+    const ogDescMatch = text.match(/<meta property="og:description" content="(.*?)"/i);
+    
+    const title = titleMatch ? titleMatch[1] : "";
+    const ogTitle = ogTitleMatch ? ogTitleMatch[1] : "";
+    const ogDesc = ogDescMatch ? ogDescMatch[1] : "";
+
     const combined = (ogTitle + " " + ogDesc + " " + title).toLowerCase();
-    if (combined && (combined.includes("nft") || combined.includes("token") || combined.includes(tokenId))) {
+    if (combined && (combined.includes("nft") || combined.includes("token") || combined.includes(tokenId.toLowerCase()))) {
       return { status: "available", probe: "meta-title" };
     }
 
-    // 3) Panth-specific markers: "View Token URI" link, "Type ERC721", "Listing", "Owner"
-    const hasViewTokenUri = !![...doc.querySelectorAll("a")].find(a => (a.textContent || "").trim().toLowerCase().includes("view token uri") || (a.href || "").includes("ipfs.io"));
-    const hasType = !![...doc.querySelectorAll("*")].find(n => (n.textContent || "").toLowerCase().includes("type erc721") || (n.textContent || "").toLowerCase().includes("type erc1155"));
-    const hasListingOrOwner = !![...doc.querySelectorAll("*")].find(n => (n.textContent || "").toLowerCase().includes("listing") || (n.textContent || "").toLowerCase().includes("owner"));
-    const hasMainImage = !!doc.querySelector('img') || !!doc.querySelector('[role="img"]');
-
-    if (hasViewTokenUri || hasType || hasListingOrOwner || hasMainImage) {
-      // additional check: ensure not a 404-like page
-      const snippet = text.slice(0, 3000).toLowerCase();
-      if (!/(not found|no item|invalid token|page not found|no results)/i.test(snippet)) {
-        return { status: "available", probe: "panth-markers" };
-      }
+    // 4) Check for common NFT page markers in the body text
+    if (lowerText.includes("owner") || lowerText.includes("minted") || lowerText.includes("created by") || lowerText.includes("collection")) {
+        return { status: "available", probe: "body-keywords" };
     }
 
-    // 4) Negative signals: explicit "not found" phrases
-    if (/(not found|page not found|no item|invalid token|no results|not available)/i.test(text.toLowerCase())) {
-      return { status: "unavailable", probe: "html-heuristic-negative" };
+    // 5) Fallback: If status is 200 and no negative signals were found, assume it's available.
+    if (r.status >= 200 && r.status < 300) {
+        return { status: "available", probe: "html-200-fallback" };
     }
 
-    // 5) Fallback: 200 but no negatives -> available
-    return { status: "available", probe: "html-200-fallback" };
+    // If we reach here, it's likely an error or redirect page we didn't catch
+    return { status: "unavailable", probe: "fallback-unavailable" };
+
   } catch (e) {
     console.error("HTML probe failed:", e);
     return { status: "error", reason: String(e) };
