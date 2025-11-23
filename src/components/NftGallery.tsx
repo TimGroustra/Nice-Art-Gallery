@@ -165,7 +165,6 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
-
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -550,7 +549,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
             // Floor Segment with placeholder material
             const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
-            floorSegment.rotation.x = Math.PI / 2;
+            floorSegment.rotation.x = -Math.PI / 2;
             floorSegment.position.x = segmentCenter;
             floorSegment.position.z = segmentCenterZ;
             scene.add(floorSegment);
@@ -675,16 +674,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // 4. Lighting Setup
     const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 10; 
+    const NUM_DISCO_LIGHTS = 12; 
     const discoLightHeight = 3.5; 
     const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
-    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
-    const lightDistance = ROOM_SIZE * 1.5; 
-    const lightDecay = 1.5; 
+    const lightRadius = ROOM_SIZE * 0.5; // WIDER SPREAD
+    const lightDistance = 0; // INFINITE DISTANCE FOR DIFFUSION
+    const lightDecay = 1; // LESS FALLOFF FOR DIFFUSION
 
     for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
       const colorIndex = i % lightColors.length;
-      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.8, lightDistance, lightDecay); // Increased intensity
       pl.position.set(
         Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
         discoLightHeight, 
@@ -1162,7 +1161,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
       lights.forEach((light, i) => {
-        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Changed 0.0005 to 0.0001
+        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS);
         light.position.x = Math.cos(angle) * lightRadius;
         light.position.z = Math.sin(angle) * lightRadius;
       });
@@ -1211,7 +1210,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
                 camera.position.x = INNER_ROOM_MIN_X;
             }
-            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
+            if (camera.position.x > INNER_ROOM_MAX_X && !isNearZAxisOpening) {
                 camera.position.x = INNER_ROOM_MAX_X;
             }
         }
