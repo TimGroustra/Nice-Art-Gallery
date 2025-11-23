@@ -483,14 +483,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         (texture) => {
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1); // One logo per 10x10 segment
+            texture.repeat.set(1, 1);
+            // Apply anisotropic filtering for smooth edges at sharp angles
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.needsUpdate = true; // Important after changing properties
         },
         undefined, // onProgress
         (error) => {
             console.error('Failed to load floor texture:', error);
         }
     );
-    const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide, transparent: true });
+
+    // Create a shiny black material for the floor
+    const floorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x0a0a0a, // A very dark grey, almost black
+        map: floorTexture,
+        roughness: 0.2,  // Low roughness for a shiny, reflective surface
+        metalness: 0.1,  // Low metalness for a glossy, non-metallic look
+        side: THREE.DoubleSide,
+        transparent: true // Required for the SVG's transparent background
+    });
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
