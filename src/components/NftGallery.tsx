@@ -795,7 +795,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const coveLightIntensity = 10;
     const coveLightWidth = ROOM_SEGMENT_SIZE;
     const coveLightHeight = 0.1;
-    const innerYPos = WALL_HEIGHT - 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1; // Y position for all lights
     const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
     const CENTER_WALL_BOUNDARY_LIGHT = 5;
 
@@ -843,39 +843,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const index = i;
         // North Inner Inner Wall (Z = -15)
         // Outer side (in corridor, faces -Z, shining OUTWARD)
-        createCoveLighting(`north-inner-wall-outer-${index}`, [segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET], [Math.PI / 2, 0, 0]); 
+        createCoveLighting(`north-inner-wall-outer-${index}`, [segmentCenter, innerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET], [Math.PI / 2, 0, 0]); 
         // Inner side (in 30x30 room, faces +Z, shining INWARD)
-        createCoveLighting(`north-inner-wall-inner-${index}`, [segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET], [Math.PI / 2, Math.PI, 0]); 
+        createCoveLighting(`north-inner-wall-inner-${index}`, [segmentCenter, innerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET], [Math.PI / 2, Math.PI, 0]); 
 
         // South Inner Inner Wall (Z = 15)
         // Outer side (in corridor, faces +Z, shining OUTWARD)
-        createCoveLighting(`south-inner-wall-outer-${index}`, [segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET], [Math.PI / 2, Math.PI, 0]); 
+        createCoveLighting(`south-inner-wall-outer-${index}`, [segmentCenter, innerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET], [Math.PI / 2, Math.PI, 0]); 
         // Inner side (in 30x30 room, faces -Z, shining INWARD)
-        createCoveLighting(`south-inner-wall-inner-${index}`, [segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET], [Math.PI / 2, 0, 0]); 
+        createCoveLighting(`south-inner-wall-inner-${index}`, [segmentCenter, innerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET], [Math.PI / 2, 0, 0]); 
         
         // East Inner Inner Wall (X = 15)
         // Outer side (in corridor, faces +X, shining OUTWARD)
-        createCoveLighting(`east-inner-wall-outer-${index}`, [INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0]); 
+        createCoveLighting(`east-inner-wall-outer-${index}`, [INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0]); 
         // Inner side (in 30x30 room, faces -X, shining INWARD)
-        createCoveLighting(`east-inner-wall-inner-${index}`, [INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0]); 
+        createCoveLighting(`east-inner-wall-inner-${index}`, [INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0]); 
 
         // West Inner Inner Wall (X = -15)
         // Outer side (in corridor, faces -X, shining OUTWARD)
-        createCoveLighting(`west-inner-wall-outer-${index}`, [-INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0]); 
+        createCoveLighting(`west-inner-wall-outer-${index}`, [-INNER_INNER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0]); 
         // Inner side (in 30x30 room, faces +X, shining INWARD)
-        createCoveLighting(`west-inner-wall-inner-${index}`, [-INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0]); 
+        createCoveLighting(`west-inner-wall-inner-${index}`, [-INNER_INNER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0]); 
     });
     
     // Inner Inner Inner Cove Lighting (10x10)
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Wall (Z = -5), shining -Z (Outward)
-        createCoveLighting(`north-center-wall-0`, [segmentCenter, innerInnerYPos, -CENTER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET], [Math.PI / 2, 0, 0]);
+        createCoveLighting(`north-center-wall-0`, [segmentCenter, innerYPos, -CENTER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET], [Math.PI / 2, 0, 0]);
         // South Wall (Z = 5), shining +Z (Outward)
-        createCoveLighting(`south-center-wall-0`, [segmentCenter, innerInnerYPos, CENTER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET], [Math.PI / 2, Math.PI, 0]);
+        createCoveLighting(`south-center-wall-0`, [segmentCenter, innerYPos, CENTER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET], [Math.PI / 2, Math.PI, 0]);
         // East Wall (X = 5), shining +X (Outward)
-        createCoveLighting(`east-center-wall-0`, [CENTER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET, innerInnerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0]);
+        createCoveLighting(`east-center-wall-0`, [CENTER_WALL_BOUNDARY_LIGHT + LIGHT_OFFSET, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0]);
         // West Wall (X = -5), shining -X (Outward)
-        createCoveLighting(`west-center-wall-0`, [-CENTER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET, innerInnerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0]);
+        createCoveLighting(`west-center-wall-0`, [-CENTER_WALL_BOUNDARY_LIGHT - LIGHT_OFFSET, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0]);
     });
     // --- END COVE LIGHTING ---
 
