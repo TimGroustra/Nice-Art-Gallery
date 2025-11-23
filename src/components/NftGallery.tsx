@@ -819,11 +819,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- END INNER INNER INNER ROOM SETUP ---
 
     // --- Animated Ceiling ---
-    const loader = new THREE.TextureLoader();
-    const baseTex = loader.load(BASE_TEXTURE_PATH);
-    baseTex.wrapS = baseTex.wrapT = THREE.RepeatWrapping;
-    baseTex.repeat.set(2, 2);
-
     const uniforms = {
         u_time: { value: 0.0 },
         u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
@@ -850,25 +845,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     // 4. Lighting Setup
-    const lights: THREE.PointLight[] = [];
-    const NUM_DISCO_LIGHTS = 10; 
-    const discoLightHeight = 3.5; 
-    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
-    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
-    const lightDistance = ROOM_SIZE * 1.5; 
-    const lightDecay = 1.5; 
-
-    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
-      const colorIndex = i % lightColors.length;
-      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
-      pl.position.set(
-        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
-        discoLightHeight, 
-        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
-      );
-      scene.add(pl);
-      lights.push(pl);
-    }
     scene.add(new THREE.AmbientLight(0x404050, 0.5));
     const hemiLight = new THREE.HemisphereLight(0xa0baff, 0x080820, 0.25);
     scene.add(hemiLight);
@@ -1358,12 +1334,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           stormPointLightRef.current.intensity = Math.min(1.6, lightningPulse * 2.5);
       }
 
-      lights.forEach((light, i) => {
-        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Changed 0.0005 to 0.0001
-        light.position.x = Math.cos(angle) * lightRadius;
-        light.position.z = Math.sin(angle) * lightRadius;
-      });
-
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
@@ -1408,7 +1378,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
                 camera.position.x = INNER_ROOM_MIN_X;
             }
-            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
+            if (camera.position.x > INNER_ROOM_MAX_X && !isNearZAxisOpening) {
                 camera.position.x = INNER_ROOM_MAX_X;
             }
         }
