@@ -32,6 +32,8 @@ interface PanelLock {
 }
 
 const REQUIRED_GEM_BALANCE = 5;
+const DEFAULT_WALL_COLOR = '#36454F'; // Charcoal Grey
+const DEFAULT_TEXT_COLOR = '#40E0D0'; // Turquoise
 
 // Helper function to format wallet address
 const formatWalletAddress = (address: string | undefined | null) => {
@@ -90,8 +92,9 @@ const GalleryConfig = () => {
   };
 
   useEffect(() => {
-    const wallColor = currentConfig.wall_color || '#666666';
-    const textColor = currentConfig.text_color || '#ffffff';
+    // Use defaults if config values are null
+    const wallColor = currentConfig.wall_color || DEFAULT_WALL_COLOR;
+    const textColor = currentConfig.text_color || DEFAULT_TEXT_COLOR;
     const ratio = getContrastRatio(wallColor, textColor);
     
     // WCAG AA requires 4.5, but we can warn at a lower threshold like 3.0
@@ -185,12 +188,12 @@ const GalleryConfig = () => {
     if (error && error.code !== 'PGRST116') { // PGRST116 means 'no rows found'
       toast.error(`Failed to fetch config for ${panelKey}`);
       console.error(error);
-      setCurrentConfig({ panel_key: panelKey, show_collection: true }); // Set key so user can create a new one
+      setCurrentConfig({ panel_key: panelKey, show_collection: true, wall_color: DEFAULT_WALL_COLOR, text_color: DEFAULT_TEXT_COLOR }); // Set key so user can create a new one
     } else if (data) {
       setCurrentConfig(data);
     } else {
       // No existing config found, initialize with defaults
-      setCurrentConfig({ panel_key: panelKey, show_collection: true, default_token_id: 1 });
+      setCurrentConfig({ panel_key: panelKey, show_collection: true, default_token_id: 1, wall_color: DEFAULT_WALL_COLOR, text_color: DEFAULT_TEXT_COLOR });
     }
     setIsLoading(false);
   }, []);
@@ -232,8 +235,8 @@ const GalleryConfig = () => {
       contract_address: contractAddress,
       default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
       show_collection: currentConfig.show_collection ?? true,
-      wall_color: currentConfig.wall_color || null,
-      text_color: currentConfig.text_color || null,
+      wall_color: currentConfig.wall_color || DEFAULT_WALL_COLOR,
+      text_color: currentConfig.text_color || DEFAULT_TEXT_COLOR,
     };
 
     const { error: configError } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
@@ -553,7 +556,7 @@ const GalleryConfig = () => {
                             id="wall_color"
                             name="wall_color"
                             type="color"
-                            value={currentConfig.wall_color || '#666666'}
+                            value={currentConfig.wall_color || DEFAULT_WALL_COLOR}
                             onChange={handleInputChange}
                             disabled={isLoading || isPanelLockedByOther}
                             className="p-1 h-10 w-full"
@@ -565,7 +568,7 @@ const GalleryConfig = () => {
                             id="text_color"
                             name="text_color"
                             type="color"
-                            value={currentConfig.text_color || '#ffffff'}
+                            value={currentConfig.text_color || DEFAULT_TEXT_COLOR}
                             onChange={handleInputChange}
                             disabled={isLoading || isPanelLockedByOther}
                             className="p-1 h-10 w-full"

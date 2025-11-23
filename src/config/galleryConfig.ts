@@ -17,6 +17,10 @@ export interface PanelConfig {
 
 const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
 
+// Default colors for the new theme
+const DEFAULT_WALL_COLOR = '#36454F'; // Charcoal Grey
+const DEFAULT_TEXT_COLOR = '#40E0D0'; // Turquoise
+
 // This part creates the structure of the gallery with all panel keys.
 // We'll initialize them as blank, and they will be populated from the database.
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
@@ -30,8 +34,8 @@ const createBlankPanel = (): NftCollection => ({
   tokenIds: [],
   currentIndex: 0,
   show_collection: true,
-  wall_color: null,
-  text_color: null,
+  wall_color: DEFAULT_WALL_COLOR,
+  text_color: DEFAULT_TEXT_COLOR,
 });
 
 // Generate 20 panel configurations for the outer 50x50 walls
@@ -72,7 +76,15 @@ export async function initializeGalleryConfig() {
   if (error) {
     console.error("Failed to fetch gallery config from Supabase:", error);
     for (const wallName in galleryConfig) {
-      galleryConfig[wallName] = { name: 'Error Loading', contractAddress: '', tokenIds: [], currentIndex: 0, show_collection: true, wall_color: null, text_color: null };
+      galleryConfig[wallName] = { 
+        name: 'Error Loading', 
+        contractAddress: '', 
+        tokenIds: [], 
+        currentIndex: 0, 
+        show_collection: true, 
+        wall_color: DEFAULT_WALL_COLOR, 
+        text_color: DEFAULT_TEXT_COLOR 
+      };
     }
     return;
   }
@@ -127,8 +139,9 @@ export async function initializeGalleryConfig() {
         tokenIds: tokens,
         currentIndex: startIndex,
         show_collection: showCollection,
-        wall_color: configFromDb.wall_color || null,
-        text_color: configFromDb.text_color || null,
+        // Apply defaults if DB values are null
+        wall_color: configFromDb.wall_color || DEFAULT_WALL_COLOR,
+        text_color: configFromDb.text_color || DEFAULT_TEXT_COLOR,
       };
     } else {
       galleryConfig[panelKey] = {
@@ -137,8 +150,8 @@ export async function initializeGalleryConfig() {
         tokenIds: [],
         currentIndex: 0,
         show_collection: true,
-        wall_color: null,
-        text_color: null,
+        wall_color: DEFAULT_WALL_COLOR,
+        text_color: DEFAULT_TEXT_COLOR,
       };
     }
   }
