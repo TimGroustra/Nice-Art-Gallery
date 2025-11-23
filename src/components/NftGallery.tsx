@@ -509,7 +509,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // 2. Inner Floor (using a single large plane with repeated texture)
     const textureLoader = new THREE.TextureLoader();
-    textureLoader.load('/floor.jpg', (texture) => {
+    textureLoader.load('/floor-logo.png', (texture) => {
         texture.wrapS = THREE.RepeatWrapping;
         texture.wrapT = THREE.RepeatWrapping;
         texture.repeat.set(NUM_SEGMENTS, NUM_SEGMENTS); 
