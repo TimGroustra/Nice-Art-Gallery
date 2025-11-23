@@ -474,8 +474,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
-    const outerFloorMaterial = new THREE.MeshPhongMaterial({ color: 0xF5F5F5, side: THREE.DoubleSide });
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+
+    // Load floor texture
+    const textureLoader = new THREE.TextureLoader();
+    const floorTexture = textureLoader.load(
+        '/floor-logo.png',
+        undefined, // onLoad is not needed here
+        undefined, // onProgress
+        (error) => {
+            console.error('Failed to load floor texture:', error);
+        }
+    );
+    floorTexture.wrapS = THREE.RepeatWrapping;
+    floorTexture.wrapT = THREE.RepeatWrapping;
+    floorTexture.repeat.set(1, 1); // One logo per 10x10 segment
+    const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide });
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
@@ -490,12 +504,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
             const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
-            // Outer Floor Segment
-            const outerFloor = new THREE.Mesh(segmentGeometry, outerFloorMaterial);
-            outerFloor.rotation.x = Math.PI / 2;
-            outerFloor.position.x = segmentCenter;
-            outerFloor.position.z = segmentCenterZ;
-            scene.add(outerFloor);
+            // Floor Segment with logo
+            const floorSegment = new THREE.Mesh(segmentGeometry, floorMaterial);
+            floorSegment.rotation.x = Math.PI / 2;
+            floorSegment.position.x = segmentCenter;
+            floorSegment.position.z = segmentCenterZ;
+            scene.add(floorSegment);
 
             // Ceiling Segment
             const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
@@ -506,22 +520,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             scene.add(ceiling);
         }
     }
-
-    // 2. Inner Floor (using a single large plane with repeated texture)
-    const textureLoader = new THREE.TextureLoader();
-    textureLoader.load('/floor-logo.png', (texture) => {
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(NUM_SEGMENTS, NUM_SEGMENTS); 
-
-        const innerFloorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-        const innerFloorMaterial = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
-        const innerFloor = new THREE.Mesh(innerFloorGeometry, innerFloorMaterial);
-        
-        innerFloor.rotation.x = Math.PI / 2;
-        innerFloor.position.y = 0.01; 
-        scene.add(innerFloor);
-    });
 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
