@@ -794,7 +794,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const coveLightHeight = 0.1;
     
     // Constants for flush ceiling placement
-    const COVE_LIGHT_Y = WALL_HEIGHT; // 4.0
+    const COVE_LIGHT_Y = WALL_HEIGHT - (coveLightHeight / 2); // 4.0 - 0.05 = 3.95
     const COVE_LIGHT_OFFSET = 0.05; // Distance from the wall plane (inside the room)
 
     const createCoveLighting = (
@@ -923,7 +923,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const MAX_SEGMENT_INDEX = 4; // Only generate panels for segments 0, 1, 2, 3, 4
 
     // Iterate through segments 0 to 4 (5 segments)
-    for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) { 
+    for (let i = 0; i < NUM_SEGMENTS; i++) { 
         for (const wallNameBase of WALL_NAMES) {
             const panelKey = `${wallNameBase}-${i}`;
             
