@@ -11,13 +11,6 @@ import { MarketBrowserRefined } from './MarketBrowserRefined';
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
 
-// --- Thunderstorm Ceiling Config ---
-const CLOUD_SPEED = 0.02;
-const LIGHTNING_FREQ = 0.12;
-const SPARK_COUNT = 60;
-const SPARK_SPEED = 0.6;
-// --- End Config ---
-
 // Constants for geometry
 const TEXT_PANEL_WIDTH = 2.5;
 const TITLE_HEIGHT = 0.5;
@@ -172,144 +165,10 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
-// --- Thunderstorm Shaders ---
-const vertexShader = `
-    varying vec2 vUv;
-    varying vec3 vPosition;
-    void main(){
-      vUv = uv;
-      vPosition = position;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-    }
-`;
-
-const fragmentShader = `
-    precision highp float;
-
-    varying vec2 vUv;
-    varying vec3 vPosition;
-    uniform float u_time;
-    uniform vec2 u_resolution;
-    uniform float u_cloudSpeed;
-    uniform float u_lightningFreq;
-    uniform float u_sparkCount;
-    uniform float u_sparkSpeed;
-    uniform float u_roomSize;
-
-    // Simplex / value noise helpers (classic IQ style)
-    vec3 mod289(vec3 x){ return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec2 mod289(vec2 x){ return x - floor(x * (1.0 / 289.0)) * 289.0; }
-    vec3 permute(vec3 x){ return mod289(((x*34.0)+1.0)*x); }
-
-    float snoise(vec3 v){
-      const vec2 C = vec2(1.0/6.0, 1.0/3.0);
-      const float D = 0.142857142857; // 1/7
-      // First corner
-      vec3 i = floor(v + dot(v, vec3(C.y)));
-      vec3 x0 = v - i + dot(i, vec3(C.x));
-      // Other corners
-      vec3 g = step(x0.yzx, x0.xyz);
-      vec3 l = 1.0 - g;
-      vec3 i1 = min( g.xyz, l.zxy );
-      vec3 i2 = max( g.xyz, l.zxy );
-      vec3 x1 = x0 - i1 + vec3(C.x);
-      vec3 x2 = x0 - i2 + vec3(C.y);
-      vec3 x3 = x0 - 0.5;
-      i = mod289(i);
-      vec4 p = permute( permute( permute(
-                  i.z + vec4(0.0, i1.z, i2.z, 1.0))
-                + i.y + vec4(0.0, i1.y, i2.y, 1.0))
-                + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-      vec4 j = p - 49.0 * floor(p * (1.0 / 49.0));
-      vec4 x_ = floor(j * (1.0/7.0));
-      vec4 y_ = floor(j - 7.0 * x_);
-      vec4 x = (x_ * (1.0/7.0)) - 0.5;
-      vec4 y = (y_ * (1.0/7.0)) - 0.5;
-      vec4 h = 0.5 - abs(x) - abs(y);
-      vec4 b0 = vec4( x.xy, y.xy );
-      vec4 b1 = vec4( x.zw, y.zw );
-      vec4 s0 = floor(b0)*2.0 + 1.0;
-      vec4 s1 = floor(b1)*2.0 + 1.0;
-      vec4 sh = -step(h, vec4(0.0));
-      vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
-      vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
-      vec3 g0 = vec3(a0.xy, h.x);
-      vec3 g1 = vec3(a0.zw, h.y);
-      vec3 g2 = vec3(a1.xy, h.z);
-      vec3 g3 = vec3(a1.zw, h.w);
-      vec4 norm = 1.79284291400159 - 0.85373472095314 *
-        vec4(dot(g0,g0), dot(g1,g1), dot(g2,g2), dot(g3,g3));
-      g0 *= norm.x;
-      g1 *= norm.y;
-      g2 *= norm.z;
-      g3 *= norm.w;
-      vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
-      m = m * m;
-      return 42.0 * dot( m*m, vec4( dot(g0,x0), dot(g1,x1), dot(g2,x2), dot(g3,x3) ) );
-    }
-
-    float fbm(vec3 p){
-      float f = 0.0;
-      f += 0.5000 * snoise(p);
-      p *= 2.02;
-      f += 0.2500 * snoise(p);
-      p *= 2.03;
-      f += 0.1250 * snoise(p);
-      p *= 2.01;
-      f += 0.0625 * snoise(p);
-      return f;
-    }
-
-    // random helper
-    float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
-
-    void main(){
-      vec2 uv = vUv * vec2(u_roomSize / 10.0, u_roomSize / 10.0);
-
-      vec3 p = vec3(uv * 1.0, u_time * u_cloudSpeed);
-      float n = fbm(p * 0.6);
-      float n2 = fbm(p * 1.8);
-      float cloud = smoothstep(0.15, 0.6, n * 0.9 + 0.5 * n2);
-      vec3 sky = mix(vec3(0.03,0.06,0.12), vec3(0.02,0.18,0.34), cloud);
-
-      float lightningSeed = fbm(vec3(uv * 0.8, u_time * 0.2));
-      float lightningChance = smoothstep(0.65, 0.75, fract(lightningSeed + sin(u_time * 0.7) * 0.5));
-      float veins = smoothstep(0.5, 0.86, fbm(vec3(uv * 3.0, u_time * 0.9)));
-      float lightningIntensity = lightningChance * veins * (0.8 + 0.8 * sin(u_time * 12.0));
-
-      // Fixed safe spark loop
-      const int SPARK_MAX = 80;
-      float sparks = 0.0;
-      for(int i = 0; i < SPARK_MAX; i++){
-        if (float(i) < u_sparkCount) {
-            float fi = float(i) + 1.0;
-            vec2 pos = vec2(rand(vec2(fi, fi*1.31)), rand(vec2(fi*2.0, fi*3.7)));
-            pos = pos * 2.0 - 1.0;
-            pos *= 0.5 * (u_roomSize / 10.0);
-            float t = fract(u_time * u_sparkSpeed * (0.2 + rand(vec2(fi))));
-            pos += vec2(sin(u_time*0.2 + fi)*0.02, cos(u_time*0.13 + fi*1.7)*0.02);
-            float d = length(uv - pos);
-            float s = smoothstep(0.03, 0.0, d) * (0.6 + 0.4 * sin(u_time * (1.2 + fi*0.03)));
-            sparks += s * (0.4 + 0.6 * rand(vec2(fi*5.6, fi)));
-        }
-      }
-      sparks = clamp(sparks, 0.0, 1.0);
-
-      vec3 color = sky;
-      color += vec3(0.7,0.8,1.0) * lightningIntensity * 1.8;
-      color = mix(color, color + vec3(0.18,0.24,0.35) * lightningIntensity, lightningIntensity*0.5);
-      color += vec3(0.6,0.8,1.0) * sparks * 0.7;
-
-      color = pow(color, vec3(0.9));
-      gl_FragColor = vec4(color, 1.0);
-    }
-`;
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
-  const stormUniformsRef = useRef<any>(null);
-  const stormPointLightRef = useRef<THREE.PointLight | null>(null);
   const [isLocked, setIsLocked] = useState(false); 
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
@@ -555,7 +414,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     if (!mountRef.current) return;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111); // Darker background for storm
+    scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, -20); // Moved spawn point to the outer corridor (Z=-20)
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -683,7 +542,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerInnerInnerSegmentCenters = [0]; // 10x10 room segments
 
 
-    // 1. Create Modular Floor
+    // 1. Create Modular Floor and Ceiling (Covers 50x50 area)
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
             const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
@@ -691,11 +550,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
             // Floor Segment with placeholder material
             const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
-            floorSegment.rotation.x = -Math.PI / 2;
+            floorSegment.rotation.x = Math.PI / 2;
             floorSegment.position.x = segmentCenter;
             floorSegment.position.z = segmentCenterZ;
             scene.add(floorSegment);
             floorSegments.push(floorSegment);
+
+            // Ceiling Segment
+            const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.x = segmentCenter;
+            ceiling.position.z = segmentCenterZ;
+            ceiling.position.y = wallHeight;
+            scene.add(ceiling);
         }
     }
 
@@ -805,41 +672,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     // --- END INNER INNER INNER ROOM SETUP ---
 
-    // --- Animated Ceiling ---
-    const uniforms = {
-        u_time: { value: 0.0 },
-        u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-        u_cloudSpeed: { value: CLOUD_SPEED },
-        u_lightningFreq: { value: LIGHTNING_FREQ },
-        u_sparkCount: { value: SPARK_COUNT },
-        u_sparkSpeed: { value: SPARK_SPEED },
-        u_roomSize: { value: ROOM_SIZE }
-    };
-    stormUniformsRef.current = uniforms;
-
-    const stormMaterial = new THREE.ShaderMaterial({
-        vertexShader,
-        fragmentShader,
-        uniforms,
-        side: THREE.DoubleSide
-    });
-
-    const ceilingGeom = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE, 1, 1);
-    const ceiling = new THREE.Mesh(ceilingGeom, stormMaterial);
-    ceiling.rotation.x = Math.PI / 2; // Face downwards
-    ceiling.position.set(0, WALL_HEIGHT, 0);
-    scene.add(ceiling);
-
 
     // 4. Lighting Setup
+    const lights: THREE.PointLight[] = [];
+    const NUM_DISCO_LIGHTS = 10; 
+    const discoLightHeight = 3.5; 
+    const lightColors = [0xff0066, 0x00ffd5, 0xffff00, 0x66ff00, 0x0066ff]; 
+    const lightRadius = ROOM_SIZE * 0.4; // Adjusted for 50x50 room
+    const lightDistance = ROOM_SIZE * 1.5; 
+    const lightDecay = 1.5; 
+
+    for (let i = 0; i < NUM_DISCO_LIGHTS; i++) {
+      const colorIndex = i % lightColors.length;
+      const pl = new THREE.PointLight(lightColors[colorIndex], 1.5, lightDistance, lightDecay);
+      pl.position.set(
+        Math.cos(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius, 
+        discoLightHeight, 
+        Math.sin(i / NUM_DISCO_LIGHTS * Math.PI * 2) * lightRadius
+      );
+      scene.add(pl);
+      lights.push(pl);
+    }
     scene.add(new THREE.AmbientLight(0x404050, 0.5));
-    const hemiLight = new THREE.HemisphereLight(0xa0baff, 0x080820, 0.25);
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.2);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
-    
-    const stormPointLight = new THREE.PointLight(0x99ccff, 0.0, 200);
-    stormPointLight.position.set(0, WALL_HEIGHT - 2, 0);
-    stormPointLightRef.current = stormPointLight;
-    scene.add(stormPointLight);
 
     // 5. Cove Lighting (Modular)
     const coveLightColor = 0x87CEEB; 
@@ -1300,26 +1157,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     document.addEventListener('wheel', onDocumentWheel);
 
-    const clock = new THREE.Clock();
-    const fbmProxy = (time: number) => {
-        let x = Math.sin(time * 0.7) * 0.5 + 0.5;
-        return Math.max(0.0, Math.pow(x, 5.0));
-    };
-
     let prevTime = performance.now();
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
-      const elapsedTime = clock.getElapsedTime();
-
-      // Animate storm
-      if (stormUniformsRef.current) {
-          stormUniformsRef.current.u_time.value = elapsedTime;
-      }
-      if (stormPointLightRef.current) {
-          const lightningPulse = Math.max(0.0, Math.sin(elapsedTime * 18.0) * 0.5 + fbmProxy(elapsedTime));
-          stormPointLightRef.current.intensity = Math.min(1.6, lightningPulse * 2.5);
-      }
+      lights.forEach((light, i) => {
+        const angle = time * 0.0001 + i * (Math.PI * 2 / NUM_DISCO_LIGHTS); // Changed 0.0005 to 0.0001
+        light.position.x = Math.cos(angle) * lightRadius;
+        light.position.z = Math.sin(angle) * lightRadius;
+      });
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
@@ -1365,7 +1211,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
                 camera.position.x = INNER_ROOM_MIN_X;
             }
-            if (camera.position.x > INNER_ROOM_MAX_X && !isNearZAxisOpening) {
+            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
                 camera.position.x = INNER_ROOM_MAX_X;
             }
         }
@@ -1406,9 +1252,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      if (stormUniformsRef.current) {
-          stormUniformsRef.current.u_resolution.value.set(window.innerWidth, window.innerHeight);
-      }
     };
     window.addEventListener('resize', onWindowResize);
 
