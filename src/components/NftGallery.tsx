@@ -479,17 +479,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Load floor texture
     const textureLoader = new THREE.TextureLoader();
     const floorTexture = textureLoader.load(
-        '/floor-logo.png',
-        undefined, // onLoad is not needed here
+        '/electroneum-logo-symbol.svg',
+        (texture) => {
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1); // One logo per 10x10 segment
+        },
         undefined, // onProgress
         (error) => {
             console.error('Failed to load floor texture:', error);
         }
     );
-    floorTexture.wrapS = THREE.RepeatWrapping;
-    floorTexture.wrapT = THREE.RepeatWrapping;
-    floorTexture.repeat.set(1, 1); // One logo per 10x10 segment
-    const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide });
+    const floorMaterial = new THREE.MeshPhongMaterial({ map: floorTexture, side: THREE.DoubleSide, transparent: true });
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
