@@ -476,33 +476,64 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
-    // Load floor texture
-    const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load(
-        '/electroneum-logo-symbol.svg',
-        (texture) => {
+    // --- Floor Texture and Material ---
+    const floorSegments: THREE.Mesh[] = [];
+    const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
+        color: 0x0a0a0a,
+        roughness: 0.2,
+        metalness: 0.1,
+        side: THREE.DoubleSide,
+    });
+
+    const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
+        const electricBlue = '#00FFFF';
+        const shinyBlack = '#0a0a0a';
+        const canvasSize = 1024;
+
+        const mainCanvas = document.createElement('canvas');
+        mainCanvas.width = canvasSize;
+        mainCanvas.height = canvasSize;
+        const mainCtx = mainCanvas.getContext('2d');
+        if (!mainCtx) return;
+
+        mainCtx.fillStyle = shinyBlack;
+        mainCtx.fillRect(0, 0, canvasSize, canvasSize);
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = '/electroneum-logo-symbol.svg';
+
+        img.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvasSize;
+            tempCanvas.height = canvasSize;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (!tempCtx) return;
+
+            const padding = canvasSize * 0.1;
+            const imageSize = canvasSize - (padding * 2);
+            tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
+
+            tempCtx.globalCompositeOperation = 'source-in';
+            tempCtx.fillStyle = electricBlue;
+            tempCtx.fillRect(0, 0, canvasSize, canvasSize);
+
+            mainCtx.drawImage(tempCanvas, 0, 0);
+
+            const texture = new THREE.CanvasTexture(mainCanvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
             texture.repeat.set(1, 1);
-            // Apply anisotropic filtering for smooth edges at sharp angles
             texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.needsUpdate = true; // Important after changing properties
-        },
-        undefined, // onProgress
-        (error) => {
-            console.error('Failed to load floor texture:', error);
-        }
-    );
+            texture.needsUpdate = true;
 
-    // Create a shiny black material for the floor
-    const floorMaterial = new THREE.MeshStandardMaterial({
-        color: 0x0a0a0a, // A very dark grey, almost black
-        map: floorTexture,
-        roughness: 0.2,  // Low roughness for a shiny, reflective surface
-        metalness: 0.1,  // Low metalness for a glossy, non-metallic look
-        side: THREE.DoubleSide,
-        transparent: true // Required for the SVG's transparent background
-    });
+            callback(texture);
+        };
+
+        img.onerror = (err) => {
+            console.error('Failed to load floor texture SVG:', err);
+        };
+    };
 
     // Define constants for inner rooms centrally
     const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
@@ -517,12 +548,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
             const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
-            // Floor Segment with logo
-            const floorSegment = new THREE.Mesh(segmentGeometry, floorMaterial);
+            // Floor Segment with placeholder material
+            const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
             floorSegment.rotation.x = Math.PI / 2;
             floorSegment.position.x = segmentCenter;
             floorSegment.position.z = segmentCenterZ;
             scene.add(floorSegment);
+            floorSegments.push(floorSegment);
 
             // Ceiling Segment
             const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
@@ -533,6 +565,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             scene.add(ceiling);
         }
     }
+
+    // Asynchronously create and apply the custom floor texture
+    createCustomFloorTexture((texture) => {
+        const newFloorMaterial = new THREE.MeshStandardMaterial({
+            map: texture,
+            roughness: 0.2,
+            metalness: 0.1,
+            side: THREE.DoubleSide,
+        });
+        floorSegments.forEach(segment => {
+            segment.material = newFloorMaterial;
+        });
+        placeholderFloorMaterial.dispose(); // Clean up the placeholder
+    });
 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
