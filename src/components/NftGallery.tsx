@@ -189,7 +189,6 @@ const fragmentShader = `
     varying vec3 vPosition;
     uniform float u_time;
     uniform vec2 u_resolution;
-    uniform sampler2D u_baseTex;
     uniform float u_cloudSpeed;
     uniform float u_lightningFreq;
     uniform float u_sparkCount;
@@ -266,8 +265,6 @@ const fragmentShader = `
     void main(){
       // uv scaled to room size so the clouds tile properly across the 50x50
       vec2 uv = vUv * vec2(u_roomSize / 10.0, u_roomSize / 10.0);
-      // sample base photo for subtle texture
-      vec3 base = texture2D(u_baseTex, vUv * 1.5).rgb * 0.5;
 
       // 3D position to move clouds slowly
       vec3 p = vec3(uv * 1.0, u_time * u_cloudSpeed);
@@ -303,7 +300,7 @@ const fragmentShader = `
       sparks = clamp(sparks, 0.0, 1.0);
 
       // combine
-      vec3 color = sky + base * 0.3;
+      vec3 color = sky;
       // lightning adds bluish-white
       color += vec3(0.7,0.8,1.0) * lightningIntensity * 1.8;
       // gentle overall ambient brightening when lightningChance peaks
@@ -830,7 +827,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const uniforms = {
         u_time: { value: 0.0 },
         u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-        u_baseTex: { value: baseTex },
         u_cloudSpeed: { value: CLOUD_SPEED },
         u_lightningFreq: { value: LIGHTNING_FREQ },
         u_sparkCount: { value: SPARK_COUNT },
