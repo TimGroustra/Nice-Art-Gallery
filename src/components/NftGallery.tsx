@@ -544,7 +544,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     // 1. Create Modular Floor and Ceiling (Covers 50x50 area)
-    const ceilingMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
+    const ceilingMaterial = new THREE.MeshBasicMaterial({ color: 0x0b002b, side: THREE.DoubleSide });
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
             const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
@@ -581,6 +581,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         });
         placeholderFloorMaterial.dispose(); // Clean up the placeholder
     });
+
+    // --- Create Stars ---
+    const createStarField = (count: number, size: number, color: number) => {
+        const starVertices = [];
+        for (let i = 0; i < count; i++) {
+            const x = THREE.MathUtils.randFloatSpread(ROOM_SIZE);
+            const z = THREE.MathUtils.randFloatSpread(ROOM_SIZE);
+            const y = WALL_HEIGHT - 0.01; // Just below the ceiling plane
+            starVertices.push(x, y, z);
+        }
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+        const starMaterial = new THREE.PointsMaterial({
+            color: color,
+            size: size,
+            sizeAttenuation: true,
+            transparent: true,
+            opacity: 1,
+            depthWrite: false,
+        });
+        return new THREE.Points(starGeometry, starMaterial);
+    };
+
+    const stars1 = createStarField(7000, 0.05, 0xffffff);
+    const stars2 = createStarField(7000, 0.05, 0xeeeeff);
+    scene.add(stars1, stars2);
 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
@@ -1198,9 +1224,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
 
-      // Update ceiling color
-      const hue = (time * 0.00005) % 1;
-      ceilingMaterial.color.setHSL(hue, 0.5, 0.5);
+      // Animate stars
+      const t = time * 0.0005;
+      (stars1.material as THREE.PointsMaterial).opacity = Math.abs(Math.sin(t));
+      (stars2.material as THREE.PointsMaterial).opacity = Math.abs(Math.sin(t + Math.PI / 2));
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
@@ -1379,10 +1406,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
 
       scene.traverse(obj => {
-        if (obj instanceof THREE.Mesh) {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
           obj.geometry.dispose();
-          if (Array.isArray(obj.material)) obj.material.forEach(m => { if (m.map) m.map.dispose(); m.dispose(); });
-          else { if (obj.material.map) obj.material.map.dispose(); obj.material.dispose(); }
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(m => { 
+              if (m.map) m.map.dispose(); 
+              m.dispose(); 
+            });
+          } else { 
+            if (obj.material.map) obj.material.map.dispose(); 
+            obj.material.dispose(); 
+          }
         }
       });
       renderer.dispose();
