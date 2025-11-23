@@ -21,6 +21,7 @@ interface GalleryConfig {
   default_token_id: number | null;
   show_collection: boolean | null;
   wall_color: string | null;
+  text_color: string | null;
 }
 
 interface PanelLock {
@@ -63,6 +64,43 @@ const GalleryConfig = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [panelLocks, setPanelLocks] = useState<PanelLock[]>([]);
   const [lockDurationDays, setLockDurationDays] = useState(1);
+  const [poorContrast, setPoorContrast] = useState(false);
+
+  // Helper function to calculate color contrast
+  const getContrastRatio = (hex1: string, hex2: string): number => {
+    const getLuminance = (hex: string): number => {
+        let rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        if (!rgb) return 0;
+        
+        const sRGB = [parseInt(rgb[1], 16), parseInt(rgb[2], 16), parseInt(rgb[3], 16)].map(val => {
+            val /= 255.0;
+            return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
+        });
+
+        return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+    };
+
+    const lum1 = getLuminance(hex1);
+    const lum2 = getLuminance(hex2);
+
+    const lighter = Math.max(lum1, lum2);
+    const darker = Math.min(lum1, lum2);
+
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+
+  useEffect(() => {
+    const wallColor = currentConfig.wall_color || '#666666';
+    const textColor = currentConfig.text_color || '#ffffff';
+    const ratio = getContrastRatio(wallColor, textColor);
+    
+    // WCAG AA requires 4.5, but we can warn at a lower threshold like 3.0
+    if (ratio < 3.0) {
+        setPoorContrast(true);
+    } else {
+        setPoorContrast(false);
+    }
+  }, [currentConfig.wall_color, currentConfig.text_color]);
 
   // Helper function to check lock status
   const getLockStatus = useCallback((panelKey: string) => {
@@ -195,6 +233,7 @@ const GalleryConfig = () => {
       default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
       show_collection: currentConfig.show_collection ?? true,
       wall_color: currentConfig.wall_color || null,
+      text_color: currentConfig.text_color || null,
     };
 
     const { error: configError } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
@@ -507,18 +546,41 @@ const GalleryConfig = () => {
                   />
                 </div>
                 
-                <div className="space-y-2">
-                  <Label htmlFor="wall_color">Wall Color</Label>
-                  <Input
-                    id="wall_color"
-                    name="wall_color"
-                    type="color"
-                    value={currentConfig.wall_color || '#666666'}
-                    onChange={handleInputChange}
-                    disabled={isLoading || isPanelLockedByOther}
-                    className="p-1 h-10 w-full"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="wall_color">Wall Color</Label>
+                        <Input
+                            id="wall_color"
+                            name="wall_color"
+                            type="color"
+                            value={currentConfig.wall_color || '#666666'}
+                            onChange={handleInputChange}
+                            disabled={isLoading || isPanelLockedByOther}
+                            className="p-1 h-10 w-full"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="text_color">Text Color</Label>
+                        <Input
+                            id="text_color"
+                            name="text_color"
+                            type="color"
+                            value={currentConfig.text_color || '#ffffff'}
+                            onChange={handleInputChange}
+                            disabled={isLoading || isPanelLockedByOther}
+                            className="p-1 h-10 w-full"
+                        />
+                    </div>
                 </div>
+                {poorContrast && (
+                    <Alert variant="destructive">
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertTitle>Low Contrast Warning</AlertTitle>
+                        <AlertDescription>
+                            The selected text and wall colors may be difficult to read. Consider choosing a different combination.
+                        </AlertDescription>
+                    </Alert>
+                )}
 
                 <div className="space-y-2">
                   <Label htmlFor="lock_duration">Lock Duration (Days, 0 to Unlock, Max 30)</Label>

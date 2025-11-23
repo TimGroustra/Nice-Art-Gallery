@@ -290,11 +290,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, []);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
-    const collectionName = GALLERY_PANEL_CONFIG[panel.wallName]?.name || '...';
+    const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+    const collectionName = collectionConfig?.name || '...';
+    const textColor = collectionConfig?.text_color || 'white';
 
     // --- 1. Always update Wall Title (Collection Name) first ---
     disposeTextureSafely(panel.wallTitleMesh);
-    const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, 'white', { wordWrap: false });
+    const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, textColor, { wordWrap: false });
     (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
     panel.wallTitleMesh.visible = true;
     // --- End Wall Title Update ---
@@ -323,7 +325,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
         // Wall title is already set to "Blank Panel"
-        const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
         const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
         panel.prevArrow.visible = showArrows;
         panel.nextArrow.visible = showArrows;
@@ -369,14 +370,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Title update
       disposeTextureSafely(panel.titleMesh);
-      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, 'white', { wordWrap: false });
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, textColor, { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
       // Description update
       disposeTextureSafely(panel.descriptionMesh);
       const descriptionText = metadata.description;
-      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true });
+      const { texture: descriptionTexture, totalHeight } = createTextTexture(descriptionText, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, { wordWrap: true });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
@@ -389,7 +390,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       disposeTextureSafely(panel.attributesMesh);
       const attributes = metadata.attributes || [];
       panel.currentAttributes = attributes;
-      const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, 'lightgray');
+      const { texture: attributesTexture } = createAttributesTextTexture(attributes, TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, textColor);
       (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
       panel.attributesMesh.visible = true;
 
@@ -403,7 +404,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // --- 4. Update Arrow Visibility ---
-    const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
     const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
     panel.prevArrow.visible = showArrows;
     panel.nextArrow.visible = showArrows;
@@ -1216,7 +1216,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.descriptionMesh.material.map.dispose();
         (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
-      const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, 'lightgray', { wordWrap: true, scrollY: panel.descriptionScrollY });
+      const textColor = GALLERY_PANEL_CONFIG[panel.wallName]?.text_color || 'white';
+      const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, { wordWrap: true, scrollY: panel.descriptionScrollY });
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = texture;
     };
 

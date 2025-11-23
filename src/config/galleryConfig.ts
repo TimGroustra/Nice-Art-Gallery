@@ -8,6 +8,7 @@ export interface NftCollection {
   currentIndex: number;
   show_collection: boolean;
   wall_color: string | null;
+  text_color: string | null;
 }
 
 export interface PanelConfig {
@@ -30,6 +31,7 @@ const createBlankPanel = (): NftCollection => ({
   currentIndex: 0,
   show_collection: true,
   wall_color: null,
+  text_color: null,
 });
 
 // Generate 20 panel configurations for the outer 50x50 walls
@@ -70,7 +72,7 @@ export async function initializeGalleryConfig() {
   if (error) {
     console.error("Failed to fetch gallery config from Supabase:", error);
     for (const wallName in galleryConfig) {
-      galleryConfig[wallName] = { name: 'Error Loading', contractAddress: '', tokenIds: [], currentIndex: 0, show_collection: true, wall_color: null };
+      galleryConfig[wallName] = { name: 'Error Loading', contractAddress: '', tokenIds: [], currentIndex: 0, show_collection: true, wall_color: null, text_color: null };
     }
     return;
   }
@@ -126,6 +128,7 @@ export async function initializeGalleryConfig() {
         currentIndex: startIndex,
         show_collection: showCollection,
         wall_color: configFromDb.wall_color || null,
+        text_color: configFromDb.text_color || null,
       };
     } else {
       galleryConfig[panelKey] = {
@@ -135,6 +138,7 @@ export async function initializeGalleryConfig() {
         currentIndex: 0,
         show_collection: true,
         wall_color: null,
+        text_color: null,
       };
     }
   }
