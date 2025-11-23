@@ -20,6 +20,7 @@ interface GalleryConfig {
   contract_address: string | null;
   default_token_id: number | null;
   show_collection: boolean | null;
+  wall_color: string | null;
 }
 
 interface PanelLock {
@@ -193,6 +194,7 @@ const GalleryConfig = () => {
       contract_address: contractAddress,
       default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
       show_collection: currentConfig.show_collection ?? true,
+      wall_color: currentConfig.wall_color || null,
     };
 
     const { error: configError } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
@@ -505,6 +507,19 @@ const GalleryConfig = () => {
                   />
                 </div>
                 
+                <div className="space-y-2">
+                  <Label htmlFor="wall_color">Wall Color</Label>
+                  <Input
+                    id="wall_color"
+                    name="wall_color"
+                    type="color"
+                    value={currentConfig.wall_color || '#666666'}
+                    onChange={handleInputChange}
+                    disabled={isLoading || isPanelLockedByOther}
+                    className="p-1 h-10 w-full"
+                  />
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="lock_duration">Lock Duration (Days, 0 to Unlock, Max 30)</Label>
                   <Input

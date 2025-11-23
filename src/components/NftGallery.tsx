@@ -169,6 +169,7 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
+  const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false); 
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
@@ -587,60 +588,105 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
 
-    innerSegmentCenters.forEach(segmentCenter => {
+    innerSegmentCenters.forEach((segmentCenter, i) => {
+        const index = i;
+
         // North Outer Wall (Z = -25)
+        const northWallKey = `north-wall-${index}`;
         const northInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         northInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_WALL_BOUNDARY);
         scene.add(northInnerWall);
+        wallMeshesRef.current.set(northWallKey, northInnerWall);
 
         // South Outer Wall (Z = 25)
+        const southWallKey = `south-wall-${index}`;
         const southInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         southInnerWall.rotation.y = Math.PI;
         southInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_WALL_BOUNDARY);
         scene.add(southInnerWall);
+        wallMeshesRef.current.set(southWallKey, southInnerWall);
 
         // East Outer Wall (X = 25)
+        const eastWallKey = `east-wall-${index}`;
         const eastInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerWall.rotation.y = -Math.PI / 2;
         eastInnerWall.position.set(INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastInnerWall);
+        wallMeshesRef.current.set(eastWallKey, eastInnerWall);
 
         // West Outer Wall (X = -25)
+        const westWallKey = `west-wall-${index}`;
         const westInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerWall.rotation.y = Math.PI / 2;
         westInnerWall.position.set(-INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(westInnerWall);
+        wallMeshesRef.current.set(westWallKey, westInnerWall);
     });
     // --- END OUTER ROOM SETUP ---
 
     // --- START INNER INNER ROOM SETUP (30x30) ---
     const INNER_INNER_WALL_BOUNDARY = 15;
+    const innerInnerWallSegments = [-10, 10];
 
-    innerInnerSegmentCenters.forEach(segmentCenter => {
-        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
-
+    innerInnerWallSegments.forEach((segmentCenter, i) => {
+        const index = i;
         // North Inner Inner Wall (Z = -15)
+        const northInnerOuterKey = `north-inner-wall-outer-${index}`;
+        const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
+        scene.add(northInnerOuterWall);
+        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterWall);
+
+        const northInnerInnerKey = `north-inner-wall-inner-${index}`;
         const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
         scene.add(northInnerInnerWall);
+        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
 
         // South Inner Inner Wall (Z = 15)
+        const southInnerOuterKey = `south-inner-wall-outer-${index}`;
+        const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerOuterWall.rotation.y = Math.PI;
+        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
+        scene.add(southInnerOuterWall);
+        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
+
+        const southInnerInnerKey = `south-inner-wall-inner-${index}`;
         const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         southInnerInnerWall.rotation.y = Math.PI;
         southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
         scene.add(southInnerInnerWall);
+        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
 
         // East Inner Inner Wall (X = 15)
+        const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
+        const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerOuterWall.rotation.y = -Math.PI / 2;
+        eastInnerOuterWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerOuterWall);
+        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
+
+        const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
         const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerInnerWall.rotation.y = -Math.PI / 2;
         eastInnerInnerWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastInnerInnerWall);
+        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
 
         // West Inner Inner Wall (X = -15)
+        const westInnerOuterKey = `west-inner-wall-outer-${index}`;
+        const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerOuterWall.rotation.y = Math.PI / 2;
+        westInnerOuterWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerOuterWall);
+        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
+
+        const westInnerInnerKey = `west-inner-wall-inner-${index}`;
         const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerInnerWall.rotation.y = Math.PI / 2;
         westInnerInnerWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(westInnerInnerWall);
+        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
     });
     // --- END INNER INNER ROOM SETUP ---
     
@@ -649,27 +695,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Wall (Z = -5)
+        const northCenterKey = `north-center-wall-0`;
         const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
         scene.add(northWall);
+        wallMeshesRef.current.set(northCenterKey, northWall);
 
         // South Wall (Z = 5)
+        const southCenterKey = `south-center-wall-0`;
         const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         southWall.rotation.y = Math.PI;
         southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
         scene.add(southWall);
+        wallMeshesRef.current.set(southCenterKey, southWall);
 
         // East Wall (X = 5)
+        const eastCenterKey = `east-center-wall-0`;
         const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastWall.rotation.y = -Math.PI / 2;
         eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastWall);
+        wallMeshesRef.current.set(eastCenterKey, eastWall);
 
         // West Wall (X = -5)
+        const westCenterKey = `west-center-wall-0`;
         const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westWall.rotation.y = Math.PI / 2;
         westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(westWall);
+        wallMeshesRef.current.set(westCenterKey, westWall);
     });
     // --- END INNER INNER INNER ROOM SETUP ---
 
@@ -1272,6 +1326,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const fetchAndRenderPanelsSequentially = async () => {
       await initializeGalleryConfig();
       
+      // Apply wall colors from config
+      for (const [panelKey, config] of Object.entries(GALLERY_PANEL_CONFIG)) {
+          if (config.wall_color) {
+              const wallMesh = wallMeshesRef.current.get(panelKey);
+              if (wallMesh && wallMesh.material instanceof THREE.MeshStandardMaterial) {
+                  wallMesh.material.color.set(config.wall_color);
+              }
+          }
+      }
+
       // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
         const source = getCurrentNftSource(panel.wallName);
