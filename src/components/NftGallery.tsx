@@ -16,7 +16,6 @@ const CLOUD_SPEED = 0.02;
 const LIGHTNING_FREQ = 0.12;
 const SPARK_COUNT = 60;
 const SPARK_SPEED = 0.6;
-const BASE_TEXTURE_PATH = '/thunderstorm-base.svg';
 // --- End Config ---
 
 // Constants for geometry
