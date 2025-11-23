@@ -543,6 +543,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
 
     // 1. Create Modular Floor and Ceiling (Covers 50x50 area)
+    const ceilingMaterial = new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
             const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
@@ -557,7 +558,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             floorSegments.push(floorSegment);
 
             // Ceiling Segment
-            const ceiling = new THREE.Mesh(segmentGeometry, new THREE.MeshPhongMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenter;
             ceiling.position.z = segmentCenterZ;
@@ -1142,6 +1143,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const animate = () => {
       requestAnimationFrame(animate);
       const time = performance.now(), delta = (time - prevTime) / 1000;
+
+      // Update ceiling color
+      const hue = (time * 0.00005) % 1;
+      ceilingMaterial.color.setHSL(hue, 0.5, 0.5);
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
