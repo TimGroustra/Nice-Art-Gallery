@@ -484,70 +484,93 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         metalness: 0.1,
         side: THREE.DoubleSide,
     });
+    const floorAnimationStopRef = useRef<(() => void) | null>(null);
 
-    const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
-        const logoColor = '#00FFFF'; // The original cyan for the logo itself
-        const glowColor = '#00F5D4'; // A vibrant teal for the glow
-        const shinyBlack = '#0a0a0a';
-        const canvasSize = 1024;
+    const createCustomFloorTexture = (): Promise<{ texture: THREE.CanvasTexture, stop: () => void }> => {
+        return new Promise((resolve, reject) => {
+            const logoColor = '#00FFFF';
+            const glowColor = '#00F5D4';
+            const shinyBlack = '#0a0a0a';
+            const canvasSize = 1024;
 
-        const mainCanvas = document.createElement('canvas');
-        mainCanvas.width = canvasSize;
-        mainCanvas.height = canvasSize;
-        const mainCtx = mainCanvas.getContext('2d');
-        if (!mainCtx) return;
+            const mainCanvas = document.createElement('canvas');
+            mainCanvas.width = canvasSize;
+            mainCanvas.height = canvasSize;
+            const mainCtx = mainCanvas.getContext('2d');
+            if (!mainCtx) return reject(new Error("Could not get 2D context"));
 
-        // 1. Fill background
-        mainCtx.fillStyle = shinyBlack;
-        mainCtx.fillRect(0, 0, canvasSize, canvasSize);
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = '/electroneum-logo-symbol.svg';
 
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = '/electroneum-logo-symbol.svg';
+            img.onload = () => {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = canvasSize;
+                tempCanvas.height = canvasSize;
+                const tempCtx = tempCanvas.getContext('2d');
+                if (!tempCtx) return reject(new Error("Could not get 2D context for temp canvas"));
 
-        img.onload = () => {
-            // 2. Create a temporary canvas with just the colored logo
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvasSize;
-            tempCanvas.height = canvasSize;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (!tempCtx) return;
+                const padding = canvasSize * 0.1;
+                const imageSize = canvasSize - (padding * 2);
+                tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
+                tempCtx.globalCompositeOperation = 'source-in';
+                tempCtx.fillStyle = logoColor;
+                tempCtx.fillRect(0, 0, canvasSize, canvasSize);
 
-            const padding = canvasSize * 0.1;
-            const imageSize = canvasSize - (padding * 2);
-            tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
+                const texture = new THREE.CanvasTexture(mainCanvas);
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(1, 1);
+                texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
 
-            tempCtx.globalCompositeOperation = 'source-in';
-            tempCtx.fillStyle = logoColor;
-            tempCtx.fillRect(0, 0, canvasSize, canvasSize);
+                let animationFrameId: number;
 
-            // 3. Add the glow effect to the main canvas
-            mainCtx.shadowColor = glowColor;
-            mainCtx.shadowBlur = 40; // Adjust for desired glow size
+                const animateGlow = () => {
+                    const time = Date.now() * 0.001;
 
-            // 4. Draw the logo onto the main canvas. This will produce the glow.
-            // Draw it twice to make the glow stronger.
-            mainCtx.drawImage(tempCanvas, 0, 0);
-            mainCtx.drawImage(tempCanvas, 0, 0);
+                    mainCtx.clearRect(0, 0, canvasSize, canvasSize);
+                    mainCtx.fillStyle = shinyBlack;
+                    mainCtx.fillRect(0, 0, canvasSize, canvasSize);
 
-            // 5. Reset shadow properties and draw the crisp logo on top of the glow
-            mainCtx.shadowBlur = 0;
-            mainCtx.drawImage(tempCanvas, 0, 0);
+                    mainCtx.shadowColor = glowColor;
+                    const numLayers = 3;
+                    for (let i = 0; i < numLayers; i++) {
+                        const phase = (i / numLayers) * Math.PI * 2;
+                        const wave = Math.sin(time * 1.5 + phase);
+                        const blur = 30 + wave * 15;
+                        const offsetX = Math.cos(time * 0.7 + phase) * 8;
+                        const offsetY = Math.sin(time * 0.7 + phase) * 8;
 
-            // 6. Create the final texture
-            const texture = new THREE.CanvasTexture(mainCanvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1);
-            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.needsUpdate = true;
+                        mainCtx.shadowBlur = blur;
+                        mainCtx.shadowOffsetX = offsetX;
+                        mainCtx.shadowOffsetY = offsetY;
+                        mainCtx.drawImage(tempCanvas, 0, 0);
+                    }
 
-            callback(texture);
-        };
+                    mainCtx.shadowBlur = 0;
+                    mainCtx.shadowOffsetX = 0;
+                    mainCtx.shadowOffsetY = 0;
+                    mainCtx.drawImage(tempCanvas, 0, 0);
 
-        img.onerror = (err) => {
-            console.error('Failed to load floor texture SVG:', err);
-        };
+                    texture.needsUpdate = true;
+                    animationFrameId = requestAnimationFrame(animateGlow);
+                };
+
+                animateGlow();
+
+                const stop = () => {
+                    cancelAnimationFrame(animationFrameId);
+                    texture.dispose();
+                };
+
+                resolve({ texture, stop });
+            };
+
+            img.onerror = (err) => {
+                console.error('Failed to load floor texture SVG:', err);
+                reject(err);
+            };
+        });
     };
 
     // Define constants for inner rooms centrally
@@ -582,7 +605,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // Asynchronously create and apply the custom floor texture
-    createCustomFloorTexture((texture) => {
+    createCustomFloorTexture().then(({ texture, stop }) => {
+        floorAnimationStopRef.current = stop;
         const newFloorMaterial = new THREE.MeshStandardMaterial({
             map: texture,
             roughness: 0.2,
@@ -592,7 +616,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         floorSegments.forEach(segment => {
             segment.material = newFloorMaterial;
         });
-        placeholderFloorMaterial.dispose(); // Clean up the placeholder
+        placeholderFloorMaterial.dispose();
+    }).catch(err => {
+        console.error("Failed to create animated floor texture:", err);
     });
 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
@@ -1308,6 +1334,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       canvas.removeEventListener('webglcontextlost', handleContextLost);
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       
+      floorAnimationStopRef.current?.();
+
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       
