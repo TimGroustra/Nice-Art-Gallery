@@ -308,10 +308,6 @@ const fragmentShader = `
       // add small sparks as warm-blue highlights
       color += vec3(0.6,0.8,1.0) * sparks * 0.7;
 
-      // subtle vignetting toward edges for theatrical focus
-      float edge = smoothstep(0.9, 0.3, length(vUv - 0.5));
-      color *= mix(1.0, 0.6, edge);
-
       // gamma
       color = pow(color, vec3(0.9));
       gl_FragColor = vec4(color, 1.0);
