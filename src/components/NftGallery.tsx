@@ -184,6 +184,8 @@ const vertexShader = `
 `;
 
 const fragmentShader = `
+    precision highp float;
+
     varying vec2 vUv;
     varying vec3 vPosition;
     uniform float u_time;
@@ -262,52 +264,42 @@ const fragmentShader = `
     float rand(vec2 co){ return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453); }
 
     void main(){
-      // uv scaled to room size so the clouds tile properly across the 50x50
       vec2 uv = vUv * vec2(u_roomSize / 10.0, u_roomSize / 10.0);
 
-      // 3D position to move clouds slowly
       vec3 p = vec3(uv * 1.0, u_time * u_cloudSpeed);
       float n = fbm(p * 0.6);
       float n2 = fbm(p * 1.8);
       float cloud = smoothstep(0.15, 0.6, n * 0.9 + 0.5 * n2);
-      // tint in blue hues
       vec3 sky = mix(vec3(0.03,0.06,0.12), vec3(0.02,0.18,0.34), cloud);
 
-      // Big lightning events: occasional brightening across veins
       float lightningSeed = fbm(vec3(uv * 0.8, u_time * 0.2));
       float lightningChance = smoothstep(0.65, 0.75, fract(lightningSeed + sin(u_time * 0.7) * 0.5));
-      // lightning veins are brighter where fbm has ridges
       float veins = smoothstep(0.5, 0.86, fbm(vec3(uv * 3.0, u_time * 0.9)));
       float lightningIntensity = lightningChance * veins * (0.8 + 0.8 * sin(u_time * 12.0));
 
-      // micro-sparks: a field of small pointy flickers
+      // Fixed safe spark loop
+      const int SPARK_MAX = 80;
       float sparks = 0.0;
-      for(float i=0.0;i<80.0;i++){
-        if(i >= u_sparkCount) break;
-        // place sparks pseudo-randomly using i as seed
-        float fi = i + 1.0;
-        vec2 pos = vec2(rand(vec2(fi, fi*1.31)), rand(vec2(fi*2.0, fi*3.7)));
-        pos = pos * 2.0 - 1.0; // -1..1 space
-        // transform to uv space
-        pos *= 0.5 * (u_roomSize / 10.0);
-        float t = fract(u_time * u_sparkSpeed * (0.2 + rand(vec2(fi))) );
-        pos += vec2(sin(u_time*0.2 + fi)*0.02, cos(u_time*0.13 + fi*1.7)*0.02);
-        float d = length(uv - pos);
-        float s = smoothstep(0.03, 0.0, d) * (0.6 + 0.4 * sin(u_time * (1.2 + fi*0.03)));
-        sparks += s * (0.4 + 0.6 * rand(vec2(fi*5.6, fi)));
+      for(int i = 0; i < SPARK_MAX; i++){
+        if (float(i) < u_sparkCount) {
+            float fi = float(i) + 1.0;
+            vec2 pos = vec2(rand(vec2(fi, fi*1.31)), rand(vec2(fi*2.0, fi*3.7)));
+            pos = pos * 2.0 - 1.0;
+            pos *= 0.5 * (u_roomSize / 10.0);
+            float t = fract(u_time * u_sparkSpeed * (0.2 + rand(vec2(fi))));
+            pos += vec2(sin(u_time*0.2 + fi)*0.02, cos(u_time*0.13 + fi*1.7)*0.02);
+            float d = length(uv - pos);
+            float s = smoothstep(0.03, 0.0, d) * (0.6 + 0.4 * sin(u_time * (1.2 + fi*0.03)));
+            sparks += s * (0.4 + 0.6 * rand(vec2(fi*5.6, fi)));
+        }
       }
       sparks = clamp(sparks, 0.0, 1.0);
 
-      // combine
       vec3 color = sky;
-      // lightning adds bluish-white
       color += vec3(0.7,0.8,1.0) * lightningIntensity * 1.8;
-      // gentle overall ambient brightening when lightningChance peaks
       color = mix(color, color + vec3(0.18,0.24,0.35) * lightningIntensity, lightningIntensity*0.5);
-      // add small sparks as warm-blue highlights
       color += vec3(0.6,0.8,1.0) * sparks * 0.7;
 
-      // gamma
       color = pow(color, vec3(0.9));
       gl_FragColor = vec4(color, 1.0);
     }
