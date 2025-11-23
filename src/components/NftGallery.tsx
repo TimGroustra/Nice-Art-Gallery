@@ -75,8 +75,8 @@ const ceilingFragmentShader = `
         float hue = mod(time * 0.05, 1.0);
         
         // 2. Pulsing brightness (Value/Lightness)
-        // Pulse between 0.5 and 0.8
-        float pulse = 0.65 + sin(time * 2.0) * 0.15; 
+        // Pulse adjusted to be slower (0.5 speed) and darker (range 0.2 to 0.4)
+        float pulse = 0.3 + sin(time * 0.5) * 0.1; 
         
         // Saturation is high
         float saturation = 0.8;
