@@ -486,7 +486,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
-        const electricBlue = '#00FFFF';
+        const logoColor = '#00FFFF'; // The original cyan for the logo itself
+        const glowColor = '#00F5D4'; // A vibrant teal for the glow
         const shinyBlack = '#0a0a0a';
         const canvasSize = 1024;
 
@@ -496,6 +497,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const mainCtx = mainCanvas.getContext('2d');
         if (!mainCtx) return;
 
+        // 1. Fill background
         mainCtx.fillStyle = shinyBlack;
         mainCtx.fillRect(0, 0, canvasSize, canvasSize);
 
@@ -504,6 +506,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         img.src = '/electroneum-logo-symbol.svg';
 
         img.onload = () => {
+            // 2. Create a temporary canvas with just the colored logo
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = canvasSize;
             tempCanvas.height = canvasSize;
@@ -515,11 +518,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
 
             tempCtx.globalCompositeOperation = 'source-in';
-            tempCtx.fillStyle = electricBlue;
+            tempCtx.fillStyle = logoColor;
             tempCtx.fillRect(0, 0, canvasSize, canvasSize);
 
+            // 3. Add the glow effect to the main canvas
+            mainCtx.shadowColor = glowColor;
+            mainCtx.shadowBlur = 40; // Adjust for desired glow size
+
+            // 4. Draw the logo onto the main canvas. This will produce the glow.
+            // Draw it twice to make the glow stronger.
+            mainCtx.drawImage(tempCanvas, 0, 0);
             mainCtx.drawImage(tempCanvas, 0, 0);
 
+            // 5. Reset shadow properties and draw the crisp logo on top of the glow
+            mainCtx.shadowBlur = 0;
+            mainCtx.drawImage(tempCanvas, 0, 0);
+
+            // 6. Create the final texture
             const texture = new THREE.CanvasTexture(mainCanvas);
             texture.wrapS = THREE.RepeatWrapping;
             texture.wrapT = THREE.RepeatWrapping;
