@@ -632,54 +632,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // --- Create Stars ---
-    const createStarTexture = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = 64;
-        canvas.height = 64;
-        const context = canvas.getContext('2d');
-        if (!context) return null;
-
-        const gradient = context.createRadialGradient(32, 32, 0, 32, 32, 32);
-        gradient.addColorStop(0, 'rgba(255,255,255,1)');
-        gradient.addColorStop(0.2, 'rgba(255,255,255,0.8)');
-        gradient.addColorStop(0.4, 'rgba(255,255,255,0.2)');
-        gradient.addColorStop(1, 'rgba(255,255,255,0)');
-
-        context.fillStyle = gradient;
-        context.fillRect(0, 0, 64, 64);
-
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
-        return texture;
-    };
-    const starTexture = createStarTexture();
-
-    const createStarField = (count: number, size: number, color: number) => {
-        const starVertices = [];
-        for (let i = 0; i < count; i++) {
-            const x = THREE.MathUtils.randFloatSpread(ROOM_SIZE);
-            const z = THREE.MathUtils.randFloatSpread(ROOM_SIZE);
-            const y = WALL_HEIGHT - 0.01; // Just below the ceiling plane
-            starVertices.push(x, y, z);
-        }
-        const starGeometry = new THREE.BufferGeometry();
-        starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
-        const starMaterial = new THREE.PointsMaterial({
-            map: starTexture,
-            color: color,
-            size: size * 5, // Increased size for soft texture
-            sizeAttenuation: true,
-            transparent: true,
-            opacity: 1,
-            depthWrite: false,
-            blending: THREE.AdditiveBlending,
-        });
-        return new THREE.Points(starGeometry, starMaterial);
-    };
-
-    const stars1 = createStarField(7000, 0.05, 0xffffff);
-    const stars2 = createStarField(7000, 0.05, 0xeeeeff);
-    scene.add(stars1, stars2);
+    // Removed star creation logic
+    // --- End Create Stars ---
 
     // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
     const INNER_WALL_BOUNDARY = halfRoomSize; // 25
@@ -1304,10 +1258,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           ceilingMaterial.uniforms.time.value = elapsedTime;
       }
 
-      // Animate stars
-      const t = time * 0.0005;
-      (stars1.material as THREE.PointsMaterial).opacity = Math.abs(Math.sin(t));
-      (stars2.material as THREE.PointsMaterial).opacity = Math.abs(Math.sin(t + Math.PI / 2));
+      // Animate stars (Removed)
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
