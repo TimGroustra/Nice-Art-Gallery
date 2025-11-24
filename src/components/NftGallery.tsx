@@ -817,16 +817,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Outer Cove Lighting (50x50 perimeter)
     innerSegmentCenters.forEach(segmentCenter => {
         // North Outer Wall (Z = -25). Faces +Z (Inward)
-        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
+        // FIX: Changed rotation from [-Math.PI / 2, Math.PI, 0] to [0, 0, 0] to shine horizontally +Z
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [0, 0, 0]);
 
         // South Outer Wall (Z = 25). Faces -Z (Inward)
-        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
+        // FIX: Changed rotation from [Math.PI / 2, Math.PI, 0] to [0, Math.PI, 0] to shine horizontally -Z
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
         
         // East Outer Wall (X = 25). Faces -X (Inward)
-        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
+        // FIX: Changed rotation from [Math.PI / 2, Math.PI / 2, 0] to [0, -Math.PI / 2, 0] to shine horizontally -X
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
 
         // West Outer Wall (X = -25). Faces +X (Inward)
-        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
+        // FIX: Changed rotation from [Math.PI / 2, -Math.PI / 2, 0] to [0, Math.PI / 2, 0] to shine horizontally +X
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [0, Math.PI / 2, 0]);
     });
 
     // Inner Inner Cove Lighting (30x30)
