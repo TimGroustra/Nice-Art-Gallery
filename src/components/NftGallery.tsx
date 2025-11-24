@@ -891,62 +891,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     // --- END COVE LIGHTING ---
 
-    // --- 6. Blockchain Mesh Setup ---
-    const NUM_NODES = 50;
-    const MAX_DISTANCE = 5; 
-    const NODE_RADIUS = 0.05;
-    const BLOCKCHAIN_COLOR = 0x00FFFF; // Neon Electric Blue
-    const BLOCKCHAIN_Y = WALL_HEIGHT - 0.01; 
-
-    function createBlockchainMesh(roomSize: number) {
-        const group = new THREE.Group();
-        
-        const nodeGeometry = new THREE.IcosahedronGeometry(NODE_RADIUS, 1);
-        // FIX: Use MeshStandardMaterial to support emissive properties for glowing nodes.
-        const nodeMaterial = new THREE.MeshStandardMaterial({ color: BLOCKCHAIN_COLOR, emissive: BLOCKCHAIN_COLOR, emissiveIntensity: 0.5 });
-        
-        const nodeData: { mesh: THREE.Mesh, velocity: THREE.Vector3 }[] = [];
-
-        for (let i = 0; i < NUM_NODES; i++) {
-            const x = (Math.random() - 0.5) * roomSize * 0.9;
-            const z = (Math.random() - 0.5) * roomSize * 0.9;
-            
-            const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
-            node.position.set(x, BLOCKCHAIN_Y, z);
-            group.add(node);
-            
-            nodeData.push({
-                mesh: node,
-                velocity: new THREE.Vector3(
-                    (Math.random() - 0.5) * 0.5, 
-                    0, 
-                    (Math.random() - 0.5) * 0.5  
-                )
-            });
-        }
-
-        const lineMaterial = new THREE.LineBasicMaterial({ color: BLOCKCHAIN_COLOR, transparent: true, opacity: 0.3 });
-        const lineGeometry = new THREE.BufferGeometry();
-        
-        // Max possible connections: NUM_NODES * (NUM_NODES - 1) * 3
-        const maxPositions = NUM_NODES * (NUM_NODES - 1) * 3;
-        const positionsArray = new Float32Array(maxPositions);
-        lineGeometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
-        
-        const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
-        group.add(lines);
-
-        (group as any).nodeData = nodeData;
-        (group as any).lines = lines;
-        (group as any).roomBoundary = roomSize / 2 * 0.9; // Keep nodes within 90% of the half room size
-
-        return group;
-    }
-
-    const blockchainMesh = createBlockchainMesh(ROOM_SIZE);
-    scene.add(blockchainMesh);
-    // --- End Blockchain Mesh Setup ---
-
 
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
     // Make the initial panel material transparent to hide the placeholder box
@@ -1314,55 +1258,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           ceilingMaterial.uniforms.time.value = elapsedTime;
       }
 
-      // Update blockchain mesh animation
-      if (blockchainMesh) {
-          const nodeData = (blockchainMesh as any).nodeData as { mesh: THREE.Mesh, velocity: THREE.Vector3 }[];
-          const boundary = (blockchainMesh as any).roomBoundary;
-          const lines = (blockchainMesh as any).lines as THREE.LineSegments;
-          const positionsAttribute = lines.geometry.getAttribute('position') as THREE.BufferAttribute;
-          const positionsArray = positionsAttribute.array as Float32Array;
-          let positionIndex = 0;
-
-          for (const data of nodeData) {
-              // 1. Update position
-              data.mesh.position.x += data.velocity.x * delta;
-              data.mesh.position.z += data.velocity.z * delta;
-
-              // 2. Boundary collision (bounce)
-              if (data.mesh.position.x > boundary || data.mesh.position.x < -boundary) {
-                  data.velocity.x *= -1;
-                  data.mesh.position.x = Math.max(-boundary, Math.min(boundary, data.mesh.position.x));
-              }
-              if (data.mesh.position.z > boundary || data.mesh.position.z < -boundary) {
-                  data.velocity.z *= -1;
-                  data.mesh.position.z = Math.max(-boundary, Math.min(boundary, data.mesh.position.z));
-              }
-          }
-
-          // 3. Update lines based on distance
-          for (let i = 0; i < nodeData.length; i++) {
-              for (let j = i + 1; j < nodeData.length; j++) {
-                  const posA = nodeData[i].mesh.position;
-                  const posB = nodeData[j].mesh.position;
-                  const distSq = posA.distanceToSquared(posB); // Use squared distance for performance
-
-                  if (distSq < MAX_DISTANCE * MAX_DISTANCE) {
-                      // Add line segment
-                      positionsArray[positionIndex++] = posA.x;
-                      positionsArray[positionIndex++] = posA.y;
-                      positionsArray[positionIndex++] = posA.z;
-                      
-                      positionsArray[positionIndex++] = posB.x;
-                      positionsArray[positionIndex++] = posB.y;
-                      positionsArray[positionIndex++] = posB.z;
-                  }
-              }
-          }
-          
-          // Clear unused positions by setting the draw range
-          positionsAttribute.needsUpdate = true;
-          lines.geometry.setDrawRange(0, positionIndex / 3);
-      }
+      // Animate stars (Removed)
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
@@ -1512,6 +1408,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     fetchAndRenderPanelsSequentially();
 
+    animate();
+
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
       document.removeEventListener('keydown', onKeyDown);
@@ -1537,17 +1435,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             panel.gifStopFunction();
         }
       });
-
-      // Cleanup blockchain mesh
-      if (blockchainMesh) {
-          scene.remove(blockchainMesh);
-          (blockchainMesh as any).nodeData.forEach((data: any) => {
-              data.mesh.geometry.dispose();
-              data.mesh.material.dispose();
-          });
-          (blockchainMesh as any).lines.geometry.dispose();
-          (blockchainMesh as any).lines.material.dispose();
-      }
 
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
