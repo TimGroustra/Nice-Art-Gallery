@@ -892,8 +892,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- END COVE LIGHTING ---
 
     // --- 6. Blockchain Mesh Setup ---
-    const NUM_NODES = 500; // Increased from 50
-    const MAX_DISTANCE = 10; // Increased from 5
+    const NUM_NODES = 50;
+    const MAX_DISTANCE = 5; 
     const NODE_RADIUS = 0.05;
     const BLOCKCHAIN_COLOR = 0x00FFFF; // Neon Electric Blue
     const BLOCKCHAIN_Y = WALL_HEIGHT - 0.01; 
@@ -929,7 +929,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const lineGeometry = new THREE.BufferGeometry();
         
         // Max possible connections: NUM_NODES * (NUM_NODES - 1) * 3
-        // With 500 nodes, this is 500 * 499 * 3 = 748,500 positions. This is large but necessary for a dense web.
         const maxPositions = NUM_NODES * (NUM_NODES - 1) * 3;
         const positionsArray = new Float32Array(maxPositions);
         lineGeometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
@@ -1029,7 +1028,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Add configurations for inner 30x30 walls
     innerInnerWallSegments.forEach((segmentCenter, i) => {
-        const index = i;
         // North Inner Wall (Z = -15)
         // Outer side (in corridor, faces -Z)
         dynamicPanelConfigs.push({
@@ -1355,7 +1353,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                       positionsArray[positionIndex++] = posA.z;
                       
                       positionsArray[positionIndex++] = posB.x;
-                      positionsArray[positionIndex++] = posB.y; // FIX: Corrected Y coordinate
+                      positionsArray[positionIndex++] = posB.y;
                       positionsArray[positionIndex++] = posB.z;
                   }
               }
@@ -1513,8 +1511,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
 
     fetchAndRenderPanelsSequentially();
-
-    animate(); // <-- Start the animation loop
 
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
