@@ -1029,6 +1029,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Add configurations for inner 30x30 walls
     innerInnerWallSegments.forEach((segmentCenter, i) => {
+        const index = i;
         // North Inner Wall (Z = -15)
         // Outer side (in corridor, faces -Z)
         dynamicPanelConfigs.push({
@@ -1354,7 +1355,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                       positionsArray[positionIndex++] = posA.z;
                       
                       positionsArray[positionIndex++] = posB.x;
-                      positionsArray[positionIndex++] = posB.z;
+                      positionsArray[positionIndex++] = posB.y; // FIX: Corrected Y coordinate
                       positionsArray[positionIndex++] = posB.z;
                   }
               }
