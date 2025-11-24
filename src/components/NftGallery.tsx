@@ -792,10 +792,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const coveLightIntensity = 10;
     const coveLightWidth = ROOM_SEGMENT_SIZE; 
     const coveLightHeight = 0.1;
-    
-    // Constants for flush ceiling placement
-    const COVE_LIGHT_Y = WALL_HEIGHT - (coveLightHeight / 2); // 4.0 - 0.05 = 3.95
-    const COVE_LIGHT_OFFSET = 0.05; // Distance from the wall plane (inside the room)
+    const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
 
     const createCoveLighting = (
         position: [number, number, number],
@@ -804,7 +803,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ) => {
         const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
         rectLight.position.set(...position);
-        // Rotation: [-Math.PI / 2, 0, 0] makes the light horizontal and shine down (-Y)
         rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
         scene.add(rectLight);
 
@@ -816,58 +814,51 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(glowMesh);
     };
 
-    // Rotation for North/South walls (Light runs along X, shines down -Y)
-    const NS_ROTATION: [number, number, number] = [-Math.PI / 2, 0, 0];
-    // Rotation for East/West walls (Light runs along Z, shines down -Y). Use YXZ order to fix orientation.
-    const EW_ROTATION: [number, number, number] = [0, Math.PI / 2, -Math.PI / 2];
-    const EW_ORDER: THREE.EulerOrder = 'YXZ';
-
-
     // Outer Cove Lighting (50x50 perimeter)
-    const INNER_WALL_BOUNDARY_LIGHT = INNER_WALL_BOUNDARY; // 25
     innerSegmentCenters.forEach(segmentCenter => {
-        // North Outer Wall (Z = -25). Light runs along X axis.
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, -INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET], NS_ROTATION);
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [-Math.PI / 2, Math.PI, 0]);
 
-        // South Outer Wall (Z = 25). Light runs along X axis.
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET], NS_ROTATION);
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [Math.PI / 2, Math.PI, 0]);
         
-        // East Outer Wall (X = 25). Light runs along Z axis.
-        createCoveLighting([INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
+        // East Outer Wall (X = 25). Faces -X (Inward)
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, Math.PI / 2, 0], 'YXZ');
 
-        // West Outer Wall (X = -25). Light runs along Z axis.
-        createCoveLighting([-INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
+        // West Outer Wall (X = -25). Faces +X (Inward)
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [Math.PI / 2, -Math.PI / 2, 0], 'YXZ');
     });
 
     // Inner Inner Cove Lighting (30x30)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
     const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
 
     innerInnerSegmentCenters.forEach(segmentCenter => {
         if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
 
         // North Inner Inner Wall (Z = -15)
-        // Outer side (facing -Z, corridor)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, -INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET], NS_ROTATION);
-        // Inner side (facing +Z, inner room)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, -INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET], NS_ROTATION);
+        // Outer side (facing -Z, corridor) -> Should shine +Z
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [0, 0, 0]);
+        // Inner side (facing +Z, inner room) -> Should shine -Z
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [0, Math.PI, 0]);
 
         // South Inner Inner Wall (Z = 15)
-        // Outer side (facing +Z, corridor)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET], NS_ROTATION);
-        // Inner side (facing -Z, inner room)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET], NS_ROTATION);
+        // Outer side (facing +Z, corridor) -> Should shine -Z
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+        // Inner side (facing -Z, inner room) -> Should shine +Z
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [0, 0, 0]);
         
         // East Inner Inner Wall (X = 15)
-        // Outer side (facing +X, corridor)
-        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
-        // Inner side (facing -X, inner room)
-        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
+        // Outer side (facing +X, corridor) -> Should shine -X
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
+        // Inner side (facing -X, inner room) -> Should shine +X
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
 
         // West Inner Inner Wall (X = -15)
-        // Outer side (facing -X, corridor)
-        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
-        // Inner side (facing +X, inner room)
-        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
+        // Outer side (facing -X, corridor) -> Should shine +X
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+        // Inner side (facing +X, inner room) -> Should shine -X
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
     });
     
     // Inner Inner Inner Cove Lighting (10x10)
@@ -875,28 +866,28 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     innerInnerInnerSegmentCenters.forEach(segmentCenter => {
         // North Wall (Z = -5)
-        // Outer side (facing -Z, corridor)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET], NS_ROTATION);
-        // Inner side (facing +Z, inner room)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET], NS_ROTATION);
+        // Outer side (facing -Z, corridor) -> Should shine +Z
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset], [0, 0, 0]);
+        // Inner side (facing +Z, inner room) -> Should shine -Z
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [0, Math.PI, 0]);
 
         // South Wall (Z = 5)
-        // Outer side (facing +Z, corridor)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET], NS_ROTATION);
-        // Inner side (facing -Z, inner room)
-        createCoveLighting([segmentCenter, COVE_LIGHT_Y, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET], NS_ROTATION);
+        // Outer side (facing +Z, corridor) -> Should shine -Z
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+        // Inner side (facing -Z, inner room) -> Should shine +Z
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [0, 0, 0]);
         
         // East Wall (X = 5)
-        // Outer side (facing +X, corridor)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
-        // Inner side (facing -X, inner room)
-        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
+        // Outer side (facing +X, corridor) -> Should shine -X
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
+        // Inner side (facing -X, inner room) -> Should shine +X
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [0, Math.PI / 2, 0]);
 
         // West Wall (X = -5)
-        // Outer side (facing -X, corridor)
-        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
-        // Inner side (facing +X, inner room)
-        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + COVE_LIGHT_OFFSET, COVE_LIGHT_Y, segmentCenter], EW_ROTATION, EW_ORDER);
+        // Outer side (facing -X, corridor) -> Should shine +X
+        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+        // Inner side (facing +X, inner room) -> Should shine -X
+        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
     });
     // --- END COVE LIGHTING ---
 
@@ -930,9 +921,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const MAX_SEGMENT_INDEX = 4; // Only generate panels for segments 0, 1, 2, 3, 4
 
     // Iterate through segments 0 to 4 (5 segments)
-    for (let i = 0; i < NUM_SEGMENTS; i++) { 
+    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
         for (const wallNameBase of WALL_NAMES) {
-            const panelKey = `${wallNameBase}-${i}`;
+            const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
             
             // Since we only generate segments 0-4, these must be on the 50x50 walls
             
@@ -971,7 +962,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             }
 
             dynamicPanelConfigs.push({
-                wallName: panelKey as keyof PanelConfig,
+                wallName: panelKey,
                 position: [finalX, PANEL_Y_POSITION, finalZ],
                 rotation: rotation,
                 textOffsetSign: textOffsetSign,
