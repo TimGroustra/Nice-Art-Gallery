@@ -902,7 +902,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const group = new THREE.Group();
         
         const nodeGeometry = new THREE.IcosahedronGeometry(NODE_RADIUS, 1);
-        const nodeMaterial = new THREE.MeshBasicMaterial({ color: BLOCKCHAIN_COLOR, emissive: BLOCKCHAIN_COLOR, emissiveIntensity: 0.5 });
+        // FIX: Use MeshStandardMaterial to support emissive properties for glowing nodes.
+        const nodeMaterial = new THREE.MeshStandardMaterial({ color: BLOCKCHAIN_COLOR, emissive: BLOCKCHAIN_COLOR, emissiveIntensity: 0.5 });
         
         const nodeData: { mesh: THREE.Mesh, velocity: THREE.Vector3 }[] = [];
 
@@ -927,7 +928,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const lineMaterial = new THREE.LineBasicMaterial({ color: BLOCKCHAIN_COLOR, transparent: true, opacity: 0.3 });
         const lineGeometry = new THREE.BufferGeometry();
         
-        // Max possible connections: NUM_NODES * (NUM_NODES - 1) / 2 * 2 points * 3 components
+        // Max possible connections: NUM_NODES * (NUM_NODES - 1) * 3
         const maxPositions = NUM_NODES * (NUM_NODES - 1) * 3;
         const positionsArray = new Float32Array(maxPositions);
         lineGeometry.setAttribute('position', new THREE.BufferAttribute(positionsArray, 3));
