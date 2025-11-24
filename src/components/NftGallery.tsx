@@ -398,6 +398,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // AWAIT the texture loading to ensure the image data is ready
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
+      // --- FIX: Rotate texture 90 degrees for East/West walls to correct orientation ---
+      if (panel.wallName.includes('east-wall') || panel.wallName.includes('west-wall')) {
+          // Rotate texture 90 degrees clockwise (PI/2) around its center (0.5, 0.5)
+          texture.rotation = Math.PI / 2; 
+          texture.center.set(0.5, 0.5); 
+      } else {
+          // Ensure rotation is reset for North/South walls
+          texture.rotation = 0;
+          texture.center.set(0, 0);
+      }
+      // --- End FIX ---
+      
       // --- Main NFT Mesh Update ---
       disposeTextureSafely(panel.mesh);
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
