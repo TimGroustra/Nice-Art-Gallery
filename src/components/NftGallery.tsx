@@ -1512,6 +1512,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     fetchAndRenderPanelsSequentially();
 
+    animate(); // <-- Start the animation loop
+
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
       document.removeEventListener('keydown', onKeyDown);
