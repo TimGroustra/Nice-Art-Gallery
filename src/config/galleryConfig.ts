@@ -17,9 +17,9 @@ export interface PanelConfig {
 
 const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
 
-// Default colors for the new theme
-const DEFAULT_WALL_COLOR = '#36454F'; // Charcoal Grey
-const DEFAULT_TEXT_COLOR = '#40E0D0'; // Turquoise
+// Default colors for the new theme (Deep Purple and Bright Yellow)
+const DEFAULT_WALL_COLOR = '#4A235A'; 
+const DEFAULT_TEXT_COLOR = '#F4D03F'; 
 
 // This part creates the structure of the gallery with all panel keys.
 // We'll initialize them as blank, and they will be populated from the database.
