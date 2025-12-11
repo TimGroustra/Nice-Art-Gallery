@@ -519,7 +519,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000); // Dark background
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, -OCTAGON_APOTHEM - 5); // Start outside the Octagon
+    camera.position.set(0, 1.6, 0); // Start in the center of the Octagon Hub
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -887,7 +887,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMesh.position.set(config.position[0], config.position[1], config.position[2]);
         wallMesh.rotation.y = config.rotationY;
         scene.add(wallMesh);
-        // FIX 1: Explicitly cast config.key to string to satisfy Map<string, THREE.Mesh>
         wallMeshesRef.current.set(config.key as string, wallMesh);
         
         // --- Collision Segment Calculation ---
@@ -1024,7 +1023,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // The ceiling shader material is already created in the floor/ceiling loop
     const ceilingMeshObject = scene.children.find(c => c instanceof THREE.Mesh && c.position.y === WALL_HEIGHT);
-    // FIX 2: Ensure ceilingMesh is correctly typed as THREE.Mesh before accessing material
     const ceilingMesh = ceilingMeshObject instanceof THREE.Mesh ? ceilingMeshObject : null;
     const ceilingMaterial = ceilingMesh ? (ceilingMesh.material as THREE.ShaderMaterial) : null;
 
