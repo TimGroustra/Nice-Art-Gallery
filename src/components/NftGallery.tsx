@@ -1275,8 +1275,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           } else { 
             const mat = obj.material as THREE.Material;
             // FIX: Safely check for 'map' property before disposing
-            if ('map' in mat && mat.map) mat.map.dispose(); 
-            mat.dispose(); 
+            if ('map' in mat && mat.map) (mat.map as THREE.Texture).dispose(); 
+            // FIX: Ensure dispose exists before calling
+            if ('dispose' in mat && typeof mat.dispose === 'function') {
+                mat.dispose(); 
+            }
           }
         }
       });
