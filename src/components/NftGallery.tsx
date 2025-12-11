@@ -9,11 +9,11 @@ import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from './MarketBrowserRefined';
 
 // Post-processing imports for the new aesthetic (Imported from three-stdlib to resolve module errors)
-import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
-import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
-import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
-import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader";
-import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
+import { EffectComposer } from "three-stdlib";
+import { RenderPass } from "three-stdlib";
+import { UnrealBloomPass } from "three-stdlib";
+import { FXAAShader } from "three-stdlib";
+import { ShaderPass } from "three-stdlib";
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
