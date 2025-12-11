@@ -217,6 +217,10 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
+interface NftGalleryProps {
+    setInstructionsVisible: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -528,7 +532,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const wallMaterial = new THREE.MeshStandardMaterial({ color: WALL_COLOR, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
     const pillarGeometry = new THREE.CylinderGeometry(PILLAR_RADIUS, PILLAR_RADIUS, PILLAR_HEIGHT, 16);
     const pillarMaterial = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.5, metalness: 0.5 });
-    const neonMaterial = new THREE.MeshBasicMaterial({ color: NEON_COLOR, emissive: NEON_COLOR, emissiveIntensity: NEON_INTENSITY, side: THREE.DoubleSide });
+    // FIX 4: Use MeshStandardMaterial for neon glow to support emissive
+    const neonMaterial = new THREE.MeshStandardMaterial({ 
+        color: NEON_COLOR, 
+        emissive: NEON_COLOR, 
+        emissiveIntensity: NEON_INTENSITY, 
+        side: THREE.DoubleSide,
+        roughness: 0.1,
+        metalness: 0.9,
+    });
     
     // 1. Floor and Ceiling (50x50)
     const floorSegments: THREE.Mesh[] = [];
@@ -704,30 +716,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // --- 2.3 Beams connecting the pillars (Arches) ---
-    const BEAM_HEIGHT = 0.5;
-    const BEAM_Y = WALL_HEIGHT - BEAM_HEIGHT / 2;
+    // FIX 1: Renaming BEAM_HEIGHT to BEAM_VISUAL_HEIGHT
+    const BEAM_VISUAL_HEIGHT = 0.5; 
+    const BEAM_Y = WALL_HEIGHT - BEAM_VISUAL_HEIGHT / 2;
     const BEAM_MATERIAL = pillarMaterial.clone();
     
     // Central 10x10 Beams (length 10)
     for (const z of [-INNER_BOUNDARY, INNER_BOUNDARY]) {
-        const beam = new THREE.Mesh(new THREE.BoxGeometry(10, BEAM_HEIGHT, PILLAR_RADIUS * 2), BEAM_MATERIAL);
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(10, BEAM_VISUAL_HEIGHT, PILLAR_RADIUS * 2), BEAM_MATERIAL);
         beam.position.set(0, BEAM_Y, z);
         scene.add(beam);
     }
     for (const x of [-INNER_BOUNDARY, INNER_BOUNDARY]) {
-        const beam = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_RADIUS * 2, BEAM_HEIGHT, 10), BEAM_MATERIAL);
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_RADIUS * 2, BEAM_VISUAL_HEIGHT, 10), BEAM_MATERIAL);
         beam.position.set(x, BEAM_Y, 0);
         scene.add(beam);
     }
     
     // 30x30 Corridor Beams (length 30)
     for (const z of [-CORRIDOR_PILLAR_BOUNDARY, CORRIDOR_PILLAR_BOUNDARY]) {
-        const beam = new THREE.Mesh(new THREE.BoxGeometry(30, BEAM_HEIGHT, PILLAR_RADIUS * 2), BEAM_MATERIAL);
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(30, BEAM_VISUAL_HEIGHT, PILLAR_RADIUS * 2), BEAM_MATERIAL);
         beam.position.set(0, BEAM_Y, z);
         scene.add(beam);
     }
     for (const x of [-CORRIDOR_PILLAR_BOUNDARY, CORRIDOR_PILLAR_BOUNDARY]) {
-        const beam = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_RADIUS * 2, BEAM_HEIGHT, 30), BEAM_MATERIAL);
+        const beam = new THREE.Mesh(new THREE.BoxGeometry(PILLAR_RADIUS * 2, BEAM_VISUAL_HEIGHT, 30), BEAM_MATERIAL);
         beam.position.set(x, BEAM_Y, 0);
         scene.add(beam);
     }
@@ -1015,8 +1028,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // Central Beams (10x10 structure) - Add small lights above the beams
-    const BEAM_HEIGHT = 0.5;
-    const BEAM_LIGHT_Y = WALL_HEIGHT - BEAM_HEIGHT - 0.1;
+    // FIX 2: Renaming BEAM_HEIGHT to BEAM_LIGHT_HEIGHT
+    const BEAM_LIGHT_HEIGHT = 0.5;
+    const BEAM_LIGHT_Y = WALL_HEIGHT - BEAM_LIGHT_HEIGHT - 0.1;
     const BEAM_LIGHT_INTENSITY = 3;
     
     // X-axis beams (length 10)
