@@ -887,7 +887,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMesh.position.set(config.position[0], config.position[1], config.position[2]);
         wallMesh.rotation.y = config.rotationY;
         scene.add(wallMesh);
-        wallMeshesRef.current.set(config.key, wallMesh);
+        // FIX 1: Explicitly cast config.key to string to satisfy Map<string, THREE.Mesh>
+        wallMeshesRef.current.set(config.key as string, wallMesh);
         
         // --- Collision Segment Calculation ---
         // Calculate the endpoints of the wall segment in XZ plane
@@ -1022,7 +1023,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(hemiLight);
 
     // The ceiling shader material is already created in the floor/ceiling loop
-    const ceilingMesh = scene.children.find(c => c instanceof THREE.Mesh && c.position.y === WALL_HEIGHT);
+    const ceilingMeshObject = scene.children.find(c => c instanceof THREE.Mesh && c.position.y === WALL_HEIGHT);
+    // FIX 2: Ensure ceilingMesh is correctly typed as THREE.Mesh before accessing material
+    const ceilingMesh = ceilingMeshObject instanceof THREE.Mesh ? ceilingMeshObject : null;
     const ceilingMaterial = ceilingMesh ? (ceilingMesh.material as THREE.ShaderMaterial) : null;
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
