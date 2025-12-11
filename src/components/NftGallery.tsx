@@ -8,6 +8,13 @@ import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from './MarketBrowserRefined';
 
+// Post-processing imports for the new aesthetic
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
+import { FXAAShader } from "three/examples/jsm/shaders/FXAAShader";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass";
+
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
 
@@ -18,12 +25,13 @@ const DESCRIPTION_HEIGHT = 1.5;
 const ATTRIBUTES_HEIGHT = 1.5;
 const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
 
-// --- NEW ARCHITECTURE CONSTANTS ---
+// --- NEW ARCHITECTURE CONSTANTS (Updated for Neon Aesthetic) ---
 const WALL_HEIGHT = 12; 
-const NEON_COLOR_CYAN = 0x00FFFF; 
+const NEON_COLOR_CYAN = 0x33f0ff; // Bright Cyan for strip lighting
+const NEON_COLOR_MAGENTA = 0xff1bb3; // Bright Magenta for panel frames
 const NEON_INTENSITY = 1.5;
-const WALL_COLOR = 0x111111; 
-const FLOOR_COLOR = 0x0a0a0a;
+const WALL_COLOR = 0x151217; // Dark, gritty wall color
+const FLOOR_COLOR = 0x1b1416; // Dark floor color
 const PANEL_Y_POSITION = 3.0; 
 const PANEL_OFFSET = 0.15; 
 const ARROW_PANEL_OFFSET = 1.5;
@@ -356,6 +364,63 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
+  // Helper function to create the framed panel structure
+  const createFramedPanel = (w: number, h: number, emissiveColor: number) => {
+      const group = new THREE.Group();
+      
+      // 1. Backboard (Dark, non-emissive)
+      const backGeo = new THREE.PlaneGeometry(w, h);
+      const backMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide });
+      const back = new THREE.Mesh(backGeo, backMat);
+      back.position.set(0, 0, 0.01);
+      group.add(back);
+
+      // 2. Frame Rim (Emissive border)
+      const rimDepth = 0.06;
+      const rimMat = new THREE.MeshStandardMaterial({
+          color: 0x0b0b0b,
+          emissive: emissiveColor,
+          emissiveIntensity: 1.6,
+          roughness: 0.25,
+          metalness: 0.4,
+      });
+      const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, rimDepth), rimMat);
+      rim.position.set(0, 0, -0.02);
+      group.add(rim);
+
+      // 3. Main NFT Display Plane (This will hold the texture/video)
+      const imageMat = new THREE.MeshBasicMaterial({ color: 0x222122, side: THREE.DoubleSide });
+      const imageGeo = new THREE.PlaneGeometry(w - 0.2, h - 0.2);
+      const imageMesh = new THREE.Mesh(imageGeo, imageMat);
+      imageMesh.position.set(0, 0, 0.02);
+      group.add(imageMesh);
+      
+      // 4. Neon Border Line (Thin tube along frame)
+      const neonMat = new THREE.MeshStandardMaterial({
+          emissive: emissiveColor,
+          emissiveIntensity: 1.4,
+          roughness: 0.2,
+      });
+
+      const borderGeomH = new THREE.BoxGeometry(w + 0.05, 0.03, 0.015);
+      const top = new THREE.Mesh(borderGeomH, neonMat);
+      top.position.set(0, h / 2 + 0.06, 0.03);
+      group.add(top);
+      const bottom = top.clone();
+      bottom.position.set(0, -h / 2 - 0.06, 0.03);
+      group.add(bottom);
+
+      const borderGeomV = new THREE.BoxGeometry(0.03, h + 0.05, 0.015);
+      const left = new THREE.Mesh(borderGeomV, neonMat);
+      left.position.set(-w / 2 - 0.06, 0, 0.03);
+      group.add(left);
+      const right = left.clone();
+      right.position.set(w / 2 + 0.06, 0, 0.03);
+      group.add(right);
+
+      return { group, imageMesh };
+  };
+
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
     const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
     const collectionName = collectionConfig?.name || '...';
@@ -369,8 +434,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- End Wall Title Update ---
 
     // --- 2. Reset NFT and Metadata panels ---
-    disposeTextureSafely(panel.mesh);
-    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
+    // Note: We only dispose the map on the main mesh, the frame materials are reused.
+    if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+        if (panel.mesh.material.map) {
+            panel.mesh.material.map.dispose();
+            panel.mesh.material.map = null;
+        }
+        panel.mesh.material.color.set(0x222122); // Dark placeholder color
+    }
+    
     panel.metadataUrl = '';
     panel.isVideo = false;
     panel.isGif = false;
@@ -401,9 +473,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     if (!metadata) {
         console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
         
-        disposeTextureSafely(panel.mesh);
-        const { texture: errorTexture } = createTextTexture("NFT Unavailable", 2, 2, 80, 'red', { wordWrap: false });
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
+        // Display error texture on the main mesh
+        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+            const { texture: errorTexture } = createTextTexture("NFT Unavailable", 2, 2, 80, 'red', { wordWrap: false });
+            panel.mesh.material.map = errorTexture;
+            panel.mesh.material.color.set(0xff0000); // Red tint for error
+        }
         
         if (panel.titleMesh) panel.titleMesh.visible = false;
         if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
@@ -420,8 +495,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
       // --- Main NFT Mesh Update ---
-      disposeTextureSafely(panel.mesh);
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+          panel.mesh.material.map = texture;
+          panel.mesh.material.color.set(0xffffff); // Reset color to white for texture display
+      }
       // --- End Main NFT Mesh Update ---
 
       panel.metadataUrl = metadata.source;
@@ -516,15 +593,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   useEffect(() => {
     if (!mountRef.current) return;
 
+    const container = mountRef.current;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x000000); // Dark background
+    scene.background = new THREE.Color(0x0a0410); // deep moody base
+    scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
+
+    // Renderer (Updated for Bloom/Tone Mapping)
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    container.appendChild(renderer.domElement);
+
+    // Camera
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, 0); // Start in the center of the Octagon Hub
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    mountRef.current.appendChild(renderer.domElement);
 
+    // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
     
     (window as any).galleryControls = {
@@ -558,31 +644,44 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       setInstructionsVisible(true);
       manageVideoPlayback(false);
     });
+    
+    // --- Postprocessing (bloom + fxaa) ---
+    const composer = new EffectComposer(renderer);
+    const renderPass = new RenderPass(scene, camera);
+    composer.addPass(renderPass);
+
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.4, 0.85);
+    bloomPass.threshold = 0.15;
+    bloomPass.strength = 1.2;
+    bloomPass.radius = 0.6;
+    composer.addPass(bloomPass);
+
+    const fxaaPass = new ShaderPass(FXAAShader);
+    const pixelRatio = Math.min(window.devicePixelRatio, 2);
+    fxaaPass.material.uniforms["resolution"].value.x = 1 / (window.innerWidth * pixelRatio);
+    fxaaPass.material.uniforms["resolution"].value.y = 1 / (window.innerHeight * pixelRatio);
+    composer.addPass(fxaaPass);
+
 
     // --- ROOM GEOMETRY SETUP (Electric Circuit Layout) ---
 
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: WALL_COLOR, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const neonMaterial = new THREE.MeshStandardMaterial({ 
-        color: NEON_COLOR_CYAN, 
-        emissive: NEON_COLOR_CYAN, 
-        emissiveIntensity: NEON_INTENSITY, 
-        side: THREE.DoubleSide,
-        roughness: 0.1,
-        metalness: 0.9,
+    const wallMaterial = new THREE.MeshStandardMaterial({ 
+        color: WALL_COLOR, 
+        side: THREE.DoubleSide, 
+        roughness: 0.95, // Grittier look
+        metalness: 0.1 
     });
     
     // 1. Floor and Ceiling (Complex Geometry)
     
-    // Define the overall bounding box for floor/ceiling segments (e.g., 50x50 area)
-    const MAX_EXTENT = 25;
     const FLOOR_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5; 
     
     const floorSegments: THREE.Mesh[] = [];
     const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
         color: FLOOR_COLOR,
-        roughness: 0.2,
-        metalness: 0.1,
+        roughness: 0.9,
+        metalness: 0.05,
         side: THREE.DoubleSide,
     });
     const segmentGeometry = new THREE.PlaneGeometry(FLOOR_SEGMENT_SIZE, FLOOR_SEGMENT_SIZE);
@@ -661,8 +760,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     createCustomFloorTexture((texture) => {
         const newFloorMaterial = new THREE.MeshStandardMaterial({
             map: texture,
-            roughness: 0.2,
-            metalness: 0.1,
+            color: FLOOR_COLOR, // Use new dark color
+            roughness: 0.9,
+            metalness: 0.05,
             side: THREE.DoubleSide,
         });
         floorSegments.forEach(segment => {
@@ -671,7 +771,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         placeholderFloorMaterial.dispose();
     });
     
-    // --- 2. Structural Wall Definition ---
+    // --- 2. Structural Wall Definition (Kept Dynamic Layout) ---
     
     const WALL_SEGMENTS: {
         key: keyof PanelConfig;
@@ -685,14 +785,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let keyIndex = 0;
     
     // --- 2.1 Central Octagon Hub (8 walls) ---
-    const OCTAGON_CENTER = [0, 0];
     const OCTAGON_WALL_COUNT = 8;
     
     for (let i = 0; i < OCTAGON_WALL_COUNT; i++) {
         const angle = (i * 2 * Math.PI) / OCTAGON_WALL_COUNT;
         const rotationY = angle;
         
-        // Calculate wall center position based on apothem and angle
         const x = OCTAGON_APOTHEM * Math.sin(angle);
         const z = -OCTAGON_APOTHEM * Math.cos(angle);
         
@@ -707,13 +805,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // --- 2.2 Corridors and Square Rooms (4 wings) ---
     
-    // Define the starting point for the corridors (just outside the octagon)
-    const CORRIDOR_START = OCTAGON_APOTHEM + WALL_THICKNESS; // 9.34
-    const CORRIDOR_END = CORRIDOR_START + CORRIDOR_LENGTH; // 19.34
-    const ROOM_START = CORRIDOR_END + WALL_THICKNESS; // 19.44
-    const ROOM_END = ROOM_START + ROOM_SIZE; // 29.44
+    const CORRIDOR_START = OCTAGON_APOTHEM + WALL_THICKNESS; 
+    const CORRIDOR_END = CORRIDOR_START + CORRIDOR_LENGTH; 
+    const ROOM_START = CORRIDOR_END + WALL_THICKNESS; 
+    const ROOM_END = ROOM_START + ROOM_SIZE; 
     
-    // Helper to create a wing (Corridor + Room)
     const createWing = (
         baseRotation: number, 
         corridorKeys: (keyof PanelConfig)[], 
@@ -722,148 +818,37 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const cosR = Math.cos(baseRotation);
         const sinR = Math.sin(baseRotation);
         
-        // --- Corridor Walls (4 segments) ---
-        
-        // Side 1 (Inner boundary at -HALF_CORRIDOR_WIDTH)
+        // Corridor Walls
         const side1Center = CORRIDOR_START + CORRIDOR_LENGTH / 2;
-        WALL_SEGMENTS.push({
-            key: corridorKeys[0]!,
-            length: CORRIDOR_LENGTH,
-            position: [
-                side1Center * sinR - HALF_CORRIDOR_WIDTH * cosR,
-                WALL_HEIGHT / 2,
-                -side1Center * cosR - HALF_CORRIDOR_WIDTH * sinR
-            ],
-            rotationY: baseRotation,
-            neonColor: NEON_COLOR_CYAN,
-        });
+        WALL_SEGMENTS.push({ key: corridorKeys[0]!, length: CORRIDOR_LENGTH, position: [side1Center * sinR - HALF_CORRIDOR_WIDTH * cosR, WALL_HEIGHT / 2, -side1Center * cosR - HALF_CORRIDOR_WIDTH * sinR], rotationY: baseRotation, neonColor: NEON_COLOR_CYAN });
+        WALL_SEGMENTS.push({ key: corridorKeys[1]!, length: CORRIDOR_LENGTH, position: [side1Center * sinR + HALF_CORRIDOR_WIDTH * cosR, WALL_HEIGHT / 2, -side1Center * cosR + HALF_CORRIDOR_WIDTH * sinR], rotationY: baseRotation + Math.PI, neonColor: NEON_COLOR_CYAN });
         
-        // Side 2 (Outer boundary at +HALF_CORRIDOR_WIDTH)
-        WALL_SEGMENTS.push({
-            key: corridorKeys[1]!,
-            length: CORRIDOR_LENGTH,
-            position: [
-                side1Center * sinR + HALF_CORRIDOR_WIDTH * cosR,
-                WALL_HEIGHT / 2,
-                -side1Center * cosR + HALF_CORRIDOR_WIDTH * sinR
-            ],
-            rotationY: baseRotation + Math.PI,
-            neonColor: NEON_COLOR_CYAN,
-        });
+        // Connector Walls (Short, length=CORRIDOR_WIDTH=5)
+        WALL_SEGMENTS.push({ key: corridorKeys[2]!, length: CORRIDOR_WIDTH, position: [CORRIDOR_START * sinR, WALL_HEIGHT / 2, -CORRIDOR_START * cosR], rotationY: baseRotation + Math.PI / 2, neonColor: NEON_COLOR_CYAN });
+        WALL_SEGMENTS.push({ key: corridorKeys[3]!, length: CORRIDOR_WIDTH, position: [CORRIDOR_END * sinR, WALL_HEIGHT / 2, -CORRIDOR_END * cosR], rotationY: baseRotation - Math.PI / 2, neonColor: NEON_COLOR_CYAN });
         
-        // End Wall (Connecting Octagon to Corridor - short segment)
-        WALL_SEGMENTS.push({
-            key: corridorKeys[2]!,
-            length: CORRIDOR_WIDTH,
-            position: [
-                CORRIDOR_START * sinR,
-                WALL_HEIGHT / 2,
-                -CORRIDOR_START * cosR
-            ],
-            rotationY: baseRotation + Math.PI / 2,
-            neonColor: NEON_COLOR_CYAN,
-        });
-        
-        // Start Wall (Connecting Corridor to Room - short segment)
-        WALL_SEGMENTS.push({
-            key: corridorKeys[3]!,
-            length: CORRIDOR_WIDTH,
-            position: [
-                CORRIDOR_END * sinR,
-                WALL_HEIGHT / 2,
-                -CORRIDOR_END * cosR
-            ],
-            rotationY: baseRotation - Math.PI / 2,
-            neonColor: NEON_COLOR_CYAN,
-        });
-        
-        // --- Room Walls (4 segments) ---
-        const roomCenter = ROOM_START + HALF_ROOM_SIZE; // 24.44
-        
-        // Far Wall
-        WALL_SEGMENTS.push({
-            key: roomKeys[0]!,
-            length: ROOM_SIZE,
-            position: [
-                ROOM_END * sinR,
-                WALL_HEIGHT / 2,
-                -ROOM_END * cosR
-            ],
-            rotationY: baseRotation,
-            neonColor: NEON_COLOR_CYAN,
-        });
-        
-        // Side 1
-        WALL_SEGMENTS.push({
-            key: roomKeys[1]!,
-            length: ROOM_SIZE,
-            position: [
-                roomCenter * sinR - HALF_ROOM_SIZE * cosR,
-                WALL_HEIGHT / 2,
-                -roomCenter * cosR - HALF_ROOM_SIZE * sinR
-            ],
-            rotationY: baseRotation + Math.PI / 2,
-            neonColor: NEON_COLOR_CYAN,
-        });
-        
-        // Side 2
-        WALL_SEGMENTS.push({
-            key: roomKeys[2]!,
-            length: ROOM_SIZE,
-            position: [
-                roomCenter * sinR + HALF_ROOM_SIZE * cosR,
-                WALL_HEIGHT / 2,
-                -roomCenter * cosR + HALF_ROOM_SIZE * sinR
-            ],
-            rotationY: baseRotation - Math.PI / 2,
-            neonColor: NEON_COLOR_CYAN,
-        });
-        
-        // Near Wall (Connecting to Corridor - long segment)
-        WALL_SEGMENTS.push({
-            key: roomKeys[3]!,
-            length: ROOM_SIZE,
-            position: [
-                ROOM_START * sinR,
-                WALL_HEIGHT / 2,
-                -ROOM_START * cosR
-            ],
-            rotationY: baseRotation + Math.PI,
-            neonColor: NEON_COLOR_CYAN,
-        });
+        // Room Walls
+        const roomCenter = ROOM_START + HALF_ROOM_SIZE; 
+        WALL_SEGMENTS.push({ key: roomKeys[0]!, length: ROOM_SIZE, position: [ROOM_END * sinR, WALL_HEIGHT / 2, -ROOM_END * cosR], rotationY: baseRotation, neonColor: NEON_COLOR_CYAN });
+        WALL_SEGMENTS.push({ key: roomKeys[1]!, length: ROOM_SIZE, position: [roomCenter * sinR - HALF_ROOM_SIZE * cosR, WALL_HEIGHT / 2, -roomCenter * cosR - HALF_ROOM_SIZE * sinR], rotationY: baseRotation + Math.PI / 2, neonColor: NEON_COLOR_CYAN });
+        WALL_SEGMENTS.push({ key: roomKeys[2]!, length: ROOM_SIZE, position: [roomCenter * sinR + HALF_ROOM_SIZE * cosR, WALL_HEIGHT / 2, -roomCenter * cosR + HALF_ROOM_SIZE * sinR], rotationY: baseRotation - Math.PI / 2, neonColor: NEON_COLOR_CYAN });
+        WALL_SEGMENTS.push({ key: roomKeys[3]!, length: ROOM_SIZE, position: [ROOM_START * sinR, WALL_HEIGHT / 2, -ROOM_START * cosR], rotationY: baseRotation + Math.PI, neonColor: NEON_COLOR_CYAN });
     };
     
-    // Map the 40 keys sequentially
     const keys = PANEL_KEYS;
     
     // North Wing (Base Rotation 0)
-    createWing(0, 
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], // Corridor keys 8-11
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]  // Room keys 12-15
-    );
-    
+    createWing(0, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
     // East Wing (Base Rotation PI/2)
-    createWing(Math.PI / 2, 
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], // Corridor keys 16-19
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]  // Room keys 20-23
-    );
-    
+    createWing(Math.PI / 2, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
     // South Wing (Base Rotation PI)
-    createWing(Math.PI, 
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], // Corridor keys 24-27
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]  // Room keys 28-31
-    );
-    
+    createWing(Math.PI, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
     // West Wing (Base Rotation 3PI/2)
-    createWing(3 * Math.PI / 2, 
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], // Corridor keys 32-35
-        [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]  // Room keys 36-39
-    );
+    createWing(3 * Math.PI / 2, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
     
     // --- 3. Render Walls, Panels, and Collision Segments ---
     
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
@@ -890,50 +875,43 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMeshesRef.current.set(config.key as string, wallMesh);
         
         // --- Collision Segment Calculation ---
-        // Calculate the endpoints of the wall segment in XZ plane
         const halfLength = config.length / 2;
         const cosR = Math.cos(config.rotationY);
         const sinR = Math.sin(config.rotationY);
-        
-        // Vector along the wall (X-axis in local space)
         const dx = halfLength * cosR;
         const dz = halfLength * sinR;
-        
-        // Wall center
         const cx = config.position[0];
         const cz = config.position[2];
-        
-        // Endpoints (x1, z1) and (x2, z2)
         const x1 = cx - dx;
         const z1 = cz + dz;
         const x2 = cx + dx;
         const z2 = cz - dz;
-        
         collisionSegmentsRef.current.push([x1, z1, x2, z2]);
         // --- End Collision Segment Calculation ---
 
         // --- Panel Placement ---
         // Only place panels on walls longer than 6 units (skips the 8 short corridor connector walls)
         if (config.length > 6) { 
-            const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+            
+            const { group: panelGroup, imageMesh: mesh } = createFramedPanel(2, 2, NEON_COLOR_MAGENTA);
             
             // Panel position is slightly offset from the wall center towards the interior
             const panelOffsetVector = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), config.rotationY);
             
-            mesh.position.set(
+            panelGroup.position.set(
                 config.position[0] + panelOffsetVector.x, 
                 PANEL_Y_POSITION, 
                 config.position[2] + panelOffsetVector.z
             );
-            mesh.rotation.y = config.rotationY;
-            scene.add(mesh);
+            panelGroup.rotation.y = config.rotationY;
+            scene.add(panelGroup);
             
             const wallRotation = new THREE.Euler(0, config.rotationY, 0, 'XYZ');
             const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
             const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
             const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
             
-            const basePosition = mesh.position.clone();
+            const basePosition = panelGroup.position.clone();
             const TEXT_PANEL_OFFSET_X = 3.25; 
             
             // Title Panel
@@ -1020,10 +998,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // --- 4. Lighting Setup (Ambient and Ceiling Shader) ---
-    scene.add(new THREE.AmbientLight(0x404050, 0.5)); 
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.3);
-    hemiLight.position.set(0, WALL_HEIGHT, 0);
-    scene.add(hemiLight);
+    // Ambient and Hemisphere lights updated for moody aesthetic
+    scene.add(new THREE.AmbientLight(0x6b2b6b, 0.25)); // purple ambient
+    const hemi = new THREE.HemisphereLight(0x202030, 0x080006, 0.3); // cold fill underneath
+    scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.12); // directional rim light
+    dir.position.set(5, 10, 5);
+    scene.add(dir);
 
     // The ceiling shader material is already created in the floor/ceiling loop
     const ceilingMeshObject = scene.children.find(c => c instanceof THREE.Mesh && c.position.y === WALL_HEIGHT);
@@ -1078,7 +1059,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
     };
-    document.addEventListener('mousedown', onDocumentMouseDown);
+    renderer.domElement.addEventListener('click', onDocumentMouseDown);
 
     const updateDescriptionTexture = (panel: Panel) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
@@ -1163,7 +1144,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         camera.position.y = 1.6;
         
         raycaster.setFromCamera(center, camera);
-        const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]));
+        const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]), true);
         
         panelsRef.current.forEach(p => {
           (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
@@ -1189,13 +1170,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
       prevTime = time;
-      renderer.render(scene, camera);
+      composer.render(); // Use composer for rendering
     };
 
     const onWindowResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setSize(w, h);
+      
+      // Resize composer and FXAA pass
+      composer.setSize(w, h);
+      const pixelRatio = Math.min(window.devicePixelRatio, 2);
+      fxaaPass.material.uniforms["resolution"].value.x = 1 / (w * pixelRatio);
+      fxaaPass.material.uniforms["resolution"].value.y = 1 / (h * pixelRatio);
     };
     window.addEventListener('resize', onWindowResize);
 
@@ -1252,7 +1241,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     animate();
 
     return () => {
-      document.removeEventListener('mousedown', onDocumentMouseDown);
+      document.removeEventListener('click', onDocumentMouseDown);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('wheel', onDocumentWheel);
@@ -1283,8 +1272,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
               m.dispose(); 
             });
           } else { 
-            if (obj.material.map) obj.material.map.dispose(); 
-            obj.material.dispose(); 
+            const mat = obj.material as THREE.Material;
+            if (mat.map) mat.map.dispose(); 
+            mat.dispose(); 
           }
         }
       });
