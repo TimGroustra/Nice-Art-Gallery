@@ -8,7 +8,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from './MarketBrowserRefined';
 
-// Post-processing imports for the new aesthetic
+// Post-processing imports for the new aesthetic (Imported from three-stdlib to resolve module errors)
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass";
@@ -602,7 +602,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    // FIX: Use outputColorSpace instead of deprecated outputEncoding
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(renderer.domElement);
 
@@ -1268,12 +1269,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           obj.geometry.dispose();
           if (Array.isArray(obj.material)) {
             obj.material.forEach(m => { 
-              if (m.map) m.map.dispose(); 
+              if ('map' in m && m.map) m.map.dispose(); 
               m.dispose(); 
             });
           } else { 
             const mat = obj.material as THREE.Material;
-            if (mat.map) mat.map.dispose(); 
+            // FIX: Safely check for 'map' property before disposing
+            if ('map' in mat && mat.map) mat.map.dispose(); 
             mat.dispose(); 
           }
         }
