@@ -751,7 +751,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             neonColor: NEON_COLOR_CYAN,
         });
         
-        // End Wall (Connecting Octagon to Corridor - small segment)
+        // End Wall (Connecting Octagon to Corridor - short segment)
         WALL_SEGMENTS.push({
             key: corridorKeys[2]!,
             length: CORRIDOR_WIDTH,
@@ -764,7 +764,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             neonColor: NEON_COLOR_CYAN,
         });
         
-        // Start Wall (Connecting Corridor to Room - small segment)
+        // Start Wall (Connecting Corridor to Room - short segment)
         WALL_SEGMENTS.push({
             key: corridorKeys[3]!,
             length: CORRIDOR_WIDTH,
@@ -819,7 +819,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             neonColor: NEON_COLOR_CYAN,
         });
         
-        // Near Wall (Connecting to Corridor - small segment)
+        // Near Wall (Connecting to Corridor - long segment)
         WALL_SEGMENTS.push({
             key: roomKeys[3]!,
             length: ROOM_SIZE,
@@ -913,84 +913,88 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // --- End Collision Segment Calculation ---
 
         // --- Panel Placement ---
-        const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
-        
-        // Panel position is slightly offset from the wall center towards the interior
-        const panelOffsetVector = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), config.rotationY);
-        
-        mesh.position.set(
-            config.position[0] + panelOffsetVector.x, 
-            PANEL_Y_POSITION, 
-            config.position[2] + panelOffsetVector.z
-        );
-        mesh.rotation.y = config.rotationY;
-        scene.add(mesh);
-        
-        const wallRotation = new THREE.Euler(0, config.rotationY, 0, 'XYZ');
-        const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-        const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
-        const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
-        
-        const basePosition = mesh.position.clone();
-        const TEXT_PANEL_OFFSET_X = 3.25; 
-        
-        // Title Panel
-        const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
-        titleMesh.rotation.copy(wallRotation);
-        const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; 
-        const titlePosition = basePosition.clone()
-            .addScaledVector(upVector, titleYOffset)
-            .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-        titleMesh.position.copy(titlePosition);
-        titleMesh.visible = false; 
-        scene.add(titleMesh);
+        // Only place panels on walls longer than 6 units (skips the 8 short corridor connector walls)
+        if (config.length > 6) { 
+            const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+            
+            // Panel position is slightly offset from the wall center towards the interior
+            const panelOffsetVector = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), config.rotationY);
+            
+            mesh.position.set(
+                config.position[0] + panelOffsetVector.x, 
+                PANEL_Y_POSITION, 
+                config.position[2] + panelOffsetVector.z
+            );
+            mesh.rotation.y = config.rotationY;
+            scene.add(mesh);
+            
+            const wallRotation = new THREE.Euler(0, config.rotationY, 0, 'XYZ');
+            const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+            const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
+            const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
+            
+            const basePosition = mesh.position.clone();
+            const TEXT_PANEL_OFFSET_X = 3.25; 
+            
+            // Title Panel
+            const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
+            titleMesh.rotation.copy(wallRotation);
+            const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; 
+            const titlePosition = basePosition.clone()
+                .addScaledVector(upVector, titleYOffset)
+                .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+            titleMesh.position.copy(titlePosition);
+            titleMesh.visible = false; 
+            scene.add(titleMesh);
 
-        // Description Panel (Left side relative to the NFT panel)
-        const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
-        const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
-        descriptionMesh.rotation.copy(wallRotation);
-        const descriptionPosition = descriptionGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-        descriptionMesh.position.copy(descriptionPosition);
-        descriptionMesh.visible = false; 
-        scene.add(descriptionMesh);
-        
-        // Arrows
-        const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-        prevArrow.rotation.set(0, config.rotationY + Math.PI, 0);
-        const prevPosition = basePosition.clone().addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
-        prevArrow.position.copy(prevPosition);
-        scene.add(prevArrow);
-        
-        const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-        nextArrow.rotation.copy(wallRotation);
-        const nextPosition = basePosition.clone().addScaledVector(rightVector, ARROW_PANEL_OFFSET);
-        nextArrow.position.copy(nextPosition);
-        scene.add(nextArrow);
+            // Description Panel (Left side relative to the NFT panel)
+            const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
+            const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
+            descriptionMesh.rotation.copy(wallRotation);
+            const descriptionPosition = descriptionGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+            descriptionMesh.position.copy(descriptionPosition);
+            descriptionMesh.visible = false; 
+            scene.add(descriptionMesh);
+            
+            // Arrows
+            const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+            prevArrow.rotation.set(0, config.rotationY + Math.PI, 0);
+            const prevPosition = basePosition.clone().addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+            prevArrow.position.copy(prevPosition);
+            scene.add(prevArrow);
+            
+            const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+            nextArrow.rotation.copy(wallRotation);
+            const nextPosition = basePosition.clone().addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+            nextArrow.position.copy(nextPosition);
+            scene.add(nextArrow);
 
-        // Attributes Panel (Right side relative to the NFT panel)
-        const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
-        const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
-        attributesMesh.rotation.copy(wallRotation);
-        const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-        attributesMesh.position.copy(attributesPosition);
-        attributesMesh.visible = false; 
-        scene.add(attributesMesh);
+            // Attributes Panel (Right side relative to the NFT panel)
+            const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
+            const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
+            attributesMesh.rotation.copy(wallRotation);
+            const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+            attributesMesh.position.copy(attributesPosition);
+            attributesMesh.visible = false; 
+            scene.add(attributesMesh);
 
-        // Wall Title Panel
-        const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
-        wallTitleMesh.rotation.copy(wallRotation);
-        const wallTitlePosition = basePosition.clone();
-        wallTitlePosition.y = 3.2; 
-        wallTitleMesh.position.copy(wallTitlePosition);
-        wallTitleMesh.visible = false; 
-        scene.add(wallTitleMesh);
+            // Wall Title Panel
+            const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
+            wallTitleMesh.rotation.copy(wallRotation);
+            const wallTitlePosition = basePosition.clone();
+            wallTitlePosition.y = 3.2; 
+            wallTitleMesh.position.copy(wallTitlePosition);
+            wallTitleMesh.visible = false; 
+            scene.add(wallTitleMesh);
 
-        const panel: Panel = {
-            mesh, wallName: config.key, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-            attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-            videoElement: null, gifStopFunction: null,
-        };
-        panelsRef.current.push(panel);
+            const panel: Panel = {
+                mesh, wallName: config.key, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
+                attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+                videoElement: null, gifStopFunction: null,
+            };
+            panelsRef.current.push(panel);
+        }
+        // --- End Panel Placement ---
         
         // --- Lighting (Neon Strip) ---
         const neonStripGeo = new THREE.BoxGeometry(config.length, 0.1, 0.02);
