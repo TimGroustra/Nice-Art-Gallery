@@ -5,15 +5,8 @@ import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, upd
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
-import { createGifTexture } from '@/utils/gifTexture';
+import { createGifTexture } from '@/utils/gifTexture'; // Import the new utility
 import { MarketBrowserRefined } from './MarketBrowserRefined';
-
-// Post-processing imports for the new aesthetic (Imported from three-stdlib to resolve module errors)
-import { EffectComposer } from "three-stdlib";
-import { RenderPass } from "three-stdlib";
-import { UnrealBloomPass } from "three-stdlib";
-import { FXAAShader } from "three-stdlib";
-import { ShaderPass } from "three-stdlib";
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -25,67 +18,37 @@ const DESCRIPTION_HEIGHT = 1.5;
 const ATTRIBUTES_HEIGHT = 1.5;
 const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
 
-// --- NEW ARCHITECTURE CONSTANTS (Updated for Neon Aesthetic) ---
-const WALL_HEIGHT = 12; 
-const NEON_COLOR_CYAN = 0x33f0ff; // Bright Cyan for strip lighting
-const NEON_COLOR_MAGENTA = 0xff1bb3; // Bright Magenta for panel frames
-const NEON_INTENSITY = 1.5;
-const WALL_COLOR = 0x151217; // Dark, gritty wall color
-const FLOOR_COLOR = 0x1b1416; // Dark floor color
-const PANEL_Y_POSITION = 3.0; 
-const PANEL_OFFSET = 0.15; 
-const ARROW_PANEL_OFFSET = 1.5;
-const TEXT_DEPTH_OFFSET = 0.16;
-const TITLE_PANEL_WIDTH = 4.0;
-const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
-
-// Collision constants
-const PLAYER_RADIUS = 0.5;
-const WALL_THICKNESS = 0.1;
-const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
-
-// Octagon Hub dimensions
-const OCTAGON_RADIUS = 10;
-const OCTAGON_WALL_LENGTH = 2 * OCTAGON_RADIUS * Math.tan(Math.PI / 8); // Approx 8.28
-const OCTAGON_APOTHEM = OCTAGON_RADIUS * Math.cos(Math.PI / 8); // Approx 9.24
-
-// Corridor dimensions
-const CORRIDOR_WIDTH = 5;
-const CORRIDOR_LENGTH = 10;
-const HALF_CORRIDOR_WIDTH = CORRIDOR_WIDTH / 2;
-
-// Room dimensions
-const ROOM_SIZE = 10;
-const HALF_ROOM_SIZE = ROOM_SIZE / 2;
-
-// --- END NEW ARCHITECTURE CONSTANTS ---
-
-
 // Define types for the panel objects
 interface Panel {
   mesh: THREE.Mesh;
   wallName: keyof PanelConfig;
   metadataUrl: string;
   isVideo: boolean;
-  isGif: boolean;
+  isGif: boolean; // New flag for GIF content
   prevArrow: THREE.Mesh;
   nextArrow: THREE.Mesh;
   titleMesh: THREE.Mesh;
   descriptionMesh: THREE.Mesh;
   attributesMesh: THREE.Mesh;
   wallTitleMesh: THREE.Mesh;
+  // New properties for scrolling description
   currentDescription: string;
   descriptionScrollY: number;
   descriptionTextHeight: number;
   currentAttributes: NftAttribute[];
+  // Dedicated media elements/controls
   videoElement: HTMLVideoElement | null;
-  gifStopFunction: (() => void) | null;
+  gifStopFunction: (() => void) | null; // Function to stop GIF animation loop
+}
+
+interface NftGalleryProps {
+  setInstructionsVisible: (visible: boolean) => void;
 }
 
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
-let currentTargetedDescriptionPanel: Panel | null = null;
+let currentTargetedDescriptionPanel: Panel | null = null; // New state for scroll focus
 
 // --- GLSL Shader Code for Pulsing Rainbow Ceiling ---
 const ceilingVertexShader = `
@@ -178,6 +141,7 @@ const createTextTexture = (text: string, width: number, height: number, fontSize
     }
 
     const texture = new THREE.CanvasTexture(canvas);
+    // Ensure texture properties are set for proper rendering/disposal
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
     texture.needsUpdate = true;
@@ -240,15 +204,11 @@ const createAttributesTextTexture = (attributes: NftAttribute[], width: number, 
     return { texture };
 };
 
-interface NftGalleryProps {
-    setInstructionsVisible: React.Dispatch<React.SetStateAction<boolean>>;
-}
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
-  const collisionSegmentsRef = useRef<[number, number, number, number][]>([]); // [x1, z1, x2, z2]
   const [isLocked, setIsLocked] = useState(false); 
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
@@ -262,6 +222,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             if (shouldPlay) {
                 const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
                 if (controlsLocked) {
+                    // Attempt to play, ignoring promise rejection if user gesture is required
                     panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
                 }
             } else {
@@ -271,6 +232,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
+  // Helper function to determine if content is video or GIF
   const isVideoContent = (contentType: string, url: string) => {
       return !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
   };
@@ -279,6 +241,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       return !!(contentType === "image/gif" || url.match(/\.gif(\?|$)/i));
   };
 
+  // Helper function for texture cleanup
   const disposeTextureSafely = (mesh: THREE.Mesh) => {
     if (mesh.material instanceof THREE.MeshBasicMaterial) {
       if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
@@ -289,6 +252,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
   };
 
+  // Refactored loadTexture to handle Video, GIF, and Image
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
@@ -364,63 +328,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
   }, []);
 
-  // Helper function to create the framed panel structure
-  const createFramedPanel = (w: number, h: number, emissiveColor: number) => {
-      const group = new THREE.Group();
-      
-      // 1. Backboard (Dark, non-emissive)
-      const backGeo = new THREE.PlaneGeometry(w, h);
-      const backMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide });
-      const back = new THREE.Mesh(backGeo, backMat);
-      back.position.set(0, 0, 0.01);
-      group.add(back);
-
-      // 2. Frame Rim (Emissive border)
-      const rimDepth = 0.06;
-      const rimMat = new THREE.MeshStandardMaterial({
-          color: 0x0b0b0b,
-          emissive: emissiveColor,
-          emissiveIntensity: 1.6,
-          roughness: 0.25,
-          metalness: 0.4,
-      });
-      const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, rimDepth), rimMat);
-      rim.position.set(0, 0, -0.02);
-      group.add(rim);
-
-      // 3. Main NFT Display Plane (This will hold the texture/video)
-      const imageMat = new THREE.MeshBasicMaterial({ color: 0x222122, side: THREE.DoubleSide });
-      const imageGeo = new THREE.PlaneGeometry(w - 0.2, h - 0.2);
-      const imageMesh = new THREE.Mesh(imageGeo, imageMat);
-      imageMesh.position.set(0, 0, 0.02);
-      group.add(imageMesh);
-      
-      // 4. Neon Border Line (Thin tube along frame)
-      const neonMat = new THREE.MeshStandardMaterial({
-          emissive: emissiveColor,
-          emissiveIntensity: 1.4,
-          roughness: 0.2,
-      });
-
-      const borderGeomH = new THREE.BoxGeometry(w + 0.05, 0.03, 0.015);
-      const top = new THREE.Mesh(borderGeomH, neonMat);
-      top.position.set(0, h / 2 + 0.06, 0.03);
-      group.add(top);
-      const bottom = top.clone();
-      bottom.position.set(0, -h / 2 - 0.06, 0.03);
-      group.add(bottom);
-
-      const borderGeomV = new THREE.BoxGeometry(0.03, h + 0.05, 0.015);
-      const left = new THREE.Mesh(borderGeomV, neonMat);
-      left.position.set(-w / 2 - 0.06, 0, 0.03);
-      group.add(left);
-      const right = left.clone();
-      right.position.set(w / 2 + 0.06, 0, 0.03);
-      group.add(right);
-
-      return { group, imageMesh };
-  };
-
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
     const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
     const collectionName = collectionConfig?.name || '...';
@@ -434,22 +341,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- End Wall Title Update ---
 
     // --- 2. Reset NFT and Metadata panels ---
-    // Note: We only dispose the map on the main mesh, the frame materials are reused.
-    if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-        if (panel.mesh.material.map) {
-            panel.mesh.material.map.dispose();
-            panel.mesh.material.map = null;
-        }
-        panel.mesh.material.color.set(0x222122); // Dark placeholder color
-    }
-    
+    disposeTextureSafely(panel.mesh);
+    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
     panel.metadataUrl = '';
     panel.isVideo = false;
-    panel.isGif = false;
+    panel.isGif = false; // Reset GIF flag
     if (panel.titleMesh) panel.titleMesh.visible = false;
     if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
     if (panel.attributesMesh) panel.attributesMesh.visible = false;
     
+    // Ensure media cleanup on failure/reset
     if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
@@ -460,7 +361,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.gifStopFunction = null;
     }
     
+    // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
+        // Wall title is already set to "Blank Panel"
         const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
         panel.prevArrow.visible = showArrows;
         panel.nextArrow.visible = showArrows;
@@ -471,15 +374,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
     
     if (!metadata) {
+        // Graceful failure: metadata fetch failed (e.g., invalid token ID, contract call failed)
         console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
         
-        // Display error texture on the main mesh
-        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-            const { texture: errorTexture } = createTextTexture("NFT Unavailable", 2, 2, 80, 'red', { wordWrap: false });
-            panel.mesh.material.map = errorTexture;
-            panel.mesh.material.color.set(0xff0000); // Red tint for error
-        }
+        // Display a simple error message on the main panel
+        disposeTextureSafely(panel.mesh);
+        const { texture: errorTexture } = createTextTexture("NFT Unavailable", 2, 2, 80, 'red', { wordWrap: false });
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
         
+        // Hide text panels
         if (panel.titleMesh) panel.titleMesh.visible = false;
         if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
         if (panel.attributesMesh) panel.attributesMesh.visible = false;
@@ -492,13 +395,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const isVideo = isVideoContent(metadata.contentType, contentUrl);
       const isGif = isGifContent(metadata.contentType, contentUrl);
       
+      // AWAIT the texture loading to ensure the image data is ready
       const texture = await loadTexture(contentUrl, panel, metadata.contentType);
       
       // --- Main NFT Mesh Update ---
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          panel.mesh.material.map = texture;
-          panel.mesh.material.color.set(0xffffff); // Reset color to white for texture display
-      }
+      disposeTextureSafely(panel.mesh);
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       // --- End Main NFT Mesh Update ---
 
       panel.metadataUrl = metadata.source;
@@ -507,7 +409,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       // Title update
       disposeTextureSafely(panel.titleMesh);
-      const { texture: titleTexture } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, textColor, { wordWrap: false });
+      const { texture: titleTexture } = createTextTexture(metadata.title, 4.0, 0.5, 120, textColor, { wordWrap: false });
       (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
       panel.titleMesh.visible = true;
 
@@ -518,6 +420,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
       panel.descriptionMesh.visible = true;
 
+      // Update panel state for scrolling
       panel.currentDescription = descriptionText;
       panel.descriptionTextHeight = totalHeight;
       panel.descriptionScrollY = 0;
@@ -535,6 +438,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     } catch (error) {
       console.error(`Error loading NFT content for ${panel.wallName}:`, error);
       showError(`Failed to load NFT content for ${panel.wallName}. Displaying collection name only.`);
+      
+      // If loading fails, the panel remains dark gray, but the wall title remains visible (set in step 1).
     }
 
     // --- 4. Update Arrow Visibility ---
@@ -544,84 +449,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- End Arrow Visibility Update ---
 
   }, [loadTexture]);
-  
-  // Helper function for creating RectAreaLights and visual glow
-  const createCoveLighting = useCallback((
-      scene: THREE.Scene,
-      position: [number, number, number],
-      rotation: [number, number, number],
-      color: number,
-      intensity: number,
-      width: number,
-      height: number,
-      order: THREE.EulerOrder = 'XYZ'
-  ) => {
-      const rectLight = new THREE.RectAreaLight(color, intensity, width, height);
-      rectLight.position.set(...position);
-      rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
-      scene.add(rectLight);
-
-      // Visual glow mesh
-      const glowGeo = new THREE.BoxGeometry(width, height, 0.02);
-      const glowMat = new THREE.MeshBasicMaterial({ color: color, toneMapped: false, side: THREE.DoubleSide });
-      const glowMesh = new THREE.Mesh(glowGeo, glowMat);
-      glowMesh.position.set(...position);
-      glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
-      scene.add(glowMesh);
-  }, []);
-
-  // Helper function to calculate distance from point (px, pz) to line segment (x1, z1) to (x2, z2)
-  const distToSegment = (px: number, pz: number, x1: number, z1: number, x2: number, z2: number) => {
-    const dx = x2 - x1;
-    const dz = z2 - z1;
-    const lengthSq = dx * dx + dz * dz;
-
-    if (lengthSq === 0) return Math.sqrt((px - x1) * (px - x1) + (pz - z1) * (pz - z1));
-
-    // t is the projection of the point onto the line segment
-    let t = ((px - x1) * dx + (pz - z1) * dz) / lengthSq;
-    t = Math.max(0, Math.min(1, t));
-
-    const closestX = x1 + t * dx;
-    const closestZ = z1 + t * dz;
-
-    const distSq = (px - closestX) * (px - closestX) + (pz - closestZ) * (pz - closestZ);
-    return Math.sqrt(distSq);
-  };
-
 
   useEffect(() => {
     if (!mountRef.current) return;
 
-    const container = mountRef.current;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0410); // deep moody base
-    scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
-
-    // Renderer (Updated for Bloom/Tone Mapping)
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.shadowMap.enabled = true;
-    // FIX: Use outputColorSpace instead of deprecated outputEncoding
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    container.appendChild(renderer.domElement);
-
-    // Camera
+    scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 0); // Start in the center of the Octagon Hub
+    camera.position.set(0, 1.6, -20); // Moved spawn point to the outer corridor (Z=-20)
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    mountRef.current.appendChild(renderer.domElement);
 
-    // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
     
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
+      // Check if ANY panel has a video element
       hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
+      // Check if ALL active video elements are muted
       isMuted: () => {
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
         if (activeVideos.length === 0) return true;
         return activeVideos.every(p => p.videoElement!.muted);
       },
+      // Toggle mute on ALL active video elements
       toggleMute: () => { 
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
         if (activeVideos.length > 0) {
@@ -638,63 +491,116 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     controls.addEventListener('lock', () => {
       setIsLocked(true);
       setInstructionsVisible(false);
+      // Start playback for all active videos
       manageVideoPlayback(true);
     });
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
+      // Pause playback for all active videos
       manageVideoPlayback(false);
     });
+
+    // --- ROOM GEOMETRY SETUP (50x50) ---
+    const ROOM_SEGMENT_SIZE = 10;
+    const NUM_SEGMENTS = 5; // Reduced from 7 to 5
+    const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS; // 50
+    const WALL_HEIGHT = 4;
+    const PANEL_Y_POSITION = 1.8;
+    const BOUNDARY = ROOM_SIZE / 2 - 0.5; // 24.5
+
+    const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
+    const halfRoomSize = ROOM_SIZE / 2; // 25
     
-    // --- Postprocessing (bloom + fxaa) ---
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    composer.addPass(renderPass);
+    const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
+    const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
 
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.4, 0.85);
-    bloomPass.threshold = 0.15;
-    bloomPass.strength = 1.2;
-    bloomPass.radius = 0.6;
-    composer.addPass(bloomPass);
-
-    const fxaaPass = new ShaderPass(FXAAShader);
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
-    fxaaPass.material.uniforms["resolution"].value.x = 1 / (window.innerWidth * pixelRatio);
-    fxaaPass.material.uniforms["resolution"].value.y = 1 / (window.innerHeight * pixelRatio);
-    composer.addPass(fxaaPass);
-
-
-    // --- ROOM GEOMETRY SETUP (Electric Circuit Layout) ---
-
-    const wallMaterial = new THREE.MeshStandardMaterial({ 
-        color: WALL_COLOR, 
-        side: THREE.DoubleSide, 
-        roughness: 0.95, // Grittier look
-        metalness: 0.1 
-    });
-    
-    // 1. Floor and Ceiling (Complex Geometry)
-    
-    const FLOOR_SEGMENT_SIZE = 10;
-    const NUM_SEGMENTS = 5; 
-    
+    // --- Floor Texture and Material ---
     const floorSegments: THREE.Mesh[] = [];
     const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
-        color: FLOOR_COLOR,
-        roughness: 0.9,
-        metalness: 0.05,
+        color: 0x0a0a0a,
+        roughness: 0.2,
+        metalness: 0.1,
         side: THREE.DoubleSide,
     });
-    const segmentGeometry = new THREE.PlaneGeometry(FLOOR_SEGMENT_SIZE, FLOOR_SEGMENT_SIZE);
 
-    // Create floor and ceiling grid over the entire area
+    const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
+        const electricBlue = '#00FFFF';
+        const shinyBlack = '#0a0a0a';
+        const canvasSize = 1024;
+
+        const mainCanvas = document.createElement('canvas');
+        mainCanvas.width = canvasSize;
+        mainCanvas.height = canvasSize;
+        const mainCtx = mainCanvas.getContext('2d');
+        if (!mainCtx) return;
+
+        mainCtx.fillStyle = shinyBlack;
+        mainCtx.fillRect(0, 0, canvasSize, canvasSize);
+
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = '/electroneum-logo-symbol.svg';
+
+        img.onload = () => {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvasSize;
+            tempCanvas.height = canvasSize;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (!tempCtx) return;
+
+            const padding = canvasSize * 0.1;
+            const imageSize = canvasSize - (padding * 2);
+            tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
+
+            tempCtx.globalCompositeOperation = 'source-in';
+            tempCtx.fillStyle = electricBlue;
+            tempCtx.fillRect(0, 0, canvasSize, canvasSize);
+
+            mainCtx.drawImage(tempCanvas, 0, 0);
+
+            const texture = new THREE.CanvasTexture(mainCanvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1);
+            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+            texture.needsUpdate = true;
+
+            callback(texture);
+        };
+
+        img.onerror = (err) => {
+            console.error('Failed to load floor texture SVG:', err);
+        };
+    };
+
+    // Define constants for inner rooms centrally
+    const SEGMENT_TO_SKIP = 0; // Center segment (for walkway)
+    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // 50x50 room segments (now the main room segments)
+    const innerInnerSegmentCenters = [-10, 0, 10]; // 30x30 room segments
+    const innerInnerInnerSegmentCenters = [0]; // 10x10 room segments
+
+
+    // 1. Create Modular Floor and Ceiling (Covers 50x50 area)
+    const ceilingMaterial = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0.0 },
+            opacity: { value: 1.0 }
+        },
+        vertexShader: ceilingVertexShader,
+        fragmentShader: ceilingFragmentShader,
+        side: THREE.DoubleSide,
+        transparent: true,
+    });
+    
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
-            const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * FLOOR_SEGMENT_SIZE;
-            const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * FLOOR_SEGMENT_SIZE;
+            const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+            const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
-            // Floor Segment
-            const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial.clone());
+            // Floor Segment with placeholder material
+            const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
             floorSegment.rotation.x = Math.PI / 2;
             floorSegment.position.x = segmentCenter;
             floorSegment.position.z = segmentCenterZ;
@@ -702,318 +608,564 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             floorSegments.push(floorSegment);
 
             // Ceiling Segment
-            const ceiling = new THREE.Mesh(segmentGeometry, new THREE.ShaderMaterial({
-                uniforms: { time: { value: 0.0 }, opacity: { value: 1.0 } },
-                vertexShader: ceilingVertexShader,
-                fragmentShader: ceilingFragmentShader,
-                side: THREE.DoubleSide,
-                transparent: true,
-            }));
+            const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenter;
             ceiling.position.z = segmentCenterZ;
-            ceiling.position.y = WALL_HEIGHT;
+            ceiling.position.y = wallHeight;
             scene.add(ceiling);
         }
     }
 
-    // Custom floor texture loading (reused from previous implementation)
-    const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
-        const electricBlue = '#00FFFF';
-        const shinyBlack = '#0a0a0a';
-        const canvasSize = 1024;
-        const mainCanvas = document.createElement('canvas');
-        mainCanvas.width = canvasSize;
-        mainCanvas.height = canvasSize;
-        const mainCtx = mainCanvas.getContext('2d');
-        if (!mainCtx) return;
-        mainCtx.fillStyle = shinyBlack;
-        mainCtx.fillRect(0, 0, canvasSize, canvasSize);
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = '/electroneum-logo-symbol.svg';
-        img.onload = () => {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvasSize;
-            tempCanvas.height = canvasSize;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (!tempCtx) return;
-            const padding = canvasSize * 0.1;
-            const imageSize = canvasSize - (padding * 2);
-            tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
-            tempCtx.globalCompositeOperation = 'source-in';
-            tempCtx.fillStyle = electricBlue;
-            tempCtx.fillRect(0, 0, canvasSize, canvasSize);
-            mainCtx.drawImage(tempCanvas, 0, 0);
-            const texture = new THREE.CanvasTexture(mainCanvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1);
-            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.needsUpdate = true;
-            callback(texture);
-        };
-        img.onerror = (err) => {
-            console.error('Failed to load floor texture SVG:', err);
-        };
-    };
-
+    // Asynchronously create and apply the custom floor texture
     createCustomFloorTexture((texture) => {
         const newFloorMaterial = new THREE.MeshStandardMaterial({
             map: texture,
-            color: FLOOR_COLOR, // Use new dark color
-            roughness: 0.9,
-            metalness: 0.05,
+            roughness: 0.2,
+            metalness: 0.1,
             side: THREE.DoubleSide,
         });
         floorSegments.forEach(segment => {
             segment.material = newFloorMaterial;
         });
-        placeholderFloorMaterial.dispose();
+        placeholderFloorMaterial.dispose(); // Clean up the placeholder
+    });
+
+    // --- Create Stars ---
+    // Removed star creation logic
+    // --- End Create Stars ---
+
+    // --- START OUTER ROOM SETUP (50x50, now the perimeter) ---
+    const INNER_WALL_BOUNDARY = halfRoomSize; // 25
+    const INNER_WALL_HEIGHT = WALL_HEIGHT;
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
+
+    innerSegmentCenters.forEach((segmentCenter, i) => {
+        const index = i;
+
+        // North Outer Wall (Z = -25)
+        const northWallKey = `north-wall-${index}`;
+        const northInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_WALL_BOUNDARY);
+        scene.add(northInnerWall);
+        wallMeshesRef.current.set(northWallKey, northInnerWall);
+
+        // South Outer Wall (Z = 25)
+        const southWallKey = `south-wall-${index}`;
+        const southInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerWall.rotation.y = Math.PI;
+        southInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_WALL_BOUNDARY);
+        scene.add(southInnerWall);
+        wallMeshesRef.current.set(southWallKey, southInnerWall);
+
+        // East Outer Wall (X = 25)
+        const eastWallKey = `east-wall-${index}`;
+        const eastInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerWall.rotation.y = -Math.PI / 2;
+        eastInnerWall.position.set(INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerWall);
+        wallMeshesRef.current.set(eastWallKey, eastInnerWall);
+
+        // West Outer Wall (X = -25)
+        const westWallKey = `west-wall-${index}`;
+        const westInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerWall.rotation.y = Math.PI / 2;
+        westInnerWall.position.set(-INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerWall);
+        wallMeshesRef.current.set(westWallKey, westInnerWall);
+    });
+    // --- END OUTER ROOM SETUP ---
+
+    // --- START INNER INNER ROOM SETUP (30x30) ---
+    const INNER_INNER_WALL_BOUNDARY = 15;
+    const innerInnerWallSegments = [-10, 10];
+
+    innerInnerWallSegments.forEach((segmentCenter, i) => {
+        const index = i;
+        // North Inner Inner Wall (Z = -15)
+        const northInnerOuterKey = `north-inner-wall-outer-${index}`;
+        const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
+        scene.add(northInnerOuterWall);
+        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterWall);
+
+        const northInnerInnerKey = `north-inner-wall-inner-${index}`;
+        const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
+        scene.add(northInnerInnerWall);
+        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
+
+        // South Inner Inner Wall (Z = 15)
+        const southInnerOuterKey = `south-inner-wall-outer-${index}`;
+        const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerOuterWall.rotation.y = Math.PI;
+        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
+        scene.add(southInnerOuterWall);
+        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
+
+        const southInnerInnerKey = `south-inner-wall-inner-${index}`;
+        const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerInnerWall.rotation.y = Math.PI;
+        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
+        scene.add(southInnerInnerWall);
+        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
+
+        // East Inner Inner Wall (X = 15)
+        const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
+        const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerOuterWall.rotation.y = -Math.PI / 2;
+        eastInnerOuterWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerOuterWall);
+        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
+
+        const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
+        const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerInnerWall.rotation.y = -Math.PI / 2;
+        eastInnerInnerWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerInnerWall);
+        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
+
+        // West Inner Inner Wall (X = -15)
+        const westInnerOuterKey = `west-inner-wall-outer-${index}`;
+        const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerOuterWall.rotation.y = Math.PI / 2;
+        westInnerOuterWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerOuterWall);
+        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
+
+        const westInnerInnerKey = `west-inner-wall-inner-${index}`;
+        const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerInnerWall.rotation.y = Math.PI / 2;
+        westInnerInnerWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerInnerWall);
+        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
+    });
+    // --- END INNER INNER ROOM SETUP ---
+    
+    // --- START INNER INNER INNER ROOM SETUP (10x10) ---
+    const INNER_INNER_INNER_WALL_BOUNDARY = 5;
+    
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
+        // North Wall (Z = -5)
+        const northCenterKey = `north-center-wall-0`;
+        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(northWall);
+        wallMeshesRef.current.set(northCenterKey, northWall);
+
+        // South Wall (Z = 5)
+        const southCenterKey = `south-center-wall-0`;
+        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southWall.rotation.y = Math.PI;
+        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
+        scene.add(southWall);
+        wallMeshesRef.current.set(southCenterKey, southWall);
+
+        // East Wall (X = 5)
+        const eastCenterKey = `east-center-wall-0`;
+        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastWall.rotation.y = -Math.PI / 2;
+        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastWall);
+        wallMeshesRef.current.set(eastCenterKey, eastWall);
+
+        // West Wall (X = -5)
+        const westCenterKey = `west-center-wall-0`;
+        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westWall.rotation.y = Math.PI / 2;
+        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westWall);
+        wallMeshesRef.current.set(westCenterKey, westWall);
+    });
+    // --- END INNER INNER INNER ROOM SETUP ---
+
+
+    // 4. Lighting Setup
+    scene.add(new THREE.AmbientLight(0x404050, 1.0));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // 5. Cove Lighting (Modular)
+    const coveLightColor = 0x87CEEB; 
+    const coveLightIntensity = 10;
+    const coveLightWidth = ROOM_SEGMENT_SIZE; 
+    const coveLightHeight = 0.1;
+    const innerOffset = 0.1;
+    const innerYPos = WALL_HEIGHT - 0.1;
+    const wallThicknessOffset = 0.05; 
+
+    const createCoveLighting = (
+        position: [number, number, number],
+        rotation: [number, number, number],
+        order: THREE.EulerOrder = 'XYZ'
+    ) => {
+        const rectLight = new THREE.RectAreaLight(coveLightColor, coveLightIntensity, coveLightWidth, coveLightHeight);
+        rectLight.position.set(...position);
+        rectLight.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(rectLight);
+
+        const glowGeo = new THREE.BoxGeometry(coveLightWidth, coveLightHeight, 0.02);
+        const glowMat = new THREE.MeshBasicMaterial({ color: coveLightColor, toneMapped: false });
+        const glowMesh = new THREE.Mesh(glowGeo, glowMat);
+        glowMesh.position.set(...position);
+        glowMesh.rotation.set(rotation[0], rotation.length > 1 ? rotation[1] : 0, rotation.length > 2 ? rotation[2] : 0, order);
+        scene.add(glowMesh);
+    };
+
+    // Outer Cove Lighting (50x50 perimeter) - Horizontal (Shining Inward)
+    innerSegmentCenters.forEach(segmentCenter => {
+        // North Outer Wall (Z = -25). Faces +Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, -INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset], [0, 0, 0]);
+
+        // South Outer Wall (Z = 25). Faces -Z (Inward)
+        createCoveLighting([segmentCenter, innerYPos, INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+        
+        // East Outer Wall (X = 25). Faces -X (Inward)
+        createCoveLighting([INNER_WALL_BOUNDARY - innerOffset - wallThicknessOffset, innerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
+
+        // West Outer Wall (X = -25). Faces +X (Inward)
+        createCoveLighting([-INNER_WALL_BOUNDARY + innerOffset + wallThicknessOffset, innerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+    });
+
+    // Inner Inner Cove Lighting (30x30) - Horizontal (Shining Downwards onto Walls)
+    const innerInnerYPos = WALL_HEIGHT - 0.1;
+    const INNER_INNER_WALL_BOUNDARY_LIGHT = 15;
+
+    innerInnerSegmentCenters.forEach(segmentCenter => {
+        if (segmentCenter === SEGMENT_TO_SKIP) return; // Skip the center segment for the walkway
+
+        // North Inner Inner Wall (Z = -15)
+        // Outer side (in corridor, faces -Z) -> Should shine +Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [0, 0, 0]);
+        // Inner side (in 30x30 room, faces +Z) -> Should shine -Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+
+        // South Inner Inner Wall (Z = 15)
+        // Outer side (in corridor, faces +Z) -> Should shine -Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+        // Inner side (in 30x30 room, faces -Z) -> Should shine +Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [0, 0, 0]);
+        
+        // East Inner Inner Wall (X = 15)
+        // Outer side (in corridor, faces +X) -> Should shine -X (Inward)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
+        // Inner side (in 30x30 room, faces -X) -> Should shine +X (Inward)
+        createCoveLighting([INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+
+        // West Inner Inner Wall (X = -15)
+        // Outer side (in corridor, faces -X) -> Should shine +X (Inward)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+        // Inner side (in 30x30 room, faces +X) -> Should shine -X (Inward)
+        createCoveLighting([-INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
     });
     
-    // --- 2. Structural Wall Definition (Kept Dynamic Layout) ---
+    // Inner Inner Inner Cove Lighting (10x10) - Horizontal (Shining Downwards onto Walls)
+    const INNER_INNER_INNER_WALL_BOUNDARY_LIGHT = 5;
     
-    const WALL_SEGMENTS: {
-        key: keyof PanelConfig;
-        length: number;
-        position: [number, number, number];
-        rotationY: number;
-        neonColor: number;
-    }[] = [];
-    
-    const PANEL_KEYS = Object.keys(GALLERY_PANEL_CONFIG) as (keyof PanelConfig)[];
-    let keyIndex = 0;
-    
-    // --- 2.1 Central Octagon Hub (8 walls) ---
-    const OCTAGON_WALL_COUNT = 8;
-    
-    for (let i = 0; i < OCTAGON_WALL_COUNT; i++) {
-        const angle = (i * 2 * Math.PI) / OCTAGON_WALL_COUNT;
-        const rotationY = angle;
+    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
+        // North Wall (Z = -5)
+        // Outer side (facing -Z, corridor) -> Should shine +Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [0, 0, 0]);
+        // Inner side (facing +Z, inner room) -> Should shine -Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, -INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+
+        // South Wall (Z = 5)
+        // Outer side (facing +Z, corridor) -> Should shine -Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset], [0, Math.PI, 0]);
+        // Inner side (facing -Z, inner room) -> Should shine +Z (Inward)
+        createCoveLighting([segmentCenter, innerInnerYPos, INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset], [0, 0, 0]);
         
-        const x = OCTAGON_APOTHEM * Math.sin(angle);
-        const z = -OCTAGON_APOTHEM * Math.cos(angle);
-        
-        WALL_SEGMENTS.push({
-            key: PANEL_KEYS[keyIndex++]!,
-            length: OCTAGON_WALL_LENGTH,
-            position: [x, WALL_HEIGHT / 2, z],
-            rotationY: rotationY,
-            neonColor: NEON_COLOR_CYAN,
-        });
-    }
-    
-    // --- 2.2 Corridors and Square Rooms (4 wings) ---
-    
-    const CORRIDOR_START = OCTAGON_APOTHEM + WALL_THICKNESS; 
-    const CORRIDOR_END = CORRIDOR_START + CORRIDOR_LENGTH; 
-    const ROOM_START = CORRIDOR_END + WALL_THICKNESS; 
-    const ROOM_END = ROOM_START + ROOM_SIZE; 
-    
-    const createWing = (
-        baseRotation: number, 
-        corridorKeys: (keyof PanelConfig)[], 
-        roomKeys: (keyof PanelConfig)[]
-    ) => {
-        const cosR = Math.cos(baseRotation);
-        const sinR = Math.sin(baseRotation);
-        
-        // Corridor Walls
-        const side1Center = CORRIDOR_START + CORRIDOR_LENGTH / 2;
-        WALL_SEGMENTS.push({ key: corridorKeys[0]!, length: CORRIDOR_LENGTH, position: [side1Center * sinR - HALF_CORRIDOR_WIDTH * cosR, WALL_HEIGHT / 2, -side1Center * cosR - HALF_CORRIDOR_WIDTH * sinR], rotationY: baseRotation, neonColor: NEON_COLOR_CYAN });
-        WALL_SEGMENTS.push({ key: corridorKeys[1]!, length: CORRIDOR_LENGTH, position: [side1Center * sinR + HALF_CORRIDOR_WIDTH * cosR, WALL_HEIGHT / 2, -side1Center * cosR + HALF_CORRIDOR_WIDTH * sinR], rotationY: baseRotation + Math.PI, neonColor: NEON_COLOR_CYAN });
-        
-        // Connector Walls (Short, length=CORRIDOR_WIDTH=5)
-        WALL_SEGMENTS.push({ key: corridorKeys[2]!, length: CORRIDOR_WIDTH, position: [CORRIDOR_START * sinR, WALL_HEIGHT / 2, -CORRIDOR_START * cosR], rotationY: baseRotation + Math.PI / 2, neonColor: NEON_COLOR_CYAN });
-        WALL_SEGMENTS.push({ key: corridorKeys[3]!, length: CORRIDOR_WIDTH, position: [CORRIDOR_END * sinR, WALL_HEIGHT / 2, -CORRIDOR_END * cosR], rotationY: baseRotation - Math.PI / 2, neonColor: NEON_COLOR_CYAN });
-        
-        // Room Walls
-        const roomCenter = ROOM_START + HALF_ROOM_SIZE; 
-        WALL_SEGMENTS.push({ key: roomKeys[0]!, length: ROOM_SIZE, position: [ROOM_END * sinR, WALL_HEIGHT / 2, -ROOM_END * cosR], rotationY: baseRotation, neonColor: NEON_COLOR_CYAN });
-        WALL_SEGMENTS.push({ key: roomKeys[1]!, length: ROOM_SIZE, position: [roomCenter * sinR - HALF_ROOM_SIZE * cosR, WALL_HEIGHT / 2, -roomCenter * cosR - HALF_ROOM_SIZE * sinR], rotationY: baseRotation + Math.PI / 2, neonColor: NEON_COLOR_CYAN });
-        WALL_SEGMENTS.push({ key: roomKeys[2]!, length: ROOM_SIZE, position: [roomCenter * sinR + HALF_ROOM_SIZE * cosR, WALL_HEIGHT / 2, -roomCenter * cosR + HALF_ROOM_SIZE * sinR], rotationY: baseRotation - Math.PI / 2, neonColor: NEON_COLOR_CYAN });
-        WALL_SEGMENTS.push({ key: roomKeys[3]!, length: ROOM_SIZE, position: [ROOM_START * sinR, WALL_HEIGHT / 2, -ROOM_START * cosR], rotationY: baseRotation + Math.PI, neonColor: NEON_COLOR_CYAN });
-    };
-    
-    const keys = PANEL_KEYS;
-    
-    // North Wing (Base Rotation 0)
-    createWing(0, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
-    // East Wing (Base Rotation PI/2)
-    createWing(Math.PI / 2, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
-    // South Wing (Base Rotation PI)
-    createWing(Math.PI, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
-    // West Wing (Base Rotation 3PI/2)
-    createWing(3 * Math.PI / 2, [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]], [keys[keyIndex++], keys[keyIndex++], keys[keyIndex++], keys[keyIndex++]]);
-    
-    // --- 3. Render Walls, Panels, and Collision Segments ---
-    
+        // East Wall (X = 5)
+        // Outer side (facing +X, corridor) -> Should shine -X (Inward)
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
+        // Inner side (facing -X, inner room) -> Should shine +X (Inward)
+        createCoveLighting([INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+
+        // West Wall (X = -5)
+        // Outer side (facing -X, corridor) -> Should shine +X (Inward)
+        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT + innerOffset + wallThicknessOffset, innerInnerYPos, segmentCenter], [0, Math.PI / 2, 0]);
+        // Inner side (facing +X, inner room) -> Should shine -X (Inward)
+        createCoveLighting([-INNER_INNER_INNER_WALL_BOUNDARY_LIGHT - innerOffset - wallThicknessOffset, innerInnerYPos, segmentCenter], [0, -Math.PI / 2, 0]);
+    });
+    // --- END COVE LIGHTING ---
+
+
     const panelGeometry = new THREE.PlaneGeometry(2, 2);
+    // Make the initial panel material transparent to hide the placeholder box
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    // Increased offset to ensure panels are clearly in front of the wall
+    const ARROW_DEPTH_OFFSET = 0.15, ARROW_PANEL_OFFSET = 1.5, TEXT_DEPTH_OFFSET = 0.16; 
+    const TITLE_PANEL_WIDTH = 4.0; // Doubled width for NFT title
     
+    // Helper to create an empty, updatable material for text panels
     const createTextPanelMaterial = () => {
         return new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     };
 
+    // Geometries defined once outside the loop
     const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75); 
-    
-    panelsRef.current = [];
-    collisionSegmentsRef.current = [];
 
-    WALL_SEGMENTS.forEach(config => {
-        const wallGeo = new THREE.PlaneGeometry(config.length, WALL_HEIGHT);
-        const wallMesh = new THREE.Mesh(wallGeo, wallMaterial.clone());
-        wallMesh.position.set(config.position[0], config.position[1], config.position[2]);
-        wallMesh.rotation.y = config.rotationY;
-        scene.add(wallMesh);
-        wallMeshesRef.current.set(config.key as string, wallMesh);
-        
-        // --- Collision Segment Calculation ---
-        const halfLength = config.length / 2;
-        const cosR = Math.cos(config.rotationY);
-        const sinR = Math.sin(config.rotationY);
-        const dx = halfLength * cosR;
-        const dz = halfLength * sinR;
-        const cx = config.position[0];
-        const cz = config.position[2];
-        const x1 = cx - dx;
-        const z1 = cz + dz;
-        const x2 = cx + dx;
-        const z2 = cz - dz;
-        collisionSegmentsRef.current.push([x1, z1, x2, z2]);
-        // --- End Collision Segment Calculation ---
+    // Dynamic Panel Configuration Generation (Panels moved to 50x50 and 30x30 inner walls)
+    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number], textOffsetSign: number }[] = [];
+    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+    const MAX_SEGMENT_INDEX = 4; // Only generate panels for segments 0, 1, 2, 3, 4
 
-        // --- Panel Placement ---
-        // Only place panels on walls longer than 6 units (skips the 8 short corridor connector walls)
-        if (config.length > 6) { 
+    // Iterate through segments 0 to 4 (5 segments)
+    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
+        for (const wallNameBase of WALL_NAMES) {
+            const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
             
-            const { group: panelGroup, imageMesh: mesh } = createFramedPanel(2, 2, NEON_COLOR_MAGENTA);
+            // Since we only generate segments 0-4, these must be on the 50x50 walls
             
-            // Panel position is slightly offset from the wall center towards the interior
-            const panelOffsetVector = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), config.rotationY);
-            
-            panelGroup.position.set(
-                config.position[0] + panelOffsetVector.x, 
-                PANEL_Y_POSITION, 
-                config.position[2] + panelOffsetVector.z
-            );
-            panelGroup.rotation.y = config.rotationY;
-            scene.add(panelGroup);
-            
-            const wallRotation = new THREE.Euler(0, config.rotationY, 0, 'XYZ');
-            const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-            const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
-            const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
-            
-            const basePosition = panelGroup.position.clone();
-            const TEXT_PANEL_OFFSET_X = 3.25; 
-            
-            // Title Panel
-            const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
-            titleMesh.rotation.copy(wallRotation);
-            const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; 
-            const titlePosition = basePosition.clone()
-                .addScaledVector(upVector, titleYOffset)
-                .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-            titleMesh.position.copy(titlePosition);
-            titleMesh.visible = false; 
-            scene.add(titleMesh);
+            let x = 0, z = 0;
+            let rotation: [number, number, number] = [0, 0, 0];
+            let depthSign = 0; 
+            let wallAxis: 'x' | 'z' = 'z';
+            let textOffsetSign = 1; 
 
-            // Description Panel (Left side relative to the NFT panel)
-            const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X);
-            const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
-            descriptionMesh.rotation.copy(wallRotation);
-            const descriptionPosition = descriptionGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-            descriptionMesh.position.copy(descriptionPosition);
-            descriptionMesh.visible = false; 
-            scene.add(descriptionMesh);
+            // 50x50 Walls (Indices 0-4, 5 segments: -20, -10, 0, 10, 20)
+            const centerIndex = i - 2; 
+            const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
             
-            // Arrows
-            const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-            prevArrow.rotation.set(0, config.rotationY + Math.PI, 0);
-            const prevPosition = basePosition.clone().addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
-            prevArrow.position.copy(prevPosition);
-            scene.add(prevArrow);
+            // Panels face INWARD (towards the 30x30 room/center)
+            if (wallNameBase === 'north-wall') { // Z = -25, faces +Z
+                x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+            } else if (wallNameBase === 'south-wall') { // Z = 25, faces -Z
+                x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+            } else if (wallNameBase === 'east-wall') { // X = 25, faces -X
+                x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+            } else if (wallNameBase === 'west-wall') { // X = -25, faces +X
+                x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
+            }
+            textOffsetSign = 1; 
             
-            const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
-            nextArrow.rotation.copy(wallRotation);
-            const nextPosition = basePosition.clone().addScaledVector(rightVector, ARROW_PANEL_OFFSET);
-            nextArrow.position.copy(nextPosition);
-            scene.add(nextArrow);
+            // Apply depth offset based on which axis the wall lies on
+            let finalX = x;
+            let finalZ = z;
+            
+            if (wallAxis === 'x') {
+                // X wall, offset X
+                finalX += depthSign * ARROW_DEPTH_OFFSET;
+            } else {
+                // Z wall, offset Z
+                finalZ += depthSign * ARROW_DEPTH_OFFSET;
+            }
 
-            // Attributes Panel (Right side relative to the NFT panel)
-            const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X);
-            const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
-            attributesMesh.rotation.copy(wallRotation);
-            const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
-            attributesMesh.position.copy(attributesPosition);
-            attributesMesh.visible = false; 
-            scene.add(attributesMesh);
-
-            // Wall Title Panel
-            const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
-            wallTitleMesh.rotation.copy(wallRotation);
-            const wallTitlePosition = basePosition.clone();
-            wallTitlePosition.y = 3.2; 
-            wallTitleMesh.position.copy(wallTitlePosition);
-            wallTitleMesh.visible = false; 
-            scene.add(wallTitleMesh);
-
-            const panel: Panel = {
-                mesh, wallName: config.key, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
-                attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
-                videoElement: null, gifStopFunction: null,
-            };
-            panelsRef.current.push(panel);
+            dynamicPanelConfigs.push({
+                wallName: panelKey,
+                position: [finalX, PANEL_Y_POSITION, finalZ],
+                rotation: rotation,
+                textOffsetSign: textOffsetSign,
+            });
         }
-        // --- End Panel Placement ---
-        
-        // --- Lighting (Neon Strip) ---
-        const neonStripGeo = new THREE.BoxGeometry(config.length, 0.1, 0.02);
-        const neonStripMat = new THREE.MeshStandardMaterial({ 
-            color: config.neonColor, 
-            emissive: config.neonColor, 
-            emissiveIntensity: NEON_INTENSITY * 0.5, 
-            side: THREE.DoubleSide 
-        });
-        const neonStrip = new THREE.Mesh(neonStripGeo, neonStripMat);
-        
-        // Position the strip slightly above the panel, centered on the wall
-        const stripY = PANEL_Y_POSITION + 2 + 0.1; 
-        const stripOffsetVector = new THREE.Vector3(0, 0, WALL_THICKNESS / 2).applyAxisAngle(new THREE.Vector3(0, 1, 0), config.rotationY);
-        
-        neonStrip.position.set(
-            config.position[0] + stripOffsetVector.x, 
-            stripY, 
-            config.position[2] + stripOffsetVector.z
-        );
-        neonStrip.rotation.y = config.rotationY;
-        scene.add(neonStrip);
-    });
-    
-    // --- 4. Lighting Setup (Ambient and Ceiling Shader) ---
-    // Ambient and Hemisphere lights updated for moody aesthetic
-    scene.add(new THREE.AmbientLight(0x6b2b6b, 0.25)); // purple ambient
-    const hemi = new THREE.HemisphereLight(0x202030, 0x080006, 0.3); // cold fill underneath
-    scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.12); // directional rim light
-    dir.position.set(5, 10, 5);
-    scene.add(dir);
+    }
 
-    // The ceiling shader material is already created in the floor/ceiling loop
-    const ceilingMeshObject = scene.children.find(c => c instanceof THREE.Mesh && c.position.y === WALL_HEIGHT);
-    const ceilingMesh = ceilingMeshObject instanceof THREE.Mesh ? ceilingMeshObject : null;
-    const ceilingMaterial = ceilingMesh ? (ceilingMesh.material as THREE.ShaderMaterial) : null;
+    // Add configurations for inner 30x30 walls
+    innerInnerWallSegments.forEach((segmentCenter, i) => {
+        // North Inner Wall (Z = -15)
+        // Outer side (in corridor, faces -Z)
+        dynamicPanelConfigs.push({
+            wallName: `north-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, -INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+            rotation: [0, Math.PI, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces +Z)
+        dynamicPanelConfigs.push({
+            wallName: `north-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, -INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+            rotation: [0, 0, 0],
+            textOffsetSign: 1,
+        });
+
+        // South Inner Wall (Z = 15)
+        // Outer side (in corridor, faces +Z)
+        dynamicPanelConfigs.push({
+            wallName: `south-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+            rotation: [0, 0, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces -Z)
+        dynamicPanelConfigs.push({
+            wallName: `south-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [segmentCenter, PANEL_Y_POSITION, INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+            rotation: [0, Math.PI, 0],
+            textOffsetSign: 1,
+        });
+
+        // East Inner Wall (X = 15)
+        // Outer side (in corridor, faces +X)
+        dynamicPanelConfigs.push({
+            wallName: `east-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces -X)
+        dynamicPanelConfigs.push({
+            wallName: `east-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, -Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+
+        // West Inner Wall (X = -15)
+        // Outer side (in corridor, faces -X)
+        dynamicPanelConfigs.push({
+            wallName: `west-inner-wall-outer-${i}` as keyof PanelConfig,
+            position: [-INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, -Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+        // Inner side (in 30x30 room, faces +X)
+        dynamicPanelConfigs.push({
+            wallName: `west-inner-wall-inner-${i}` as keyof PanelConfig,
+            position: [-INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, Math.PI / 2, 0],
+            textOffsetSign: 1,
+        });
+    });
+
+    // Add configurations for the central 10x10 walls (outer-facing)
+    const centerWallBoundary = 5;
+    const centerWallSegmentCenter = 0;
+
+    // North Center Wall (Z = -5), facing -Z (outward)
+    dynamicPanelConfigs.push({
+        wallName: `north-center-wall-0` as keyof PanelConfig,
+        position: [centerWallSegmentCenter, PANEL_Y_POSITION, -centerWallBoundary - ARROW_DEPTH_OFFSET],
+        rotation: [0, Math.PI, 0],
+        textOffsetSign: 1,
+    });
+
+    // South Center Wall (Z = 5), facing +Z (outward)
+    dynamicPanelConfigs.push({
+        wallName: `south-center-wall-0` as keyof PanelConfig,
+        position: [centerWallSegmentCenter, PANEL_Y_POSITION, centerWallBoundary + ARROW_DEPTH_OFFSET],
+        rotation: [0, 0, 0],
+        textOffsetSign: 1,
+    });
+
+    // East Center Wall (X = 5), facing +X (outward)
+    dynamicPanelConfigs.push({
+        wallName: `east-center-wall-0` as keyof PanelConfig,
+        // FIX: Position should be X=5.15, Z=0
+        position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
+        rotation: [0, Math.PI / 2, 0],
+        textOffsetSign: 1,
+    });
+
+    // West Center Wall (X = -5), facing -X (outward)
+    dynamicPanelConfigs.push({
+        wallName: `west-center-wall-0` as keyof PanelConfig,
+        position: [-centerWallBoundary - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
+        rotation: [0, -Math.PI / 2, 0],
+        textOffsetSign: 1,
+    });
+
+    // Clear existing panels before populating
+    panelsRef.current = [];
+
+    const TEXT_PANEL_OFFSET_X = 3.25; // Offset for description/attributes panels
+
+    dynamicPanelConfigs.forEach(config => {
+      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+      mesh.position.set(config.position[0], config.position[1], config.position[2]);
+      mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      scene.add(mesh);
+      
+      const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
+      const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+      const upVector = new THREE.Vector3(0, 1, 0).applyEuler(wallRotation);
+      const forwardVector = new THREE.Vector3(0, 0, 1).applyEuler(wallRotation);
+      
+      const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
+      
+      // --- Create text panel meshes (initially invisible) ---
+      const titleMesh = new THREE.Mesh(titleGeometry, createTextPanelMaterial());
+      titleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      const titleYOffset = -1 - (TITLE_HEIGHT / 2) - 0.1; // panel half-height (1) + title half-height + gap
+      const titlePosition = basePosition.clone()
+          .addScaledVector(upVector, titleYOffset)
+          .addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      titleMesh.position.copy(titlePosition);
+      titleMesh.visible = false; // Start invisible
+      scene.add(titleMesh);
+
+      // Description Panel (Left side relative to the NFT panel)
+      const descriptionGroupPosition = basePosition.clone().addScaledVector(rightVector, -TEXT_PANEL_OFFSET_X * config.textOffsetSign);
+      const descriptionMesh = new THREE.Mesh(descriptionGeometry, createTextPanelMaterial());
+      descriptionMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      const descriptionPosition = descriptionGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      descriptionMesh.position.copy(descriptionPosition);
+      descriptionMesh.visible = false; // Start invisible
+      scene.add(descriptionMesh);
+      
+      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
+      const prevPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+      prevArrow.position.copy(prevPosition);
+      scene.add(prevArrow);
+      
+      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+      nextArrow.position.copy(nextPosition);
+      scene.add(nextArrow);
+
+      // Attributes Panel (Right side relative to the NFT panel)
+      const collectionInfoGroupPosition = basePosition.clone().addScaledVector(rightVector, TEXT_PANEL_OFFSET_X * config.textOffsetSign);
+      const attributesMesh = new THREE.Mesh(attributesGeometry, createTextPanelMaterial());
+      attributesMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      const attributesPosition = collectionInfoGroupPosition.clone().addScaledVector(forwardVector, TEXT_DEPTH_OFFSET);
+      attributesMesh.position.copy(attributesPosition);
+      attributesMesh.visible = false; // Start invisible
+      scene.add(attributesMesh);
+
+      const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, createTextPanelMaterial());
+      wallTitleMesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      const wallTitlePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
+      wallTitlePosition.y = 3.2; // Position it above the main panel
+      wallTitleMesh.position.copy(wallTitlePosition);
+      wallTitleMesh.visible = false; // Start invisible
+      scene.add(wallTitleMesh);
+      // --- END ---
+
+      const panel: Panel = {
+        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, titleMesh, descriptionMesh,
+        attributesMesh, wallTitleMesh, currentDescription: '', descriptionScrollY: 0, descriptionTextHeight: 0, currentAttributes: [],
+        videoElement: null, gifStopFunction: null, // Initialize new properties
+      };
+      panelsRef.current.push(panel);
+      
+      // We skip initial placeholder load here, it will be handled by the sequential fetch below
+    });
 
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
+
+    // Collision constants for the 10x10 center room
+    const INNER_ROOM_MIN_X = -5 + 0.5; // Wall at -5, player radius 0.5
+    const INNER_ROOM_MAX_X = 5 - 0.5;   // Wall at 5
+    const INNER_ROOM_MIN_Z = -5 + 0.5;
+    const INNER_ROOM_MAX_Z = 5 - 0.5;
+    
+    // Collision constants for the 30x30 room (corridor boundaries)
+    const CORRIDOR_MIN_X = -15 + 0.5;
+    const CORRIDOR_MAX_X = 15 - 0.5;
+    const CORRIDOR_MIN_Z = -15 + 0.5;
+    const CORRIDOR_MAX_Z = 15 - 0.5;
 
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -1036,6 +1188,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
+    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]);
 
     const onDocumentMouseDown = () => {
       if (!controls.isLocked) return;
@@ -1060,12 +1213,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
     };
-    renderer.domElement.addEventListener('click', onDocumentMouseDown);
+    document.addEventListener('mousedown', onDocumentMouseDown);
 
     const updateDescriptionTexture = (panel: Panel) => {
       if (panel.descriptionMesh.material instanceof THREE.MeshBasicMaterial && panel.descriptionMesh.material.map) {
         panel.descriptionMesh.material.map.dispose();
-        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = null; 
+        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = null; // Explicitly nullify map
       }
       const textColor = GALLERY_PANEL_CONFIG[panel.wallName]?.text_color || 'white';
       const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, { wordWrap: true, scrollY: panel.descriptionScrollY });
@@ -1078,7 +1231,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const scrollAmount = event.deltaY * 0.5;
       
       const canvasHeight = 512;
-      const padding = 40; 
+      const padding = 40; // Must match padding in createTextTexture
       const effectiveViewportHeight = canvasHeight - 2 * padding;
       const maxScroll = Math.max(0, panel.descriptionTextHeight - effectiveViewportHeight);
 
@@ -1100,9 +1253,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const time = performance.now(), delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
 
-      if (ceilingMaterial && ceilingMaterial.uniforms) {
+      // Update ceiling shader time uniform
+      if (ceilingMaterial.uniforms) {
           ceilingMaterial.uniforms.time.value = elapsedTime;
       }
+
+      // Animate stars (Removed)
 
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
@@ -1113,39 +1269,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
         
+        // Store previous position before moving
         const prevX = camera.position.x;
         const prevZ = camera.position.z;
 
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         
-        // --- Collision Detection (Complex Wall Segments) ---
-        const currentX = camera.position.x;
-        const currentZ = camera.position.z;
+        // --- Collision Detection ---
         
-        let collisionDetected = false;
+        // 1. Outer Boundary (50x50 room)
+        camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
+        camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
-        for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
-            const distance = distToSegment(currentX, currentZ, x1, z1, x2, z2);
-            
-            if (distance < COLLISION_DISTANCE) {
-                // Simple rollback: if collision detected, revert to previous position
-                camera.position.x = prevX;
-                camera.position.z = prevZ;
-                collisionDetected = true;
-                break; 
+        // 2. Inner 10x10 Room Walls (Collision)
+        const isInsideInnerRoom = camera.position.x > INNER_ROOM_MIN_X && camera.position.x < INNER_ROOM_MAX_X &&
+                                  camera.position.z > INNER_ROOM_MIN_Z && camera.position.z < INNER_ROOM_MAX_Z;
+
+        // The 30x30 walls have openings at X=0 and Z=0.
+        const isNearXAxisOpening = camera.position.z > -5 && camera.position.z < 5;
+        const isNearZAxisOpening = camera.position.x > -5 && camera.position.x < 5;
+
+        // If player is trying to enter the 10x10 room from the 30x30 corridor, block them unless they are in the central walkway (X=0 or Z=0)
+        if (isInsideInnerRoom) {
+            // Block movement into the 10x10 room if not aligned with the Z-axis walkway (X: -5 to 5)
+            if (camera.position.z < INNER_ROOM_MIN_Z && !isNearZAxisOpening) {
+                camera.position.z = INNER_ROOM_MIN_Z;
             }
-        }
-        
-        // If collision was detected, we stop movement for this frame
-        if (collisionDetected) {
-            velocity.set(0, 0, 0);
+            if (camera.position.z > INNER_ROOM_MAX_Z && !isNearZAxisOpening) {
+                camera.position.z = INNER_ROOM_MAX_Z;
+            }
+            
+            // Block movement into the 10x10 room if not aligned with the X-axis walkway (Z: -5 to 5)
+            if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
+                camera.position.x = INNER_ROOM_MIN_X;
+            }
+            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
+                camera.position.x = INNER_ROOM_MAX_X;
+            }
         }
         
         camera.position.y = 1.6;
         
         raycaster.setFromCamera(center, camera);
-        const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]), true);
+        const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]));
         
         panelsRef.current.forEach(p => {
           (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
@@ -1171,36 +1338,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
       prevTime = time;
-      composer.render(); // Use composer for rendering
+      renderer.render(scene, camera);
     };
 
     const onWindowResize = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      camera.aspect = w / h;
+      camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
-      
-      // Resize composer and FXAA pass
-      composer.setSize(w, h);
-      const pixelRatio = Math.min(window.devicePixelRatio, 2);
-      fxaaPass.material.uniforms["resolution"].value.x = 1 / (w * pixelRatio);
-      fxaaPass.material.uniforms["resolution"].value.y = 1 / (h * pixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
     };
     window.addEventListener('resize', onWindowResize);
 
     const reloadAllPanelContent = async () => {
         console.log("WebGL Context Restored. Reloading all panel content...");
+        // Re-run content update for all panels
         for (const panel of panelsRef.current) {
             const source = getCurrentNftSource(panel.wallName);
             if (source) {
                 await updatePanelContent(panel, source);
+                // Introduce a small delay between fetches to respect rate limits
                 await new Promise(resolve => setTimeout(resolve, 100)); 
             }
         }
+        // Restart video playback if controls are locked
         manageVideoPlayback(controls.isLocked);
     };
 
+    // Context Loss Handling
     const canvas = renderer.domElement;
     
     const handleContextLost = (event: Event) => {
@@ -1210,6 +1373,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const handleContextRestored = () => {
         console.log("WebGL Context Restored. Reinitializing resources.");
+        // We must manually re-run the content update to regenerate CanvasTextures
         reloadAllPanelContent();
     };
 
@@ -1220,7 +1384,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const fetchAndRenderPanelsSequentially = async () => {
       await initializeGalleryConfig();
       
-      // Apply wall colors from config to the main wall meshes
+      // Apply wall colors from config
       for (const [panelKey, config] of Object.entries(GALLERY_PANEL_CONFIG)) {
           if (config.wall_color) {
               const wallMesh = wallMeshesRef.current.get(panelKey);
@@ -1230,9 +1394,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
       }
 
+      // Process panels sequentially to avoid overwhelming the RPC provider
       for (const panel of panelsRef.current) {
         const source = getCurrentNftSource(panel.wallName);
+        // We call updatePanelContent even if source is null (blank panel) to ensure the wall title is set.
+        // The function now handles the blank panel case internally.
         await updatePanelContent(panel, source);
+        
+        // Introduce a small delay between fetches to respect rate limits
         await new Promise(resolve => setTimeout(resolve, 100)); 
       }
     };
@@ -1242,7 +1411,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     animate();
 
     return () => {
-      document.removeEventListener('click', onDocumentMouseDown);
+      document.removeEventListener('mousedown', onDocumentMouseDown);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
       document.removeEventListener('wheel', onDocumentWheel);
@@ -1254,10 +1423,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       
+      // Cleanup individual video elements and Three.js resources
       panelsRef.current.forEach(panel => {
         if (panel.videoElement) {
           panel.videoElement.pause();
           panel.videoElement.removeAttribute('src');
+          // Note: We don't remove the video element from the DOM as it was never added, 
+          // but we ensure it's paused and its source is cleared.
         }
         if (panel.gifStopFunction) {
             panel.gifStopFunction();
@@ -1269,17 +1441,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           obj.geometry.dispose();
           if (Array.isArray(obj.material)) {
             obj.material.forEach(m => { 
-              if ('map' in m && m.map) m.map.dispose(); 
+              if (m.map) m.map.dispose(); 
               m.dispose(); 
             });
           } else { 
-            const mat = obj.material as THREE.Material;
-            // FIX: Safely check for 'map' property before disposing
-            if ('map' in mat && mat.map) (mat.map as THREE.Texture).dispose(); 
-            // FIX: Ensure dispose exists before calling
-            if ('dispose' in mat && typeof mat.dispose === 'function') {
-                mat.dispose(); 
-            }
+            if (obj.material.map) obj.material.map.dispose(); 
+            obj.material.dispose(); 
           }
         }
       });
@@ -1290,7 +1457,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedArrow = null;
       currentTargetedDescriptionPanel = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, createCoveLighting]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
