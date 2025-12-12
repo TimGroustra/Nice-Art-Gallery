@@ -12,25 +12,18 @@ export enum MaterialId {
   Glass = "glass",
 }
 
-/** Definition of a wall segment (also used as a panel holder). */
+/** Wall segment definition (also used for NFT panels). */
 export interface Wall {
-  /** Unique key – also used as the panel identifier for NFT panels. */
   key: string;
-  /** Center position of the wall (meters). */
   position: Vec3;
-  /** Length of the wall (meters). */
   length: number;
-  /** Height of the wall (meters). */
   height: number;
-  /** Rotation around Y‑axis (radians). */
   rotationY: number;
-  /** Material applied to the wall surface. */
   material: MaterialId;
-  /** Optional flag – if true the wall holds an NFT panel. */
   hasPanel?: boolean;
 }
 
-/** Light definition – matches the architectural lighting plan. */
+/** Light definition used by the scene. */
 export interface Light {
   id: string;
   type: "spot" | "point" | "area" | "neon";
@@ -41,7 +34,7 @@ export interface Light {
   angle?: number;
 }
 
-/** Core layout definition used by both the 3‑D scene and the config logic. */
+/** Core layout definition. */
 export interface LayoutDefinition {
   footprint: {
     width: number;
@@ -52,13 +45,13 @@ export interface LayoutDefinition {
   lights: Light[];
 }
 
-/** Minimal viable layout – real‑world data is loaded elsewhere; we only need the shape for type‑checking. */
+/** Minimal viable layout – actual data is loaded elsewhere; this satisfies type‑checking. */
 export const GalleryLayout: LayoutDefinition = {
   footprint: {
     width: 50,
     depth: 50,
     wallThickness: 0.3,
   },
-  walls: [],   // The actual wall data is defined in the full layout file; empty here is sufficient for compilation.
-  lights: [],  // Same for lights.
+  walls: [], // Real wall data will be populated at runtime
+  lights: [], // Real light data will be populated at runtime
 };
