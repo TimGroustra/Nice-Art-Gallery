@@ -57,7 +57,7 @@ function createFramedPanel(width: number, height: number, emissiveColor: number)
   const backGeo = new THREE.PlaneGeometry(width, height);
   const backMat = new THREE.MeshStandardMaterial({
     color: 0x0a0a0a,
-    roughness: 0x0.8,
+    roughness: 0.8, // fixed: use decimal value
     metalness: 0.05,
     side: THREE.DoubleSide,
   });
@@ -955,7 +955,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
               // update overlay hover info now that we have panel data
               setHoverInfo(prev => ({
                 ...prev,
-                // These values are already stored when content loads; we just keep them.
               }));
             } else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
               currentTargetedArrow = tgt;
