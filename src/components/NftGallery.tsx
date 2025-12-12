@@ -61,8 +61,8 @@ const NftGallery: React.FC<{
   /**
    * Build walls + optional NFT panels.
    */
-  const buildScene = useCallback(async () => {
-    if (!mountRef.current) return;
+  const buildScene = useCallback(async (): Promise<() => void> => {
+    if (!mountRef.current) return () => {};
 
     // === Scene / Camera / Renderer ===
     const scene = new THREE.Scene();
@@ -150,11 +150,9 @@ const NftGallery: React.FC<{
     });
 
     // === NFT Panels ===
-    // Map to keep track of textures so we can dispose them later.
     const panelTextures = new Map<string, THREE.Texture>();
     const panelMeshes: THREE.Mesh[] = [];
 
-    // Helper to create a thin panel mesh for a wall.
     const createPanelMesh = (wall: Wall) => {
       const panelGeo = new THREE.BoxGeometry(1, 1.5, 0.05);
       const placeholderMat = new THREE.MeshStandardMaterial({
@@ -162,40 +160,34 @@ const NftGallery: React.FC<{
         side: THREE.DoubleSide,
       });
       const mesh = new THREE.Mesh(panelGeo, placeholderMat);
-      // Position the panel on the wall surface (centered horizontally)
-      const offset = (wall.length - 1) / 2; // keep some margin
+      const offset = (wall.length - 1) / 2;
       const panelX = wall.position[0] - wall.length / 2 + offset + 0.5;
-      const panelY = wall.height / 2; // halfway up the wall
-      const panelZ = wall.position[2] + (wall.rotationY === 0 ? 0.01 : 0); // slight offset to avoid z‑fighting
+      const panelY = wall.height / 2;
+      const panelZ = wall.position[2] + (wall.rotationY === 0 ? 0.01 : 0);
       mesh.position.set(panelX, panelY, panelZ);
       mesh.rotation.y = wall.rotationY;
       scene.add(mesh);
       return mesh;
     };
 
-    // Build a panel for each wall that has `hasPanel === true`
     const wallsWithPanel = GalleryLayout.walls.filter((w) => w.hasPanel);
     for (const wall of wallsWithPanel) {
       const mesh = createPanelMesh(wall);
       panelMeshes.push(mesh);
     }
 
-    // Load textures for each panel asynchronously.
     const loadAllPanelTextures = async () => {
       await Promise.all(
         wallsWithPanel.map(async (wall, idx) => {
-          const source = getCurrentNftSource(wall.key as keyof typeof GALLERY_PANEL_CONFIG);
-          if (!source) {
-            // No NFT configured – leave placeholder.
-            return;
-          }
-          const { contractAddress, tokenId } = source;
+          const source = getCurrentNftSource(
+            wall.key as keyof typeof GALLERY_PANEL_CONFIG,
+          );
+          if (!source) return;
 
+          const { contractAddress, tokenId } = source;
           try {
             const meta = await getCachedNftMetadata(contractAddress, tokenId);
-            if (!meta) {
-              throw new Error("Metadata not found");
-            }
+            if (!meta) throw new Error("Metadata not found");
 
             const { contentUrl, contentType } = meta;
             let texture: THREE.Texture;
@@ -205,15 +197,10 @@ const NftGallery: React.FC<{
             } else if (contentType.startsWith("video/")) {
               texture = await loadVideoTexture(contentUrl);
             } else if (contentType.includes("gif")) {
-              // GIF handling via our custom utility
               const { texture: gifTex, stop } = await createGifTexture(contentUrl);
-              // Wrap the CanvasTexture so Three treats it like a normal texture
               texture = gifTex;
-              // Store the stop function for cleanup later
-              // (we attach it as a custom property)
               (texture as any)._gifStop = stop;
             } else {
-              // Fallback – treat as plain image
               texture = await loadImageTexture(contentUrl);
             }
 
@@ -221,25 +208,20 @@ const NftGallery: React.FC<{
             texture.magFilter = THREE.LinearFilter;
             texture.needsUpdate = true;
 
-            // Apply the texture to the corresponding mesh
             panelMeshes[idx].material = new THREE.MeshStandardMaterial({
               map: texture,
               transparent: true,
               side: THREE.DoubleSide,
             });
-
             panelTextures.set(wall.key, texture);
             showSuccess(`Loaded NFT ${tokenId} on panel ${wall.key}`);
           } catch (e) {
             console.error(`Failed to load NFT for wall ${wall.key}:`, e);
             showError(`Failed to load NFT on panel ${wall.key}`);
-            // Keep placeholder material
           }
         }),
       );
     };
-
-    // Kick off texture loading (non‑blocking)
     loadAllPanelTextures();
 
     // === Animation loop ===
@@ -254,32 +236,36 @@ const NftGallery: React.FC<{
     const handleClick = () => setInstructionsVisible(false);
     renderer.domElement.addEventListener("click", handleClick);
 
-    // === Cleanup ===
+    // Return cleanup function
     return () => {
       cancelAnimationFrame(frameId);
       renderer.domElement.removeEventListener("click", handleClick);
       renderer.dispose();
 
-      // Dispose all panel textures (including GIF stop functions)
+      // Dispose panel textures (including GIF stop functions)
       panelTextures.forEach((tex) => {
         const maybeStop = (tex as any)._gifStop as (() => void) | undefined;
         if (maybeStop) maybeStop();
         tex.dispose();
       });
 
-      // Remove renderer canvas
       if (mountRef.current?.contains(renderer.domElement)) {
         mountRef.current.removeChild(renderer.domElement);
       }
     };
   }, [setInstructionsVisible]);
 
-  // Run the scene builder once on mount
+  // Run the scene builder once on mount, handling async cleanup correctly
   useEffect(() => {
-    const cleanup = buildScene();
-    // cleanup returns a function (or undefined)
+    let cleanupFn: (() => void) | undefined;
+
+    const start = async () => {
+      cleanupFn = await buildScene();
+    };
+    start();
+
     return () => {
-      if (typeof cleanup === "function") cleanup();
+      if (cleanupFn) cleanupFn();
     };
   }, [buildScene]);
 
