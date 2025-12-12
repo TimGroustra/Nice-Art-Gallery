@@ -250,8 +250,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const ARROW_COLOR_HOVER = 0x00ff00;
   const ARROW_PANEL_OFFSET = 1.5;
   const PANEL_OFFSET = 0.15;
-  const PANEL_Y_POSITION = 3.0;
-  const TEXT_DEPTH_OFFSET = 0.16;
   const PLAYER_RADIUS = 0.5;
   const WALL_THICKNESS = 0.1;
   const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
@@ -482,7 +480,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const container = mountRef.current;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0410);
-    scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
+    scene.fog = new THREE.FogExp2(0x0a0410, 0.01); // Reduced fog density for larger space
 
     // Ambient light – softer to reduce harsh white
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
@@ -497,9 +495,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(renderer.domElement);
 
-    // Camera – start in the middle of the main hall
+    // Camera – start on Floor 1
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(15, 1.6, 25); // center of the main exhibition area
+    camera.position.set(25, 1.6, 10); // Center of F1, near the entrance
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -540,7 +538,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.4, 0.85);
-    bloomPass.threshold = 0.2; // slightly higher to keep neon glow but tone down overall brightness
+    bloomPass.threshold = 0.2;
     bloomPass.strength = 1.0;
     bloomPass.radius = 0.7;
     composer.addPass(bloomPass);
@@ -551,7 +549,46 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     composer.addPass(fxaaPass);
 
     // -----------------------------------------------------------------
-    // Build floor & ceiling
+    // Material Factory
+    // -----------------------------------------------------------------
+    const materialMap = new Map<MaterialId, THREE.Material>();
+    
+    const getMaterial = (id: MaterialId, height: number) => {
+        if (materialMap.has(id)) return materialMap.get(id)!;
+
+        let mat: THREE.Material;
+        switch (id) {
+            case MaterialId.WhitePlaster:
+                mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.1 });
+                break;
+            case MaterialId.GraphiteMicrocement:
+                mat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.05 });
+                break;
+            case MaterialId.PolishedConcrete:
+                mat = new THREE.MeshStandardMaterial({ color: FLOOR_COLOR, roughness: 0.9, metalness: 0.05 });
+                break;
+            case MaterialId.DarkResin:
+                mat = new THREE.MeshStandardMaterial({ color: 0x0a0410, roughness: 0.1, metalness: 0.9 });
+                break;
+            case MaterialId.Glass:
+                mat = new THREE.MeshStandardMaterial({ 
+                    color: 0xcccccc, 
+                    transparent: true, 
+                    opacity: 0.2, 
+                    roughness: 0.1, 
+                    metalness: 0.9,
+                    side: THREE.DoubleSide
+                });
+                break;
+            default:
+                mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.5 });
+        }
+        materialMap.set(id, mat);
+        return mat;
+    };
+
+    // -----------------------------------------------------------------
+    // Build floors, ceilings, and walls
     // -----------------------------------------------------------------
     const floorGroup = new THREE.Group();
     const ceilingGroup = new THREE.Group();
@@ -559,32 +596,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     GalleryLayout.rooms.forEach(room => {
       const [roomW, roomD] = room.size;
       const [x, y, z] = room.position;
-
+      
       // Floor
       const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
-      const floorMat = new THREE.MeshStandardMaterial({
-        color: FLOOR_COLOR,
-        roughness: 0.9,
-        metalness: 0.05,
-        side: THREE.DoubleSide,
-      });
+      const floorMat = getMaterial(room.material, room.ceilingHeight);
+      
+      // Create floor mesh at the correct Y level
       const floor = new THREE.Mesh(floorGeo, floorMat);
       floor.rotation.x = -Math.PI / 2;
-      floor.position.set(x + roomW / 2, 0, z + roomD / 2);
+      floor.position.set(x + roomW / 2, room.floorY, z + roomD / 2);
       floorGroup.add(floor);
 
       // Ceiling
-      const ceilingMat = new THREE.MeshStandardMaterial({
-        color: room.name.includes('Hall') ? 0xffffff : 0x111111,
-        roughness: 0.7,
-        metalness: 0.1,
-        side: THREE.DoubleSide,
-        emissive: room.name.includes('Feature') ? 0x202040 : 0x0,
-        emissiveIntensity: room.name.includes('Feature') ? 0.3 : 0,
-      });
+      const ceilingMat = getMaterial(MaterialId.WhitePlaster, room.ceilingHeight);
       const ceiling = new THREE.Mesh(floorGeo.clone(), ceilingMat);
       ceiling.rotation.x = Math.PI / 2;
-      ceiling.position.set(x + roomW / 2, room.ceilingHeight, z + roomD / 2);
+      ceiling.position.set(x + roomW / 2, room.floorY + room.ceilingHeight, z + roomD / 2);
       ceilingGroup.add(ceiling);
     });
     scene.add(floorGroup);
@@ -612,54 +639,60 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     collisionSegmentsRef.current = [];
 
     GalleryLayout.walls.forEach(wall => {
+      const wallMat = getMaterial(wall.material, wall.height);
+      
       // Wall mesh
       const wallGeo = new THREE.PlaneGeometry(wall.length, wall.height);
-      const wallMat = new THREE.MeshStandardMaterial({
-        color:
-          wall.material === MaterialId.WhitePlaster
-            ? 0xffffff
-            : wall.material === MaterialId.GraphiteMicrocement
-            ? 0x111111
-            : 0x222222,
-        side: THREE.DoubleSide,
-        roughness: 0.9,
-        metalness: 0.1,
-      });
       const wallMesh = new THREE.Mesh(wallGeo, wallMat);
       wallMesh.position.set(...wall.position);
       wallMesh.rotation.y = wall.rotationY;
       scene.add(wallMesh);
       wallMeshesRef.current.set(wall.key, wallMesh);
 
-      // Collision segment
-      const halfLen = wall.length / 2;
-      const cosR = Math.cos(wall.rotationY);
-      const sinR = Math.sin(wall.rotationY);
-      const cx = wall.position[0];
-      const cz = wall.position[2];
-      const x1 = cx - halfLen * cosR;
-      const z1 = cz + halfLen * sinR;
-      const x2 = cx + halfLen * cosR;
-      const z2 = cz - halfLen * sinR;
-      collisionSegmentsRef.current.push([x1, z1, x2, z2]);
+      // Collision segment (Only for perimeter walls, not atrium balustrades or spiral panels)
+      if (wall.key.startsWith('wall-') || wall.key.startsWith('octagon-')) {
+          const halfLen = wall.length / 2;
+          const cosR = Math.cos(wall.rotationY);
+          const sinR = Math.sin(wall.rotationY);
+          const cx = wall.position[0];
+          const cz = wall.position[2];
+          const x1 = cx - halfLen * cosR;
+          const z1 = cz + halfLen * sinR;
+          const x2 = cx + halfLen * cosR;
+          const z2 = cz - halfLen * sinR;
+          collisionSegmentsRef.current.push([x1, z1, x2, z2]);
+      }
+
 
       // Panel
       if (wall.hasPanel) {
         const { group: panelGroup, imageMesh } = createFramedPanel(2, 2, NEON_COLOR_MAGENTA);
-        const offsetVec = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), wall.rotationY);
-        panelGroup.position.set(wall.position[0] + offsetVec.x, PANEL_Y_POSITION, wall.position[2] + offsetVec.z);
+        
+        // Panel position is relative to the wall position, but we use the wall's position directly
+        // since the wall definition already includes the offset from the center line.
+        panelGroup.position.set(wall.position[0], wall.position[1], wall.position[2]);
         panelGroup.rotation.y = wall.rotationY;
         scene.add(panelGroup);
 
-        // Arrows
+        // Arrows (positioned relative to the panel group)
         const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
         prevArrow.rotation.set(0, wall.rotationY + Math.PI, 0);
         const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
         nextArrow.rotation.copy(wallGroupRotation(wall.rotationY));
+        
         const basePos = panelGroup.position.clone();
         const rightVec = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, wall.rotationY, 0));
-        prevArrow.position.copy(basePos.clone().addScaledVector(rightVec, -ARROW_PANEL_OFFSET));
-        nextArrow.position.copy(basePos.clone().addScaledVector(rightVec, ARROW_PANEL_OFFSET));
+        
+        // Adjust arrow positions based on panel size (2m wide)
+        const ARROW_OFFSET = 1.5; 
+        prevArrow.position.copy(basePos.clone().addScaledVector(rightVec, -ARROW_OFFSET));
+        nextArrow.position.copy(basePos.clone().addScaledVector(rightVec, ARROW_OFFSET));
+        
+        // Ensure arrows are slightly offset from the wall plane
+        const forwardVec = forwardVector(wall.rotationY);
+        prevArrow.position.addScaledVector(forwardVec, PANEL_OFFSET);
+        nextArrow.position.addScaledVector(forwardVec, PANEL_OFFSET);
+        
         scene.add(prevArrow);
         scene.add(nextArrow);
 
@@ -696,12 +729,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         attributesMesh.visible = false;
         scene.add(attributesMesh);
 
-        // Wall title
+        // Wall title (placed above the panel)
         const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, textMatFactory());
         wallTitleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
-        const wallTitlePos = basePos.clone();
-        wallTitlePos.y = 3.2;
-        wallTitleMesh.position.copy(wallTitlePos);
+        wallTitleMesh.position.set(wall.position[0], wall.position[1] + wall.height / 2 - 0.5, wall.position[2]);
+        wallTitleMesh.position.addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
         wallTitleMesh.visible = false;
         scene.add(wallTitleMesh);
 
@@ -744,14 +776,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Lighting – enhanced neon theme
+    // Lighting – using layout definitions
     // -----------------------------------------------------------------
-    // Existing lights (muted a bit)
     GalleryLayout.lights.forEach(l => {
       let light: THREE.Light;
+      const color = new THREE.Color(l.color[0] / 255, l.color[1] / 255, l.color[2] / 255);
+      
       switch (l.type) {
         case 'spot':
-          const spot = new THREE.SpotLight(new THREE.Color(...l.color), l.intensity / 1200);
+          const spot = new THREE.SpotLight(color, l.intensity / 1200);
           spot.position.set(...l.position);
           spot.angle = ((l.angle ?? 30) * Math.PI) / 180;
           spot.target.position.set(...(l.target ?? [0, 0, 0]));
@@ -759,33 +792,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           light = spot;
           break;
         case 'area':
-          const rect = new THREE.RectAreaLight(new THREE.Color(...l.color), l.intensity / 800, 2, 2);
+          const rect = new THREE.RectAreaLight(color, l.intensity / 800, 2, 2);
           rect.position.set(...l.position);
           rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0])));
           scene.add(rect);
           light = rect;
           break;
         case 'neon':
-          const neon = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 250, 5);
+          const neon = new THREE.PointLight(color, l.intensity / 250, 5);
           neon.position.set(...l.position);
           light = neon;
           break;
         default:
-          const p = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 1200);
+          const p = new THREE.PointLight(color, l.intensity / 1200);
           p.position.set(...l.position);
           light = p;
       }
       scene.add(light);
     });
-
-    // Add subtle neon pink and blue accent lights (soft glows)
-    const neonPink = new THREE.PointLight(0xff66cc, 0.8, 8);
-    neonPink.position.set(10, 3, 10);
-    scene.add(neonPink);
-
-    const neonBlue = new THREE.PointLight(0x66ccff, 0.8, 8);
-    neonBlue.position.set(25, 3, 30);
-    scene.add(neonBlue);
 
     // -----------------------------------------------------------------
     // Input handling (unchanged)
@@ -925,20 +949,47 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
 
-        // Collision
+        // Collision (Simplified 2D collision for perimeter walls only)
         const curX = camera.position.x;
         const curZ = camera.position.z;
-        for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
-          const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
-          if (dist < COLLISION_DISTANCE) {
+        
+        // Check 50x50 boundary
+        const L = GalleryLayout.footprint.width;
+        const T = GalleryLayout.footprint.wallThickness;
+        const HALF_T = T / 2;
+        const boundaryMin = HALF_T + PLAYER_RADIUS;
+        const boundaryMax = L - HALF_T - PLAYER_RADIUS;
+        
+        if (curX < boundaryMin || curX > boundaryMax || curZ < boundaryMin || curZ > boundaryMax) {
             camera.position.x = prevX;
             camera.position.z = prevZ;
             velocity.set(0, 0, 0);
-            break;
-          }
+        } else {
+            // Check internal collision segments (Perimeter and Octagon walls)
+            for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
+              const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
+              if (dist < COLLISION_DISTANCE) {
+                camera.position.x = prevX;
+                camera.position.z = prevZ;
+                velocity.set(0, 0, 0);
+                break;
+              }
+            }
         }
 
-        camera.position.y = 1.6;
+        // Gravity/Floor snapping (Simplified vertical movement)
+        const currentFloor = GalleryLayout.rooms.find(r => camera.position.y > r.floorY && camera.position.y <= r.floorY + r.ceilingHeight);
+        if (currentFloor) {
+            // Snap player to the floor level
+            camera.position.y = currentFloor.floorY + 1.6; 
+        } else {
+            // If player is outside a defined room (e.g., in the atrium void), snap to F1 floor
+            if (camera.position.y < 1.6) {
+                camera.position.y = 1.6;
+            }
+            // NOTE: Full vertical movement (jumping/stair climbing) is omitted for simplicity.
+        }
+
 
         // Raycast hover (for arrow highlighting only)
         raycaster.setFromCamera(center, camera);

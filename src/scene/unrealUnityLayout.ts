@@ -2,11 +2,8 @@
  * Layout definition used to drive both the web‑based Three.js gallery
  * and to export a ready‑to‑import description for Unity / Unreal.
  *
- * Each wall is a collision box with a material ID that matches the
- * material palette from the architectural blueprint.
- *
- * The data structure is deliberately simple so it can be serialized
- * to JSON and imported as a data table (Unreal) or ScriptableObject (Unity).
+ * This layout features a 3-floor structure with a central atrium,
+ * an octagonal pillar, and a spiral NFT display ribbon.
  */
 
 export type Vec3 = [number, number, number];
@@ -20,6 +17,7 @@ export enum MaterialId {
   DarkResin = "dark_resin",
   AcousticBaffles = "acoustic_baffles",
   NeonRibbon = "neon_ribbon",
+  Glass = "glass",
 }
 
 /** Definition of a wall segment (also used as a panel holder). */
@@ -86,6 +84,7 @@ export interface LayoutDefinition {
     position: Vec3;
     size: [number, number]; // [width, depth]
     ceilingHeight: number;
+    floorY: number;
     material: MaterialId;
   }[];
   /** All walls – each wall can optionally host an NFT panel. */
@@ -99,326 +98,280 @@ export interface LayoutDefinition {
 // Constants for geometry calculation
 const T = 0.3; // Wall thickness
 const HALF_T = T / 2;
-const H_MAIN = 4.5;
-const H_FEATURE = 6;
-const H_CORRIDOR = 4;
-const PANEL_OFFSET = 0.15; // Distance from wall center to panel center
-const PANEL_Y_MAIN = H_MAIN / 2; // 2.25
-const PANEL_Y_FEATURE = H_FEATURE / 2; // 3.0
-const PANEL_Y_CORRIDOR = H_CORRIDOR / 2; // 2.0
+const L = 50; // Building length/width
+const HALF_L = L / 2; // 25
+const H1 = 6.0; // Floor 1 height
+const H2 = 4.5; // Floor 2 height
+const H3 = 4.5; // Floor 3 height
 
-/** Concrete layout data – matches the blueprint from the prompt. */
+const FLOOR_Y_F1 = 0;
+const FLOOR_Y_F2 = H1; // 6.0
+const FLOOR_Y_F3 = H1 + H2; // 10.5
+
+const Y_F1 = H1 / 2; // 3.0
+const Y_F2 = H1 + H2 / 2; // 8.25
+const Y_F3 = H1 + H2 + H3 / 2; // 12.75
+
+const CENTER_X = 25;
+const CENTER_Z = 25;
+const ATRIUM_R = 11; // 22m diameter
+const OCTAGON_R_FLAT = 3; // 6m flat-to-flat
+
+// Helper to generate octagon wall segments (Pillar)
+function generateOctagonWalls(floor: number, height: number, yCenter: number, material: MaterialId): Wall[] {
+    const walls: Wall[] = [];
+    const sideLength = 2 * OCTAGON_R_FLAT * Math.tan(Math.PI / 8); // Approx 2.485m
+    
+    for (let i = 0; i < 8; i++) {
+        const angle = i * (Math.PI / 4);
+        const rotationY = angle;
+        
+        // Position of the wall center
+        const x = CENTER_X + OCTAGON_R_FLAT * Math.sin(angle);
+        const z = CENTER_Z + OCTAGON_R_FLAT * Math.cos(angle);
+        
+        walls.push({
+            key: `octagon-${floor}-${i}`,
+            position: [x, yCenter, z],
+            length: sideLength,
+            height: height,
+            rotationY: rotationY,
+            material: material,
+            hasPanel: true, // All octagon faces have panels
+        });
+    }
+    return walls;
+}
+
+// Helper to generate perimeter walls (50m long, split into segments)
+function generatePerimeterWalls(floor: number, height: number, yCenter: number, material: MaterialId): Wall[] {
+    const walls: Wall[] = [];
+    const SEGMENT_LENGTH = 10;
+    const NUM_SEGMENTS = 5;
+    
+    // North Wall (Z=50)
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        const x = HALF_L - (NUM_SEGMENTS - 0.5 - i) * SEGMENT_LENGTH;
+        walls.push({
+            key: `wall-${floor}-N-${i}`,
+            position: [x, yCenter, L - HALF_T],
+            length: SEGMENT_LENGTH,
+            height: height,
+            rotationY: Math.PI,
+            material: material,
+            hasPanel: i === 2, // Center panel only
+        });
+    }
+    
+    // South Wall (Z=0)
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        const x = HALF_L - (NUM_SEGMENTS - 0.5 - i) * SEGMENT_LENGTH;
+        walls.push({
+            key: `wall-${floor}-S-${i}`,
+            position: [x, yCenter, HALF_T],
+            length: SEGMENT_LENGTH,
+            height: height,
+            rotationY: 0,
+            material: material,
+            hasPanel: i === 2, // Center panel only
+        });
+    }
+    
+    // East Wall (X=50)
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        const z = HALF_L - (NUM_SEGMENTS - 0.5 - i) * SEGMENT_LENGTH;
+        walls.push({
+            key: `wall-${floor}-E-${i}`,
+            position: [L - HALF_T, yCenter, z],
+            length: SEGMENT_LENGTH,
+            height: height,
+            rotationY: -Math.PI / 2,
+            material: material,
+            hasPanel: i === 2, // Center panel only
+        });
+    }
+    
+    // West Wall (X=0)
+    for (let i = 0; i < NUM_SEGMENTS; i++) {
+        const z = HALF_L - (NUM_SEGMENTS - 0.5 - i) * SEGMENT_LENGTH;
+        walls.push({
+            key: `wall-${floor}-W-${i}`,
+            position: [HALF_T, yCenter, z],
+            length: SEGMENT_LENGTH,
+            height: height,
+            rotationY: Math.PI / 2,
+            material: material,
+            hasPanel: i === 2, // Center panel only
+        });
+    }
+    
+    return walls;
+}
+
+// Helper to generate the NFT spiral display panels
+function generateNftSpiralPanels(startFloorY: number, endFloorY: number, rotations: number = 3): Wall[] {
+    const panels: Wall[] = [];
+    const totalHeight = endFloorY - startFloorY; // 10.5m
+    const numPanels = 36 * rotations; // 108 panels total
+    const anglePerPanel = (rotations * 2 * Math.PI) / numPanels;
+    const panelRadius = OCTAGON_R_FLAT + 1.6 + 0.5; // Octagon (3m) + Stair (1.6m) + Offset (0.5m) = 5.1m
+    const panelHeight = 1.0;
+    const panelWidth = 1.0;
+    const eyeLevelOffset = 1.5; // 1.5m above the step height
+    
+    for (let i = 0; i < numPanels; i++) {
+        const currentAngle = i * anglePerPanel;
+        const currentY = startFloorY + (i / numPanels) * totalHeight;
+        
+        // Panel center position
+        const x = CENTER_X + panelRadius * Math.sin(currentAngle);
+        const z = CENTER_Z + panelRadius * Math.cos(currentAngle);
+        
+        panels.push({
+            key: `spiral-nft-${i}`,
+            position: [x, currentY + eyeLevelOffset, z],
+            length: panelWidth,
+            height: panelHeight,
+            rotationY: currentAngle + Math.PI, // Face outwards from the center
+            material: MaterialId.WhitePlaster,
+            hasPanel: true,
+        });
+    }
+    return panels;
+}
+
+// Helper to generate the atrium inner walls (balustrades)
+function generateAtriumWalls(floor: number, yStart: number, height: number): Wall[] {
+    const walls: Wall[] = [];
+    const yCenter = yStart + height / 2;
+    const ATRIUM_WALL_SEGMENTS = 16;
+    const ATRIUM_WALL_LENGTH = 2 * ATRIUM_R * Math.tan(Math.PI / ATRIUM_WALL_SEGMENTS);
+    
+    for (let i = 0; i < ATRIUM_WALL_SEGMENTS; i++) {
+        const angle = i * (2 * Math.PI / ATRIUM_WALL_SEGMENTS);
+        const rotationY = angle + Math.PI / 2; // Tangent to the circle
+        
+        // Position of the wall center (on the 11m radius circle)
+        const x = CENTER_X + ATRIUM_R * Math.sin(angle);
+        const z = CENTER_Z + ATRIUM_R * Math.cos(angle);
+        
+        walls.push({
+            key: `atrium-${floor}-${i}`,
+            position: [x, yCenter, z],
+            length: ATRIUM_WALL_LENGTH,
+            height: height,
+            rotationY: rotationY,
+            material: MaterialId.Glass, // Use Glass for balustrades
+            hasPanel: false,
+        });
+    }
+    return walls;
+}
+
+
+// --- Main Layout Definition ---
+
+const F1_PERIMETER_WALLS = generatePerimeterWalls(1, H1, Y_F1, MaterialId.WhitePlaster);
+const F2_PERIMETER_WALLS = generatePerimeterWalls(2, H2, Y_F2, MaterialId.WhitePlaster);
+const F3_PERIMETER_WALLS = generatePerimeterWalls(3, H3, Y_F3, MaterialId.WhitePlaster);
+
+const F1_OCTAGON_WALLS = generateOctagonWalls(1, H1, Y_F1, MaterialId.GraphiteMicrocement);
+const F2_OCTAGON_WALLS = generateOctagonWalls(2, H2, Y_F2, MaterialId.GraphiteMicrocement);
+const F3_OCTAGON_WALLS = generateOctagonWalls(3, H3, Y_F3, MaterialId.GraphiteMicrocement);
+
+const F2_ATRIUM_WALLS = generateAtriumWalls(2, FLOOR_Y_F2, 1.1); // Balustrade height 1.1m
+const F3_ATRIUM_WALLS = generateAtriumWalls(3, FLOOR_Y_F3, 1.1); // Balustrade height 1.1m
+
+const SPIRAL_NFT_PANELS = generateNftSpiralPanels(FLOOR_Y_F1, FLOOR_Y_F3);
+
+// We omit the complex staircase geometry (STAIRCASE_WALLS) for now, 
+// as the player movement logic needs significant overhaul to handle vertical movement 
+// and collision on a spiral path. We will rely on the player being able to jump/fly 
+// between floors for testing, and focus on the visual geometry.
+
 export const GalleryLayout: LayoutDefinition = {
   footprint: {
-    width: 50,
-    depth: 50,
+    width: L,
+    depth: L,
     wallThickness: T,
   },
 
   rooms: [
     {
-      name: "Digital Art Wall Zone",
+      name: "Ground Floor Hall",
       position: [0, 0, 0],
-      size: [15, 5],
-      ceilingHeight: H_MAIN,
+      size: [L, L],
+      ceilingHeight: H1,
+      floorY: FLOOR_Y_F1,
       material: MaterialId.PolishedConcrete,
     },
     {
-      name: "Reception",
-      position: [15, 0, 0],
-      size: [10, 5],
-      ceilingHeight: H_MAIN,
-      material: MaterialId.WhitePlaster,
-    },
-    {
-      name: "Shop",
-      position: [25, 0, 0],
-      size: [10, 5],
-      ceilingHeight: H_MAIN,
-      material: MaterialId.WhitePlaster,
-    },
-    {
-      name: "Storage / Prep",
-      position: [35, 0, 0],
-      size: [10, 5],
-      ceilingHeight: H_MAIN,
-      material: MaterialId.WhitePlaster,
-    },
-    {
-      name: "WC Block",
-      position: [45, 0, 0],
-      size: [5, 5],
-      ceilingHeight: H_MAIN,
-      material: MaterialId.WhitePlaster,
-    },
-    {
-      name: "Main Exhibition Hall",
-      position: [0, 5, 0],
-      size: [30, 30],
-      ceilingHeight: H_MAIN,
+      name: "Floor 2 Balcony",
+      position: [0, 0, 0],
+      size: [L, L],
+      ceilingHeight: H2,
+      floorY: FLOOR_Y_F2,
       material: MaterialId.PolishedConcrete,
     },
     {
-      name: "Feature Room",
-      position: [0, 35, 0],
-      size: [15, 15],
-      ceilingHeight: H_FEATURE,
-      material: MaterialId.DarkResin,
-    },
-    {
-      name: "Neon Corridor",
-      position: [15, 35, 0],
-      size: [15, 15],
-      ceilingHeight: H_CORRIDOR,
-      material: MaterialId.DarkResin,
-    },
-    {
-      name: "Rotating Gallery",
-      position: [30, 25, 0],
-      size: [20, 25],
-      ceilingHeight: H_MAIN,
+      name: "Floor 3 Balcony",
+      position: [0, 0, 0],
+      size: [L, L],
+      ceilingHeight: H3,
+      floorY: FLOOR_Y_F3,
       material: MaterialId.PolishedConcrete,
     },
   ],
 
   walls: [
-    // --- Structural Walls (Centered on boundary lines) ---
-
-    // 1. Front Perimeter (Z=0)
-    { key: "W-S-1", position: [7.5, PANEL_Y_MAIN, 0], length: 15, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-2", position: [20, PANEL_Y_MAIN, 0], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-3", position: [30, PANEL_Y_MAIN, 0], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-4", position: [40, PANEL_Y_MAIN, 0], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-5", position: [47.5, PANEL_Y_MAIN, 0], length: 5, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-
-    // 2. Back Perimeter (Z=50)
-    { key: "W-N-1", position: [7.5, PANEL_Y_FEATURE, 50], length: 15, height: H_FEATURE, rotationY: Math.PI, material: MaterialId.GraphiteMicrocement },
-    { key: "W-N-2", position: [22.5, PANEL_Y_CORRIDOR, 50], length: 15, height: H_CORRIDOR, rotationY: Math.PI, material: MaterialId.DarkResin },
-    { key: "W-N-3", position: [40, PANEL_Y_MAIN, 50], length: 20, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster },
-
-    // 3. West Perimeter (X=0)
-    { key: "W-W-1", position: [0, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.PolishedConcrete },
-    { key: "W-W-2", position: [0, PANEL_Y_MAIN, 20], length: 30, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster },
-    { key: "W-W-3", position: [0, PANEL_Y_FEATURE, 42.5], length: 15, height: H_FEATURE, rotationY: Math.PI / 2, material: MaterialId.GraphiteMicrocement },
-
-    // 4. East Perimeter (X=50)
-    { key: "W-E-1", position: [50, PANEL_Y_MAIN, 15], length: 20, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster },
-    { key: "W-E-2", position: [50, PANEL_Y_MAIN, 37.5], length: 25, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster },
-
-    // 5. Internal Walls (X-direction) - Centered at Z=5
-    { key: "W-I-Z5-1", position: [7.5, PANEL_Y_MAIN, 5], length: 15, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Digital Wall / Main Hall
-    { key: "W-I-Z5-2", position: [20, PANEL_Y_MAIN, 5], length: 5, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Reception / Main Hall (Door at 22-24)
-    { key: "W-I-Z5-3", position: [30, PANEL_Y_MAIN, 5], length: 10, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Shop / Main Hall
-    { key: "W-I-Z5-4", position: [40, PANEL_Y_MAIN, 5], length: 10, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Storage / Main Hall (Door at 45-46)
-    { key: "W-I-Z5-5", position: [47.5, PANEL_Y_MAIN, 5], length: 5, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // WC / Rotating Gallery
-
-    // Internal Walls (X-direction) - Centered at Z=35
-    { key: "W-I-Z35-1", position: [7.5, PANEL_Y_FEATURE, 35], length: 15, height: H_FEATURE, rotationY: 0, material: MaterialId.GraphiteMicrocement }, // Feature Room / Main Hall
-    // Split W-I-Z35-2 (Main Hall / Neon Corridor) for 2m door at X=23.5
-    { key: "W-I-Z35-2A", position: [18.75, PANEL_Y_MAIN, 35], length: 7.5, height: H_MAIN, rotationY: 0, material: MaterialId.DarkResin },
-    { key: "W-I-Z35-2B", position: [27.25, PANEL_Y_MAIN, 35], length: 5.5, height: H_MAIN, rotationY: 0, material: MaterialId.DarkResin },
-
-    // Internal Walls (X-direction) - Centered at Z=25
-    { key: "W-I-Z25", position: [40, PANEL_Y_MAIN, 25], length: 20, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster }, // Rotating Gallery / Main Hall
-
-    // 6. Internal Walls (Z-direction) - Centered at X=15
-    { key: "W-I-X15-1", position: [15, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Digital Wall / Reception
-    // Split W-I-X15-2 (Feature Room / Neon Corridor) for 1.5m door at Z=45.75
-    { key: "W-I-X15-2A", position: [15, PANEL_Y_FEATURE, 40], length: 10, height: H_FEATURE, rotationY: -Math.PI / 2, material: MaterialId.GraphiteMicrocement },
-    { key: "W-I-X15-2B", position: [15, PANEL_Y_FEATURE, 48.25], length: 3.5, height: H_FEATURE, rotationY: -Math.PI / 2, material: MaterialId.GraphiteMicrocement },
-
-    // Internal Walls (Z-direction) - Centered at X=25
-    { key: "W-I-X25", position: [25, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Reception / Shop
-
-    // Internal Walls (Z-direction) - Centered at X=30
-    { key: "W-I-X30-1", position: [30, PANEL_Y_MAIN, 15], length: 20, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster }, // Main Hall / Rotating Gallery (Z=5 to 25)
-    { key: "W-I-X30-3", position: [30, PANEL_Y_MAIN, 30], length: 10, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster }, // Main Hall / Rotating Gallery (Z=25 to 35)
-    // Split W-I-X30-2 (Neon Corridor / Rotating Gallery) for 1.5m door at Z=45.75
-    { key: "W-I-X30-2A", position: [30, PANEL_Y_CORRIDOR, 40], length: 10, height: H_CORRIDOR, rotationY: Math.PI / 2, material: MaterialId.DarkResin },
-    { key: "W-I-X30-2B", position: [30, PANEL_Y_CORRIDOR, 48.25], length: 3.5, height: H_CORRIDOR, rotationY: Math.PI / 2, material: MaterialId.DarkResin },
-
-    // Internal Walls (Z-direction) - Centered at X=35
-    { key: "W-I-X35", position: [35, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Shop / Storage
-
-    // Internal Walls (Z-direction) - Centered at X=45
-    { key: "W-I-X45", position: [45, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Storage / WC
-
-    // --- Panel Walls (40 panels, 2m x 2m) ---
-    // Panel positions remain relative to the boundary lines (e.g., X=0, Z=5, X=30, Z=35, Z=50)
-    // X/Z position = Boundary +/- (HALF_T + PANEL_OFFSET) = Boundary +/- 0.3m
-
-    // 1. Main Hall West Wall (X=0 face)
-    ...Array.from({ length: 5 }, (_, i) => ({
-        key: `west-wall-${i}`,
-        position: [HALF_T + PANEL_OFFSET, PANEL_Y_MAIN, 5 + 3 + i * 6],
-        length: 2, height: 2, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster, hasPanel: true,
-    })),
-
-    // 2. Main Hall East Wall (X=30 face)
-    ...Array.from({ length: 5 }, (_, i) => ({
-        key: `east-wall-${i}`,
-        position: [30 - HALF_T - PANEL_OFFSET, PANEL_Y_MAIN, 5 + 3 + i * 6],
-        length: 2, height: 2, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster, hasPanel: true,
-    })),
-
-    // 3. Main Hall North Wall (Z=35 face)
-    { key: `north-wall-0`, position: [2.8125, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
-    { key: `north-wall-1`, position: [8.4375, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
-    { key: `north-wall-2`, position: [14.0625, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
-    { key: `north-wall-3`, position: [19.6875, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
-    { key: `north-wall-4`, position: [27.25, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
-
-    // 4. Rotating Gallery South Wall (Z=25 face)
-    ...Array.from({ length: 5 }, (_, i) => ({
-        key: `south-wall-${i}`,
-        position: [30 + 2 + i * 4, PANEL_Y_MAIN, 25 + HALF_T + PANEL_OFFSET],
-        length: 2, height: 2, rotationY: 0, material: MaterialId.WhitePlaster, hasPanel: true,
-    })),
-
-    // 5. Feature Room West Wall (X=0 face, H=6m)
-    ...Array.from({ length: 4 }, (_, i) => ({
-        key: ['north-inner-wall-inner-0', 'north-inner-wall-outer-0', 'north-inner-wall-inner-1', 'north-inner-wall-outer-1'][i],
-        position: [HALF_T + PANEL_OFFSET, PANEL_Y_FEATURE, 35 + 1.875 + i * 3.75],
-        length: 2, height: 2, rotationY: Math.PI / 2, material: MaterialId.GraphiteMicrocement, hasPanel: true,
-    })),
-
-    // 6. Feature Room North Wall (Z=50 face, H=6m)
-    ...Array.from({ length: 4 }, (_, i) => ({
-        key: ['south-inner-wall-inner-0', 'south-inner-wall-outer-0', 'south-inner-wall-inner-1', 'south-inner-wall-outer-1'][i],
-        position: [1.875 + i * 3.75, PANEL_Y_FEATURE, 50 - HALF_T - PANEL_OFFSET],
-        length: 2, height: 2, rotationY: Math.PI, material: MaterialId.GraphiteMicrocement, hasPanel: true,
-    })),
-
-    // 7. Neon Corridor North Wall (Z=50 face, H=4m)
-    ...Array.from({ length: 4 }, (_, i) => ({
-        key: ['north-center-wall-0', 'south-center-wall-0', 'east-center-wall-0', 'west-center-wall-0'][i],
-        position: [15 + 1.875 + i * 3.75, PANEL_Y_CORRIDOR, 50 - HALF_T - PANEL_OFFSET],
-        length: 2, height: 2, rotationY: Math.PI, material: MaterialId.DarkResin, hasPanel: true,
-    })),
-
-    // 8. Rotating Gallery North Wall (Z=50 face, H=4.5m)
-    ...Array.from({ length: 4 }, (_, i) => ({
-        key: ['east-inner-wall-inner-0', 'east-inner-wall-outer-0', 'east-inner-wall-inner-1', 'east-inner-wall-outer-1'][i],
-        position: [30 + 2.5 + i * 5, PANEL_Y_MAIN, 50 - HALF_T - PANEL_OFFSET],
-        length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true,
-    })),
-
-    // 9. Rotating Gallery East Wall (X=50 face, H=4.5m)
-    ...Array.from({ length: 4 }, (_, i) => ({
-        key: ['west-inner-wall-inner-0', 'west-inner-wall-outer-0', 'west-inner-wall-inner-1', 'west-inner-wall-outer-1'][i],
-        position: [50 - HALF_T - PANEL_OFFSET, PANEL_Y_MAIN, 25 + 3.125 + i * 6.25],
-        length: 2, height: 2, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster, hasPanel: true,
-    })),
+    // Perimeter Walls
+    ...F1_PERIMETER_WALLS,
+    ...F2_PERIMETER_WALLS,
+    ...F3_PERIMETER_WALLS,
+    // Octagon Pillar Walls
+    ...F1_OCTAGON_WALLS,
+    ...F2_OCTAGON_WALLS,
+    ...F3_OCTAGON_WALLS,
+    // Atrium Balustrades (F2 & F3)
+    ...F2_ATRIUM_WALLS,
+    ...F3_ATRIUM_WALLS,
+    // Spiral NFT Panels
+    ...SPIRAL_NFT_PANELS,
   ],
 
   doors: [
+    // Main Entrance (F1)
     {
-      name: "Main Entrance → Reception",
-      width: 2,
-      start: [15, 0, 0],
-      end: [17, 0, 0],
-      connects: ["Digital Art Wall Zone", "Reception"],
+      name: "Main Entrance",
+      width: 4,
+      start: [CENTER_X - 2, 0, 0],
+      end: [CENTER_X + 2, 0, 0],
+      connects: ["Exterior", "Ground Floor Hall"],
     },
-    {
-      name: "Reception → Main Hall",
-      width: 2,
-      start: [20, 0, 5],
-      end: [22, 0, 5],
-      connects: ["Reception", "Main Exhibition Hall"],
-    },
-    {
-      name: "Main Hall → Neon Corridor",
-      width: 2,
-      start: [22.5, 0, 35],
-      end: [24.5, 0, 35],
-      connects: ["Main Exhibition Hall", "Neon Corridor"],
-    },
-    {
-      name: "Neon Corridor → Feature Room",
-      width: 1.5,
-      start: [15, 0, 45],
-      end: [15, 0, 46.5],
-      connects: ["Neon Corridor", "Feature Room"],
-    },
-    {
-      name: "Neon Corridor → Rotating Gallery",
-      width: 1.5,
-      start: [30, 0, 45],
-      end: [30, 0, 46.5],
-      connects: ["Neon Corridor", "Rotating Gallery"],
-    },
-    {
-      name: "Back‑of‑house",
-      width: 1,
-      start: [45, 0, 5],
-      end: [46, 0, 5],
-      connects: ["Storage / Prep", "Rotating Gallery"],
-    },
+    // Staircase Openings (F2 and F3 access points)
+    // We assume the spiral staircase provides continuous access.
   ],
 
   lights: [
-    // Main Hall spotlights (grid 3m spacing)
-    ...Array.from({ length: 10 }, (_, i) => ({
-      id: `main-spot-x-${i}`,
-      type: "spot" as const,
-      color: [255, 240, 230] as Color,
-      intensity: 1500,
-      position: [3 + i * 3, H_MAIN - 0.3, 20] as Vec3,
-      target: [3 + i * 3, 0, 20] as Vec3,
-      angle: 30,
-    })),
-    ...Array.from({ length: 10 }, (_, i) => ({
-      id: `main-spot-z-${i}`,
-      type: "spot" as const,
-      color: [255, 240, 230] as Color,
-      intensity: 1500,
-      position: [15, H_MAIN - 0.3, 8 + i * 3] as Vec3,
-      target: [15, 0, 8 + i * 3] as Vec3,
-      angle: 30,
-    })),
-
-    // Rotating Gallery wall washers
-    {
-      id: "rotating-washer-1",
-      type: "area",
-      color: [255, 250, 240],
-      intensity: 2000,
-      position: [40, H_MAIN - 0.3, 25],
-      target: [40, 0, 50],
-    },
-    {
-      id: "rotating-washer-2",
-      type: "area",
-      color: [255, 250, 240],
-      intensity: 2000,
-      position: [50, H_MAIN - 0.3, 37.5],
-      target: [30, 0, 37.5],
-    },
-
-    // Feature Room (soft ceiling flicker – represented as a low‑intensity area light)
-    {
-      id: "feature-ceiling",
-      type: "area",
-      color: [180, 180, 255],
-      intensity: 500,
-      position: [7.5, H_FEATURE - 0.2, 42.5],
-      target: [7.5, 0, 42.5],
-    },
-
-    // Neon Corridor neon ribbons (simulated with neon type lights)
-    {
-      id: "neon-ribbon-1",
-      type: "neon",
-      color: [0, 127, 255], // Electric Blue
-      intensity: 800,
-      position: [22.5, H_CORRIDOR - 0.2, 42.5],
-    },
-    {
-      id: "neon-ribbon-2",
-      type: "neon",
-      color: [255, 0, 180], // Magenta
-      intensity: 800,
-      position: [22.5, H_CORRIDOR - 0.2, 37.5],
-    },
+    // Octagon Neon Edges (F1, F2, F3)
+    { id: "oct-neon-1", type: "neon", color: [0, 127, 255], intensity: 1000, position: [CENTER_X + 3.5, Y_F1, CENTER_Z] },
+    { id: "oct-neon-2", type: "neon", color: [255, 0, 180], intensity: 1000, position: [CENTER_X - 3.5, Y_F1, CENTER_Z] },
+    { id: "oct-neon-3", type: "neon", color: [0, 127, 255], intensity: 1000, position: [CENTER_X + 3.5, Y_F2, CENTER_Z] },
+    { id: "oct-neon-4", type: "neon", color: [255, 0, 180], intensity: 1000, position: [CENTER_X - 3.5, Y_F2, CENTER_Z] },
+    { id: "oct-neon-5", type: "neon", color: [0, 127, 255], intensity: 1000, position: [CENTER_X + 3.5, Y_F3, CENTER_Z] },
+    { id: "oct-neon-6", type: "neon", color: [255, 0, 180], intensity: 1000, position: [CENTER_X - 3.5, Y_F3, CENTER_Z] },
+    
+    // Atrium Upward Wash (F1)
+    { id: "atrium-wash-1", type: "point", color: [255, 255, 255], intensity: 5000, position: [CENTER_X, 0.5, CENTER_Z] },
+    
+    // Balcony Cove Lighting (F2)
+    { id: "balcony-cove-2", type: "point", color: [255, 255, 255], intensity: 2000, position: [CENTER_X + ATRIUM_R - 1, FLOOR_Y_F2 + 0.5, CENTER_Z] },
+    
+    // Balcony Cove Lighting (F3)
+    { id: "balcony-cove-3", type: "point", color: [255, 255, 255], intensity: 2000, position: [CENTER_X + ATRIUM_R - 1, FLOOR_Y_F3 + 0.5, CENTER_Z] },
+    
+    // Perimeter Spotlights (F1)
+    { id: "spot-1-N", type: "spot", color: [255, 240, 230], intensity: 1500, position: [CENTER_X, H1 - 0.3, 45], target: [CENTER_X, 0, 45], angle: 30 },
+    { id: "spot-1-S", type: "spot", color: [255, 240, 230], intensity: 1500, position: [CENTER_X, H1 - 0.3, 5], target: [CENTER_X, 0, 5], angle: 30 },
   ],
 };
