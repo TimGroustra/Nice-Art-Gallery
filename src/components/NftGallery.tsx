@@ -73,6 +73,71 @@ const addNeonStrip = (
 };
 
 /* --------------------------------------------------------------
+   Minimal texture helper stubs (used elsewhere in the file)
+   -------------------------------------------------------------- */
+function createTextTexture(
+  text: string,
+  width: number,
+  height: number,
+  fontSize: number,
+  color: string,
+  options?: { wordWrap?: boolean; scrollY?: number }
+): { texture: THREE.Texture; totalHeight?: number } {
+  // Very simple canvas‑based texture – sufficient for compilation.
+  const canvas = document.createElement('canvas');
+  canvas.width = width * 100; // scale for readability
+  canvas.height = height * 100;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = color;
+  ctx.font = `${fontSize * 10}px sans-serif`;
+  ctx.textBaseline = 'top';
+  let y = options?.scrollY ?? 0;
+  if (options?.wordWrap) {
+    const words = text.split(' ');
+    let line = '';
+    const lineHeight = fontSize * 12;
+    for (let i = 0; i < words.length; i++) {
+      const test = line + words[i] + ' ';
+      const metrics = ctx.measureText(test);
+      if (metrics.width > canvas.width && i > 0) {
+        ctx.fillText(line, 0, y);
+        line = words[i] + ' ';
+        y += lineHeight;
+      } else {
+        line = test;
+      }
+    }
+    ctx.fillText(line, 0, y);
+    return { texture: new THREE.CanvasTexture(canvas), totalHeight: y + fontSize * 12 };
+  } else {
+    ctx.fillText(text, 0, y);
+    return { texture: new THREE.CanvasTexture(canvas) };
+  }
+}
+
+function createAttributesTextTexture(
+  attributes: NftAttribute[],
+  width: number,
+  height: number,
+  fontSize: number,
+  color: string,
+): { texture: THREE.Texture } {
+  const canvas = document.createElement('canvas');
+  canvas.width = width * 100;
+  canvas.height = height * 100;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = color;
+  ctx.font = `${fontSize * 10}px sans-serif`;
+  let y = 0;
+  attributes.forEach((attr) => {
+    const line = `${attr.trait_type}: ${attr.value}`;
+    ctx.fillText(line, 0, y);
+    y += fontSize * 12;
+  });
+  return { texture: new THREE.CanvasTexture(canvas) };
+}
+
+/* --------------------------------------------------------------
    Main component
    -------------------------------------------------------------- */
 const NftGallery: React.FC<{
@@ -176,7 +241,7 @@ const NftGallery: React.FC<{
     );
 
     // Wall‑top neon strips (top of each wall segment)
-    const wallSegmentSize = 10;
+    const wallSegmentSize = 10; // <-- renamed from duplicate
     for (let i = -2; i <= 2; i++) {
       const x = i * wallSegmentSize;
       // north + south
@@ -440,7 +505,7 @@ const NftGallery: React.FC<{
     }[] = [];
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
     const MAX_SEGMENT_INDEX = 4; // segments 0‑4 (5 total)
-    const wallSegmentSize = 10;
+    const wallSegmentSizePanel = 10; // <-- renamed to avoid duplicate
     for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
       for (const wallBase of WALL_NAMES) {
         const panelKey = `${wallBase}-${i}` as keyof typeof GALLERY_PANEL_CONFIG;
@@ -448,7 +513,7 @@ const NftGallery: React.FC<{
           z = 0,
           rot: [number, number, number] = [0, 0, 0];
         const centerIdx = i - 2; // -2…2 => positions -20…20
-        const segPos = centerIdx * wallSegmentSize;
+        const segPos = centerIdx * wallSegmentSizePanel;
         if (wallBase === 'north-wall') {
           x = segPos;
           z = -half;
@@ -821,7 +886,7 @@ const NftGallery: React.FC<{
             descTex;
           panel.descriptionMesh.visible = true;
           panel.currentDescription = meta.description;
-          panel.descriptionTextHeight = totalHeight;
+          panel.descriptionTextHeight = totalHeight ?? 0;
           panel.descriptionScrollY = 0;
 
           // Attributes
