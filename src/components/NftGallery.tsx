@@ -59,12 +59,12 @@ const NftGallery: React.FC<{
   const mountRef = useRef<HTMLDivElement>(null);
 
   /**
-   * Build walls + optional NFT panels.
+   * Build the three‑js scene and return a cleanup function.
    */
   const buildScene = useCallback(async (): Promise<() => void> => {
     if (!mountRef.current) return () => {};
 
-    // === Scene / Camera / Renderer ===
+    // === Scene, camera, renderer ===
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x202020);
 
@@ -176,6 +176,7 @@ const NftGallery: React.FC<{
       panelMeshes.push(mesh);
     }
 
+    // Load textures for each panel
     const loadAllPanelTextures = async () => {
       await Promise.all(
         wallsWithPanel.map(async (wall, idx) => {
@@ -236,13 +237,13 @@ const NftGallery: React.FC<{
     const handleClick = () => setInstructionsVisible(false);
     renderer.domElement.addEventListener("click", handleClick);
 
-    // Return cleanup function
+    // Cleanup function
     return () => {
       cancelAnimationFrame(frameId);
       renderer.domElement.removeEventListener("click", handleClick);
       renderer.dispose();
 
-      // Dispose panel textures (including GIF stop functions)
+      // Dispose all textures (including GIF stop functions)
       panelTextures.forEach((tex) => {
         const maybeStop = (tex as any)._gifStop as (() => void) | undefined;
         if (maybeStop) maybeStop();
@@ -255,17 +256,17 @@ const NftGallery: React.FC<{
     };
   }, [setInstructionsVisible]);
 
-  // Run the scene builder once on mount, handling async cleanup correctly
+  // Run scene builder once on mount; handle async cleanup safely
   useEffect(() => {
-    let cleanupFn: (() => void) | undefined;
+    let cleanup: (() => void) | undefined;
 
     const start = async () => {
-      cleanupFn = await buildScene();
+      cleanup = await buildScene();
     };
     start();
 
     return () => {
-      if (cleanupFn) cleanupFn();
+      if (cleanup) cleanup();
     };
   }, [buildScene]);
 
