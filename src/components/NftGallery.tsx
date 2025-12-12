@@ -336,6 +336,11 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
   useEffect(() => {
     if (!mountRef.current) return;
 
+    // Variables tracking what the cursor is over
+    let currentTargetedPanel: any = null;
+    let currentTargetedArrow: any = null;
+    let currentTargetedDescriptionPanel: any = null;
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -380,7 +385,7 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
     // ---------- OCTAGON FLOOR ----------
     const floorShape = new THREE.Shape();
     for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI / 4) * i - Math.PI / 2; // start at north (-Z)
+      const angle = (Math.PI / 4) * i - Math.PI / 2;
       const x = Math.cos(angle) * OCTAGON_RADIUS;
       const z = Math.sin(angle) * OCTAGON_RADIUS;
       if (i === 0) floorShape.moveTo(x, z);
@@ -466,10 +471,10 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
     // Helper to compute panel position/orientation from octagon side index
     const panelConfigs: { wallName: keyof PanelConfig; pos: [number, number, number]; rot: [number, number, number] }[] = [];
     for (let i = 0; i < 8; i++) {
-      const angle = (Math.PI / 4) * i - Math.PI / 2; // north = -Z
+      const angle = (Math.PI / 4) * i - Math.PI / 2;
       const x = Math.cos(angle) * OCTAGON_RADIUS * 0.9;
       const z = Math.sin(angle) * OCTAGON_RADIUS * 0.9;
-      const rotY = -angle; // panels face inward
+      const rotY = -angle;
       const wallKey = `oct-wall-${i}` as keyof PanelConfig;
       panelConfigs.push({ wallName: wallKey, pos: [x, 1.8, z], rot: [0, rotY, 0] });
     }
