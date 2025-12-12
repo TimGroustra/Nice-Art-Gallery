@@ -18,10 +18,40 @@ import {
 // Import the new layout definition
 import { GalleryLayout, MaterialId } from '@/scene/unrealUnityLayout';
 
-// Post-processing imports for the new aesthetic
+// Post‑processing imports for the new aesthetic
 RectAreaLightUniformsLib.init();
 
-// Constants for geometry (kept largely unchanged)
+// ---------------------------
+// ** NEW CONSTANTS & TYPES **
+// ---------------------------
+
+// Horizontal offset for description / attributes panels (chosen to match original visual spacing)
+const TEXT_PANEL_OFFSET_X = 0.8;
+
+// Panel interface – mirrors the structure used throughout the component
+interface Panel {
+  mesh: THREE.Mesh;                 // the image/video plane
+  wallName: string;                  // wall key from layout
+  metadataUrl: string;
+  isVideo: boolean;
+  isGif: boolean;
+  prevArrow: THREE.Mesh;
+  nextArrow: THREE.Mesh;
+  titleMesh: THREE.Mesh;
+  descriptionMesh: THREE.Mesh;
+  attributesMesh: THREE.Mesh;
+  wallTitleMesh: THREE.Mesh;
+  currentDescription: string;
+  descriptionScrollY: number;
+  descriptionTextHeight: number;
+  currentAttributes: any[];
+  videoElement: HTMLVideoElement | null;
+  gifStopFunction: (() => void) | null;
+}
+
+// ---------------------------
+// ** COMPONENT CODE **
+// ---------------------------
 const TEXT_PANEL_WIDTH = 2.5;
 const TITLE_HEIGHT = 0.5;
 const DESCRIPTION_HEIGHT = 1.5;
@@ -199,6 +229,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
+  // Exposed engine variables for the resize handler
+  let camera: THREE.PerspectiveCamera;
+  let renderer: THREE.WebGLRenderer;
+  let composer: EffectComposer;
+  let fxaaPass: ShaderPass;
+  // The ceiling material is optional – we only need the type for TS
+  let ceilingMaterial: THREE.ShaderMaterial | null = null;
+
   // -----------------------------------------------------------------
   // Video / GIF handling (unchanged)
   // -----------------------------------------------------------------
@@ -300,63 +338,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     },
     []
   );
-
-  // -----------------------------------------------------------------
-  // Panel / Wall creation – now driven by the layout data
-  // -----------------------------------------------------------------
-  const createFramedPanel = (w: number, h: number, emissiveColor: number) => {
-    const group = new THREE.Group();
-
-    // Backboard (dark)
-    const backGeo = new THREE.PlaneGeometry(w, h);
-    const backMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8, metalness: 0.05, side: THREE.DoubleSide });
-    const back = new THREE.Mesh(backGeo, backMat);
-    back.position.set(0, 0, 0.01);
-    group.add(back);
-
-    // Frame rim (emissive)
-    const rimDepth = 0.06;
-    const rimMat = new THREE.MeshStandardMaterial({
-      color: 0x0b0b0b,
-      emissive: emissiveColor,
-      emissiveIntensity: 1.6,
-      roughness: 0.25,
-      metalness: 0.4,
-    });
-    const rim = new THREE.Mesh(new THREE.BoxGeometry(w + 0.12, h + 0.12, rimDepth), rimMat);
-    rim.position.set(0, 0, -0.02);
-    group.add(rim);
-
-    // Image plane
-    const imageMat = new THREE.MeshBasicMaterial({ color: 0x222122, side: THREE.DoubleSide });
-    const imageGeo = new THREE.PlaneGeometry(w - 0.2, h - 0.2);
-    const imageMesh = new THREE.Mesh(imageGeo, imageMat);
-    imageMesh.position.set(0, 0, 0.02);
-    group.add(imageMesh);
-
-    // Neon border line (thin tube)
-    const neonMat = new THREE.MeshStandardMaterial({
-      emissive: emissiveColor,
-      emissiveIntensity: 1.4,
-      roughness: 0.2,
-    });
-    const borderGeomH = new THREE.BoxGeometry(w + 0.05, 0.03, 0.015);
-    const top = new THREE.Mesh(borderGeomH, neonMat);
-    top.position.set(0, h / 2 + 0.06, 0.03);
-    group.add(top);
-    const bottom = top.clone();
-    bottom.position.set(0, -h / 2 - 0.06, 0.03);
-    group.add(bottom);
-    const borderGeomV = new THREE.BoxGeometry(0.03, h + 0.05, 0.015);
-    const left = new THREE.Mesh(borderGeomV, neonMat);
-    left.position.set(-w / 2 - 0.06, 0, 0.03);
-    group.add(left);
-    const right = left.clone();
-    right.position.set(w / 2 + 0.06, 0, 0.03);
-    group.add(right);
-
-    return { group, imageMesh };
-  };
 
   // -----------------------------------------------------------------
   // Update panel content – unchanged except now we pass the source
@@ -481,7 +462,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
 
     // Renderer (unchanged)
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -489,7 +470,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     container.appendChild(renderer.domElement);
 
     // Camera (unchanged)
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, 0);
 
     // Controls
@@ -527,7 +508,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // Post‑processing (unchanged)
-    const composer = new EffectComposer(renderer);
+    composer = new EffectComposer(renderer);
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.4, 0.85);
@@ -535,7 +516,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     bloomPass.strength = 1.2;
     bloomPass.radius = 0.6;
     composer.addPass(bloomPass);
-    const fxaaPass = new ShaderPass(FXAAShader);
+    fxaaPass = new ShaderPass(FXAAShader);
     const pixelRatio = Math.min(window.devicePixelRatio, 2);
     fxaaPass.material.uniforms['resolution'].value.x = 1 / (window.innerWidth * pixelRatio);
     fxaaPass.material.uniforms['resolution'].value.y = 1 / (window.innerHeight * pixelRatio);
@@ -680,7 +661,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallTitleMesh.visible = false;
         scene.add(wallTitleMesh);
 
-        const panel: Panel = {
+        const panelObj: Panel = {
           mesh: imageMesh,
           wallName: wall.key,
           metadataUrl: '',
@@ -699,7 +680,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           videoElement: null,
           gifStopFunction: null,
         };
-        panelsRef.current.push(panel);
+        panelsRef.current.push(panelObj);
       }
     });
 
@@ -736,7 +717,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           // Three.js doesn't have native area lights; use RectAreaLight
           const rect = new THREE.RectAreaLight(new THREE.Color(...l.color), l.intensity / 500, 2, 2);
           rect.position.set(...l.position);
-          rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0])));
+          rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0]));
           scene.add(rect);
           light = rect;
           break;
@@ -866,7 +847,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const delta = (now - prevTime) / 1000;
       const elapsed = (now - startTime) / 1000;
 
-      // Update ceiling shader if present
+      // Update ceiling shader if present (optional)
       if (ceilingMaterial && (ceilingMaterial as any).uniforms) {
         (ceilingMaterial as any).uniforms.time.value = elapsed;
       }
@@ -1012,18 +993,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   // -----------------------------------------------------------------
-  // Window resize handling (unchanged)
+  // Window resize handling (now uses the variables defined above)
   // -----------------------------------------------------------------
   const onWindowResize = () => {
     const w = window.innerWidth;
     const h = window.innerHeight;
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
-    renderer.setSize(w, h);
-    composer.setSize(w, h);
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
-    fxaaPass.material.uniforms['resolution'].value.x = 1 / (w * pixelRatio);
-    fxaaPass.material.uniforms['resolution'].value.y = 1 / (h * pixelRatio);
+    if (camera && renderer && composer && fxaaPass) {
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setSize(w, h);
+      composer.setSize(w, h);
+      const pixelRatio = Math.min(window.devicePixelRatio, 2);
+      fxaaPass.material.uniforms['resolution'].value.x = 1 / (w * pixelRatio);
+      fxaaPass.material.uniforms['resolution'].value.y = 1 / (h * pixelRatio);
+    }
   };
   window.addEventListener('resize', onWindowResize);
 
