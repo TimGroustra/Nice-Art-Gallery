@@ -25,6 +25,7 @@ RectAreaLightUniformsLib.init();
 // ---------------------------
 
 const TEXT_PANEL_OFFSET_X = 0.8; // spacing for description/attributes panels
+const TEXT_DEPTH_OFFSET = 0.05; // Offset text panels slightly from the wall
 
 // Panel interface – mirrors the structure used throughout the component
 interface Panel {
