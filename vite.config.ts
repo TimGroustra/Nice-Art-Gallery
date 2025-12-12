@@ -12,14 +12,20 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Ensure a single React instance for the whole bundle
+      // Force a single React and React‑DOM instance for the whole bundle
       "react": path.resolve(__dirname, "./node_modules/react"),
       "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
     },
-    // Deduplicate peer dependencies that might otherwise bundle another copy
-    dedupe: ["react", "react-dom"],
+    // Deduplicate any peer dependencies that might otherwise bundle their own copy
+    dedupe: [
+      "react",
+      "react-dom",
+      "react-router-dom",
+      "wagmi",
+      "@tanstack/react-query",
+    ],
   },
-  // Pre‑bundle React and React‑DOM so Vite never creates a second copy
+  // Pre‑bundle the core React packages so Vite never creates a second copy
   optimizeDeps: {
     include: ["react", "react-dom"],
     force: true,
