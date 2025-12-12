@@ -255,6 +255,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const WALL_THICKNESS = 0.1;
   const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
   const NEON_COLOR_MAGENTA = 0xff1bb3;
+  const PLAYER_HEIGHT = 1.6; // Player eye level
 
   // Resize‑related globals
   let camera: THREE.PerspectiveCamera;
@@ -498,7 +499,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Camera – start on Floor 1
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(25, 1.6, 10); // Center of F1, near the entrance
+    camera.position.set(25, PLAYER_HEIGHT, 10); // Center of F1, near the entrance
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -593,24 +594,49 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // -----------------------------------------------------------------
     const floorGroup = new THREE.Group();
     const ceilingGroup = new THREE.Group();
+    const L = GalleryLayout.footprint.width;
+    const ATRIUM_R = 11; // Must match the radius used in unrealUnityLayout.ts
 
     GalleryLayout.rooms.forEach(room => {
       const [roomW, roomD] = room.size;
       const [x, y, z] = room.position;
       
-      // Floor
-      const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
+      let floorGeo: THREE.PlaneGeometry | THREE.ShapeGeometry;
+      
+      if (room.name === "Ground Floor Hall") {
+        // Floor 1: Full 50x50 plane
+        floorGeo = new THREE.PlaneGeometry(roomW, roomD);
+      } else {
+        // Floors 2 & 3: Ring shape with central atrium void
+        const shape = new THREE.Shape();
+        // Outer boundary (50x50 square)
+        shape.moveTo(0, 0);
+        shape.lineTo(0, L);
+        shape.lineTo(L, L);
+        shape.lineTo(L, 0);
+        shape.lineTo(0, 0);
+
+        // Inner hole (22m diameter circle, centered at 25, 25)
+        const holePath = new THREE.Path();
+        holePath.absarc(L / 2, L / 2, ATRIUM_R, 0, Math.PI * 2, true);
+        shape.holes.push(holePath);
+        
+        floorGeo = new THREE.ShapeGeometry(shape);
+      }
+      
       const floorMat = getMaterial(room.material, room.ceilingHeight);
       
       // Create floor mesh at the correct Y level
       const floor = new THREE.Mesh(floorGeo, floorMat);
       floor.rotation.x = -Math.PI / 2;
-      floor.position.set(x + roomW / 2, room.floorY, z + roomD / 2);
+      // Position the floor mesh so its center (25, 25) aligns with the world center
+      floor.position.set(x, room.floorY, z + L); 
       floorGroup.add(floor);
 
-      // Ceiling
+      // Ceiling (always a full 50x50 plane for simplicity, unless we need a skylight)
+      const ceilingGeo = new THREE.PlaneGeometry(roomW, roomD);
       const ceilingMat = getMaterial(MaterialId.WhitePlaster, room.ceilingHeight);
-      const ceiling = new THREE.Mesh(floorGeo.clone(), ceilingMat);
+      const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
       ceiling.rotation.x = Math.PI / 2;
       ceiling.position.set(x + roomW / 2, room.floorY + room.ceilingHeight, z + roomD / 2);
       ceilingGroup.add(ceiling);
@@ -819,9 +845,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       moveBackward = false,
       moveLeft = false,
       moveRight = false;
+    let jumpUp = false; // New state for vertical movement
     const velocity = new THREE.Vector3(),
       direction = new THREE.Vector3(),
       speed = 20.0;
+    
+    const FLOOR_LEVELS = GalleryLayout.rooms.map(r => r.floorY);
+    const CENTER_X = L / 2;
+    const CENTER_Z = L / 2;
+    const ATRIUM_R_INNER = 3.5; // Radius near the octagon pillar for 'staircase' access
 
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -836,6 +868,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           break;
         case 'KeyD':
           moveRight = true;
+          break;
+        case 'Space': // Use space to 'jump' floors near the center
+          jumpUp = true;
           break;
       }
     };
@@ -852,6 +887,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           break;
         case 'KeyD':
           moveRight = false;
+          break;
+        case 'Space':
+          jumpUp = false;
           break;
       }
     };
@@ -978,17 +1016,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             }
         }
 
-        // Gravity/Floor snapping (Simplified vertical movement)
-        const currentFloor = GalleryLayout.rooms.find(r => camera.position.y > r.floorY && camera.position.y <= r.floorY + r.ceilingHeight);
-        if (currentFloor) {
-            // Snap player to the floor level
-            camera.position.y = currentFloor.floorY + 1.6; 
-        } else {
-            // If player is outside a defined room (e.g., in the atrium void), snap to F1 floor
-            if (camera.position.y < 1.6) {
-                camera.position.y = 1.6;
+        // Gravity/Floor snapping & Vertical Movement (Staircase simulation)
+        const currentY = camera.position.y;
+        let targetFloorY = FLOOR_LEVELS[0]; // Default to F1
+        
+        // Determine which floor the player is currently on
+        let currentFloorIndex = -1;
+        for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
+            if (currentY >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
+                currentFloorIndex = i;
+                targetFloorY = FLOOR_LEVELS[i];
+                break;
             }
-            // NOTE: Full vertical movement (jumping/stair climbing) is omitted for simplicity.
+        }
+        
+        // Snap player to the current floor level
+        camera.position.y = targetFloorY + PLAYER_HEIGHT; 
+
+        // Handle 'Jump' (Spacebar) for vertical navigation near the center
+        if (jumpUp) {
+            const distToCenter = Math.hypot(curX - CENTER_X, curZ - CENTER_Z);
+            
+            // Check if player is near the central pillar (where the staircase is)
+            if (distToCenter < ATRIUM_R_INNER) {
+                let nextFloorIndex = currentFloorIndex + 1;
+                
+                if (nextFloorIndex < FLOOR_LEVELS.length) {
+                    // Teleport to the next floor
+                    camera.position.y = FLOOR_LEVELS[nextFloorIndex] + PLAYER_HEIGHT;
+                    // Prevent continuous jumping
+                    jumpUp = false; 
+                } else {
+                    // If on the top floor, loop back to the bottom (optional)
+                    camera.position.y = FLOOR_LEVELS[0] + PLAYER_HEIGHT;
+                    jumpUp = false;
+                }
+            }
         }
 
 
