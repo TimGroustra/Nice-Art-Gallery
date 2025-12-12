@@ -12,9 +12,11 @@ export default defineConfig(() => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      // Ensure only one React instance is bundled
+      // Ensure a single React instance
       "react": path.resolve(__dirname, "./node_modules/react"),
       "react-dom": path.resolve(__dirname, "./node_modules/react-dom"),
     },
+    // Vite dedupes peer dependencies that might otherwise bundle another copy
+    dedupe: ["react", "react-dom"],
   },
 }));
