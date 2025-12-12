@@ -252,8 +252,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const ARROW_PANEL_OFFSET = 1.5;
   const PANEL_OFFSET = 0.15;
   const PLAYER_RADIUS = 0.5;
-  const WALL_THICKNESS = 0.1;
-  const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
+  
+  // Use layout thickness and define HALF_T for boundary checks
+  const T = GalleryLayout.footprint.wallThickness; // 0.3
+  const HALF_T = T / 2; // 0.15
+  
+  const COLLISION_DISTANCE = PLAYER_RADIUS + HALF_T;
   const NEON_COLOR_MAGENTA = 0xff1bb3;
   const PLAYER_HEIGHT = 1.6; // Player eye level
 
