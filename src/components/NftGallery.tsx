@@ -257,6 +257,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const NEON_COLOR_MAGENTA = 0xff1bb3;
   const PLAYER_HEIGHT = 1.6; // Player eye level
 
+  // Staircase Constants (derived from layout)
+  const L = GalleryLayout.footprint.width;
+  const CENTER_X = L / 2;
+  const CENTER_Z = L / 2;
+  const STAIR_INNER_R = 3; // From layout
+  const STAIR_OUTER_R = 4.6; // From layout
+  const STAIR_ZONE_R_MIN = STAIR_INNER_R - 0.5; // 2.5m
+  const STAIR_ZONE_R_MAX = STAIR_OUTER_R + 0.5; // 5.1m
+  
+  // Staircase runs from F1 (Y=0) to F3 (Y=10.5) over 3 rotations
+  const TOTAL_STAIR_HEIGHT = 10.5; 
+  const TOTAL_ROTATIONS = 3;
+  const TOTAL_ANGLE = TOTAL_ROTATIONS * 2 * Math.PI;
+  const RISE_PER_RADIAN = TOTAL_STAIR_HEIGHT / TOTAL_ANGLE;
+  
+  // The staircase starts at angle 0 (Z-axis positive) in the layout definition.
+  const START_ANGLE = 0; 
+
   // Resize‑related globals
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
@@ -499,7 +517,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Camera – start on Floor 1
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(25, PLAYER_HEIGHT, 10); // Center of F1, near the entrance
+    camera.position.set(CENTER_X, PLAYER_HEIGHT, CENTER_Z - STAIR_ZONE_R_MAX); // Start near the staircase entrance
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -594,7 +612,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // -----------------------------------------------------------------
     const floorGroup = new THREE.Group();
     const ceilingGroup = new THREE.Group();
-    const L = GalleryLayout.footprint.width;
     const ATRIUM_R = 11; // Must match the radius used in unrealUnityLayout.ts
 
     GalleryLayout.rooms.forEach(room => {
@@ -845,15 +862,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       moveBackward = false,
       moveLeft = false,
       moveRight = false;
-    let jumpUp = false; // New state for vertical movement
     const velocity = new THREE.Vector3(),
       direction = new THREE.Vector3(),
       speed = 20.0;
     
     const FLOOR_LEVELS = GalleryLayout.rooms.map(r => r.floorY);
-    const CENTER_X = L / 2;
-    const CENTER_Z = L / 2;
-    const ATRIUM_R_INNER = 3.5; // Radius near the octagon pillar for 'staircase' access
 
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -868,9 +881,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           break;
         case 'KeyD':
           moveRight = true;
-          break;
-        case 'Space': // Use space to 'jump' floors near the center
-          jumpUp = true;
           break;
       }
     };
@@ -887,9 +897,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           break;
         case 'KeyD':
           moveRight = false;
-          break;
-        case 'Space':
-          jumpUp = false;
           break;
       }
     };
@@ -965,11 +972,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       requestAnimationFrame(animate);
       const now = performance.now();
       const delta = (now - prevTime) / 1000;
-      const elapsed = (now - startTime) / 1000;
-
-      if (ceilingMaterial && (ceilingMaterial as any).uniforms) {
-        (ceilingMaterial as any).uniforms.time.value = elapsed;
-      }
 
       if (controls.isLocked) {
         // Movement
@@ -988,14 +990,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
 
-        // Collision (Simplified 2D collision for perimeter walls only)
         const curX = camera.position.x;
         const curZ = camera.position.z;
         
-        // Check 50x50 boundary
-        const L = GalleryLayout.footprint.width;
-        const T = GalleryLayout.footprint.wallThickness;
-        const HALF_T = T / 2;
+        // 1. Collision (Simplified 2D collision for perimeter walls only)
         const boundaryMin = HALF_T + PLAYER_RADIUS;
         const boundaryMax = L - HALF_T - PLAYER_RADIUS;
         
@@ -1016,42 +1014,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             }
         }
 
-        // Gravity/Floor snapping & Vertical Movement (Staircase simulation)
-        const currentY = camera.position.y;
-        let targetFloorY = FLOOR_LEVELS[0]; // Default to F1
+        // 2. Vertical Movement (Staircase Logic)
+        const dx = curX - CENTER_X;
+        const dz = curZ - CENTER_Z;
+        const distToCenter = Math.hypot(dx, dz);
         
-        // Determine which floor the player is currently on
-        let currentFloorIndex = -1;
-        for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
-            if (currentY >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
-                currentFloorIndex = i;
-                targetFloorY = FLOOR_LEVELS[i];
-                break;
-            }
-        }
+        const isInStairZone = distToCenter >= STAIR_ZONE_R_MIN && distToCenter <= STAIR_ZONE_R_MAX;
         
-        // Snap player to the current floor level
-        camera.position.y = targetFloorY + PLAYER_HEIGHT; 
-
-        // Handle 'Jump' (Spacebar) for vertical navigation near the center
-        if (jumpUp) {
-            const distToCenter = Math.hypot(curX - CENTER_X, curZ - CENTER_Z);
+        if (isInStairZone) {
+            // Calculate the angle relative to the center (0 radians is positive Z axis)
+            // atan2(y, x) in Three.js/math is usually atan2(z, x) for XZ plane
+            let angleXZ = Math.atan2(dx, dz); // Angle from positive Z axis, clockwise
             
-            // Check if player is near the central pillar (where the staircase is)
-            if (distToCenter < ATRIUM_R_INNER) {
-                let nextFloorIndex = currentFloorIndex + 1;
-                
-                if (nextFloorIndex < FLOOR_LEVELS.length) {
-                    // Teleport to the next floor
-                    camera.position.y = FLOOR_LEVELS[nextFloorIndex] + PLAYER_HEIGHT;
-                    // Prevent continuous jumping
-                    jumpUp = false; 
-                } else {
-                    // If on the top floor, loop back to the bottom (optional)
-                    camera.position.y = FLOOR_LEVELS[0] + PLAYER_HEIGHT;
-                    jumpUp = false;
+            // Normalize angle to be positive (0 to 2*PI)
+            if (angleXZ < 0) {
+                angleXZ += 2 * Math.PI;
+            }
+            
+            // Calculate the target Y position based on the angle
+            // The staircase starts at angle 0 (positive Z) and rises over 3 rotations (6*PI)
+            const targetY = angleXZ * RISE_PER_RADIAN;
+            
+            // Determine the current rotation cycle (0, 1, or 2) based on current height
+            const currentRotationCycle = Math.round(camera.position.y / (2 * Math.PI * RISE_PER_RADIAN));
+            
+            // Adjust targetY to the correct floor cycle
+            const finalTargetY = targetY + currentRotationCycle * 2 * Math.PI * RISE_PER_RADIAN;
+            
+            // Clamp Y position to the total height of the staircase
+            const clampedY = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalTargetY + PLAYER_HEIGHT));
+            
+            // Smoothly interpolate the camera's Y position towards the target Y
+            camera.position.y += (clampedY - camera.position.y) * 0.1; // 10% interpolation
+            
+        } else {
+            // Gravity/Floor snapping outside the staircase zone
+            let targetFloorY = FLOOR_LEVELS[0]; 
+            for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
+                if (camera.position.y >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
+                    targetFloorY = FLOOR_LEVELS[i];
+                    break;
                 }
             }
+            // Snap player to the current floor level
+            camera.position.y += (targetFloorY + PLAYER_HEIGHT - camera.position.y) * 0.1;
         }
 
 
