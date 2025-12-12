@@ -1,11 +1,11 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
-import { createGifTexture } from '@/utils/gifTexture'; // Import the new utility
+import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from './MarketBrowserRefined';
 
 // ---------- OCTAGON CONSTANTS ----------
@@ -152,6 +152,11 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
   const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{ open: boolean; collection?: string; tokenId?: string | number }>({ open: false });
+
+  // Refs for the currently hovered objects (TypeScript-safe)
+  const targetedPanelRef = useRef<any>(null);
+  const targetedArrowRef = useRef<any>(null);
+  const targetedDescRef = useRef<any>(null);
 
   // ------------------------------------------------- //
   // Utility helpers (video / GIF detection, cleanup)
@@ -336,11 +341,6 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // Variables tracking what the cursor is over
-    let currentTargetedPanel: any = null;
-    let currentTargetedArrow: any = null;
-    let currentTargetedDescriptionPanel: any = null;
-
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -367,7 +367,7 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
         vids.forEach(v => { v.videoElement!.muted = !muteState; });
       },
       isLocked: () => controls.isLocked,
-      getTargetedPanel: () => currentTargetedPanel,
+      getTargetedPanel: () => targetedPanelRef.current,
     };
 
     // ---------- LOCK/UNLOCK UI ----------
@@ -451,14 +451,11 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
     scene.add(hemi);
 
     // ---------- PANEL SETUP ----------
-    // Geometry & materials shared across panels
     const panelGeom = new THREE.PlaneGeometry(2, 2);
     const panelMat = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
 
-    // Text panel material factory
     const createTextPanelMaterial = () => new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
 
-    // Title / description / attributes / wall‑title geometries
     const titleGeom = new THREE.PlaneGeometry(4, 0.5);
     const descGeom = new THREE.PlaneGeometry(2.5, 1.5);
     const attrGeom = new THREE.PlaneGeometry(2.5, 1.5);
@@ -468,7 +465,6 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
     const arrowGeom = new THREE.ShapeGeometry(arrowShape);
     const arrowMat = new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide });
 
-    // Helper to compute panel position/orientation from octagon side index
     const panelConfigs: { wallName: keyof PanelConfig; pos: [number, number, number]; rot: [number, number, number] }[] = [];
     for (let i = 0; i < 8; i++) {
       const angle = (Math.PI / 4) * i - Math.PI / 2;
@@ -479,7 +475,6 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       panelConfigs.push({ wallName: wallKey, pos: [x, 1.8, z], rot: [0, rotY, 0] });
     }
 
-    // Clear any previous panels
     panelsRef.current = [];
 
     panelConfigs.forEach(cfg => {
@@ -488,7 +483,7 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       mesh.rotation.set(...cfg.rot);
       scene.add(mesh);
 
-      // Title mesh (above main panel)
+      // Title mesh
       const titleMesh = new THREE.Mesh(titleGeom, createTextPanelMaterial());
       titleMesh.rotation.set(...cfg.rot);
       const titlePos = new THREE.Vector3(...cfg.pos);
@@ -498,7 +493,7 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       titleMesh.visible = false;
       scene.add(titleMesh);
 
-      // Description panel (left side)
+      // Description mesh (left side)
       const descMesh = new THREE.Mesh(descGeom, createTextPanelMaterial());
       descMesh.rotation.set(...cfg.rot);
       const right = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(...cfg.rot));
@@ -508,7 +503,7 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       descMesh.visible = false;
       scene.add(descMesh);
 
-      // Attributes panel (right side)
+      // Attributes mesh (right side)
       const attrMesh = new THREE.Mesh(attrGeom, createTextPanelMaterial());
       attrMesh.rotation.set(...cfg.rot);
       const attrPos = new THREE.Vector3(...cfg.pos).addScaledVector(right, 1.5);
@@ -517,7 +512,7 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       attrMesh.visible = false;
       scene.add(attrMesh);
 
-      // Wall‑title (above panel)
+      // Wall‑title mesh
       const wallTitleMesh = new THREE.Mesh(wallTitleGeom, createTextPanelMaterial());
       wallTitleMesh.rotation.set(...cfg.rot);
       const wallTitlePos = new THREE.Vector3(...cfg.pos);
@@ -587,17 +582,17 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
 
     const onMouseDown = () => {
       if (!controls.isLocked) return;
-      if (currentTargetedArrow) {
-        const panel = panelsRef.current.find(p => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow);
+      if (targetedArrowRef.current) {
+        const panel = panelsRef.current.find(p => p.prevArrow === targetedArrowRef.current || p.nextArrow === targetedArrowRef.current);
         if (panel) {
-          const dir = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
+          const dir = targetedArrowRef.current === panel.nextArrow ? 'next' : 'prev';
           if (updatePanelIndex(panel.wallName, dir as any)) {
             const src = getCurrentNftSource(panel.wallName);
             updatePanelContent(panel, src);
           }
         }
-      } else if (currentTargetedPanel) {
-        const src = getCurrentNftSource(currentTargetedPanel.wallName);
+      } else if (targetedPanelRef.current) {
+        const src = getCurrentNftSource(targetedPanelRef.current.wallName);
         if (src) {
           setMarketBrowserState({ open: true, collection: src.contractAddress, tokenId: src.tokenId });
           controls.unlock();
@@ -608,8 +603,8 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
 
     // Description scroll
     const onWheel = (e: WheelEvent) => {
-      if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
-      const panel = currentTargetedDescriptionPanel;
+      if (!controls.isLocked || !targetedDescRef.current) return;
+      const panel = targetedDescRef.current;
       const delta = e.deltaY * 0.5;
       const canvasH = 512;
       const padding = 40;
@@ -645,9 +640,6 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
         if (moveF || moveB) vel.z -= dir.z * speed * delta;
         if (moveL || moveR) vel.x -= dir.x * speed * delta;
 
-        const prevX = camera.position.x;
-        const prevZ = camera.position.z;
-
         controls.moveRight(-vel.x * delta);
         controls.moveForward(-vel.z * delta);
 
@@ -668,20 +660,20 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
           (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc);
           (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc);
         });
-        currentTargetedPanel = null;
-        currentTargetedArrow = null;
-        currentTargetedDescriptionPanel = null;
+        targetedPanelRef.current = null;
+        targetedArrowRef.current = null;
+        targetedDescRef.current = null;
 
         if (hits.length && hits[0].distance < 5) {
           const hit = hits[0].object as THREE.Mesh;
           const panel = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit || p.descriptionMesh === hit);
           if (panel) {
-            if (hit === panel.mesh) currentTargetedPanel = panel;
+            if (hit === panel.mesh) targetedPanelRef.current = panel;
             else if (hit === panel.prevArrow || hit === panel.nextArrow) {
-              currentTargetedArrow = hit;
+              targetedArrowRef.current = hit;
               (hit.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00);
             } else if (hit === panel.descriptionMesh) {
-              currentTargetedDescriptionPanel = panel;
+              targetedDescRef.current = panel;
             }
           }
         }
@@ -708,7 +700,6 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       for (const panel of panelsRef.current) {
         const src = getCurrentNftSource(panel.wallName);
         await updatePanelContent(panel, src);
-        // Small delay to avoid RPC spiking
         await new Promise(r => setTimeout(r, 80));
       }
     };
@@ -754,9 +745,9 @@ const NftGallery: React.FC<{ setInstructionsVisible: (v: boolean) => void }> = (
       });
       renderer.dispose();
       delete (window as any).galleryControls;
-      currentTargetedPanel = null;
-      currentTargetedArrow = null;
-      currentTargetedDescriptionPanel = null;
+      targetedPanelRef.current = null;
+      targetedArrowRef.current = null;
+      targetedDescRef.current = null;
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
