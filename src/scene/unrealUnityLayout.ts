@@ -116,6 +116,9 @@ const CENTER_X = 25;
 const CENTER_Z = 25;
 const ATRIUM_R = 11; // 22m diameter
 const OCTAGON_R_FLAT = 3; // 6m flat-to-flat
+const STAIR_WIDTH = 1.6;
+const STAIR_INNER_R = OCTAGON_R_FLAT;
+const STAIR_OUTER_R = STAIR_INNER_R + STAIR_WIDTH; // 4.6m
 
 // Helper to generate octagon wall segments (Pillar)
 function generateOctagonWalls(floor: number, height: number, yCenter: number, material: MaterialId): Wall[] {
@@ -214,7 +217,7 @@ function generateNftSpiralPanels(startFloorY: number, endFloorY: number, rotatio
     const totalHeight = endFloorY - startFloorY; // 10.5m
     const numPanels = 36 * rotations; // 108 panels total
     const anglePerPanel = (rotations * 2 * Math.PI) / numPanels;
-    const panelRadius = OCTAGON_R_FLAT + 1.6 + 0.5; // Octagon (3m) + Stair (1.6m) + Offset (0.5m) = 5.1m
+    const panelRadius = STAIR_OUTER_R + 0.5; // Outer stair radius (4.6m) + Offset (0.5m) = 5.1m
     const panelHeight = 1.0;
     const panelWidth = 1.0;
     const eyeLevelOffset = 1.5; // 1.5m above the step height
@@ -268,6 +271,56 @@ function generateAtriumWalls(floor: number, yStart: number, height: number): Wal
     return walls;
 }
 
+// Helper to generate the spiral staircase steps and railing
+function generateSpiralStaircase(startFloorY: number, endFloorY: number, rotations: number = 3): Wall[] {
+    const steps: Wall[] = [];
+    const totalHeight = endFloorY - startFloorY; // 10.5m
+    const numSteps = 36 * rotations; // 108 steps total (36 steps per rotation)
+    const anglePerStep = (rotations * 2 * Math.PI) / numSteps;
+    const stepHeight = totalHeight / numSteps; // Rise
+    const stepDepth = 0.3; // Tread depth (approx)
+    
+    const STAIR_CENTER_R = (STAIR_INNER_R + STAIR_OUTER_R) / 2; // 3.8m
+
+    for (let i = 0; i < numSteps; i++) {
+        const currentAngle = i * anglePerStep;
+        const currentY = startFloorY + i * stepHeight;
+        
+        // Step position (center of the step)
+        const x = CENTER_X + STAIR_CENTER_R * Math.sin(currentAngle);
+        const z = CENTER_Z + STAIR_CENTER_R * Math.cos(currentAngle);
+        
+        // Step geometry (a thin box)
+        steps.push({
+            key: `stair-step-${i}`,
+            position: [x, currentY + stepHeight / 2, z],
+            length: STAIR_WIDTH,
+            height: stepHeight,
+            rotationY: currentAngle + Math.PI / 2, // Aligned tangentially
+            material: MaterialId.PolishedConcrete,
+            hasPanel: false,
+        });
+
+        // Glass railing segment (placed on the outer edge of the step)
+        const railingHeight = 1.1;
+        const railingOffset = STAIR_OUTER_R - STAIR_CENTER_R; // 0.8m
+        
+        const railingX = CENTER_X + STAIR_OUTER_R * Math.sin(currentAngle);
+        const railingZ = CENTER_Z + STAIR_OUTER_R * Math.cos(currentAngle);
+
+        steps.push({
+            key: `stair-rail-${i}`,
+            position: [railingX, currentY + railingHeight / 2 + stepHeight, railingZ],
+            length: STAIR_WIDTH,
+            height: railingHeight,
+            rotationY: currentAngle + Math.PI / 2, // Aligned tangentially
+            material: MaterialId.Glass,
+            hasPanel: false,
+        });
+    }
+    return steps;
+}
+
 
 // --- Main Layout Definition ---
 
@@ -283,11 +336,7 @@ const F2_ATRIUM_WALLS = generateAtriumWalls(2, FLOOR_Y_F2, 1.1); // Balustrade h
 const F3_ATRIUM_WALLS = generateAtriumWalls(3, FLOOR_Y_F3, 1.1); // Balustrade height 1.1m
 
 const SPIRAL_NFT_PANELS = generateNftSpiralPanels(FLOOR_Y_F1, FLOOR_Y_F3);
-
-// We omit the complex staircase geometry (STAIRCASE_WALLS) for now, 
-// as the player movement logic needs significant overhaul to handle vertical movement 
-// and collision on a spiral path. We will rely on the player being able to jump/fly 
-// between floors for testing, and focus on the visual geometry.
+const SPIRAL_STAIRCASE = generateSpiralStaircase(FLOOR_Y_F1, FLOOR_Y_F3);
 
 export const GalleryLayout: LayoutDefinition = {
   footprint: {
@@ -337,6 +386,8 @@ export const GalleryLayout: LayoutDefinition = {
     ...F3_ATRIUM_WALLS,
     // Spiral NFT Panels
     ...SPIRAL_NFT_PANELS,
+    // Spiral Staircase Steps and Railing
+    ...SPIRAL_STAIRCASE,
   ],
 
   doors: [
