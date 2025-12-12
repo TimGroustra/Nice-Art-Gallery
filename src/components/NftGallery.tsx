@@ -57,7 +57,7 @@ function createFramedPanel(width: number, height: number, emissiveColor: number)
   const backGeo = new THREE.PlaneGeometry(width, height);
   const backMat = new THREE.MeshStandardMaterial({
     color: 0x0a0a0a,
-    roughness: 0.8,
+    roughness: 0x0.8,
     metalness: 0.05,
     side: THREE.DoubleSide,
   });
@@ -230,7 +230,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
-  // UI state for hovered panel info
+  // Hover overlay state
   const [hoverInfo, setHoverInfo] = useState<{
     title?: string;
     description?: string;
@@ -238,7 +238,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({});
 
-  // Constants used throughout the component
+  // Constants
   const TEXT_PANEL_WIDTH = 2.5;
   const TITLE_HEIGHT = 0.5;
   const DESCRIPTION_HEIGHT = 1.5;
@@ -257,7 +257,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
   const NEON_COLOR_MAGENTA = 0xff1bb3;
 
-  // Variables needed by resize handler (declared here for TS visibility)
+  // Resize‑related globals
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
   let composer: EffectComposer;
@@ -300,7 +300,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const isVideo = isVideoContent(contentType, url);
       const isGif = isGifContent(contentType, url);
 
-      // Cleanup previous media
       if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
@@ -346,7 +345,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
 
-      // Default: static image
       return new Promise((resolve, reject) => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
@@ -374,13 +372,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const collectionName = collectionConfig?.name || '...';
       const textColor = collectionConfig?.text_color || 'white';
 
-      // Reset wall title
+      // Wall title
       disposeTextureSafely(panel.wallTitleMesh);
       const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, textColor, { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
       panel.wallTitleMesh.visible = true;
 
-      // Reset main mesh material
+      // Main mesh reset
       if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
         if (panel.mesh.material.map) {
           panel.mesh.material.map.dispose();
@@ -413,13 +411,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         return;
       }
 
-      // Fetch metadata (cached)
       const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       if (!metadata) {
         console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) – metadata fetch failed.`);
         if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          const { texture: errorTexture } = createTextTexture('NFT Unavailable', 2, 2, 80, 'red', { wordWrap: false });
-          panel.mesh.material.map = errorTexture;
+          const { texture: errTex } = createTextTexture('NFT Unavailable', 2, 2, 80, 'red', { wordWrap: false });
+          panel.mesh.material.map = errTex;
           panel.mesh.material.color.set(0xff0000);
         }
         return;
@@ -431,7 +428,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const isGif = isGifContent(metadata.contentType, contentUrl);
         const texture = await loadTexture(contentUrl, panel, metadata.contentType);
 
-        // Apply texture to main mesh
         if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
           panel.mesh.material.map = texture;
           panel.mesh.material.color.set(0xffffff);
@@ -443,14 +439,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Title
         disposeTextureSafely(panel.titleMesh);
-        const { texture: titleTexture } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, textColor, { wordWrap: false });
-        (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
+        const { texture: titleTex } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, textColor, { wordWrap: false });
+        (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
         panel.titleMesh.visible = true;
 
         // Description
         disposeTextureSafely(panel.descriptionMesh);
-        const { texture: descriptionTexture, totalHeight } = createTextTexture(metadata.description, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, { wordWrap: true });
-        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descriptionTexture;
+        const { texture: descTex, totalHeight } = createTextTexture(metadata.description, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, { wordWrap: true });
+        (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descTex;
         panel.descriptionMesh.visible = true;
         panel.currentDescription = metadata.description;
         panel.descriptionTextHeight = totalHeight;
@@ -458,11 +454,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Attributes
         disposeTextureSafely(panel.attributesMesh);
-        const { texture: attributesTexture } = createAttributesTextTexture(metadata.attributes || [], TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, textColor);
-        (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
+        const { texture: attrTex } = createAttributesTextTexture(metadata.attributes || [], TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, textColor);
+        (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
         panel.attributesMesh.visible = true;
 
-        // Update hover info state (so the overlay shows latest data when hovered)
+        // Update hover overlay info
         setHoverInfo({
           title: metadata.title,
           description: metadata.description,
@@ -476,7 +472,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         showError(`Failed to load NFT content for ${panel.wallName}.`);
       }
 
-      // Arrow visibility based on collection length
       const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
       panel.prevArrow.visible = showArrows;
       panel.nextArrow.visible = showArrows;
@@ -495,17 +490,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.background = new THREE.Color(0x0a0410);
     scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
 
+    // Ambient light for baseline visibility
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    scene.add(ambientLight);
+
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(renderer.domElement);
 
-    // Camera
+    // Camera – start in the middle of the main hall
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 1.6, 0);
+    camera.position.set(15, 1.6, 25); // center of the main exhibition area
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -557,7 +557,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     composer.addPass(fxaaPass);
 
     // -----------------------------------------------------------------
-    // Build floor & ceiling based on layout rooms
+    // Build floor & ceiling
     // -----------------------------------------------------------------
     const floorGroup = new THREE.Group();
     const ceilingGroup = new THREE.Group();
@@ -597,7 +597,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(ceilingGroup);
 
     // -----------------------------------------------------------------
-    // Build walls + panels from the layout
+    // Build walls + panels
     // -----------------------------------------------------------------
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
@@ -607,7 +607,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR, side: THREE.DoubleSide });
 
-    const textMatFactory = () => new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
+    const textMatFactory = () =>
+      new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
     const titleGeometry = new THREE.PlaneGeometry(4, 0.5);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
@@ -620,7 +621,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       // Wall mesh
       const wallGeo = new THREE.PlaneGeometry(wall.length, wall.height);
       const wallMat = new THREE.MeshStandardMaterial({
-        color: wall.material === MaterialId.WhitePlaster ? 0xffffff : wall.material === MaterialId.GraphiteMicrocement ? 0x111111 : 0x222222,
+        color:
+          wall.material === MaterialId.WhitePlaster
+            ? 0xffffff
+            : wall.material === MaterialId.GraphiteMicrocement
+            ? 0x111111
+            : 0x222222,
         side: THREE.DoubleSide,
         roughness: 0.9,
         metalness: 0.1,
@@ -631,7 +637,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(wallMesh);
       wallMeshesRef.current.set(wall.key, wallMesh);
 
-      // Collision segment (bottom edge)
+      // Collision segment
       const halfLen = wall.length / 2;
       const cosR = Math.cos(wall.rotationY);
       const sinR = Math.sin(wall.rotationY);
@@ -643,7 +649,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const z2 = cz - halfLen * sinR;
       collisionSegmentsRef.current.push([x1, z1, x2, z2]);
 
-      // Create panel if required
+      // Panel
       if (wall.hasPanel) {
         const { group: panelGroup, imageMesh } = createFramedPanel(2, 2, NEON_COLOR_MAGENTA);
         const offsetVec = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), wall.rotationY);
@@ -663,28 +669,40 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(prevArrow);
         scene.add(nextArrow);
 
-        // Text meshes
+        // Title
         const titleMesh = new THREE.Mesh(titleGeometry, textMatFactory());
         titleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
-        const titlePos = basePos.clone().addScaledVector(new THREE.Vector3(0, 1, 0), -1 - TITLE_HEIGHT / 2 - 0.1).addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
+        const titlePos = basePos
+          .clone()
+          .addScaledVector(new THREE.Vector3(0, 1, 0), -1 - TITLE_HEIGHT / 2 - 0.1)
+          .addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
         titleMesh.position.copy(titlePos);
         titleMesh.visible = false;
         scene.add(titleMesh);
 
+        // Description
         const descriptionMesh = new THREE.Mesh(descriptionGeometry, textMatFactory());
         descriptionMesh.rotation.copy(wallGroupRotation(wall.rotationY));
-        const descPos = basePos.clone().addScaledVector(rightVector(wall.rotationY), -TEXT_PANEL_OFFSET_X).addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
+        const descPos = basePos
+          .clone()
+          .addScaledVector(rightVector(wall.rotationY), -TEXT_PANEL_OFFSET_X)
+          .addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
         descriptionMesh.position.copy(descPos);
         descriptionMesh.visible = false;
         scene.add(descriptionMesh);
 
+        // Attributes
         const attributesMesh = new THREE.Mesh(attributesGeometry, textMatFactory());
         attributesMesh.rotation.copy(wallGroupRotation(wall.rotationY));
-        const attrPos = basePos.clone().addScaledVector(rightVector(wall.rotationY), TEXT_PANEL_OFFSET_X).addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
+        const attrPos = basePos
+          .clone()
+          .addScaledVector(rightVector(wall.rotationY), TEXT_PANEL_OFFSET_X)
+          .addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
         attributesMesh.position.copy(attrPos);
         attributesMesh.visible = false;
         scene.add(attributesMesh);
 
+        // Wall title
         const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, textMatFactory());
         wallTitleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const wallTitlePos = basePos.clone();
@@ -732,7 +750,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Lighting – fixed RectAreaLight lookAt syntax
+    // Lighting – from layout
     // -----------------------------------------------------------------
     GalleryLayout.lights.forEach(l => {
       let light: THREE.Light;
@@ -812,7 +830,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('keyup', onKeyUp);
 
     // -----------------------------------------------------------------
-    // Raycaster for UI interaction (panel selection, arrows, description scroll)
+    // Raycaster for UI interaction
     // -----------------------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
@@ -842,7 +860,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.domElement.addEventListener('click', onDocumentMouseDown);
 
     // -----------------------------------------------------------------
-    // Description scrolling (mouse wheel)
+    // Description scrolling
     // -----------------------------------------------------------------
     const onDocumentWheel = (event: WheelEvent) => {
       if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
@@ -867,7 +885,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('wheel', onDocumentWheel);
 
     // -----------------------------------------------------------------
-    // Animation loop (including optional ceiling shader)
+    // Animation loop
     // -----------------------------------------------------------------
     let prevTime = performance.now();
     const startTime = performance.now();
@@ -934,13 +952,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           if (panel) {
             if (tgt === panel.mesh) {
               currentTargetedPanel = panel;
-              // Update hover info for the overlay
-              setHoverInfo({
-                title: panel.titleMesh.visible ? (panel.titleMesh.material as any).map?.image?.src || undefined : undefined,
-                description: panel.descriptionMesh.visible ? panel.currentDescription : undefined,
-                collection: undefined, // will be set when panel content loads
-                tokenId: undefined,
-              });
+              // update overlay hover info now that we have panel data
+              setHoverInfo(prev => ({
+                ...prev,
+                // These values are already stored when content loads; we just keep them.
+              }));
             } else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
               currentTargetedArrow = tgt;
               (tgt.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
@@ -1026,7 +1042,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   // -----------------------------------------------------------------
-  // Window resize handling (uses variables defined earlier)
+  // Window resize handling
   // -----------------------------------------------------------------
   const onWindowResize = () => {
     const w = window.innerWidth;
@@ -1044,7 +1060,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   window.addEventListener('resize', onWindowResize);
 
   // -----------------------------------------------------------------
-  // UI – Market browser modal and hover info overlay
+  // UI – Market browser modal and overlay
   // -----------------------------------------------------------------
   return (
     <>
