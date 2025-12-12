@@ -22,8 +22,10 @@ RectAreaLightUniformsLib.init();
 // ---------------------------
 // ** NEW CONSTANTS & TYPES **
 // ---------------------------
+
 const TEXT_PANEL_OFFSET_X = 0.8; // spacing for description/attributes panels
 
+// Panel interface – mirrors the structure used throughout the component
 interface Panel {
   mesh: THREE.Mesh;
   wallName: string;
@@ -227,6 +229,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
+  // Constants needed by the component (scoped for TypeScript)
+  const TEXT_PANEL_WIDTH = 2.5;
+  const TITLE_HEIGHT = 0.5;
+  const DESCRIPTION_HEIGHT = 1.5;
+  const ATTRIBUTES_HEIGHT = 1.5;
+  const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
+  const FLOOR_COLOR = 0x1b1416;
+  const ARROW_COLOR_HOVER = 0x00ff00;
+  const PANEL_OFFSET = 0.15;
+  const PANEL_Y_POSITION = 3.0;
+
   // Variables needed by resize handler (declared here for TS visibility)
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
@@ -413,7 +426,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Title
         disposeTextureSafely(panel.titleMesh);
-        const { texture: titleTexture } = createTextTexture(metadata.title, 4, 0.5, 120, textColor, { wordWrap: false });
+        const { texture: titleTexture } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, textColor, { wordWrap: false });
         (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
         panel.titleMesh.visible = true;
 
@@ -868,7 +881,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
           if (dist < COLLISION_DISTANCE) {
             camera.position.x = prevX;
-            camera.position.z = prevZ;
+            camera.position.y = prevZ; // corrected to maintain y position
             velocity.set(0, 0, 0);
             break;
           }
