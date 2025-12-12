@@ -1,6 +1,5 @@
 import { fetchTotalSupply } from '@/utils/nftFetcher';
 import { supabase } from '@/integrations/supabase/client';
-import { GalleryLayout, Wall } from '@/scene/unrealUnityLayout'; // Import Wall type
 
 export interface NftCollection {
   name: string;
@@ -22,10 +21,10 @@ const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
 const DEFAULT_WALL_COLOR = '#4A235A'; 
 const DEFAULT_TEXT_COLOR = '#F4D03F'; 
 
-// --- Dynamic Panel Key Extraction ---
-const ALL_PANEL_KEYS = GalleryLayout.walls
-    .filter((wall: Wall) => wall.hasPanel)
-    .map((wall: Wall) => wall.key);
+// This part creates the structure of the gallery with all panel keys.
+// We'll initialize them as blank, and they will be populated from the database.
+const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+const NUM_SEGMENTS_TO_USE = 5;
 
 let galleryConfig: PanelConfig = {};
 
@@ -39,10 +38,36 @@ const createBlankPanel = (): NftCollection => ({
   text_color: DEFAULT_TEXT_COLOR,
 });
 
-// Initialize galleryConfig with all dynamic keys
-ALL_PANEL_KEYS.forEach(panelKey => {
+// Generate 20 panel configurations for the outer 50x50 walls
+for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
+  for (let j = 0; j < WALL_NAMES.length; j++) {
+    const wallNameBase = WALL_NAMES[j];
+    const panelKey = `${wallNameBase}-${i}`;
     galleryConfig[panelKey] = createBlankPanel();
-});
+  }
+}
+
+// Generate 16 panel configurations for inner 30x30 walls
+const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
+const NUM_INNER_SEGMENTS_TO_USE = 2;
+
+for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) {
+  for (let j = 0; j < INNER_WALL_NAMES.length; j++) {
+    const wallNameBase = INNER_WALL_NAMES[j];
+    const panelKeyInner = `${wallNameBase}-inner-${i}`;
+    const panelKeyOuter = `${wallNameBase}-outer-${i}`;
+    galleryConfig[panelKeyInner] = createBlankPanel();
+    galleryConfig[panelKeyOuter] = createBlankPanel();
+  }
+}
+
+// Generate 4 panel configurations for the central 10x10 walls
+const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
+for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
+  const wallNameBase = CENTER_WALL_NAMES[i];
+  const panelKey = `${wallNameBase}-0`;
+  galleryConfig[panelKey] = createBlankPanel();
+}
 
 // Function to initialize the gallery configuration from Supabase
 export async function initializeGalleryConfig() {
@@ -50,8 +75,7 @@ export async function initializeGalleryConfig() {
 
   if (error) {
     console.error("Failed to fetch gallery config from Supabase:", error);
-    // If error, ensure all panels are initialized with error state
-    for (const wallName of ALL_PANEL_KEYS) {
+    for (const wallName in galleryConfig) {
       galleryConfig[wallName] = { 
         name: 'Error Loading', 
         contractAddress: '', 
@@ -92,7 +116,7 @@ export async function initializeGalleryConfig() {
     }
   }
 
-  for (const panelKey of ALL_PANEL_KEYS) {
+  for (const panelKey in galleryConfig) {
     const configFromDb = dbConfigMap.get(panelKey);
 
     if (configFromDb && configFromDb.contract_address) {
@@ -120,10 +144,18 @@ export async function initializeGalleryConfig() {
         text_color: configFromDb.text_color || DEFAULT_TEXT_COLOR,
       };
     } else {
-      galleryConfig[panelKey] = createBlankPanel();
+      galleryConfig[panelKey] = {
+        name: 'Blank Panel',
+        contractAddress: '',
+        tokenIds: [],
+        currentIndex: 0,
+        show_collection: true,
+        wall_color: DEFAULT_WALL_COLOR,
+        text_color: DEFAULT_TEXT_COLOR,
+      };
     }
   }
-  console.log(`Gallery configuration fully initialized from Supabase. Total panels: ${ALL_PANEL_KEYS.length}`);
+  console.log(`Gallery configuration fully initialized from Supabase.`);
 }
 
 export const GALLERY_PANEL_CONFIG = galleryConfig;
