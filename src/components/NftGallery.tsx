@@ -1049,7 +1049,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             const clampedY = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalTargetY + PLAYER_HEIGHT));
             
             // Smoothly interpolate the camera's Y position towards the target Y
-            camera.position.y += (clampedY - camera.position.y) * 0.1; // 10% interpolation
+            camera.position.y += (clampedY - camera.position.y) * 0.5; // Increased interpolation
             
         } else {
             // Gravity/Floor snapping outside the staircase zone
@@ -1061,7 +1061,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 }
             }
             // Snap player to the current floor level
-            camera.position.y += (targetFloorY + PLAYER_HEIGHT - camera.position.y) * 0.1;
+            camera.position.y += (targetFloorY + PLAYER_HEIGHT - camera.position.y) * 0.5; // Increased interpolation
         }
 
 
