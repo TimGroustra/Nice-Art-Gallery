@@ -229,16 +229,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
-  // Constants needed by the component (scoped for TypeScript)
+  // Constants used throughout the component
   const TEXT_PANEL_WIDTH = 2.5;
   const TITLE_HEIGHT = 0.5;
   const DESCRIPTION_HEIGHT = 1.5;
   const ATTRIBUTES_HEIGHT = 1.5;
   const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
+  const TITLE_PANEL_WIDTH = 4.0; // added missing constant
   const FLOOR_COLOR = 0x1b1416;
+  const ARROW_COLOR = 0xcccccc; // base arrow colour
   const ARROW_COLOR_HOVER = 0x00ff00;
+  const ARROW_PANEL_OFFSET = 1.5; // offset for arrow placement
   const PANEL_OFFSET = 0.15;
   const PANEL_Y_POSITION = 3.0;
+  const TEXT_DEPTH_OFFSET = 0.16; // depth offset for text panels
+  const PLAYER_RADIUS = 0.5;
+  const WALL_THICKNESS = 0.1;
+  const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
+  const NEON_COLOR_MAGENTA = 0xff1bb3; // ensure defined (already defined earlier but re‑exposed)
 
   // Variables needed by resize handler (declared here for TS visibility)
   let camera: THREE.PerspectiveCamera;
@@ -723,7 +731,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         case 'area':
           const rect = new THREE.RectAreaLight(new THREE.Color(...l.color), l.intensity / 500, 2, 2);
           rect.position.set(...l.position);
-          // corrected syntax below
           rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0])));
           scene.add(rect);
           light = rect;
@@ -881,7 +888,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
           if (dist < COLLISION_DISTANCE) {
             camera.position.x = prevX;
-            camera.position.y = prevZ; // corrected to maintain y position
+            camera.position.z = prevZ;
             velocity.set(0, 0, 0);
             break;
           }
