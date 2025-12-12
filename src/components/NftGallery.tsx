@@ -17,22 +17,29 @@ import { MarketBrowserRefined } from './MarketBrowserRefined';
 import { GalleryInfo } from './GalleryInfo';
 import { GalleryLayout, MaterialId } from '@/scene/unrealUnityLayout';
 
-// Initialize post‑processing utilities
+// ---------------------------------------------------------------------
+// Initialize utilities
+// ---------------------------------------------------------------------
 RectAreaLightUniformsLib.init();
 
-// ---------------------------
-// ** CONSTANTS & TEXTURES **
-// ---------------------------
-const TEXT_PANEL_OFFSET_X = 0.8; // spacing for description/attributes panels
-const TEXT_DEPTH_OFFSET = 0.05; // Offset text panels slightly from the wall
+// ---------------------------------------------------------------------
+// Visual constants – lighter stone colour & brighter ambience
+// ---------------------------------------------------------------------
+const TEXT_PANEL_OFFSET_X = 0.8;
+const TEXT_DEPTH_OFFSET = 0.05;
 
-// Load a stone texture once (reuse for all stone materials)
+// Load a high‑contrast stone texture (repeat less for clearer look)
 const stoneTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/stone.jpg');
 stoneTexture.wrapS = THREE.RepeatWrapping;
 stoneTexture.wrapT = THREE.RepeatWrapping;
-stoneTexture.repeat.set(4, 4); // repeat for a larger surface
+stoneTexture.repeat.set(2, 2); // fewer repeats → more visible grain
 
-// Panel interface – mirrors the structure used throughout the component
+// Light colour for emissive elements (soft warm glow)
+const EMISSIVE_STONE = 0xffffff;
+
+// ---------------------------------------------------------------------
+// Panel interface (unchanged)
+// ---------------------------------------------------------------------
 interface Panel {
   mesh: THREE.Mesh;
   wallName: string;
@@ -53,48 +60,45 @@ interface Panel {
   gifStopFunction: (() => void) | null;
 }
 
-// -------------------------------------------------------------------
-// Helper: creates the framed panel (backboard, frame, image plane)
-// -------------------------------------------------------------------
+// ---------------------------------------------------------------------
+// Helper: creates a framed panel (backboard, frame, image plane)
+// ---------------------------------------------------------------------
 function createFramedPanel(width: number, height: number, emissiveColor: number) {
   const group = new THREE.Group();
 
-  // Backboard (dark matte)
-  const backGeo = new THREE.PlaneGeometry(width, height);
+  // Backboard (light matte)
   const backMat = new THREE.MeshStandardMaterial({
-    color: 0x0a0a0a,
-    roughness: 0.8,
+    color: 0xf5f5f5,
+    roughness: 0.4,
     metalness: 0.05,
     side: THREE.DoubleSide,
   });
-  const back = new THREE.Mesh(backGeo, backMat);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(width, height), backMat);
   back.position.set(0, 0, 0.01);
   group.add(back);
 
-  // Frame rim (emissive)
-  const rimDepth = 0.06;
+  // Emissive frame rim (soft white)
   const rimMat = new THREE.MeshStandardMaterial({
-    color: 0x0b0b0b,
+    color: 0xe0e0e0,
     emissive: emissiveColor,
-    emissiveIntensity: 1.6,
-    roughness: 0.25,
-    metalness: 0.4,
+    emissiveIntensity: 0.8,
+    roughness: 0.3,
+    metalness: 0.2,
   });
-  const rim = new THREE.Mesh(new THREE.BoxGeometry(width + 0.12, height + 0.12, rimDepth), rimMat);
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(width + 0.12, height + 0.12, 0.06), rimMat);
   rim.position.set(0, 0, -0.02);
   group.add(rim);
 
-  // Image plane (will receive textures)
+  // Image plane (receives textures)
   const imgMat = new THREE.MeshBasicMaterial({ color: 0x222122, side: THREE.DoubleSide });
-  const imgGeo = new THREE.PlaneGeometry(width - 0.2, height - 0.2);
-  const imageMesh = new THREE.Mesh(imgGeo, imgMat);
+  const imageMesh = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.2, height - 0.2), imgMat);
   imageMesh.position.set(0, 0, 0.02);
   group.add(imageMesh);
 
-  // Neon border lines (optional visual flair)
+  // Neon border lines (subtle)
   const neonMat = new THREE.MeshStandardMaterial({
     emissive: emissiveColor,
-    emissiveIntensity: 1.4,
+    emissiveIntensity: 0.6,
     roughness: 0.2,
   });
   const horizGeom = new THREE.BoxGeometry(width + 0.05, 0.03, 0.015);
@@ -110,11 +114,11 @@ function createFramedPanel(width: number, height: number, emissiveColor: number)
   group.add(top, bottom, left, right);
 
   return { group, imageMesh };
-}
+};
 
-// -------------------------------------------------------------------
+// ---------------------------------------------------------------------
 // Text texture helpers (unchanged)
-// -------------------------------------------------------------------
+// ---------------------------------------------------------------------
 const createTextTexture = (
   text: string,
   width: number,
@@ -125,112 +129,109 @@ const createTextTexture = (
 ): { texture: THREE.CanvasTexture; totalHeight: number } => {
   const { scrollY = 0, wordWrap = false } = options;
   const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')), totalHeight: 0 };
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { texture: new THREE.CanvasTexture(document.createElement('canvas')), totalHeight: 0 };
 
-  const resolution = 512;
-  canvas.width = resolution * (width / height);
-  canvas.height = resolution;
+  const res = 512;
+  canvas.width = res * (width / height);
+  canvas.height = res;
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  const actualFontSize = fontSize;
-  context.font = `bold ${actualFontSize}px Arial`;
-  context.fillStyle = color;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.fillStyle = color;
 
-  const padding = 40;
-  const lineHeight = actualFontSize * 1.2;
-  let totalHeight = 0;
+  const pad = 40;
+  const lineH = fontSize * 1.2;
+  let total = 0;
 
   if (wordWrap) {
-    context.textAlign = 'left';
-    context.textBaseline = 'top';
-    let y = padding;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    let y = pad;
     const words = text.split(' ');
     let line = '';
-    const maxTextWidth = canvas.width - 2 * padding;
-    for (let n = 0; n < words.length; n++) {
-      const testLine = line + words[n] + ' ';
-      const metrics = context.measureText(testLine);
-      if (metrics.width > maxTextWidth && n > 0) {
-        context.fillText(line, padding, y - scrollY);
-        line = words[n] + ' ';
-        y += lineHeight;
+    const maxW = canvas.width - 2 * pad;
+    for (let i = 0; i < words.length; i++) {
+      const test = line + words[i] + ' ';
+      if (ctx.measureText(test).width > maxW && i > 0) {
+        ctx.fillText(line, pad, y - scrollY);
+        line = words[i] + ' ';
+        y += lineH;
       } else {
-        line = testLine;
+        line = test;
       }
     }
-    context.fillText(line, padding, y - scrollY);
-    totalHeight = y + lineHeight - padding;
+    ctx.fillText(line, pad, y - scrollY);
+    total = y + lineH - pad;
   } else {
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(text, canvas.width / 2, canvas.height / 2);
-    totalHeight = lineHeight;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+    total = lineH;
   }
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
-  return { texture, totalHeight };
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return { texture: tex, totalHeight: total };
 };
 
 const createAttributesTextTexture = (
-  attributes: NftAttribute[],
+  attrs: NftAttribute[],
   width: number,
   height: number,
   fontSize: number,
   color: string = 'white'
 ): { texture: THREE.CanvasTexture } => {
   const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  if (!context) return { texture: new THREE.CanvasTexture(document.createElement('canvas')) };
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return { texture: new THREE.CanvasTexture(document.createElement('canvas')) };
 
-  const resolution = 512;
-  canvas.width = resolution * (width / height);
-  canvas.height = resolution;
+  const res = 512;
+  canvas.width = res * (width / height);
+  canvas.height = res;
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.font = `bold ${fontSize}px Arial`;
-  context.fillStyle = color;
-  context.textAlign = 'left';
-  context.textBaseline = 'top';
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.font = `bold ${fontSize}px Arial`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
 
-  const padding = 40;
-  const lineHeight = fontSize * 1.2;
-  let y = padding;
-  const maxTextWidth = canvas.width - 2 * padding;
+  const pad = 40;
+  const lineH = fontSize * 1.2;
+  let y = pad;
+  const maxW = canvas.width - 2 * pad;
 
-  if (!attributes || attributes.length === 0) {
-    context.fillText('No attributes found.', padding, y);
+  if (!attrs || attrs.length === 0) {
+    ctx.fillText('No attributes found.', pad, y);
   } else {
-    attributes.forEach(attr => {
+    attrs.forEach(attr => {
       if (attr.trait_type && attr.value) {
         const line = `${attr.trait_type}: ${attr.value}`;
         const words = line.split(' ');
-        let currentLine = '';
-        for (let n = 0; n < words.length; n++) {
-          const testLine = currentLine + words[n] + ' ';
-          const metrics = context.measureText(testLine);
-          if (metrics.width > maxTextWidth && n > 0) {
-            context.fillText(currentLine, padding, y);
-            currentLine = words[n] + ' ';
-            y += lineHeight;
+        let cur = '';
+        for (let i = 0; i < words.length; i++) {
+          const test = cur + words[i] + ' ';
+          if (ctx.measureText(test).width > maxW && i > 0) {
+            ctx.fillText(cur, pad, y);
+            cur = words[i] + ' ';
+            y += lineH;
           } else {
-            currentLine = testLine;
+            cur = test;
           }
         }
-        context.fillText(currentLine, padding, y);
-        y += lineHeight;
+        ctx.fillText(cur, pad, y);
+        y += lineH;
       }
     });
   }
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  texture.magFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
-  return { texture };
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.needsUpdate = true;
+  return { texture: tex };
 };
 
 interface NftGalleryProps {
@@ -249,7 +250,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
-  // Click‑activated info panel state
   const [selectedInfo, setSelectedInfo] = useState<{
     title?: string;
     description?: string;
@@ -257,39 +257,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   } | null>(null);
 
-  // Constants
+  // Layout constants (unchanged)
   const TEXT_PANEL_WIDTH = 2.5;
   const TITLE_HEIGHT = 0.5;
   const DESCRIPTION_HEIGHT = 1.5;
   const ATTRIBUTES_HEIGHT = 1.5;
   const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
   const TITLE_PANEL_WIDTH = 4.0;
-  const ARROW_COLOR = 0xcccccc;
+  const ARROW_COLOR = 0x777777;
   const ARROW_COLOR_HOVER = 0x00ff00;
   const ARROW_PANEL_OFFSET = 1.5;
   const PANEL_OFFSET = 0.15;
   const PLAYER_RADIUS = 0.5;
 
-  const T = GalleryLayout.footprint.wallThickness; // 0.3
-  const HALF_T = T / 2; // 0.15
+  const T = GalleryLayout.footprint.wallThickness;
+  const HALF_T = T / 2;
   const COLLISION_DISTANCE = PLAYER_RADIUS + HALF_T;
   const NEON_COLOR_MAGENTA = 0xff1bb3;
-  const PLAYER_HEIGHT = 1.6; // eye level
+  const PLAYER_HEIGHT = 1.6;
 
   const L = GalleryLayout.footprint.width;
   const CENTER_X = L / 2;
   const CENTER_Z = L / 2;
-  const STAIR_INNER_R = 3; // from layout
-  const STAIR_OUTER_R = 4.6; // from layout
-  const STAIR_ZONE_R_MIN = STAIR_INNER_R - 0.5; // 2.5
-  const STAIR_ZONE_R_MAX = STAIR_OUTER_R + 0.5; // 5.1
+  const STAIR_INNER_R = 3;
+  const STAIR_OUTER_R = 4.6;
+  const STAIR_ZONE_R_MIN = STAIR_INNER_R - 0.5;
+  const STAIR_ZONE_R_MAX = STAIR_OUTER_R + 0.5;
 
-  const TOTAL_STAIR_HEIGHT = 10.5; // F1 to F3
+  const TOTAL_STAIR_HEIGHT = 10.5;
   const TOTAL_ROTATIONS = 3;
   const TOTAL_ANGLE = TOTAL_ROTATIONS * 2 * Math.PI;
   const RISE_PER_RADIAN = TOTAL_STAIR_HEIGHT / TOTAL_ANGLE;
 
-  // Resize‑related globals (will be initialised later)
+  // Globals set later
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
   let composer: EffectComposer;
@@ -300,24 +300,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   // Video / GIF handling (unchanged)
   // -----------------------------------------------------------------
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
-    panelsRef.current.forEach(panel => {
-      if (panel.videoElement) {
+    panelsRef.current.forEach(p => {
+      if (p.videoElement) {
         if (shouldPlay) {
-          const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
-          if (controlsLocked) {
-            panel.videoElement.play().catch(e => console.warn('Video playback prevented:', e));
-          }
+          const locked = (window as any).galleryControls?.isLocked?.() ?? false;
+          if (locked) p.videoElement.play().catch(e => console.warn('Video playback prevented:', e));
         } else {
-          panel.videoElement.pause();
+          p.videoElement.pause();
         }
       }
     });
   }, []);
 
-  const isVideoContent = (contentType: string, url: string) =>
-    !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
-  const isGifContent = (contentType: string, url: string) =>
-    !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
+  const isVideoContent = (type: string, url: string) =>
+    !!(type.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
+  const isGifContent = (type: string, url: string) =>
+    !!(type === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
   const disposeTextureSafely = (mesh: THREE.Mesh) => {
     if (mesh.material instanceof THREE.MeshBasicMaterial) {
@@ -330,9 +328,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   };
 
   const loadTexture = useCallback(
-    async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
-      const isVideo = isVideoContent(contentType, url);
-      const isGif = isGifContent(contentType, url);
+    async (url: string, panel: Panel, type: string): Promise<THREE.Texture | THREE.VideoTexture> => {
+      const video = isVideoContent(type, url);
+      const gif = isGifContent(type, url);
 
       if (panel.videoElement) {
         panel.videoElement.pause();
@@ -344,38 +342,38 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panel.gifStopFunction = null;
       }
 
-      if (isVideo) {
+      if (video) {
         return new Promise(resolve => {
-          let videoEl = panel.videoElement;
-          if (!videoEl) {
-            videoEl = document.createElement('video');
-            videoEl.playsInline = true;
-            videoEl.autoplay = true;
-            videoEl.loop = true;
-            videoEl.muted = true;
-            videoEl.style.display = 'none';
-            videoEl.crossOrigin = 'anonymous';
-            panel.videoElement = videoEl;
+          let vid = panel.videoElement;
+          if (!vid) {
+            vid = document.createElement('video');
+            vid.playsInline = true;
+            vid.autoplay = true;
+            vid.loop = true;
+            vid.muted = true;
+            vid.style.display = 'none';
+            vid.crossOrigin = 'anonymous';
+            panel.videoElement = vid;
           }
-          videoEl.src = url;
-          videoEl.load();
+          vid.src = url;
+          vid.load();
           if ((window as any).galleryControls?.isLocked?.()) {
-            videoEl.play().catch(e => console.warn('Video playback prevented:', e));
+            vid.play().catch(e => console.warn('Video playback prevented:', e));
           }
-          const videoTexture = new THREE.VideoTexture(videoEl);
-          videoTexture.minFilter = THREE.LinearFilter;
-          videoTexture.magFilter = THREE.LinearFilter;
-          resolve(videoTexture);
+          const tex = new THREE.VideoTexture(vid);
+          tex.minFilter = THREE.LinearFilter;
+          tex.magFilter = THREE.LinearFilter;
+          resolve(tex);
         });
       }
 
-      if (isGif) {
+      if (gif) {
         try {
           const { texture, stop } = await createGifTexture(url);
           panel.gifStopFunction = stop;
           return texture;
-        } catch (error) {
-          console.error('GIF decode failed, falling back to static image:', error);
+        } catch (e) {
+          console.error('GIF decode failed, falling back to static image:', e);
         }
       }
 
@@ -384,11 +382,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         loader.setCrossOrigin('anonymous');
         loader.load(
           url,
-          texture => resolve(texture),
+          tex => resolve(tex),
           undefined,
           err => {
             console.error('Error loading texture:', url, err);
-            showError(`Failed to load image: ${url.substring(0, 50)}...`);
+            showError(`Failed to load image: ${url.slice(0, 50)}...`);
             reject(err);
           }
         );
@@ -398,18 +396,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   );
 
   // -----------------------------------------------------------------
-  // Update panel content (unchanged except types)
+  // Update panel content (unchanged aside from colour handling)
   // -----------------------------------------------------------------
   const updatePanelContent = useCallback(
     async (panel: Panel, source: NftSource | null) => {
-      const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
-      const collectionName = collectionConfig?.name || '...';
-      const textColor = collectionConfig?.text_color || 'white';
+      const cfg = GALLERY_PANEL_CONFIG[panel.wallName];
+      const colName = cfg?.name || '...';
+      const txtColor = cfg?.text_color || 'white';
 
       // Wall title
       disposeTextureSafely(panel.wallTitleMesh);
-      const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, textColor, { wordWrap: false });
-      (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
+      const { texture: wallTitleTex } = createTextTexture(colName, 8, 0.75, 120, txtColor, { wordWrap: false });
+      (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTex;
       panel.wallTitleMesh.visible = true;
 
       // Reset main mesh
@@ -424,9 +422,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.metadataUrl = '';
       panel.isVideo = false;
       panel.isGif = false;
-      if (panel.titleMesh) panel.titleMesh.visible = false;
-      if (panel.descriptionMesh) panel.descriptionMesh.visible = false;
-      if (panel.attributesMesh) panel.attributesMesh.visible = false;
+      panel.titleMesh.visible = false;
+      panel.descriptionMesh.visible = false;
+      panel.attributesMesh.visible = false;
 
       if (panel.videoElement) {
         panel.videoElement.pause();
@@ -439,15 +437,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
 
       if (!source || source.contractAddress === '') {
-        const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+        const showArrows = cfg && cfg.tokenIds.length > 1;
         panel.prevArrow.visible = showArrows;
         panel.nextArrow.visible = showArrows;
         return;
       }
 
-      const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+      const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
       if (!metadata) {
-        console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) – metadata fetch failed.`);
         if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
           const { texture: errTex } = createTextTexture('NFT Unavailable', 2, 2, 80, 'red', { wordWrap: false });
           panel.mesh.material.map = errTex;
@@ -458,28 +455,28 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       try {
         const contentUrl = metadata.contentUrl;
-        const isVideo = isVideoContent(metadata.contentType, contentUrl);
-        const isGif = isGifContent(metadata.contentType, contentUrl);
-        const texture = await loadTexture(contentUrl, panel, metadata.contentType);
+        const video = isVideoContent(metadata.contentType, contentUrl);
+        const gif = isGifContent(metadata.contentType, contentUrl);
+        const tex = await loadTexture(contentUrl, panel, metadata.contentType);
 
         if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          panel.mesh.material.map = texture;
+          panel.mesh.material.map = tex;
           panel.mesh.material.color.set(0xffffff);
         }
 
         panel.metadataUrl = metadata.source;
-        panel.isVideo = isVideo;
-        panel.isGif = isGif;
+        panel.isVideo = video;
+        panel.isGif = gif;
 
         // Title
         disposeTextureSafely(panel.titleMesh);
-        const { texture: titleTex } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, textColor, { wordWrap: false });
+        const { texture: titleTex } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, txtColor, { wordWrap: false });
         (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTex;
         panel.titleMesh.visible = true;
 
         // Description
         disposeTextureSafely(panel.descriptionMesh);
-        const { texture: descTex, totalHeight } = createTextTexture(metadata.description, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, { wordWrap: true });
+        const { texture: descTex, totalHeight } = createTextTexture(metadata.description, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, txtColor, { wordWrap: true });
         (panel.descriptionMesh.material as THREE.MeshBasicMaterial).map = descTex;
         panel.descriptionMesh.visible = true;
         panel.currentDescription = metadata.description;
@@ -488,17 +485,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Attributes
         disposeTextureSafely(panel.attributesMesh);
-        const { texture: attrTex } = createAttributesTextTexture(metadata.attributes || [], TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, textColor);
+        const { texture: attrTex } = createAttributesTextTexture(metadata.attributes || [], TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT, 40, txtColor);
         (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
         panel.attributesMesh.visible = true;
 
-        showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
-      } catch (error) {
-        console.error(`Error loading NFT content for ${panel.wallName}:`, error);
+        showSuccess(video ? `Loaded video NFT: ${metadata.title}` : gif ? `Loaded GIF NFT: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
+      } catch (e) {
+        console.error(`Error loading NFT for ${panel.wallName}:`, e);
         showError(`Failed to load NFT content for ${panel.wallName}.`);
       }
 
-      const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+      const showArrows = cfg && cfg.tokenIds.length > 1;
       panel.prevArrow.visible = showArrows;
       panel.nextArrow.visible = showArrows;
     },
@@ -506,19 +503,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   );
 
   // -----------------------------------------------------------------
-  // Build walls, panels, and collision data from the layout
+  // Scene setup
   // -----------------------------------------------------------------
   useEffect(() => {
     if (!mountRef.current) return;
-
     const container = mountRef.current;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0410);
-    scene.fog = new THREE.FogExp2(0x0a0410, 0.01);
+    scene.background = new THREE.Color(0xf0f0f0); // lighter background
+    scene.fog = new THREE.FogExp2(0xf0f0f0, 0.015); // light fog
 
-    // Ambient light – softer to reduce harsh white
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
-    scene.add(ambientLight);
+    // Brighter ambient light
+    const ambient = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(ambient);
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -529,7 +525,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(renderer.domElement);
 
-    // Camera – start on Floor 1
+    // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(CENTER_X, PLAYER_HEIGHT, CENTER_Z - STAIR_ZONE_R_MAX);
 
@@ -539,17 +535,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       lockControls: () => controls.lock(),
       hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
       isMuted: () => {
-        const activeVideos = panelsRef.current.filter(p => p.videoElement);
-        if (activeVideos.length === 0) return true;
-        return activeVideos.every(p => p.videoElement!.muted);
+        const active = panelsRef.current.filter(p => p.videoElement);
+        return active.length === 0 ? true : active.every(v => v.videoElement!.muted);
       },
       toggleMute: () => {
-        const activeVideos = panelsRef.current.filter(p => p.videoElement);
-        if (activeVideos.length > 0) {
-          const muted = activeVideos[0].videoElement!.muted;
-          activeVideos.forEach(p => {
-            p.videoElement!.muted = !muted;
-          });
+        const active = panelsRef.current.filter(p => p.videoElement);
+        if (active.length) {
+          const muted = active[0].videoElement!.muted;
+          active.forEach(p => (p.videoElement!.muted = !muted));
         }
       },
       isLocked: () => controls.isLocked,
@@ -571,85 +564,59 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     composer = new EffectComposer(renderer);
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.4, 0.85);
-    bloomPass.threshold = 0.2;
-    bloomPass.strength = 1.0;
-    bloomPass.radius = 0.7;
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.4, 0.6);
+    bloomPass.threshold = 0.3;
+    bloomPass.strength = 0.8;
+    bloomPass.radius = 0.5;
     composer.addPass(bloomPass);
     fxaaPass = new ShaderPass(FXAAShader);
-    const pixelRatio = Math.min(window.devicePixelRatio, 2);
-    fxaaPass.material.uniforms['resolution'].value.x = 1 / (window.innerWidth * pixelRatio);
-    fxaaPass.material.uniforms['resolution'].value.y = 1 / (window.innerHeight * pixelRatio);
+    const pr = Math.min(window.devicePixelRatio, 2);
+    fxaaPass.material.uniforms['resolution'].value.x = 1 / (window.innerWidth * pr);
+    fxaaPass.material.uniforms['resolution'].value.y = 1 / (window.innerHeight * pr);
     composer.addPass(fxaaPass);
 
     // -----------------------------------------------------------------
-    // Material Factory – now uses stone texture for floors and walls
+    // Material factory – now always stone with a light colour
     // -----------------------------------------------------------------
-    const materialMap = new Map<MaterialId, THREE.Material>();
+    const materialCache = new Map<MaterialId, THREE.Material>();
     const getMaterial = (id: MaterialId, height: number) => {
-      if (materialMap.has(id)) return materialMap.get(id)!;
-
+      if (materialCache.has(id)) return materialCache.get(id)!;
       let mat: THREE.Material;
-      switch (id) {
-        case MaterialId.WhitePlaster:
-        case MaterialId.PolishedConcrete:
-          // Stone look for floors and walls
-          mat = new THREE.MeshStandardMaterial({
-            map: stoneTexture,
-            color: 0x888888,
-            roughness: 0.7,
-            metalness: 0.1,
-          });
-          break;
-        case MaterialId.GraphiteMicrocement:
-          mat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.05 });
-          break;
-        case MaterialId.DarkResin:
-          mat = new THREE.MeshStandardMaterial({ color: 0x0a0410, roughness: 0.1, metalness: 0.9 });
-          break;
-        case MaterialId.Glass:
-          mat = new THREE.MeshStandardMaterial({
-            color: 0xcccccc,
-            transparent: true,
-            opacity: 0.2,
-            roughness: 0.1,
-            metalness: 0.9,
-            side: THREE.DoubleSide,
-          });
-          break;
-        default:
-          mat = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.5 });
-      }
-      materialMap.set(id, mat);
+      // All wall‑type materials share the same stone appearance
+      mat = new THREE.MeshStandardMaterial({
+        map: stoneTexture,
+        color: 0xe0e0e0, // light stone colour
+        roughness: 0.5,
+        metalness: 0.1,
+      });
+      materialCache.set(id, mat);
       return mat;
     };
 
     // -----------------------------------------------------------------
-    // Build floors, ceilings, and walls (floors now get stone material)
+    // Floors & ceilings (stone material)
     // -----------------------------------------------------------------
     const floorGroup = new THREE.Group();
     const ceilingGroup = new THREE.Group();
-    const ATRIUM_R = 11; // Must match the radius used in unrealUnityLayout.ts
+    const ATRIUM_R = 11;
 
     GalleryLayout.rooms.forEach(room => {
-      const [roomW, roomD] = room.size;
+      const [w, d] = room.size;
       const [x, y, z] = room.position;
 
       let floorGeo: THREE.PlaneGeometry | THREE.ShapeGeometry;
       if (room.name === 'Ground Floor Hall') {
-        // Full floor plane
-        floorGeo = new THREE.PlaneGeometry(roomW, roomD);
+        floorGeo = new THREE.PlaneGeometry(w, d);
       } else {
-        // Ring shape with central atrium
         const shape = new THREE.Shape();
         shape.moveTo(0, 0);
         shape.lineTo(0, L);
         shape.lineTo(L, L);
         shape.lineTo(L, 0);
         shape.lineTo(0, 0);
-        const holePath = new THREE.Path();
-        holePath.absarc(L / 2, L / 2, ATRIUM_R, 0, Math.PI * 2, true);
-        shape.holes.push(holePath);
+        const hole = new THREE.Path();
+        hole.absarc(L / 2, L / 2, ATRIUM_R, 0, Math.PI * 2, true);
+        shape.holes.push(hole);
         floorGeo = new THREE.ShapeGeometry(shape);
       }
 
@@ -659,58 +626,58 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       floor.position.set(x, room.floorY, z + L);
       floorGroup.add(floor);
 
-      // Ceilings remain simple white plaster
-      const ceilingGeo = new THREE.PlaneGeometry(roomW, roomD);
-      const ceilingMat = getMaterial(MaterialId.WhitePlaster, room.ceilingHeight);
-      const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
+      // Simple white ceiling
+      const ceilMat = getMaterial(MaterialId.WhitePlaster, room.ceilingHeight);
+      const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(w, d), ceilMat);
       ceiling.rotation.x = Math.PI / 2;
-      ceiling.position.set(x + roomW / 2, room.floorY + room.ceilingHeight, z + roomD / 2);
+      ceiling.position.set(x + w / 2, room.floorY + room.ceilingHeight, z + d / 2);
       ceilingGroup.add(ceiling);
     });
     scene.add(floorGroup);
     scene.add(ceilingGroup);
 
     // -----------------------------------------------------------------
-    // Build walls + panels (walls now use stone texture)
+    // Walls + panels (stone material)
     // -----------------------------------------------------------------
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
     arrowShape.lineTo(0.3, 0);
     arrowShape.lineTo(0, -0.15);
     arrowShape.lineTo(0, 0.15);
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR, side: THREE.DoubleSide });
+    const arrowGeom = new THREE.ShapeGeometry(arrowShape);
+    const arrowMat = new THREE.MeshBasicMaterial({ color: ARROW_COLOR, side: THREE.DoubleSide });
 
     const textMatFactory = () =>
       new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
-    const titleGeometry = new THREE.PlaneGeometry(4, 0.5);
-    const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
-    const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
-    const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
+
+    const titleGeom = new THREE.PlaneGeometry(4, 0.5);
+    const descGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
+    const attrGeom = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
+    const wallTitleGeom = new THREE.PlaneGeometry(8, 0.75);
 
     panelsRef.current = [];
     collisionSegmentsRef.current = [];
 
     GalleryLayout.walls.forEach(wall => {
       const wallMat = getMaterial(wall.material, wall.height);
-      const wallGeo = new THREE.PlaneGeometry(wall.length, wall.height);
-      const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+      const wallGeom = new THREE.PlaneGeometry(wall.length, wall.height);
+      const wallMesh = new THREE.Mesh(wallGeom, wallMat);
       wallMesh.position.set(...wall.position);
       wallMesh.rotation.y = wall.rotationY;
       scene.add(wallMesh);
       wallMeshesRef.current.set(wall.key, wallMesh);
 
-      // Collision segment for perimeter / octagon walls
+      // Collision segments for perimeter / octagon walls
       if (wall.key.startsWith('wall-') || wall.key.startsWith('octagon-')) {
-        const halfLen = wall.length / 2;
-        const cosR = Math.cos(wall.rotationY);
-        const sinR = Math.sin(wall.rotationY);
+        const half = wall.length / 2;
+        const cos = Math.cos(wall.rotationY);
+        const sin = Math.sin(wall.rotationY);
         const cx = wall.position[0];
         const cz = wall.position[2];
-        const x1 = cx - halfLen * cosR;
-        const z1 = cz + halfLen * sinR;
-        const x2 = cx + halfLen * cosR;
-        const z2 = cz - halfLen * sinR;
+        const x1 = cx - half * cos;
+        const z1 = cz + half * sin;
+        const x2 = cx + half * cos;
+        const z2 = cz - half * sin;
         collisionSegmentsRef.current.push([x1, z1, x2, z2]);
       }
 
@@ -720,9 +687,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         panelGroup.rotation.y = wall.rotationY;
         scene.add(panelGroup);
 
-        const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+        const prevArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
         prevArrow.rotation.set(0, wall.rotationY + Math.PI, 0);
-        const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+        const nextArrow = new THREE.Mesh(arrowGeom, arrowMat.clone());
         nextArrow.rotation.copy(wallGroupRotation(wall.rotationY));
 
         const basePos = panelGroup.position.clone();
@@ -737,8 +704,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(prevArrow);
         scene.add(nextArrow);
 
-        // Title
-        const titleMesh = new THREE.Mesh(titleGeometry, textMatFactory());
+        // Title mesh
+        const titleMesh = new THREE.Mesh(titleGeom, textMatFactory());
         titleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const titlePos = basePos
           .clone()
@@ -748,37 +715,37 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         titleMesh.visible = false;
         scene.add(titleMesh);
 
-        // Description
-        const descriptionMesh = new THREE.Mesh(descriptionGeometry, textMatFactory());
-        descriptionMesh.rotation.copy(wallGroupRotation(wall.rotationY));
+        // Description mesh
+        const descMesh = new THREE.Mesh(descGeom, textMatFactory());
+        descMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const descPos = basePos
           .clone()
           .addScaledVector(rightVector(wall.rotationY), -TEXT_PANEL_OFFSET_X)
           .addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
-        descriptionMesh.position.copy(descPos);
-        descriptionMesh.visible = false;
-        scene.add(descriptionMesh);
+        descMesh.position.copy(descPos);
+        descMesh.visible = false;
+        scene.add(descMesh);
 
-        // Attributes
-        const attributesMesh = new THREE.Mesh(attributesGeometry, textMatFactory());
-        attributesMesh.rotation.copy(wallGroupRotation(wall.rotationY));
+        // Attributes mesh
+        const attrMesh = new THREE.Mesh(attrGeom, textMatFactory());
+        attrMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const attrPos = basePos
           .clone()
           .addScaledVector(rightVector(wall.rotationY), TEXT_PANEL_OFFSET_X)
           .addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
-        attributesMesh.position.copy(attrPos);
-        attributesMesh.visible = false;
-        scene.add(attributesMesh);
+        attrMesh.position.copy(attrPos);
+        attrMesh.visible = false;
+        scene.add(attrMesh);
 
-        // Wall title (above the panel)
-        const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, textMatFactory());
+        // Wall title (above panel)
+        const wallTitleMesh = new THREE.Mesh(wallTitleGeom, textMatFactory());
         wallTitleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         wallTitleMesh.position.set(wall.position[0], wall.position[1] + wall.height / 2 - 0.5, wall.position[2]);
         wallTitleMesh.position.addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
         wallTitleMesh.visible = false;
         scene.add(wallTitleMesh);
 
-        const panelObj: Panel = {
+        panelsRef.current.push({
           mesh: imageMesh,
           wallName: wall.key,
           metadataUrl: '',
@@ -787,8 +754,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           prevArrow,
           nextArrow,
           titleMesh,
-          descriptionMesh,
-          attributesMesh,
+          descriptionMesh: descMesh,
+          attributesMesh: attrMesh,
           wallTitleMesh,
           currentDescription: '',
           descriptionScrollY: 0,
@@ -796,12 +763,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           currentAttributes: [],
           videoElement: null,
           gifStopFunction: null,
-        };
-        panelsRef.current.push(panelObj);
+        });
       }
     });
 
+    // -----------------------------------------------------------------
     // Helper rotation / vector functions
+    // -----------------------------------------------------------------
     function wallGroupRotation(yaw: number) {
       return new THREE.Euler(0, yaw, 0, 'XYZ');
     }
@@ -817,14 +785,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Lighting – unchanged
+    // Lighting – brighter, warm spotlights
     // -----------------------------------------------------------------
     GalleryLayout.lights.forEach(l => {
       let light: THREE.Light;
-      const color = new THREE.Color(l.color[0] / 255, l.color[1] / 255, l.color[2] / 255);
+      const col = new THREE.Color(l.color[0] / 255, l.color[1] / 255, l.color[2] / 255);
       switch (l.type) {
         case 'spot':
-          const spot = new THREE.SpotLight(color, l.intensity / 1200);
+          const spot = new THREE.SpotLight(col, l.intensity / 1000);
           spot.position.set(...l.position);
           spot.angle = ((l.angle ?? 30) * Math.PI) / 180;
           spot.target.position.set(...(l.target ?? [0, 0, 0]));
@@ -832,19 +800,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           light = spot;
           break;
         case 'area':
-          const rect = new THREE.RectAreaLight(color, l.intensity / 800, 2, 2);
+          const rect = new THREE.RectAreaLight(col, l.intensity / 800, 2, 2);
           rect.position.set(...l.position);
           rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0])));
           scene.add(rect);
           light = rect;
           break;
         case 'neon':
-          const neon = new THREE.PointLight(color, l.intensity / 250, 5);
+          const neon = new THREE.PointLight(col, l.intensity / 200, 5);
           neon.position.set(...l.position);
           light = neon;
           break;
         default:
-          const p = new THREE.PointLight(color, l.intensity / 1200);
+          const p = new THREE.PointLight(col, l.intensity / 1000);
           p.position.set(...l.position);
           light = p;
       }
@@ -852,14 +820,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // -----------------------------------------------------------------
-    // Input handling – unchanged
+    // Input handling (unchanged)
     // -----------------------------------------------------------------
     let moveForward = false,
       moveBackward = false,
       moveLeft = false,
       moveRight = false;
-    const velocity = new THREE.Vector3(),
-      direction = new THREE.Vector3(),
+    const vel = new THREE.Vector3(),
+      dir = new THREE.Vector3(),
       speed = 20.0;
 
     const FLOOR_LEVELS = GalleryLayout.rooms.map(r => r.floorY);
@@ -900,7 +868,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('keyup', onKeyUp);
 
     // -----------------------------------------------------------------
-    // Raycaster for UI interaction – unchanged
+    // Raycaster for UI interaction (unchanged)
     // -----------------------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
@@ -915,8 +883,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (panel) {
           const dir = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
           if (updatePanelIndex(panel.wallName, dir)) {
-            const newSrc = getCurrentNftSource(panel.wallName);
-            updatePanelContent(panel, newSrc);
+            const src = getCurrentNftSource(panel.wallName);
+            updatePanelContent(panel, src);
           }
         }
       } else if (currentTargetedPanel) {
@@ -934,22 +902,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.domElement.addEventListener('click', onDocumentMouseDown);
 
     // -----------------------------------------------------------------
-    // Description scrolling – unchanged
+    // Description scrolling (unchanged)
     // -----------------------------------------------------------------
-    const onDocumentWheel = (event: WheelEvent) => {
+    const onDocumentWheel = (e: WheelEvent) => {
       if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
       const panel = currentTargetedDescriptionPanel;
-      const scrollAmt = event.deltaY * 0.5;
-      const canvasHeight = 512;
-      const padding = 40;
-      const viewHeight = canvasHeight - 2 * padding;
-      const maxScroll = Math.max(0, panel.descriptionTextHeight - viewHeight);
+      const scrollAmt = e.deltaY * 0.5;
+      const canvasH = 512;
+      const pad = 40;
+      const viewH = canvasH - 2 * pad;
+      const maxScroll = Math.max(0, panel.descriptionTextHeight - viewH);
       let newY = panel.descriptionScrollY + scrollAmt;
       newY = Math.max(0, Math.min(newY, maxScroll));
       if (newY !== panel.descriptionScrollY) {
         panel.descriptionScrollY = newY;
-        const textColor = GALLERY_PANEL_CONFIG[panel.wallName]?.text_color || 'white';
-        const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, textColor, {
+        const txtColor = GALLERY_PANEL_CONFIG[panel.wallName]?.text_color || 'white';
+        const { texture } = createTextTexture(panel.currentDescription, TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT, 30, txtColor, {
           wordWrap: true,
           scrollY: newY,
         });
@@ -959,7 +927,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('wheel', onDocumentWheel);
 
     // -----------------------------------------------------------------
-    // Animation loop – unchanged
+    // Animation loop (unchanged)
     // -----------------------------------------------------------------
     let prevTime = performance.now();
     const animate = () => {
@@ -969,75 +937,71 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       if (controls.isLocked) {
         // Movement
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
-        direction.z = Number(moveForward) - Number(moveBackward);
-        direction.x = Number(moveRight) - Number(moveLeft);
-        direction.normalize();
+        vel.x -= vel.x * 10.0 * delta;
+        vel.z -= vel.z * 10.0 * delta;
+        dir.z = Number(moveForward) - Number(moveBackward);
+        dir.x = Number(moveRight) - Number(moveLeft);
+        dir.normalize();
 
-        if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
-        if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+        if (moveForward || moveBackward) vel.z -= dir.z * speed * delta;
+        if (moveLeft || moveRight) vel.x -= dir.x * speed * delta;
 
         const prevX = camera.position.x;
         const prevZ = camera.position.z;
 
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
+        controls.moveRight(-vel.x * delta);
+        controls.moveForward(-vel.z * delta);
 
         const curX = camera.position.x;
         const curZ = camera.position.z;
 
-        // 1. Collision (Simplified 2D collision for perimeter walls only)
-        const boundaryMin = HALF_T + PLAYER_RADIUS;
-        const boundaryMax = L - HALF_T - PLAYER_RADIUS;
-
-        if (curX < boundaryMin || curX > boundaryMax || curZ < boundaryMin || curZ > boundaryMax) {
+        // Collision with building bounds
+        const min = HALF_T + PLAYER_RADIUS;
+        const max = L - HALF_T - PLAYER_RADIUS;
+        if (curX < min || curX > max || curZ < min || curZ > max) {
           camera.position.x = prevX;
           camera.position.z = prevZ;
-          velocity.set(0, 0, 0);
+          vel.set(0, 0, 0);
         } else {
-          for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
-            const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
-            if (dist < COLLISION_DISTANCE) {
+          for (const seg of collisionSegmentsRef.current) {
+            const d = distToSegment(curX, curZ, ...seg);
+            if (d < COLLISION_DISTANCE) {
               camera.position.x = prevX;
               camera.position.z = prevZ;
-              velocity.set(0, 0, 0);
+              vel.set(0, 0, 0);
               break;
             }
           }
         }
 
-        // 2. Vertical Movement (Staircase Logic)
+        // Staircase vertical movement (unchanged)
         const dx = curX - CENTER_X;
         const dz = curZ - CENTER_Z;
-        const distToCenter = Math.hypot(dx, dz);
+        const dist = Math.hypot(dx, dz);
+        const inStair = dist >= STAIR_ZONE_R_MIN && dist <= STAIR_ZONE_R_MAX;
 
-        const isInStairZone = distToCenter >= STAIR_ZONE_R_MIN && distToCenter <= STAIR_ZONE_R_MAX;
-
-        if (isInStairZone) {
-          let angleXZ = Math.atan2(dx, dz);
-          if (angleXZ < 0) angleXZ += 2 * Math.PI;
-          const targetY = angleXZ * RISE_PER_RADIAN;
-
-          const currentRotationCycle = Math.round(camera.position.y / (2 * Math.PI * RISE_PER_RADIAN));
-          const finalTargetY = targetY + currentRotationCycle * 2 * Math.PI * RISE_PER_RADIAN;
-
-          const clampedY = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalTargetY + PLAYER_HEIGHT));
-          camera.position.y += (clampedY - camera.position.y) * 0.5;
+        if (inStair) {
+          let angle = Math.atan2(dx, dz);
+          if (angle < 0) angle += 2 * Math.PI;
+          const targetY = angle * RISE_PER_RADIAN;
+          const currentCycle = Math.round(camera.position.y / (2 * Math.PI * RISE_PER_RADIAN));
+          const finalY = targetY + currentCycle * 2 * Math.PI * RISE_PER_RADIAN;
+          const clamped = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalY + PLAYER_HEIGHT));
+          camera.position.y += (clamped - camera.position.y) * 0.5;
         } else {
-          let targetFloorY = FLOOR_LEVELS[0];
+          let floorY = FLOOR_LEVELS[0];
           for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
             if (camera.position.y >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
-              targetFloorY = FLOOR_LEVELS[i];
+              floorY = FLOOR_LEVELS[i];
               break;
             }
           }
-          camera.position.y += (targetFloorY + PLAYER_HEIGHT - camera.position.y) * 0.5;
+          camera.position.y += (floorY + PLAYER_HEIGHT - camera.position.y) * 0.5;
         }
 
         // Raycast hover for arrows
         raycaster.setFromCamera(center, camera);
-        const intersectObjs = raycaster.intersectObjects(
+        const hits = raycaster.intersectObjects(
           panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]),
           true
         );
@@ -1050,16 +1014,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         currentTargetedArrow = null;
         currentTargetedDescriptionPanel = null;
 
-        if (intersectObjs.length > 0 && intersectObjs[0].distance < 5) {
-          const tgt = intersectObjs[0].object as THREE.Mesh;
-          const panel = panelsRef.current.find(p => p.mesh === tgt || p.prevArrow === tgt || p.nextArrow === tgt || p.descriptionMesh === tgt);
+        if (hits.length && hits[0].distance < 5) {
+          const obj = hits[0].object as THREE.Mesh;
+          const panel = panelsRef.current.find(p => p.mesh === obj || p.prevArrow === obj || p.nextArrow === obj || p.descriptionMesh === obj);
           if (panel) {
-            if (tgt === panel.mesh) {
-              currentTargetedPanel = panel;
-            } else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
-              currentTargetedArrow = tgt;
-              (tgt.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
-            } else if (tgt === panel.descriptionMesh) {
+            if (obj === panel.mesh) currentTargetedPanel = panel;
+            else if (obj === panel.prevArrow || obj === panel.nextArrow) {
+              currentTargetedArrow = obj;
+              (obj.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
+            } else if (obj === panel.descriptionMesh) {
               currentTargetedDescriptionPanel = panel;
             }
           }
@@ -1072,7 +1035,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     animate();
 
     // -----------------------------------------------------------------
-    // Distance helper for collisions – single correct implementation
+    // Distance helper (single correct implementation)
     // -----------------------------------------------------------------
     function distToSegment(px: number, pz: number, x1: number, z1: number, x2: number, z2: number) {
       const dx = x2 - x1;
@@ -1094,7 +1057,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       for (const panel of panelsRef.current) {
         const src = getCurrentNftSource(panel.wallName);
         await updatePanelContent(panel, src);
-        await new Promise(res => setTimeout(res, 100));
+        await new Promise(r => setTimeout(r, 100));
       }
       manageVideoPlayback(controls.isLocked);
     };
@@ -1141,7 +1104,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   // -----------------------------------------------------------------
-  // Window resize handling
+  // Window resize handling (unchanged)
   // -----------------------------------------------------------------
   const onWindowResize = () => {
     const w = window.innerWidth;
@@ -1151,15 +1114,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
       composer.setSize(w, h);
-      const pixelRatio = Math.min(window.devicePixelRatio, 2);
-      fxaaPass.material.uniforms['resolution'].value.x = 1 / (w * pixelRatio);
-      fxaaPass.material.uniforms['resolution'].value.y = 1 / (h * pixelRatio);
+      const pr = Math.min(window.devicePixelRatio, 2);
+      fxaaPass.material.uniforms['resolution'].value.x = 1 / (w * pr);
+      fxaaPass.material.uniforms['resolution'].value.y = 1 / (h * pr);
     }
   };
   window.addEventListener('resize', onWindowResize);
 
   // -----------------------------------------------------------------
-  // UI – Market browser modal and info overlay (clicked panel)
+  // UI – modal and info overlay
   // -----------------------------------------------------------------
   return (
     <>
