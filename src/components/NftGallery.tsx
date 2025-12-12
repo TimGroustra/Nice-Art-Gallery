@@ -14,24 +14,19 @@ import {
   FXAAShader,
   ShaderPass,
 } from 'three-stdlib';
-
-// Import the new layout definition
 import { GalleryLayout, MaterialId } from '@/scene/unrealUnityLayout';
 
-// Post‑processing imports for the new aesthetic
+// Initialize post‑processing utilities
 RectAreaLightUniformsLib.init();
 
 // ---------------------------
 // ** NEW CONSTANTS & TYPES **
 // ---------------------------
+const TEXT_PANEL_OFFSET_X = 0.8; // spacing for description/attributes panels
 
-// Horizontal offset for description / attributes panels (chosen to match original visual spacing)
-const TEXT_PANEL_OFFSET_X = 0.8;
-
-// Panel interface – mirrors the structure used throughout the component
 interface Panel {
-  mesh: THREE.Mesh;                 // the image/video plane
-  wallName: string;                  // wall key from layout
+  mesh: THREE.Mesh;
+  wallName: string;
   metadataUrl: string;
   isVideo: boolean;
   isGif: boolean;
@@ -49,65 +44,68 @@ interface Panel {
   gifStopFunction: (() => void) | null;
 }
 
-// ---------------------------
-// ** COMPONENT CODE **
-// ---------------------------
-const TEXT_PANEL_WIDTH = 2.5;
-const TITLE_HEIGHT = 0.5;
-const DESCRIPTION_HEIGHT = 1.5;
-const ATTRIBUTES_HEIGHT = 1.5;
-const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
+// -------------------------------------------------------------------
+// Helper: creates the framed panel (backboard, frame, image plane)
+// -------------------------------------------------------------------
+function createFramedPanel(width: number, height: number, emissiveColor: number) {
+  const group = new THREE.Group();
 
-// Neon/room specific constants
-const NEON_COLOR_CYAN = 0x33f0ff;
-const NEON_COLOR_MAGENTA = 0xff1bb3;
-const NEON_INTENSITY = 1.5;
+  // Backboard (dark matte)
+  const backGeo = new THREE.PlaneGeometry(width, height);
+  const backMat = new THREE.MeshStandardMaterial({
+    color: 0x0a0a0a,
+    roughness: 0.8,
+    metalness: 0.05,
+    side: THREE.DoubleSide,
+  });
+  const back = new THREE.Mesh(backGeo, backMat);
+  back.position.set(0, 0, 0.01);
+  group.add(back);
 
-// Wall appearance constants
-const WALL_COLOR = 0x151217;
-const FLOOR_COLOR = 0x1b1416;
-const PANEL_Y_POSITION = 3.0;
-const PANEL_OFFSET = 0.15;
-const ARROW_PANEL_OFFSET = 1.5;
-const TEXT_DEPTH_OFFSET = 0.16;
-const TITLE_PANEL_WIDTH = 4.0;
-const ARROW_COLOR_DEFAULT = 0xcccccc,
-  ARROW_COLOR_HOVER = 0x00ff00;
+  // Frame rim (emissive)
+  const rimDepth = 0.06;
+  const rimMat = new THREE.MeshStandardMaterial({
+    color: 0x0b0b0b,
+    emissive: emissiveColor,
+    emissiveIntensity: 1.6,
+    roughness: 0.25,
+    metalness: 0.4,
+  });
+  const rim = new THREE.Mesh(new THREE.BoxGeometry(width + 0.12, height + 0.12, rimDepth), rimMat);
+  rim.position.set(0, 0, -0.02);
+  group.add(rim);
 
-// Collision constants
-const PLAYER_RADIUS = 0.5;
-const WALL_THICKNESS = 0.1;
-const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
+  // Image plane (will receive textures)
+  const imgMat = new THREE.MeshBasicMaterial({ color: 0x222122, side: THREE.DoubleSide });
+  const imgGeo = new THREE.PlaneGeometry(width - 0.2, height - 0.2);
+  const imageMesh = new THREE.Mesh(imgGeo, imgMat);
+  imageMesh.position.set(0, 0, 0.02);
+  group.add(imageMesh);
 
-// Arrow colors
-const ARROW_COLOR = ARROW_COLOR_DEFAULT;
+  // Neon border lines (optional visual flair)
+  const neonMat = new THREE.MeshStandardMaterial({
+    emissive: emissiveColor,
+    emissiveIntensity: 1.4,
+    roughness: 0.2,
+  });
+  const horizGeom = new THREE.BoxGeometry(width + 0.05, 0.03, 0.015);
+  const vertGeom = new THREE.BoxGeometry(0.03, height + 0.05, 0.015);
+  const top = new THREE.Mesh(horizGeom, neonMat);
+  top.position.set(0, height / 2 + 0.06, 0.03);
+  const bottom = top.clone();
+  bottom.position.set(0, -height / 2 - 0.06, 0.03);
+  const left = new THREE.Mesh(vertGeom, neonMat);
+  left.position.set(-width / 2 - 0.06, 0, 0.03);
+  const right = left.clone();
+  right.position.set(width / 2 + 0.06, 0, 0.03);
+  group.add(top, bottom, left, right);
 
-// Helper: VR shader (unchanged)
-const ceilingVertexShader = `
-    varying vec2 vUv;
-    void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-`;
-const ceilingFragmentShader = `
-    uniform float time;
-    uniform float opacity;
-    vec3 hsv2rgb(vec3 c) {
-        vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-    }
-    void main() {
-        float hue = mod(time * 0.05, 1.0);
-        float pulse = 0.3 + sin(time * 0.5) * 0.1;
-        float saturation = 0.8;
-        vec3 color = hsv2rgb(vec3(hue, saturation, pulse));
-        gl_FragColor = vec4(color, opacity);
-    }
-`;
+  return { group, imageMesh };
+}
 
-// Helper functions (unchanged)
+// -------------------------------------------------------------------
+// Helper: create text canvas textures (unchanged)
+// -------------------------------------------------------------------
 const createTextTexture = (text: string, width: number, height: number, fontSize: number = 30, color: string = 'white', options: { scrollY?: number; wordWrap?: boolean } = {}): { texture: THREE.CanvasTexture; totalHeight: number } => {
   const { scrollY = 0, wordWrap = false } = options;
   const canvas = document.createElement('canvas');
@@ -229,12 +227,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
-  // Exposed engine variables for the resize handler
+  // Variables needed by resize handler (declared here for TS visibility)
   let camera: THREE.PerspectiveCamera;
   let renderer: THREE.WebGLRenderer;
   let composer: EffectComposer;
   let fxaaPass: ShaderPass;
-  // The ceiling material is optional – we only need the type for TS
   let ceilingMaterial: THREE.ShaderMaterial | null = null;
 
   // -----------------------------------------------------------------
@@ -254,7 +251,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
   }, []);
-  // -----------------------------------------------------------------
 
   const isVideoContent = (contentType: string, url: string) => !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
   const isGifContent = (contentType: string, url: string) => !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
@@ -340,7 +336,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   );
 
   // -----------------------------------------------------------------
-  // Update panel content – unchanged except now we pass the source
+  // Update panel content (unchanged except types)
   // -----------------------------------------------------------------
   const updatePanelContent = useCallback(
     async (panel: Panel, source: NftSource | null) => {
@@ -348,7 +344,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const collectionName = collectionConfig?.name || '...';
       const textColor = collectionConfig?.text_color || 'white';
 
-      // Reset wall title first
+      // Reset wall title
       disposeTextureSafely(panel.wallTitleMesh);
       const { texture: wallTitleTexture } = createTextTexture(collectionName, 8, 0.75, 120, textColor, { wordWrap: false });
       (panel.wallTitleMesh.material as THREE.MeshBasicMaterial).map = wallTitleTexture;
@@ -417,7 +413,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         // Title
         disposeTextureSafely(panel.titleMesh);
-        const { texture: titleTexture } = createTextTexture(metadata.title, TITLE_PANEL_WIDTH, TITLE_HEIGHT, 120, textColor, { wordWrap: false });
+        const { texture: titleTexture } = createTextTexture(metadata.title, 4, 0.5, 120, textColor, { wordWrap: false });
         (panel.titleMesh.material as THREE.MeshBasicMaterial).map = titleTexture;
         panel.titleMesh.visible = true;
 
@@ -442,7 +438,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         showError(`Failed to load NFT content for ${panel.wallName}.`);
       }
 
-      // Arrow visibility based on collection length (same logic as before)
+      // Arrow visibility based on collection length
       const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
       panel.prevArrow.visible = showArrows;
       panel.nextArrow.visible = showArrows;
@@ -461,7 +457,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.background = new THREE.Color(0x0a0410);
     scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
 
-    // Renderer (unchanged)
+    // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -469,7 +465,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     container.appendChild(renderer.domElement);
 
-    // Camera (unchanged)
+    // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, 0);
 
@@ -507,7 +503,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
-    // Post‑processing (unchanged)
+    // Post‑processing
     composer = new EffectComposer(renderer);
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
@@ -532,7 +528,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const [roomW, roomD] = room.size;
       const [x, y, z] = room.position;
 
-      // Floor plane
+      // Floor
       const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
       const floorMat = new THREE.MeshStandardMaterial({
         color: FLOOR_COLOR,
@@ -545,7 +541,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       floor.position.set(x + roomW / 2, 0, z + roomD / 2);
       floorGroup.add(floor);
 
-      // Ceiling plane (uses acoustic baffles for main halls, generic for others)
+      // Ceiling
       const ceilingMat = new THREE.MeshStandardMaterial({
         color: room.name.includes('Hall') ? 0xffffff : 0x111111,
         roughness: 0.7,
@@ -574,7 +570,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR, side: THREE.DoubleSide });
 
     const textMatFactory = () => new THREE.MeshBasicMaterial({ map: null, transparent: true, side: THREE.DoubleSide, alphaTest: 0.01, depthWrite: false });
-    const titleGeometry = new THREE.PlaneGeometry(TITLE_PANEL_WIDTH, TITLE_HEIGHT);
+    const titleGeometry = new THREE.PlaneGeometry(4, 0.5);
     const descriptionGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, DESCRIPTION_PANEL_HEIGHT);
     const attributesGeometry = new THREE.PlaneGeometry(TEXT_PANEL_WIDTH, ATTRIBUTES_HEIGHT);
     const wallTitleGeometry = new THREE.PlaneGeometry(8, 0.75);
@@ -583,7 +579,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     collisionSegmentsRef.current = [];
 
     GalleryLayout.walls.forEach(wall => {
-      // ----- Wall mesh -----
+      // Wall mesh
       const wallGeo = new THREE.PlaneGeometry(wall.length, wall.height);
       const wallMat = new THREE.MeshStandardMaterial({
         color: wall.material === MaterialId.WhitePlaster ? 0xffffff : wall.material === MaterialId.GraphiteMicrocement ? 0x111111 : 0x222222,
@@ -597,7 +593,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(wallMesh);
       wallMeshesRef.current.set(wall.key, wallMesh);
 
-      // ----- Collision segment (bottom edge) -----
+      // Collision segment (bottom edge)
       const halfLen = wall.length / 2;
       const cosR = Math.cos(wall.rotationY);
       const sinR = Math.sin(wall.rotationY);
@@ -609,17 +605,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const z2 = cz - halfLen * sinR;
       collisionSegmentsRef.current.push([x1, z1, x2, z2]);
 
-      // ----- Only create NFT panel if wall is marked for panels -----
+      // Create panel if required
       if (wall.hasPanel) {
         const { group: panelGroup, imageMesh } = createFramedPanel(2, 2, NEON_COLOR_MAGENTA);
-
-        // Position panel slightly offset from wall (into the gallery)
         const offsetVec = new THREE.Vector3(0, 0, PANEL_OFFSET).applyAxisAngle(new THREE.Vector3(0, 1, 0), wall.rotationY);
         panelGroup.position.set(wall.position[0] + offsetVec.x, PANEL_Y_POSITION, wall.position[2] + offsetVec.z);
         panelGroup.rotation.y = wall.rotationY;
         scene.add(panelGroup);
 
-        // Arrow setup
+        // Arrows
         const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
         prevArrow.rotation.set(0, wall.rotationY + Math.PI, 0);
         const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
@@ -631,7 +625,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(prevArrow);
         scene.add(nextArrow);
 
-        // Text panels
+        // Text meshes
         const titleMesh = new THREE.Mesh(titleGeometry, textMatFactory());
         titleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const titlePos = basePos.clone().addScaledVector(new THREE.Vector3(0, 1, 0), -1 - TITLE_HEIGHT / 2 - 0.1).addScaledVector(forwardVector(wall.rotationY), TEXT_DEPTH_OFFSET);
@@ -684,7 +678,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Helper functions for rotations / vectors
+    // Helper rotation / vector functions
     function wallGroupRotation(yaw: number) {
       return new THREE.Euler(0, yaw, 0, 'XYZ');
     }
@@ -700,7 +694,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Lighting – create Three.js lights from layout.lights
+    // Lighting – fixed RectAreaLight lookAt syntax
     // -----------------------------------------------------------------
     GalleryLayout.lights.forEach(l => {
       let light: THREE.Light;
@@ -714,15 +708,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           light = spot;
           break;
         case 'area':
-          // Three.js doesn't have native area lights; use RectAreaLight
           const rect = new THREE.RectAreaLight(new THREE.Color(...l.color), l.intensity / 500, 2, 2);
           rect.position.set(...l.position);
-          rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0]));
+          // corrected syntax below
+          rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0])));
           scene.add(rect);
           light = rect;
           break;
         case 'neon':
-          // Simulate neon with an emissive point light
           const neon = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 200, 5);
           neon.position.set(...l.position);
           light = neon;
@@ -736,7 +729,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // -----------------------------------------------------------------
-    // Input handling (identical to previous implementation)
+    // Input handling (unchanged)
     // -----------------------------------------------------------------
     let moveForward = false,
       moveBackward = false,
@@ -837,7 +830,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('wheel', onDocumentWheel);
 
     // -----------------------------------------------------------------
-    // Animation loop (including ceiling shader time)
+    // Animation loop (including optional ceiling shader)
     // -----------------------------------------------------------------
     let prevTime = performance.now();
     const startTime = performance.now();
@@ -847,7 +840,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const delta = (now - prevTime) / 1000;
       const elapsed = (now - startTime) / 1000;
 
-      // Update ceiling shader if present (optional)
       if (ceilingMaterial && (ceilingMaterial as any).uniforms) {
         (ceilingMaterial as any).uniforms.time.value = elapsed;
       }
@@ -869,7 +861,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
 
-        // Collision check
+        // Collision
         const curX = camera.position.x;
         const curZ = camera.position.z;
         for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
@@ -884,14 +876,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         camera.position.y = 1.6;
 
-        // Raycast for UI hover
+        // Raycast hover
         raycaster.setFromCamera(center, camera);
         const intersectObjs = raycaster.intersectObjects(
           panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]),
           true
         );
 
-        // Reset highlights
         panelsRef.current.forEach(p => {
           (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR);
           (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR);
@@ -902,9 +893,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         if (intersectObjs.length > 0 && intersectObjs[0].distance < 5) {
           const tgt = intersectObjs[0].object as THREE.Mesh;
-          const panel = panelsRef.current.find(
-            p => p.mesh === tgt || p.prevArrow === tgt || p.nextArrow === tgt || p.descriptionMesh === tgt
-          );
+          const panel = panelsRef.current.find(p => p.mesh === tgt || p.prevArrow === tgt || p.nextArrow === tgt || p.descriptionMesh === tgt);
           if (panel) {
             if (tgt === panel.mesh) currentTargetedPanel = panel;
             else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
@@ -923,7 +912,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     animate();
 
     // -----------------------------------------------------------------
-    // Helper: distance from point to line segment (used for collisions)
+    // Distance helper for collisions
     // -----------------------------------------------------------------
     function distToSegment(px: number, pz: number, x1: number, z1: number, x2: number, z2: number) {
       const dx = x2 - x1;
@@ -938,14 +927,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Load all panel content after layout is ready
+    // Load all panels after config init
     // -----------------------------------------------------------------
     const loadAllPanels = async () => {
       await initializeGalleryConfig();
       for (const panel of panelsRef.current) {
         const src = getCurrentNftSource(panel.wallName);
         await updatePanelContent(panel, src);
-        // Small pause to avoid throttling the RPC endpoints
         await new Promise(res => setTimeout(res, 100));
       }
       manageVideoPlayback(controls.isLocked);
@@ -953,7 +941,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     loadAllPanels();
 
     // -----------------------------------------------------------------
-    // Cleanup on unmount
+    // Cleanup
     // -----------------------------------------------------------------
     return () => {
       document.removeEventListener('click', onDocumentMouseDown);
@@ -993,7 +981,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   // -----------------------------------------------------------------
-  // Window resize handling (now uses the variables defined above)
+  // Window resize handling (uses variables defined earlier)
   // -----------------------------------------------------------------
   const onWindowResize = () => {
     const w = window.innerWidth;
@@ -1011,7 +999,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   window.addEventListener('resize', onWindowResize);
 
   // -----------------------------------------------------------------
-  // UI – Market browser modal (unchanged)
+  // UI – Market browser modal
   // -----------------------------------------------------------------
   return (
     <>
