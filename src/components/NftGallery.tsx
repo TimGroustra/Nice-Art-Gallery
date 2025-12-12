@@ -7,6 +7,7 @@ import { NftMetadata, NftSource, NftAttribute } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from './MarketBrowserRefined';
+import { GalleryInfo } from './GalleryInfo';
 import {
   EffectComposer,
   RenderPass,
@@ -229,24 +230,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
+  // UI state for hovered panel info
+  const [hoverInfo, setHoverInfo] = useState<{
+    title?: string;
+    description?: string;
+    collection?: string;
+    tokenId?: string | number;
+  }>({});
+
   // Constants used throughout the component
   const TEXT_PANEL_WIDTH = 2.5;
   const TITLE_HEIGHT = 0.5;
   const DESCRIPTION_HEIGHT = 1.5;
   const ATTRIBUTES_HEIGHT = 1.5;
   const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
-  const TITLE_PANEL_WIDTH = 4.0; // added missing constant
+  const TITLE_PANEL_WIDTH = 4.0;
   const FLOOR_COLOR = 0x1b1416;
-  const ARROW_COLOR = 0xcccccc; // base arrow colour
+  const ARROW_COLOR = 0xcccccc;
   const ARROW_COLOR_HOVER = 0x00ff00;
-  const ARROW_PANEL_OFFSET = 1.5; // offset for arrow placement
+  const ARROW_PANEL_OFFSET = 1.5;
   const PANEL_OFFSET = 0.15;
   const PANEL_Y_POSITION = 3.0;
-  const TEXT_DEPTH_OFFSET = 0.16; // depth offset for text panels
+  const TEXT_DEPTH_OFFSET = 0.16;
   const PLAYER_RADIUS = 0.5;
   const WALL_THICKNESS = 0.1;
   const COLLISION_DISTANCE = PLAYER_RADIUS + WALL_THICKNESS;
-  const NEON_COLOR_MAGENTA = 0xff1bb3; // ensure defined (already defined earlier but re‑exposed)
+  const NEON_COLOR_MAGENTA = 0xff1bb3;
 
   // Variables needed by resize handler (declared here for TS visibility)
   let camera: THREE.PerspectiveCamera;
@@ -453,6 +462,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attributesTexture;
         panel.attributesMesh.visible = true;
 
+        // Update hover info state (so the overlay shows latest data when hovered)
+        setHoverInfo({
+          title: metadata.title,
+          description: metadata.description,
+          collection: source.contractAddress,
+          tokenId: source.tokenId,
+        });
+
         showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       } catch (error) {
         console.error(`Error loading NFT content for ${panel.wallName}:`, error);
@@ -464,7 +481,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.prevArrow.visible = showArrows;
       panel.nextArrow.visible = showArrows;
     },
-    [loadTexture]
+    [loadTexture, setHoverInfo]
   );
 
   // -----------------------------------------------------------------
@@ -915,8 +932,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           const tgt = intersectObjs[0].object as THREE.Mesh;
           const panel = panelsRef.current.find(p => p.mesh === tgt || p.prevArrow === tgt || p.nextArrow === tgt || p.descriptionMesh === tgt);
           if (panel) {
-            if (tgt === panel.mesh) currentTargetedPanel = panel;
-            else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
+            if (tgt === panel.mesh) {
+              currentTargetedPanel = panel;
+              // Update hover info for the overlay
+              setHoverInfo({
+                title: panel.titleMesh.visible ? (panel.titleMesh.material as any).map?.image?.src || undefined : undefined,
+                description: panel.descriptionMesh.visible ? panel.currentDescription : undefined,
+                collection: undefined, // will be set when panel content loads
+                tokenId: undefined,
+              });
+            } else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
               currentTargetedArrow = tgt;
               (tgt.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
             } else if (tgt === panel.descriptionMesh) {
@@ -1019,7 +1044,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   window.addEventListener('resize', onWindowResize);
 
   // -----------------------------------------------------------------
-  // UI – Market browser modal
+  // UI – Market browser modal and hover info overlay
   // -----------------------------------------------------------------
   return (
     <>
@@ -1032,6 +1057,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           onClose={() => setMarketBrowserState({ open: false })}
         />
       )}
+      <GalleryInfo
+        title={hoverInfo.title}
+        description={hoverInfo.description}
+        collection={hoverInfo.collection}
+        tokenId={hoverInfo.tokenId}
+        onOpenMarketplace={() => {
+          if (hoverInfo.collection && hoverInfo.tokenId !== undefined) {
+            setMarketBrowserState({ open: true, collection: hoverInfo.collection, tokenId: hoverInfo.tokenId });
+          }
+        }}
+      />
     </>
   );
 };
