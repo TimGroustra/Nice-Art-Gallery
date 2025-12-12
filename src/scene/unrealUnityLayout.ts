@@ -103,9 +103,9 @@ const H_MAIN = 4.5;
 const H_FEATURE = 6;
 const H_CORRIDOR = 4;
 const PANEL_OFFSET = 0.15; // Distance from wall center to panel center
-const PANEL_Y_MAIN = H_MAIN / 2;
-const PANEL_Y_FEATURE = H_FEATURE / 2;
-const PANEL_Y_CORRIDOR = H_CORRIDOR / 2;
+const PANEL_Y_MAIN = H_MAIN / 2; // 2.25
+const PANEL_Y_FEATURE = H_FEATURE / 2; // 3.0
+const PANEL_Y_CORRIDOR = H_CORRIDOR / 2; // 2.0
 
 /** Concrete layout data – matches the blueprint from the prompt. */
 export const GalleryLayout: LayoutDefinition = {
@@ -161,133 +161,149 @@ export const GalleryLayout: LayoutDefinition = {
     {
       name: "Feature Room",
       position: [0, 35, 0],
-      size: [15, 15], // Adjusted to fit 50m depth
+      size: [15, 15],
       ceilingHeight: H_FEATURE,
       material: MaterialId.DarkResin,
     },
     {
       name: "Neon Corridor",
       position: [15, 35, 0],
-      size: [15, 15], // Adjusted to fit 50m depth
+      size: [15, 15],
       ceilingHeight: H_CORRIDOR,
       material: MaterialId.DarkResin,
     },
     {
       name: "Rotating Gallery",
       position: [30, 25, 0],
-      size: [20, 25], // Adjusted to fill remaining space
+      size: [20, 25],
       ceilingHeight: H_MAIN,
       material: MaterialId.PolishedConcrete,
     },
   ],
 
   walls: [
-    // --- Structural Walls (Collision/Material) ---
+    // --- Structural Walls (Centered on boundary lines) ---
 
     // 1. Front Perimeter (Z=0)
-    { key: "W-S-1", position: [7.5, PANEL_Y_MAIN, HALF_T], length: 15, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-2", position: [20, PANEL_Y_MAIN, HALF_T], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-3", position: [30, PANEL_Y_MAIN, HALF_T], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-4", position: [40, PANEL_Y_MAIN, HALF_T], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
-    { key: "W-S-5", position: [47.5, PANEL_Y_MAIN, HALF_T], length: 5, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
+    { key: "W-S-1", position: [7.5, PANEL_Y_MAIN, 0], length: 15, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
+    { key: "W-S-2", position: [20, PANEL_Y_MAIN, 0], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
+    { key: "W-S-3", position: [30, PANEL_Y_MAIN, 0], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
+    { key: "W-S-4", position: [40, PANEL_Y_MAIN, 0], length: 10, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
+    { key: "W-S-5", position: [47.5, PANEL_Y_MAIN, 0], length: 5, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster },
 
     // 2. Back Perimeter (Z=50)
-    { key: "W-N-1", position: [7.5, PANEL_Y_FEATURE, 50 - HALF_T], length: 15, height: H_FEATURE, rotationY: Math.PI, material: MaterialId.GraphiteMicrocement },
-    { key: "W-N-2", position: [22.5, PANEL_Y_CORRIDOR, 50 - HALF_T], length: 15, height: H_CORRIDOR, rotationY: Math.PI, material: MaterialId.DarkResin },
-    { key: "W-N-3", position: [40, PANEL_Y_MAIN, 50 - HALF_T], length: 20, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster },
+    { key: "W-N-1", position: [7.5, PANEL_Y_FEATURE, 50], length: 15, height: H_FEATURE, rotationY: Math.PI, material: MaterialId.GraphiteMicrocement },
+    { key: "W-N-2", position: [22.5, PANEL_Y_CORRIDOR, 50], length: 15, height: H_CORRIDOR, rotationY: Math.PI, material: MaterialId.DarkResin },
+    { key: "W-N-3", position: [40, PANEL_Y_MAIN, 50], length: 20, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster },
 
     // 3. West Perimeter (X=0)
-    { key: "W-W-1", position: [HALF_T, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.PolishedConcrete },
-    { key: "W-W-2", position: [HALF_T, PANEL_Y_MAIN, 20], length: 30, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster },
-    { key: "W-W-3", position: [HALF_T, PANEL_Y_FEATURE, 42.5], length: 15, height: H_FEATURE, rotationY: Math.PI / 2, material: MaterialId.GraphiteMicrocement },
+    { key: "W-W-1", position: [0, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.PolishedConcrete },
+    { key: "W-W-2", position: [0, PANEL_Y_MAIN, 20], length: 30, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster },
+    { key: "W-W-3", position: [0, PANEL_Y_FEATURE, 42.5], length: 15, height: H_FEATURE, rotationY: Math.PI / 2, material: MaterialId.GraphiteMicrocement },
 
     // 4. East Perimeter (X=50)
-    { key: "W-E-1", position: [50 - HALF_T, PANEL_Y_MAIN, 15], length: 20, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster },
-    { key: "W-E-2", position: [50 - HALF_T, PANEL_Y_MAIN, 37.5], length: 25, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster },
+    { key: "W-E-1", position: [50, PANEL_Y_MAIN, 15], length: 20, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster },
+    { key: "W-E-2", position: [50, PANEL_Y_MAIN, 37.5], length: 25, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster },
 
-    // 5. Internal Walls (X-direction)
-    { key: "W-I-Z5-1", position: [7.5, PANEL_Y_MAIN, 5 - HALF_T], length: 15, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Digital Wall / Main Hall
-    { key: "W-I-Z5-2", position: [20, PANEL_Y_MAIN, 5 - HALF_T], length: 5, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Reception / Main Hall (Door at 20-22)
-    { key: "W-I-Z5-3", position: [30, PANEL_Y_MAIN, 5 - HALF_T], length: 10, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Shop / Main Hall
-    { key: "W-I-Z5-4", position: [40, PANEL_Y_MAIN, 5 - HALF_T], length: 10, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Storage / Main Hall (Door at 45-46)
-    { key: "W-I-Z5-5", position: [47.5, PANEL_Y_MAIN, 5 - HALF_T], length: 5, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // WC / Rotating Gallery
+    // 5. Internal Walls (X-direction) - Centered at Z=5
+    { key: "W-I-Z5-1", position: [7.5, PANEL_Y_MAIN, 5], length: 15, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Digital Wall / Main Hall
+    { key: "W-I-Z5-2", position: [20, PANEL_Y_MAIN, 5], length: 5, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Reception / Main Hall (Door at 22-24)
+    { key: "W-I-Z5-3", position: [30, PANEL_Y_MAIN, 5], length: 10, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Shop / Main Hall
+    { key: "W-I-Z5-4", position: [40, PANEL_Y_MAIN, 5], length: 10, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // Storage / Main Hall (Door at 45-46)
+    { key: "W-I-Z5-5", position: [47.5, PANEL_Y_MAIN, 5], length: 5, height: H_MAIN, rotationY: Math.PI, material: MaterialId.WhitePlaster }, // WC / Rotating Gallery
 
-    { key: "W-I-Z35-1", position: [7.5, PANEL_Y_FEATURE, 35 + HALF_T], length: 15, height: H_FEATURE, rotationY: 0, material: MaterialId.GraphiteMicrocement }, // Feature Room / Main Hall
-    { key: "W-I-Z35-2", position: [22.5, PANEL_Y_CORRIDOR, 35 + HALF_T], length: 15, height: H_CORRIDOR, rotationY: 0, material: MaterialId.DarkResin }, // Neon Corridor / Main Hall (Door at 22.5-24.5)
+    // Internal Walls (X-direction) - Centered at Z=35
+    { key: "W-I-Z35-1", position: [7.5, PANEL_Y_FEATURE, 35], length: 15, height: H_FEATURE, rotationY: 0, material: MaterialId.GraphiteMicrocement }, // Feature Room / Main Hall
+    // Split W-I-Z35-2 (Main Hall / Neon Corridor) for 2m door at X=23.5
+    { key: "W-I-Z35-2A", position: [18.75, PANEL_Y_MAIN, 35], length: 7.5, height: H_MAIN, rotationY: 0, material: MaterialId.DarkResin },
+    { key: "W-I-Z35-2B", position: [27.25, PANEL_Y_MAIN, 35], length: 5.5, height: H_MAIN, rotationY: 0, material: MaterialId.DarkResin },
 
-    { key: "W-I-Z25", position: [40, PANEL_Y_MAIN, 25 + HALF_T], length: 20, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster }, // Rotating Gallery / Main Hall
+    // Internal Walls (X-direction) - Centered at Z=25
+    { key: "W-I-Z25", position: [40, PANEL_Y_MAIN, 25], length: 20, height: H_MAIN, rotationY: 0, material: MaterialId.WhitePlaster }, // Rotating Gallery / Main Hall
 
-    // 6. Internal Walls (Z-direction)
-    { key: "W-I-X15-1", position: [15 - HALF_T, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Digital Wall / Reception
-    { key: "W-I-X15-2", position: [15 - HALF_T, PANEL_Y_FEATURE, 42.5], length: 15, height: H_FEATURE, rotationY: -Math.PI / 2, material: MaterialId.GraphiteMicrocement }, // Feature Room / Neon Corridor (Door at 45-46.5)
+    // 6. Internal Walls (Z-direction) - Centered at X=15
+    { key: "W-I-X15-1", position: [15, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Digital Wall / Reception
+    // Split W-I-X15-2 (Feature Room / Neon Corridor) for 1.5m door at Z=45.75
+    { key: "W-I-X15-2A", position: [15, PANEL_Y_FEATURE, 40], length: 10, height: H_FEATURE, rotationY: -Math.PI / 2, material: MaterialId.GraphiteMicrocement },
+    { key: "W-I-X15-2B", position: [15, PANEL_Y_FEATURE, 48.25], length: 3.5, height: H_FEATURE, rotationY: -Math.PI / 2, material: MaterialId.GraphiteMicrocement },
 
-    { key: "W-I-X25", position: [25 - HALF_T, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Reception / Shop
+    // Internal Walls (Z-direction) - Centered at X=25
+    { key: "W-I-X25", position: [25, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Reception / Shop
 
-    { key: "W-I-X30-1", position: [30 + HALF_T, PANEL_Y_MAIN, 15], length: 20, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster }, // Main Hall / Rotating Gallery (Z=5 to 25)
-    { key: "W-I-X30-2", position: [30 + HALF_T, PANEL_Y_CORRIDOR, 42.5], length: 15, height: H_CORRIDOR, rotationY: Math.PI / 2, material: MaterialId.DarkResin }, // Neon Corridor / Rotating Gallery (Door at 45-46.5)
+    // Internal Walls (Z-direction) - Centered at X=30
+    { key: "W-I-X30-1", position: [30, PANEL_Y_MAIN, 15], length: 20, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster }, // Main Hall / Rotating Gallery (Z=5 to 25)
+    { key: "W-I-X30-3", position: [30, PANEL_Y_MAIN, 30], length: 10, height: H_MAIN, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster }, // Main Hall / Rotating Gallery (Z=25 to 35)
+    // Split W-I-X30-2 (Neon Corridor / Rotating Gallery) for 1.5m door at Z=45.75
+    { key: "W-I-X30-2A", position: [30, PANEL_Y_CORRIDOR, 40], length: 10, height: H_CORRIDOR, rotationY: Math.PI / 2, material: MaterialId.DarkResin },
+    { key: "W-I-X30-2B", position: [30, PANEL_Y_CORRIDOR, 48.25], length: 3.5, height: H_CORRIDOR, rotationY: Math.PI / 2, material: MaterialId.DarkResin },
 
-    { key: "W-I-X35", position: [35 - HALF_T, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Shop / Storage
-    { key: "W-I-X45", position: [45 - HALF_T, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Storage / WC
+    // Internal Walls (Z-direction) - Centered at X=35
+    { key: "W-I-X35", position: [35, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Shop / Storage
+
+    // Internal Walls (Z-direction) - Centered at X=45
+    { key: "W-I-X45", position: [45, PANEL_Y_MAIN, 2.5], length: 5, height: H_MAIN, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster }, // Storage / WC
 
     // --- Panel Walls (40 panels, 2m x 2m) ---
+    // Panel positions remain relative to the boundary lines (e.g., X=0, Z=5, X=30, Z=35, Z=50)
+    // X/Z position = Boundary +/- (HALF_T + PANEL_OFFSET) = Boundary +/- 0.3m
 
-    // 1. Main Hall West Wall (5 panels)
+    // 1. Main Hall West Wall (X=0 face)
     ...Array.from({ length: 5 }, (_, i) => ({
         key: `west-wall-${i}`,
         position: [HALF_T + PANEL_OFFSET, PANEL_Y_MAIN, 5 + 3 + i * 6],
         length: 2, height: 2, rotationY: Math.PI / 2, material: MaterialId.WhitePlaster, hasPanel: true,
     })),
 
-    // 2. Main Hall East Wall (5 panels)
+    // 2. Main Hall East Wall (X=30 face)
     ...Array.from({ length: 5 }, (_, i) => ({
         key: `east-wall-${i}`,
         position: [30 - HALF_T - PANEL_OFFSET, PANEL_Y_MAIN, 5 + 3 + i * 6],
         length: 2, height: 2, rotationY: -Math.PI / 2, material: MaterialId.WhitePlaster, hasPanel: true,
     })),
 
-    // 3. Main Hall North Wall (5 panels, avoiding door at 22.5-24.5)
+    // 3. Main Hall North Wall (Z=35 face)
     { key: `north-wall-0`, position: [2.8125, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
     { key: `north-wall-1`, position: [8.4375, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
     { key: `north-wall-2`, position: [14.0625, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
     { key: `north-wall-3`, position: [19.6875, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
     { key: `north-wall-4`, position: [27.25, PANEL_Y_MAIN, 35 - HALF_T - PANEL_OFFSET], length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true },
 
-    // 4. Rotating Gallery South Wall (5 panels)
+    // 4. Rotating Gallery South Wall (Z=25 face)
     ...Array.from({ length: 5 }, (_, i) => ({
         key: `south-wall-${i}`,
         position: [30 + 2 + i * 4, PANEL_Y_MAIN, 25 + HALF_T + PANEL_OFFSET],
         length: 2, height: 2, rotationY: 0, material: MaterialId.WhitePlaster, hasPanel: true,
     })),
 
-    // 5. Feature Room West Wall (4 inner panels)
+    // 5. Feature Room West Wall (X=0 face, H=6m)
     ...Array.from({ length: 4 }, (_, i) => ({
         key: ['north-inner-wall-inner-0', 'north-inner-wall-outer-0', 'north-inner-wall-inner-1', 'north-inner-wall-outer-1'][i],
         position: [HALF_T + PANEL_OFFSET, PANEL_Y_FEATURE, 35 + 1.875 + i * 3.75],
         length: 2, height: 2, rotationY: Math.PI / 2, material: MaterialId.GraphiteMicrocement, hasPanel: true,
     })),
 
-    // 6. Feature Room North Wall (4 inner panels)
+    // 6. Feature Room North Wall (Z=50 face, H=6m)
     ...Array.from({ length: 4 }, (_, i) => ({
         key: ['south-inner-wall-inner-0', 'south-inner-wall-outer-0', 'south-inner-wall-inner-1', 'south-inner-wall-outer-1'][i],
         position: [1.875 + i * 3.75, PANEL_Y_FEATURE, 50 - HALF_T - PANEL_OFFSET],
         length: 2, height: 2, rotationY: Math.PI, material: MaterialId.GraphiteMicrocement, hasPanel: true,
     })),
 
-    // 7. Neon Corridor North Wall (4 center panels)
+    // 7. Neon Corridor North Wall (Z=50 face, H=4m)
     ...Array.from({ length: 4 }, (_, i) => ({
         key: ['north-center-wall-0', 'south-center-wall-0', 'east-center-wall-0', 'west-center-wall-0'][i],
         position: [15 + 1.875 + i * 3.75, PANEL_Y_CORRIDOR, 50 - HALF_T - PANEL_OFFSET],
         length: 2, height: 2, rotationY: Math.PI, material: MaterialId.DarkResin, hasPanel: true,
     })),
 
-    // 8. Rotating Gallery North Wall (4 inner panels)
+    // 8. Rotating Gallery North Wall (Z=50 face, H=4.5m)
     ...Array.from({ length: 4 }, (_, i) => ({
         key: ['east-inner-wall-inner-0', 'east-inner-wall-outer-0', 'east-inner-wall-inner-1', 'east-inner-wall-outer-1'][i],
         position: [30 + 2.5 + i * 5, PANEL_Y_MAIN, 50 - HALF_T - PANEL_OFFSET],
         length: 2, height: 2, rotationY: Math.PI, material: MaterialId.WhitePlaster, hasPanel: true,
     })),
 
-    // 9. Rotating Gallery East Wall (4 inner panels)
+    // 9. Rotating Gallery East Wall (X=50 face, H=4.5m)
     ...Array.from({ length: 4 }, (_, i) => ({
         key: ['west-inner-wall-inner-0', 'west-inner-wall-outer-0', 'west-inner-wall-inner-1', 'west-inner-wall-outer-1'][i],
         position: [50 - HALF_T - PANEL_OFFSET, PANEL_Y_MAIN, 25 + 3.125 + i * 6.25],
