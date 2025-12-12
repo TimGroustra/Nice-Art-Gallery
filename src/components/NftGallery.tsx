@@ -458,7 +458,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
         panel.attributesMesh.visible = true;
 
-        // We no longer update hoverInfo here; info will be shown on click.
+        // No hover update here; click will populate selectedInfo later.
 
         showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       } catch (error) {
@@ -484,8 +484,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.background = new THREE.Color(0x0a0410);
     scene.fog = new THREE.FogExp2(0x0a0410, 0.02);
 
-    // Ambient light for baseline visibility
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+    // Ambient light – softer to reduce harsh white
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
     scene.add(ambientLight);
 
     // Renderer
@@ -540,9 +540,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const renderPass = new RenderPass(scene, camera);
     composer.addPass(renderPass);
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.9, 0.4, 0.85);
-    bloomPass.threshold = 0.15;
-    bloomPass.strength = 1.2;
-    bloomPass.radius = 0.6;
+    bloomPass.threshold = 0.2; // slightly higher to keep neon glow but tone down overall brightness
+    bloomPass.strength = 1.0;
+    bloomPass.radius = 0.7;
     composer.addPass(bloomPass);
     fxaaPass = new ShaderPass(FXAAShader);
     const pixelRatio = Math.min(window.devicePixelRatio, 2);
@@ -744,13 +744,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Lighting – from layout
+    // Lighting – enhanced neon theme
     // -----------------------------------------------------------------
+    // Existing lights (muted a bit)
     GalleryLayout.lights.forEach(l => {
       let light: THREE.Light;
       switch (l.type) {
         case 'spot':
-          const spot = new THREE.SpotLight(new THREE.Color(...l.color), l.intensity / 1000);
+          const spot = new THREE.SpotLight(new THREE.Color(...l.color), l.intensity / 1200);
           spot.position.set(...l.position);
           spot.angle = ((l.angle ?? 30) * Math.PI) / 180;
           spot.target.position.set(...(l.target ?? [0, 0, 0]));
@@ -758,24 +759,33 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           light = spot;
           break;
         case 'area':
-          const rect = new THREE.RectAreaLight(new THREE.Color(...l.color), l.intensity / 500, 2, 2);
+          const rect = new THREE.RectAreaLight(new THREE.Color(...l.color), l.intensity / 800, 2, 2);
           rect.position.set(...l.position);
           rect.lookAt(new THREE.Vector3(...(l.target ?? [0, 0, 0])));
           scene.add(rect);
           light = rect;
           break;
         case 'neon':
-          const neon = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 200, 5);
+          const neon = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 250, 5);
           neon.position.set(...l.position);
           light = neon;
           break;
         default:
-          const p = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 1000);
+          const p = new THREE.PointLight(new THREE.Color(...l.color), l.intensity / 1200);
           p.position.set(...l.position);
           light = p;
       }
       scene.add(light);
     });
+
+    // Add subtle neon pink and blue accent lights (soft glows)
+    const neonPink = new THREE.PointLight(0xff66cc, 0.8, 8);
+    neonPink.position.set(10, 3, 10);
+    scene.add(neonPink);
+
+    const neonBlue = new THREE.PointLight(0x66ccff, 0.8, 8);
+    neonBlue.position.set(25, 3, 30);
+    scene.add(neonBlue);
 
     // -----------------------------------------------------------------
     // Input handling (unchanged)
@@ -844,11 +854,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         }
       } else if (currentTargetedPanel) {
-        // Click on panel – show info overlay instead of instantly opening marketplace
+        // Click on panel – populate info overlay
         const src = getCurrentNftSource(currentTargetedPanel.wallName);
         if (src) {
           setSelectedInfo({
-            title: undefined, // will be filled after we fetch metadata (or we can reuse cached data)
+            title: undefined,
             description: undefined,
             collection: src.contractAddress,
             tokenId: src.tokenId,
