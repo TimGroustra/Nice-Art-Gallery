@@ -230,13 +230,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     tokenId?: string | number;
   }>({ open: false });
 
-  // Hover overlay state
-  const [hoverInfo, setHoverInfo] = useState<{
+  // Click‑activated info panel state
+  const [selectedInfo, setSelectedInfo] = useState<{
     title?: string;
     description?: string;
     collection?: string;
     tokenId?: string | number;
-  }>({});
+  } | null>(null);
 
   // Constants
   const TEXT_PANEL_WIDTH = 2.5;
@@ -458,13 +458,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         (panel.attributesMesh.material as THREE.MeshBasicMaterial).map = attrTex;
         panel.attributesMesh.visible = true;
 
-        // Update hover overlay info
-        setHoverInfo({
-          title: metadata.title,
-          description: metadata.description,
-          collection: source.contractAddress,
-          tokenId: source.tokenId,
-        });
+        // We no longer update hoverInfo here; info will be shown on click.
 
         showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       } catch (error) {
@@ -476,7 +470,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.prevArrow.visible = showArrows;
       panel.nextArrow.visible = showArrows;
     },
-    [loadTexture, setHoverInfo]
+    [loadTexture]
   );
 
   // -----------------------------------------------------------------
@@ -850,10 +844,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         }
       } else if (currentTargetedPanel) {
+        // Click on panel – show info overlay instead of instantly opening marketplace
         const src = getCurrentNftSource(currentTargetedPanel.wallName);
         if (src) {
-          setMarketBrowserState({ open: true, collection: src.contractAddress, tokenId: src.tokenId });
-          controls.unlock();
+          setSelectedInfo({
+            title: undefined, // will be filled after we fetch metadata (or we can reuse cached data)
+            description: undefined,
+            collection: src.contractAddress,
+            tokenId: src.tokenId,
+          });
         }
       }
     };
@@ -931,7 +930,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         camera.position.y = 1.6;
 
-        // Raycast hover
+        // Raycast hover (for arrow highlighting only)
         raycaster.setFromCamera(center, camera);
         const intersectObjs = raycaster.intersectObjects(
           panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]),
@@ -952,10 +951,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           if (panel) {
             if (tgt === panel.mesh) {
               currentTargetedPanel = panel;
-              // update overlay hover info now that we have panel data
-              setHoverInfo(prev => ({
-                ...prev,
-              }));
             } else if (tgt === panel.prevArrow || tgt === panel.nextArrow) {
               currentTargetedArrow = tgt;
               (tgt.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
@@ -1059,7 +1054,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   window.addEventListener('resize', onWindowResize);
 
   // -----------------------------------------------------------------
-  // UI – Market browser modal and overlay
+  // UI – Market browser modal and info overlay (clicked panel)
   // -----------------------------------------------------------------
   return (
     <>
@@ -1072,17 +1067,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           onClose={() => setMarketBrowserState({ open: false })}
         />
       )}
-      <GalleryInfo
-        title={hoverInfo.title}
-        description={hoverInfo.description}
-        collection={hoverInfo.collection}
-        tokenId={hoverInfo.tokenId}
-        onOpenMarketplace={() => {
-          if (hoverInfo.collection && hoverInfo.tokenId !== undefined) {
-            setMarketBrowserState({ open: true, collection: hoverInfo.collection, tokenId: hoverInfo.tokenId });
-          }
-        }}
-      />
+      {selectedInfo && (
+        <GalleryInfo
+          title={selectedInfo.title}
+          description={selectedInfo.description}
+          collection={selectedInfo.collection}
+          tokenId={selectedInfo.tokenId}
+          onOpenMarketplace={() => {
+            if (selectedInfo.collection && selectedInfo.tokenId !== undefined) {
+              setMarketBrowserState({
+                open: true,
+                collection: selectedInfo.collection,
+                tokenId: selectedInfo.tokenId,
+              });
+            }
+          }}
+        />
+      )}
     </>
   );
 };
