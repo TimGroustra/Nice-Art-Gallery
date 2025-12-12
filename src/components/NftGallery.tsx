@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
@@ -21,11 +21,16 @@ import { GalleryLayout, MaterialId } from '@/scene/unrealUnityLayout';
 RectAreaLightUniformsLib.init();
 
 // ---------------------------
-// ** NEW CONSTANTS & TYPES **
+// ** NEW CONSTANTS & TEXTURES **
 // ---------------------------
-
 const TEXT_PANEL_OFFSET_X = 0.8; // spacing for description/attributes panels
 const TEXT_DEPTH_OFFSET = 0.05; // Offset text panels slightly from the wall
+
+// Load a stone texture once (reuse for all stone materials)
+const stoneTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/stone.jpg');
+stoneTexture.wrapS = THREE.RepeatWrapping;
+stoneTexture.wrapT = THREE.RepeatWrapping;
+stoneTexture.repeat.set(4, 4); // repeat for a larger surface
 
 // Panel interface – mirrors the structure used throughout the component
 interface Panel {
@@ -58,7 +63,7 @@ function createFramedPanel(width: number, height: number, emissiveColor: number)
   const backGeo = new THREE.PlaneGeometry(width, height);
   const backMat = new THREE.MeshStandardMaterial({
     color: 0x0a0a0a,
-    roughness: 0.8, // fixed: use decimal value
+    roughness: 0.8,
     metalness: 0.05,
     side: THREE.DoubleSide,
   });
@@ -246,7 +251,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const ATTRIBUTES_HEIGHT = 1.5;
   const DESCRIPTION_PANEL_HEIGHT = TITLE_HEIGHT + DESCRIPTION_HEIGHT;
   const TITLE_PANEL_WIDTH = 4.0;
-  const FLOOR_COLOR = 0x1b1416;
+  const FLOOR_COLOR = 0x1b1416; // kept for other uses
   const ARROW_COLOR = 0xcccccc;
   const ARROW_COLOR_HOVER = 0x00ff00;
   const ARROW_PANEL_OFFSET = 1.5;
@@ -504,7 +509,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const container = mountRef.current;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0a0410);
-    scene.fog = new THREE.FogExp2(0x0a0410, 0.01); // Reduced fog density for larger space
+    scene.fog = new THREE.FogExp2(0x0a0410, 0.01);
 
     // Ambient light – softer to reduce harsh white
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.15);
@@ -521,7 +526,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Camera – start on Floor 1
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(CENTER_X, PLAYER_HEIGHT, CENTER_Z - STAIR_ZONE_R_MAX); // Start near the staircase entrance
+    camera.position.set(CENTER_X, PLAYER_HEIGHT, CENTER_Z - STAIR_ZONE_R_MAX);
 
     // Controls
     const controls = new PointerLockControls(camera, renderer.domElement);
@@ -573,7 +578,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     composer.addPass(fxaaPass);
 
     // -----------------------------------------------------------------
-    // Material Factory
+    // Material Factory – now uses stone texture for floors and walls
     // -----------------------------------------------------------------
     const materialMap = new Map<MaterialId, THREE.Material>();
     
@@ -583,13 +588,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         let mat: THREE.Material;
         switch (id) {
             case MaterialId.WhitePlaster:
-                mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0.1 });
+            case MaterialId.PolishedConcrete:
+                // Stone look for floors and walls
+                mat = new THREE.MeshStandardMaterial({
+                  map: stoneTexture,
+                  color: 0x888888,
+                  roughness: 0.7,
+                  metalness: 0.1,
+                });
                 break;
             case MaterialId.GraphiteMicrocement:
                 mat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9, metalness: 0.05 });
-                break;
-            case MaterialId.PolishedConcrete:
-                mat = new THREE.MeshStandardMaterial({ color: FLOOR_COLOR, roughness: 0.9, metalness: 0.05 });
                 break;
             case MaterialId.DarkResin:
                 mat = new THREE.MeshStandardMaterial({ color: 0x0a0410, roughness: 0.1, metalness: 0.9 });
@@ -612,7 +621,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
 
     // -----------------------------------------------------------------
-    // Build floors, ceilings, and walls
+    // Build floors, ceilings, and walls (floors now get stone material)
     // -----------------------------------------------------------------
     const floorGroup = new THREE.Group();
     const ceilingGroup = new THREE.Group();
@@ -625,36 +634,29 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       let floorGeo: THREE.PlaneGeometry | THREE.ShapeGeometry;
       
       if (room.name === "Ground Floor Hall") {
-        // Floor 1: Full 50x50 plane
+        // Full floor plane
         floorGeo = new THREE.PlaneGeometry(roomW, roomD);
       } else {
-        // Floors 2 & 3: Ring shape with central atrium void
+        // Ring shape with central atrium
         const shape = new THREE.Shape();
-        // Outer boundary (50x50 square)
         shape.moveTo(0, 0);
         shape.lineTo(0, L);
         shape.lineTo(L, L);
         shape.lineTo(L, 0);
         shape.lineTo(0, 0);
-
-        // Inner hole (22m diameter circle, centered at 25, 25)
         const holePath = new THREE.Path();
         holePath.absarc(L / 2, L / 2, ATRIUM_R, 0, Math.PI * 2, true);
         shape.holes.push(holePath);
-        
         floorGeo = new THREE.ShapeGeometry(shape);
       }
       
       const floorMat = getMaterial(room.material, room.ceilingHeight);
-      
-      // Create floor mesh at the correct Y level
       const floor = new THREE.Mesh(floorGeo, floorMat);
       floor.rotation.x = -Math.PI / 2;
-      // Position the floor mesh so its center (25, 25) aligns with the world center
-      floor.position.set(x, room.floorY, z + L); 
+      floor.position.set(x, room.floorY, z + L);
       floorGroup.add(floor);
 
-      // Ceiling (always a full 50x50 plane for simplicity, unless we need a skylight)
+      // Ceilings remain simple white plaster
       const ceilingGeo = new THREE.PlaneGeometry(roomW, roomD);
       const ceilingMat = getMaterial(MaterialId.WhitePlaster, room.ceilingHeight);
       const ceiling = new THREE.Mesh(ceilingGeo, ceilingMat);
@@ -666,7 +668,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(ceilingGroup);
 
     // -----------------------------------------------------------------
-    // Build walls + panels
+    // Build walls + panels (walls now use stone texture)
     // -----------------------------------------------------------------
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
@@ -688,8 +690,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     GalleryLayout.walls.forEach(wall => {
       const wallMat = getMaterial(wall.material, wall.height);
-      
-      // Wall mesh
       const wallGeo = new THREE.PlaneGeometry(wall.length, wall.height);
       const wallMesh = new THREE.Mesh(wallGeo, wallMat);
       wallMesh.position.set(...wall.position);
@@ -697,7 +697,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(wallMesh);
       wallMeshesRef.current.set(wall.key, wallMesh);
 
-      // Collision segment (Only for perimeter walls, not atrium balustrades or spiral panels)
+      // Collision segment for perimeter / octagon walls
       if (wall.key.startsWith('wall-') || wall.key.startsWith('octagon-')) {
           const halfLen = wall.length / 2;
           const cosR = Math.cos(wall.rotationY);
@@ -711,18 +711,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           collisionSegmentsRef.current.push([x1, z1, x2, z2]);
       }
 
-
-      // Panel
       if (wall.hasPanel) {
         const { group: panelGroup, imageMesh } = createFramedPanel(2, 2, NEON_COLOR_MAGENTA);
-        
-        // Panel position is relative to the wall position, but we use the wall's position directly
-        // since the wall definition already includes the offset from the center line.
         panelGroup.position.set(wall.position[0], wall.position[1], wall.position[2]);
         panelGroup.rotation.y = wall.rotationY;
         scene.add(panelGroup);
 
-        // Arrows (positioned relative to the panel group)
         const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
         prevArrow.rotation.set(0, wall.rotationY + Math.PI, 0);
         const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
@@ -730,21 +724,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         
         const basePos = panelGroup.position.clone();
         const rightVec = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, wall.rotationY, 0));
-        
-        // Adjust arrow positions based on panel size (2m wide)
-        const ARROW_OFFSET = 1.5; 
+        const ARROW_OFFSET = 1.5;
         prevArrow.position.copy(basePos.clone().addScaledVector(rightVec, -ARROW_OFFSET));
         nextArrow.position.copy(basePos.clone().addScaledVector(rightVec, ARROW_OFFSET));
-        
-        // Ensure arrows are slightly offset from the wall plane
+
         const forwardVec = forwardVector(wall.rotationY);
         prevArrow.position.addScaledVector(forwardVec, PANEL_OFFSET);
         nextArrow.position.addScaledVector(forwardVec, PANEL_OFFSET);
-        
         scene.add(prevArrow);
         scene.add(nextArrow);
 
-        // Title
         const titleMesh = new THREE.Mesh(titleGeometry, textMatFactory());
         titleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const titlePos = basePos
@@ -755,7 +744,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         titleMesh.visible = false;
         scene.add(titleMesh);
 
-        // Description
         const descriptionMesh = new THREE.Mesh(descriptionGeometry, textMatFactory());
         descriptionMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const descPos = basePos
@@ -766,7 +754,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         descriptionMesh.visible = false;
         scene.add(descriptionMesh);
 
-        // Attributes
         const attributesMesh = new THREE.Mesh(attributesGeometry, textMatFactory());
         attributesMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         const attrPos = basePos
@@ -777,7 +764,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         attributesMesh.visible = false;
         scene.add(attributesMesh);
 
-        // Wall title (placed above the panel)
         const wallTitleMesh = new THREE.Mesh(wallTitleGeometry, textMatFactory());
         wallTitleMesh.rotation.copy(wallGroupRotation(wall.rotationY));
         wallTitleMesh.position.set(wall.position[0], wall.position[1] + wall.height / 2 - 0.5, wall.position[2]);
@@ -824,7 +810,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // -----------------------------------------------------------------
-    // Lighting – using layout definitions
+    // Lighting – unchanged
     // -----------------------------------------------------------------
     GalleryLayout.lights.forEach(l => {
       let light: THREE.Light;
@@ -860,7 +846,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // -----------------------------------------------------------------
-    // Input handling (unchanged)
+    // Input handling – unchanged
     // -----------------------------------------------------------------
     let moveForward = false,
       moveBackward = false,
@@ -908,7 +894,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('keyup', onKeyUp);
 
     // -----------------------------------------------------------------
-    // Raycaster for UI interaction
+    // Raycaster for UI interaction – unchanged
     // -----------------------------------------------------------------
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
@@ -928,7 +914,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         }
       } else if (currentTargetedPanel) {
-        // Click on panel – populate info overlay
         const src = getCurrentNftSource(currentTargetedPanel.wallName);
         if (src) {
           setSelectedInfo({
@@ -943,7 +928,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.domElement.addEventListener('click', onDocumentMouseDown);
 
     // -----------------------------------------------------------------
-    // Description scrolling
+    // Description scrolling – unchanged
     // -----------------------------------------------------------------
     const onDocumentWheel = (event: WheelEvent) => {
       if (!controls.isLocked || !currentTargetedDescriptionPanel) return;
@@ -968,7 +953,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('wheel', onDocumentWheel);
 
     // -----------------------------------------------------------------
-    // Animation loop
+    // Animation loop – unchanged
     // -----------------------------------------------------------------
     let prevTime = performance.now();
     const startTime = performance.now();
@@ -1002,20 +987,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const boundaryMax = L - HALF_T - PLAYER_RADIUS;
         
         if (curX < boundaryMin || curX > boundaryMax || curZ < boundaryMin || curZ > boundaryMax) {
-            camera.position.x = prevX;
-            camera.position.z = prevZ;
-            velocity.set(0, 0, 0);
+          camera.position.x = prevX;
+          camera.position.z = prevZ;
+          velocity.set(0, 0, 0);
         } else {
-            // Check internal collision segments (Perimeter and Octagon walls)
-            for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
-              const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
-              if (dist < COLLISION_DISTANCE) {
-                camera.position.x = prevX;
-                camera.position.z = prevZ;
-                velocity.set(0, 0, 0);
-                break;
-              }
+          for (const [x1, z1, x2, z2] of collisionSegmentsRef.current) {
+            const dist = distToSegment(curX, curZ, x1, z1, x2, z2);
+            if (dist < COLLISION_DISTANCE) {
+              camera.position.x = prevX;
+              camera.position.z = prevZ;
+              velocity.set(0, 0, 0);
+              break;
             }
+          }
         }
 
         // 2. Vertical Movement (Staircase Logic)
@@ -1026,46 +1010,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const isInStairZone = distToCenter >= STAIR_ZONE_R_MIN && distToCenter <= STAIR_ZONE_R_MAX;
         
         if (isInStairZone) {
-            // Calculate the angle relative to the center (0 radians is positive Z axis)
-            // atan2(y, x) in Three.js/math is usually atan2(z, x) for XZ plane
-            let angleXZ = Math.atan2(dx, dz); // Angle from positive Z axis, clockwise
-            
-            // Normalize angle to be positive (0 to 2*PI)
-            if (angleXZ < 0) {
-                angleXZ += 2 * Math.PI;
-            }
-            
-            // Calculate the target Y position based on the angle
-            // The staircase starts at angle 0 (positive Z) and rises over 3 rotations (6*PI)
-            const targetY = angleXZ * RISE_PER_RADIAN;
-            
-            // Determine the current rotation cycle (0, 1, or 2) based on current height
-            const currentRotationCycle = Math.round(camera.position.y / (2 * Math.PI * RISE_PER_RADIAN));
-            
-            // Adjust targetY to the correct floor cycle
-            const finalTargetY = targetY + currentRotationCycle * 2 * Math.PI * RISE_PER_RADIAN;
-            
-            // Clamp Y position to the total height of the staircase
-            const clampedY = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalTargetY + PLAYER_HEIGHT));
-            
-            // Smoothly interpolate the camera's Y position towards the target Y
-            camera.position.y += (clampedY - camera.position.y) * 0.5; // Increased interpolation
-            
+          let angleXZ = Math.atan2(dx, dz);
+          if (angleXZ < 0) angleXZ += 2 * Math.PI;
+          const targetY = angleXZ * RISE_PER_RADIAN;
+          const currentRotationCycle = Math.round(camera.position.y / (2 * Math.PI * RISE_PER_RADIAN));
+          const finalTargetY = targetY + currentRotationCycle * 2 * Math.PI * RISE_PER_RADIAN;
+          const clampedY = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalTargetY + PLAYER_HEIGHT));
+          camera.position.y += (clampedY - camera.position.y) * 0.5; // smoother, responsive lift
         } else {
-            // Gravity/Floor snapping outside the staircase zone
-            let targetFloorY = FLOOR_LEVELS[0]; 
-            for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
-                if (camera.position.y >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
-                    targetFloorY = FLOOR_LEVELS[i];
-                    break;
-                }
+          let targetFloorY = FLOOR_LEVELS[0];
+          for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
+            if (camera.position.y >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
+              targetFloorY = FLOOR_LEVELS[i];
+              break;
             }
-            // Snap player to the current floor level
-            camera.position.y += (targetFloorY + PLAYER_HEIGHT - camera.position.y) * 0.5; // Increased interpolation
+          }
+          camera.position.y += (targetFloorY + PLAYER_HEIGHT - camera.position.y) * 0.5;
         }
 
-
-        // Raycast hover (for arrow highlighting only)
+        // Raycast hover for arrows
         raycaster.setFromCamera(center, camera);
         const intersectObjs = raycaster.intersectObjects(
           panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]),
@@ -1112,7 +1075,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       let t = ((px - x1) * dx + (pz - z1) * dz) / lenSq;
       t = Math.max(0, Math.min(1, t));
       const cx = x1 + t * dx;
-      const cz = z1 + t * dz;
+      const cz = z1 + t * cz;
       return Math.hypot(px - cx, pz - cz);
     }
 
