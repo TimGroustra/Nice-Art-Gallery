@@ -114,7 +114,7 @@ function createFramedPanel(width: number, height: number, emissiveColor: number)
   group.add(top, bottom, left, right);
 
   return { group, imageMesh };
-};
+}
 
 // ---------------------------------------------------------------------
 // Text texture helpers (unchanged)
@@ -284,10 +284,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const STAIR_ZONE_R_MIN = STAIR_INNER_R - 0.5;
   const STAIR_ZONE_R_MAX = STAIR_OUTER_R + 0.5;
 
-  const TOTAL_STAIR_HEIGHT = 10.5;
-  const TOTAL_ROTATIONS = 3;
-  const TOTAL_ANGLE = TOTAL_ROTATIONS * 2 * Math.PI;
-  const RISE_PER_RADIAN = TOTAL_STAIR_HEIGHT / TOTAL_ANGLE;
+  // Height‑to‑step conversion not needed any more – kept for possible future use
+  // const TOTAL_STAIR_HEIGHT = 10.5;
+  // const TOTAL_ROTATIONS = 3;
+  // const TOTAL_ANGLE = TOTAL_ROTATIONS * 2 * Math.PI;
+  // const RISE_PER_RADIAN = TOTAL_STAIR_HEIGHT / TOTAL_ANGLE;
 
   // Globals set later
   let camera: THREE.PerspectiveCamera;
@@ -581,11 +582,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const materialCache = new Map<MaterialId, THREE.Material>();
     const getMaterial = (id: MaterialId, height: number) => {
       if (materialCache.has(id)) return materialCache.get(id)!;
-      let mat: THREE.Material;
       // All wall‑type materials share the same stone appearance
-      mat = new THREE.MeshStandardMaterial({
+      const mat = new THREE.MeshStandardMaterial({
         map: stoneTexture,
-        color: 0xe0e0e0, // light stone colour
+        color: 0xe0e0e0,
         roughness: 0.5,
         metalness: 0.1,
       });
@@ -637,7 +637,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(ceilingGroup);
 
     // -----------------------------------------------------------------
-    // Walls + panels (stone material)
+    // Walls + panels (stone material) and 3‑D stair steps
     // -----------------------------------------------------------------
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
@@ -658,7 +658,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panelsRef.current = [];
     collisionSegmentsRef.current = [];
 
+    // Keep a reference to the step meshes for ray‑casting
+    const stepMeshes: THREE.Mesh[] = [];
+
+    const STEP_DEPTH = 0.3; // Depth of each step block
+
     GalleryLayout.walls.forEach(wall => {
+      // If this wall is a stair step, create a solid box instead of a thin plane
+      if (wall.key.startsWith('stair-step-')) {
+        const stepGeom = new THREE.BoxGeometry(wall.length, wall.height, STEP_DEPTH);
+        const stepMesh = new THREE.Mesh(stepGeom, getMaterial(wall.material, wall.height));
+        stepMesh.position.set(...wall.position);
+        stepMesh.rotation.y = wall.rotationY;
+        scene.add(stepMesh);
+        stepMeshes.push(stepMesh);
+        // No panels or arrows on steps, so return early
+        return;
+      }
+
       const wallMat = getMaterial(wall.material, wall.height);
       const wallGeom = new THREE.PlaneGeometry(wall.length, wall.height);
       const wallMesh = new THREE.Mesh(wallGeom, wallMat);
@@ -927,7 +944,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('wheel', onDocumentWheel);
 
     // -----------------------------------------------------------------
-    // Animation loop (unchanged)
+    // Animation loop
     // -----------------------------------------------------------------
     let prevTime = performance.now();
     const animate = () => {
@@ -974,32 +991,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         }
 
-        // Staircase vertical movement (unchanged)
-        const dx = curX - CENTER_X;
-        const dz = curZ - CENTER_Z;
-        const dist = Math.hypot(dx, dz);
-        const inStair = dist >= STAIR_ZONE_R_MIN && dist <= STAIR_ZONE_R_MAX;
-
-        if (inStair) {
-          let angle = Math.atan2(dx, dz);
-          if (angle < 0) angle += 2 * Math.PI;
-          const targetY = angle * RISE_PER_RADIAN;
-          const currentCycle = Math.round(camera.position.y / (2 * Math.PI * RISE_PER_RADIAN));
-          const finalY = targetY + currentCycle * 2 * Math.PI * RISE_PER_RADIAN;
-          const clamped = Math.max(FLOOR_LEVELS[0] + PLAYER_HEIGHT, Math.min(FLOOR_LEVELS[2] + PLAYER_HEIGHT, finalY + PLAYER_HEIGHT));
-          camera.position.y += (clamped - camera.position.y) * 0.5;
+        // ----- NEW: natural stair stepping using ray‑cast onto step meshes -----
+        const downOrigin = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z);
+        raycaster.set(downOrigin, new THREE.Vector3(0, -1, 0));
+        const stepHits = raycaster.intersectObjects(stepMeshes, true);
+        if (stepHits.length > 0) {
+          const hitY = stepHits[0].point.y + PLAYER_HEIGHT;
+          camera.position.y = hitY;
         } else {
-          let floorY = FLOOR_LEVELS[0];
-          for (let i = FLOOR_LEVELS.length - 1; i >= 0; i--) {
-            if (camera.position.y >= FLOOR_LEVELS[i] + PLAYER_HEIGHT - 0.1) {
-              floorY = FLOOR_LEVELS[i];
-              break;
-            }
-          }
-          camera.position.y += (floorY + PLAYER_HEIGHT - camera.position.y) * 0.5;
+          // If not over steps, stay on current floor level (ground floor)
+          const groundY = FLOOR_LEVELS[0] + PLAYER_HEIGHT;
+          if (camera.position.y < groundY) camera.position.y = groundY;
         }
 
-        // Raycast hover for arrows
+        // Raycast hover for arrows (unchanged)
         raycaster.setFromCamera(center, camera);
         const hits = raycaster.intersectObjects(
           panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow, p.descriptionMesh]),
