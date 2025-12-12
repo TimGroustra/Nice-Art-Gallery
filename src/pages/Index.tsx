@@ -1,4 +1,4 @@
-import NftGallery from "@/components/NftGallery";
+import NftGalleryLayout from "@/components/NftGalleryLayout";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";
@@ -36,22 +36,22 @@ const Index = () => {
     // Attempt to start music playback upon user interaction (locking controls)
     musicRef.current?.play();
   }, []);
-  
+
   // Add keyboard listener for 'M' key to toggle music mute
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const galleryControls = (window as any).galleryControls;
       const musicControls = (window as any).musicControls;
-      
+
       // Only allow keyboard shortcuts when controls are locked (user is in the gallery)
-      if (galleryControls?.isLocked?.() && musicControls && event.code === 'KeyM') {
+      if (galleryControls?.isLocked?.() && musicControls && event.code === "KeyM") {
         musicControls.toggleMute();
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
 
@@ -67,15 +67,13 @@ const Index = () => {
           </Link>
         </Button>
       </div>
-      
-      {/* 3D Canvas */}
-      <NftGallery 
-        setInstructionsVisible={setInstructionsVisible}
-      />
-      
+
+      {/* New cyber‑punk gallery layout */}
+      <NftGalleryLayout setInstructionsVisible={setInstructionsVisible} />
+
       {/* 2D Overlay UI */}
-      <GalleryUI 
-        instructionsVisible={instructionsVisible} 
+      <GalleryUI
+        instructionsVisible={instructionsVisible}
         onLockClick={handleLockClick}
       />
     </div>
