@@ -336,8 +336,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
-    const WALL_HEIGHT = 4;
-    const PANEL_Y_POSITION = 1.8;
+    const WALL_HEIGHT = 8; // Doubled height
+    const PANEL_Y_POSITION = 4.0; // Center the 2m panel vertically on the 8m wall
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
 
     const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
@@ -460,7 +460,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenterX;
             ceiling.position.z = segmentCenterZ;
-            ceiling.position.y = wallHeight;
+            ceiling.position.y = wallHeight; // Positioned at the new height (8)
             scene.add(ceiling);
         }
     }
@@ -527,6 +527,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const index = i;
         
         // 1. North Walls (Z = -5)
+        // Outer side (facing North, towards Z=-15)
         const northInnerOuterKey = `north-inner-wall-outer-${index}`;
         const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
@@ -540,6 +541,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
 
         // 2. South Walls (Z = 5)
+        // Outer side (facing South, towards Z=15)
         const southInnerOuterKey = `south-inner-wall-outer-${index}`;
         const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
@@ -553,6 +555,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
 
         // 3. East Walls (X = 5)
+        // Outer side (facing East, towards X=15)
         const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
         const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerOuterWall.rotation.y = -Math.PI / 2;
@@ -560,6 +563,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(eastInnerOuterWall);
         wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
 
+        // Inner side (facing West, towards X=0)
         const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
         const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerInnerWall.rotation.y = -Math.PI / 2;
@@ -568,6 +572,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
 
         // 4. West Walls (X = -5)
+        // Outer side (facing West, towards X=-15)
         const westInnerOuterKey = `west-inner-wall-outer-${index}`;
         const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerOuterWall.rotation.y = Math.PI / 2;
@@ -575,6 +580,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         scene.add(westInnerOuterWall);
         wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
 
+        // Inner side (facing East, towards X=0)
         const westInnerInnerKey = `west-inner-wall-inner-${index}`;
         const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerInnerWall.rotation.y = Math.PI / 2;
