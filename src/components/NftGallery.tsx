@@ -909,12 +909,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     fountainTop.position.set(0, 16.26, 0); // At the top of the pillar
     scene.add(fountainTop);
     
-    // Create multiple water jets from the top structure
+    // Create water jets that extend from the top structure down to the floor
     const createWaterJet = (x: number, z: number) => {
-      const jetGeometry = new THREE.CylinderGeometry(0.1, 0.2, 4, 16);
+      // Create a tapered cylinder that extends from the top structure down to the floor
+      const jetGeometry = new THREE.CylinderGeometry(0.1, 0.3, 16, 16);
       const jetMaterial = createWaterMaterial();
       const jet = new THREE.Mesh(jetGeometry, jetMaterial);
-      jet.position.set(x, 14.26, z); // Positioned below the top structure
+      // Position the jet so it extends from the top structure down to just above the water surface
+      jet.position.set(x, 8.26, z); // Centered vertically (16m height / 2 = 8m from floor)
       scene.add(jet);
       return jetMaterial;
     };
