@@ -77,52 +77,14 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
     mesh.material.dispose();
   }
 };
-// Helper function to create water material with shader
-const createWaterMaterial = () => {
-  const waterVertexShader = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-  `;
-  const waterFragmentShader = `
-  uniform float time;
-  varying vec2 vUv;
-  void main() {
-    // Create wave pattern
-    float wave1 = sin(vUv.x * 10.0 + time) * 0.05;
-    float wave2 = sin(vUv.y * 8.0 + time * 1.2) * 0.03;
-    float wave3 = sin((vUv.x + vUv.y) * 15.0 + time * 0.7) * 0.02;
-    // Combine waves
-    float wave = wave1 + wave2 + wave3;
-    // Base blue color with wave effect
-    vec3 waterColor = vec3(0.1 + wave * 0.5, 0.3 + wave, 0.7 + wave * 0.3);
-    // Add some white highlights for foam
-    float foam = smoothstep(0.8, 1.0, sin(vUv.x * 50.0 + time * 2.0) * sin(vUv.y * 40.0 + time * 1.5));
-    waterColor += vec3(foam * 0.3);
-    gl_FragColor = vec4(waterColor, 0.8);
-  }
-  `;
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0.0 }
-    },
-    vertexShader: waterVertexShader,
-    fragmentShader: waterFragmentShader,
-    transparent: true,
-    side: THREE.DoubleSide
-  });
-};
+
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{ open: boolean; collection?: string; tokenId?: string | number; }>({ open: false });
-  // Refs for water animation
-  const waterMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
-  const fountainWaterMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  
   // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
@@ -623,95 +585,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     platform.rotation.x = Math.PI / 2;
     platform.position.set(0, 8.1, 0); // Positioned at the top of the lower walls (8m height)
     scene.add(platform);
-    // --- CREATE STONE POOL WITH TALL WATER FOUNTAIN ---
-    // Create the stone pool (10x10)
-    const poolGeometry = new THREE.BoxGeometry(10, 0.5, 10);
-    const poolMaterial = new THREE.MeshStandardMaterial({
-      color: 0x808080, // Stone gray
-      roughness: 0.9,
-      metalness: 0.1
-    });
-    const pool = new THREE.Mesh(poolGeometry, poolMaterial);
-    pool.position.set(0, 0.25, 0); // Position at ground level
-    scene.add(pool);
-    // Create the water surface (slightly smaller than the pool)
-    const waterGeometry = new THREE.PlaneGeometry(9.8, 9.8);
-    const waterMaterial = createWaterMaterial();
-    waterMaterialRef.current = waterMaterial;
-    const waterSurface = new THREE.Mesh(waterGeometry, waterMaterial);
-    waterSurface.rotation.x = -Math.PI / 2;
-    waterSurface.position.set(0, 0.51, 0); // Just above the pool
-    scene.add(waterSurface);
-    // Create the tall fountain structure (2 walls high = 16m)
-    // Fountain base (4x4x0.5)
-    const fountainBaseGeometry = new THREE.BoxGeometry(4, 0.5, 4);
-    const fountainBaseMaterial = new THREE.MeshStandardMaterial({
-      color: 0x707070, // Darker stone
-      roughness: 0.8,
-      metalness: 0.2
-    });
-    const fountainBase = new THREE.Mesh(fountainBaseGeometry, fountainBaseMaterial);
-    fountainBase.position.set(0, 0.76, 0); // On top of the water
-    scene.add(fountainBase);
-    // Fountain pillar (0.8x0.8x15)
-    const fountainPillarGeometry = new THREE.BoxGeometry(0.8, 15, 0.8);
-    const fountainPillarMaterial = new THREE.MeshStandardMaterial({
-      color: 0x656565, // Medium stone
-      roughness: 0.85,
-      metalness: 0.15
-    });
-    const fountainPillar = new THREE.Mesh(fountainPillarGeometry, fountainPillarMaterial);
-    fountainPillar.position.set(0, 8.26, 0); // Positioned to reach from base to top (15m height)
-    scene.add(fountainPillar);
-    // Fountain top structure (3x3x1)
-    const fountainTopGeometry = new THREE.BoxGeometry(3, 1, 3);
-    const fountainTopMaterial = new THREE.MeshStandardMaterial({
-      color: 0x606060, // Lighter stone
-      roughness: 0.7,
-      metalness: 0.3
-    });
-    const fountainTop = new THREE.Mesh(fountainTopGeometry, fountainTopMaterial);
-    fountainTop.position.set(0, 16.26, 0); // At the top of the pillar
-    scene.add(fountainTop);
-    // Create water jets that extend from the top structure down to the floor
-    const createWaterJet = (x: number, z: number) => {
-      // Create a tapered cylinder that extends from the top structure down to the floor
-      const jetGeometry = new THREE.CylinderGeometry(0.1, 0.3, 16, 16);
-      const jetMaterial = createWaterMaterial();
-      const jet = new THREE.Mesh(jetGeometry, jetMaterial);
-      // Position the jet so it extends from the top structure down to just above the water surface
-      jet.position.set(x, 8.26, z); // Centered vertically (16m height / 2 = 8m from floor)
-      scene.add(jet);
-      return jetMaterial;
-    };
-    // Add water jets at each corner of the top structure
-    const jetMaterials = [
-      createWaterJet(1.2, 1.2),
-      createWaterJet(1.2, -1.2),
-      createWaterJet(-1.2, 1.2),
-      createWaterJet(-1.2, -1.2)
-    ];
-    // Store jet materials for animation
-    fountainWaterMaterialRef.current = jetMaterials[0]; // Use first one as reference
-    // Add decorative elements around the fountain
-    for (let i = 0; i < 8; i++) {
-      const angle = (i / 8) * Math.PI * 2;
-      const radius = 3;
-      const stoneGeometry = new THREE.SphereGeometry(0.3 + Math.random() * 0.2, 8, 8);
-      const stoneMaterial = new THREE.MeshStandardMaterial({
-        color: 0x777777,
-        roughness: 0.9,
-        metalness: 0.1
-      });
-      const stone = new THREE.Mesh(stoneGeometry, stoneMaterial);
-      stone.position.set(
-        Math.cos(angle) * radius,
-        0.51,
-        Math.sin(angle) * radius
-      );
-      scene.add(stone);
-    }
     // --- END POOL AND FOUNTAIN ---
+    
     // 4. Lighting Setup
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
@@ -929,14 +804,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const time = performance.now(),
         delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
-      // Update water shader time uniforms
-      if (waterMaterialRef.current && waterMaterialRef.current.uniforms) {
-        waterMaterialRef.current.uniforms.time.value = elapsedTime;
-      }
-      // Update fountain water jet shader time uniforms
-      if (fountainWaterMaterialRef.current && fountainWaterMaterialRef.current.uniforms) {
-        fountainWaterMaterialRef.current.uniforms.time.value = elapsedTime;
-      }
+      
       // Update ceiling shader time uniform
       if (ceilingMaterial.uniforms) {
         ceilingMaterial.uniforms.time.value = elapsedTime;
