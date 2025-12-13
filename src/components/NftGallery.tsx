@@ -413,7 +413,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const innerInnerSegmentCenters = [-10, 0, 10];
     const innerInnerInnerSegmentCenters = [0];
 
-    // 1. Create Modular Floor and Ceiling
+    // 1. Create Modular Floor and Ceiling with hole for 30x30 room
     const ceilingMaterial = new THREE.ShaderMaterial({
         uniforms: {
             time: { value: 0.0 },
@@ -425,23 +425,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         transparent: true,
     });
     
+    // Define the area to cut out (30x30 room centered in the 50x50 space)
+    const HOLE_SIZE = 30; // 30x30 room
+    const HOLE_HALF_SIZE = HOLE_SIZE / 2;
+    
     for (let i = 0; i < NUM_SEGMENTS; i++) {
         for (let j = 0; j < NUM_SEGMENTS; j++) {
-            const segmentCenter = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+            const segmentCenterX = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
             const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+            
+            // Check if this segment is within the 30x30 area to be cut out
+            const isInHoleArea = 
+                segmentCenterX > -HOLE_HALF_SIZE && segmentCenterX < HOLE_HALF_SIZE &&
+                segmentCenterZ > -HOLE_HALF_SIZE && segmentCenterZ < HOLE_HALF_SIZE;
+            
+            // Skip creating ceiling segments that fall within the 30x30 hole area
+            if (isInHoleArea) continue;
 
             // Floor Segment with placeholder material
             const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
             floorSegment.rotation.x = Math.PI / 2;
-            floorSegment.position.x = segmentCenter;
+            floorSegment.position.x = segmentCenterX;
             floorSegment.position.z = segmentCenterZ;
             scene.add(floorSegment);
             floorSegments.push(floorSegment);
 
-            // Ceiling Segment
+            // Ceiling Segment (only create if not in hole area)
             const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
             ceiling.rotation.x = Math.PI / 2;
-            ceiling.position.x = segmentCenter;
+            ceiling.position.x = segmentCenterX;
             ceiling.position.z = segmentCenterZ;
             ceiling.position.y = wallHeight;
             scene.add(ceiling);
