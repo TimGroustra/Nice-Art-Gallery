@@ -394,6 +394,72 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     const cobbledStoneMaterial = createCobbledStoneMaterial();
     
+    // Helper function to create the double-back staircase geometry
+    const createStaircase = (material: THREE.Material) => {
+        const group = new THREE.Group();
+        
+        // Constants for the staircase structure (4x10 footprint, centered in 10x10 segment)
+        const STAIR_WIDTH = 4;
+        const STAIR_LENGTH = 4; // Length of one flight
+        const STAIR_HEIGHT_TOTAL = 2.0; // Height of one flight
+        const NUM_STEPS = 8; 
+        const STEP_RISE = STAIR_HEIGHT_TOTAL / NUM_STEPS; // 0.25
+        const STEP_RUN = STAIR_LENGTH / NUM_STEPS; // 0.5
+        const MID_PLATFORM_LENGTH = 2; // Z=-1 to Z=1
+        
+        // --- 1. First Flight of Stairs (Z=5 down to Z=1) ---
+        // Positioned to start at Z=5 (edge of segment) and end at Z=1
+        for (let i = 0; i < NUM_STEPS; i++) {
+            const stepGeometry = new THREE.BoxGeometry(STAIR_WIDTH, STEP_RISE, STEP_RUN);
+            const step = new THREE.Mesh(stepGeometry, material);
+            
+            const y = (i + 0.5) * STEP_RISE;
+            // Z starts at 5 - STEP_RUN/2 (4.75) and decreases
+            const z = 5 - (i + 0.5) * STEP_RUN;
+            
+            step.position.set(0, y, z);
+            group.add(step);
+        }
+
+        // --- 2. Mid-Platform (Y=2.0, Z=1 to Z=-1) ---
+        const midPlatformHeight = 0.2;
+        const midPlatformGeometry = new THREE.BoxGeometry(STAIR_WIDTH, midPlatformHeight, MID_PLATFORM_LENGTH); 
+        const midPlatform = new THREE.Mesh(midPlatformGeometry, material);
+        // Center of platform is at Z=0. Y is 2.0 + 0.1 (half height)
+        midPlatform.position.set(0, STAIR_HEIGHT_TOTAL + midPlatformHeight / 2, 0);
+        group.add(midPlatform);
+        
+        // --- 3. Second Flight of Stairs (Double Back, Z=-1 down to Z=-5) ---
+        // Starts at Y=2.0, rises to Y=4.0 (another 2.0m)
+        const STAIR_HEIGHT_TOTAL_2 = 2.0;
+        const NUM_STEPS_2 = 8;
+        const STEP_RISE_2 = STAIR_HEIGHT_TOTAL_2 / NUM_STEPS_2; // 0.25
+        const STEP_RUN_2 = STAIR_LENGTH / NUM_STEPS_2; // 0.5
+
+        for (let i = 0; i < NUM_STEPS_2; i++) {
+            const stepGeometry = new THREE.BoxGeometry(STAIR_WIDTH, STEP_RISE_2, STEP_RUN_2);
+            const step = new THREE.Mesh(stepGeometry, material);
+            
+            // Y: starts at 2.0 + 0.125 and increases by STEP_RISE_2
+            const y = STAIR_HEIGHT_TOTAL + (i + 0.5) * STEP_RISE_2;
+            // Z: starts at -1 - STEP_RUN/2 (-1.25) and decreases by STEP_RUN
+            const z = -1 - (i + 0.5) * STEP_RUN_2;
+            
+            step.position.set(0, y, z);
+            group.add(step);
+        }
+        
+        // --- 4. Top Platform (Y=4.0, Z=-5 to Z=-7) ---
+        const topPlatformHeight = 0.2;
+        const topPlatformGeometry = new THREE.BoxGeometry(STAIR_WIDTH, topPlatformHeight, 2); 
+        const topPlatform = new THREE.Mesh(topPlatformGeometry, material);
+        // Center of platform is at Z=-6. Y is 4.0 + 0.1
+        topPlatform.position.set(0, STAIR_HEIGHT_TOTAL * 2 + topPlatformHeight / 2, -6);
+        group.add(topPlatform);
+
+        return group;
+    };
+    
     // 2. Placeholder Material for ETN Logo Floor (Async)
     const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
         color: 0x0a0a0a,
@@ -485,9 +551,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             let floorMaterialToUse = placeholderFloorMaterial;
 
             if (isCentral3x3Segment) {
-                // If it's one of the 9 segments in the 30x30 area, check if it's part of the central cross pathway (X=0 or Z=0)
-                if (segmentCenterX === 0 || segmentCenterZ === 0) {
-                    // This is the central cross pathway (5 segments). Use cobbled stone.
+                // If it's the central 10x10 segment, skip floor creation but add ceiling
+                if (segmentCenterX === 0 && segmentCenterZ === 0) { 
+                    // Ceiling Segment (Always create ceiling)
+                    const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
+                    ceiling.rotation.x = Math.PI / 2;
+                    ceiling.position.x = segmentCenterX;
+                    ceiling.position.z = segmentCenterZ;
+                    ceiling.position.y = wallHeight; // Positioned at the new height (8)
+                    scene.add(ceiling);
+                    
+                    continue; // Skip floor creation for the staircase area
+                } else if (segmentCenterX === 0 || segmentCenterZ === 0) {
+                    // This is the central cross pathway (4 segments excluding center). Use cobbled stone.
                     floorMaterialToUse = cobbledStoneMaterial;
                 } else {
                     // This is one of the four 30x30 corner segments. Use ETN logo floor.
@@ -537,6 +613,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         });
         placeholderFloorMaterial.dispose();
     });
+    
+    // Add the central staircase
+    const staircase = createStaircase(cobbledStoneMaterial);
+    scene.add(staircase);
 
     // --- START OUTER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = halfRoomSize;
