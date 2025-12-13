@@ -351,6 +351,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- Floor Texture and Material ---
     const floorSegments: THREE.Mesh[] = [];
+    
+    // 1. Cobbled Stone Material (Synchronous)
+    const createCobbledStoneMaterial = () => {
+        const canvasSize = 128;
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide });
+
+        ctx.fillStyle = '#444444'; // Dark gray base
+        ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+        // Draw random 'cobbles'
+        for (let i = 0; i < 50; i++) {
+            const x = Math.random() * canvasSize;
+            const y = Math.random() * canvasSize;
+            const size = 10 + Math.random() * 15;
+            const color = `hsl(0, 0%, ${40 + Math.random() * 10}%)`; // Shades of gray
+            
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(4, 4); // Repeat the pattern
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        texture.needsUpdate = true;
+
+        return new THREE.MeshStandardMaterial({
+            map: texture,
+            roughness: 0.8,
+            metalness: 0.1,
+            side: THREE.DoubleSide,
+        });
+    };
+    
+    const cobbledStoneMaterial = createCobbledStoneMaterial();
+    
+    // 2. Placeholder Material for ETN Logo Floor (Async)
     const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
         color: 0x0a0a0a,
         roughness: 0.2,
@@ -414,7 +458,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const CROSS_WALL_BOUNDARY = 5;
     const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
 
-    // 1. Create Modular Floor and Ceiling with hole for 30x30 room
+    // 1. Create Modular Floor and Ceiling
     const ceilingMaterial = new THREE.ShaderMaterial({
         uniforms: {
             time: { value: 0.0 },
@@ -437,25 +481,36 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             
             // Check if this segment is within the 30x30 area
             const isCentral3x3Segment = Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
+            
+            let floorMaterialToUse = placeholderFloorMaterial;
 
             if (isCentral3x3Segment) {
                 // If it's one of the 9 segments in the 30x30 area, check if it's part of the central cross pathway (X=0 or Z=0)
                 if (segmentCenterX === 0 || segmentCenterZ === 0) {
-                    // This is the central cross pathway (5 segments). Skip floor/ceiling.
-                    continue;
+                    // This is the central cross pathway (5 segments). Use cobbled stone.
+                    floorMaterialToUse = cobbledStoneMaterial;
+                } else {
+                    // This is one of the four 30x30 corner segments. Use ETN logo floor.
+                    // floorMaterialToUse remains placeholderFloorMaterial
                 }
+            } else {
+                // Outer 50x50 segments. Use ETN logo floor.
+                // floorMaterialToUse remains placeholderFloorMaterial
             }
             
-            // If we reach here, it's either an outer 50x50 segment OR one of the four 30x30 corner segments.
-            // Floor Segment with placeholder material
-            const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
+            // Floor Segment
+            const floorSegment = new THREE.Mesh(segmentGeometry, floorMaterialToUse);
             floorSegment.rotation.x = Math.PI / 2;
             floorSegment.position.x = segmentCenterX;
             floorSegment.position.z = segmentCenterZ;
             scene.add(floorSegment);
-            floorSegments.push(floorSegment);
+            
+            // Only add segments that need the async texture update to the list
+            if (floorMaterialToUse === placeholderFloorMaterial) {
+                floorSegments.push(floorSegment);
+            }
 
-            // Ceiling Segment
+            // Ceiling Segment (Always create ceiling)
             const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenterX;
@@ -465,7 +520,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
     }
 
-    // Asynchronously create and apply the custom floor texture
+    // Asynchronously create and apply the custom floor texture to the segments that need it
     createCustomFloorTexture((texture) => {
         const newFloorMaterial = new THREE.MeshStandardMaterial({
             map: texture,
@@ -474,7 +529,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             side: THREE.DoubleSide,
         });
         floorSegments.forEach(segment => {
-            segment.material = newFloorMaterial;
+            // Dispose of the placeholder material before replacing it
+            if (segment.material === placeholderFloorMaterial) {
+                segment.material.dispose();
+                segment.material = newFloorMaterial;
+            }
         });
         placeholderFloorMaterial.dispose();
     });
