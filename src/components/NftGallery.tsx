@@ -394,68 +394,83 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     const cobbledStoneMaterial = createCobbledStoneMaterial();
     
-    // Helper function to create the double-back staircase geometry
-    const createStaircase = (material: THREE.Material) => {
+    // Helper function to create the square spiral staircase geometry
+    const createSpiralStaircase = (material: THREE.Material) => {
         const group = new THREE.Group();
         
-        // Constants for the staircase structure (4x10 footprint, centered in 10x10 segment)
-        const STAIR_WIDTH = 4;
-        const STAIR_LENGTH = 4; // Length of one flight
-        const STAIR_HEIGHT_TOTAL = 2.0; // Height of one flight
-        const NUM_STEPS = 8; 
-        const STEP_RISE = STAIR_HEIGHT_TOTAL / NUM_STEPS; // 0.25
-        const STEP_RUN = STAIR_LENGTH / NUM_STEPS; // 0.5
-        const MID_PLATFORM_LENGTH = 2; // Z=-1 to Z=1
+        const STAIR_WIDTH = 2.0;
+        const FLIGHT_LENGTH = 6.0;
+        const RISE_PER_FLIGHT = 1.0;
+        const NUM_STEPS = 6; 
+        const STEP_RISE = RISE_PER_FLIGHT / NUM_STEPS; // 1/6 ≈ 0.1667
+        const STEP_RUN = FLIGHT_LENGTH / NUM_STEPS; // 1.0
+        const PLATFORM_SIZE = 2.0;
+        const PLATFORM_HEIGHT = 0.2;
         
-        // --- 1. First Flight of Stairs (Z=5 down to Z=1) ---
-        // Positioned to start at Z=5 (edge of segment) and end at Z=1
+        // Helper to create a step mesh
+        const createStep = (width: number, run: number, rise: number, x: number, y: number, z: number, rotationY: number = 0) => {
+            const stepGeometry = new THREE.BoxGeometry(width, rise, run);
+            const step = new THREE.Mesh(stepGeometry, material);
+            step.position.set(x, y, z);
+            step.rotation.y = rotationY;
+            group.add(step);
+        };
+
+        // Helper to create a platform mesh
+        const createPlatform = (y: number, centerX: number, centerZ: number) => {
+            const platformGeometry = new THREE.BoxGeometry(PLATFORM_SIZE, PLATFORM_HEIGHT, PLATFORM_SIZE);
+            const platform = new THREE.Mesh(platformGeometry, material);
+            platform.position.set(centerX, y + PLATFORM_HEIGHT / 2, centerZ);
+            group.add(platform);
+        };
+
+        // --- Flight 1 (South Wall: X=4 to X=-2, Z=4) ---
+        // Rises from Y=0.0 to Y=1.0
         for (let i = 0; i < NUM_STEPS; i++) {
-            const stepGeometry = new THREE.BoxGeometry(STAIR_WIDTH, STEP_RISE, STEP_RUN);
-            const step = new THREE.Mesh(stepGeometry, material);
-            
-            const y = (i + 0.5) * STEP_RISE;
-            // Z starts at 5 - STEP_RUN/2 (4.75) and decreases
-            const z = 5 - (i + 0.5) * STEP_RUN;
-            
-            step.position.set(0, y, z);
-            group.add(step);
-        }
-
-        // --- 2. Mid-Platform (Y=2.0, Z=1 to Z=-1) ---
-        const midPlatformHeight = 0.2;
-        const midPlatformGeometry = new THREE.BoxGeometry(STAIR_WIDTH, midPlatformHeight, MID_PLATFORM_LENGTH); 
-        const midPlatform = new THREE.Mesh(midPlatformGeometry, material);
-        // Center of platform is at Z=0. Y is 2.0 + 0.1 (half height)
-        midPlatform.position.set(0, STAIR_HEIGHT_TOTAL + midPlatformHeight / 2, 0);
-        group.add(midPlatform);
-        
-        // --- 3. Second Flight of Stairs (Double Back, Z=-1 down to Z=-5) ---
-        // Starts at Y=2.0, rises to Y=4.0 (another 2.0m)
-        const STAIR_HEIGHT_TOTAL_2 = 2.0;
-        const NUM_STEPS_2 = 8;
-        const STEP_RISE_2 = STAIR_HEIGHT_TOTAL_2 / NUM_STEPS_2; // 0.25
-        const STEP_RUN_2 = STAIR_LENGTH / NUM_STEPS_2; // 0.5
-
-        for (let i = 0; i < NUM_STEPS_2; i++) {
-            const stepGeometry = new THREE.BoxGeometry(STAIR_WIDTH, STEP_RISE_2, STEP_RUN_2);
-            const step = new THREE.Mesh(stepGeometry, material);
-            
-            // Y: starts at 2.0 + 0.125 and increases by STEP_RISE_2
-            const y = STAIR_HEIGHT_TOTAL + (i + 0.5) * STEP_RISE_2;
-            // Z: starts at -1 - STEP_RUN/2 (-1.25) and decreases by STEP_RUN
-            const z = -1 - (i + 0.5) * STEP_RUN_2;
-            
-            step.position.set(0, y, z);
-            group.add(step);
+            const stepY = (i + 0.5) * STEP_RISE;
+            const stepX = 4.0 - (i + 0.5) * STEP_RUN; // Starts at 4.0, ends at -2.0
+            // Step is 2m wide (Z: 3 to 5), centered at Z=4.
+            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, 4.0, Math.PI / 2); // Rotate 90 deg to align width with Z axis
         }
         
-        // --- 4. Top Platform (Y=4.0, Z=-5 to Z=-7) ---
-        const topPlatformHeight = 0.2;
-        const topPlatformGeometry = new THREE.BoxGeometry(STAIR_WIDTH, topPlatformHeight, 2); 
-        const topPlatform = new THREE.Mesh(topPlatformGeometry, material);
-        // Center of platform is at Z=-6. Y is 4.0 + 0.1
-        topPlatform.position.set(0, STAIR_HEIGHT_TOTAL * 2 + topPlatformHeight / 2, -6);
-        group.add(topPlatform);
+        // Platform 1 (SW Corner) - Y=1.0
+        createPlatform(1.0, -4.0, 4.0); // Center at X=-4, Z=4
+
+        // --- Flight 2 (West Wall: Z=3 to Z=-3, X=-4) ---
+        // Rises from Y=1.0 to Y=2.0
+        for (let i = 0; i < NUM_STEPS; i++) {
+            const stepY = 1.0 + (i + 0.5) * STEP_RISE;
+            const stepZ = 3.0 - (i + 0.5) * STEP_RUN; // Starts at 3.0, ends at -3.0
+            // Step is 2m wide (X: -5 to -3), centered at X=-4.
+            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, -4.0, stepY, stepZ, 0); 
+        }
+
+        // Platform 2 (NW Corner) - Y=2.0
+        createPlatform(2.0, -4.0, -4.0); // Center at X=-4, Z=-4
+
+        // --- Flight 3 (North Wall: X=-3 to X=3, Z=-4) ---
+        // Rises from Y=2.0 to Y=3.0
+        for (let i = 0; i < NUM_STEPS; i++) {
+            const stepY = 2.0 + (i + 0.5) * STEP_RISE;
+            const stepX = -3.0 + (i + 0.5) * STEP_RUN; // Starts at -3.0, ends at 3.0
+            // Step is 2m wide (Z: -5 to -3), centered at Z=-4.
+            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, -4.0, -Math.PI / 2); // Rotate -90 deg
+        }
+
+        // Platform 3 (NE Corner) - Y=3.0
+        createPlatform(3.0, 4.0, -4.0); // Center at X=4, Z=-4
+
+        // --- Flight 4 (East Wall: Z=-3 to Z=3, X=4) ---
+        // Rises from Y=3.0 to Y=4.0
+        for (let i = 0; i < NUM_STEPS; i++) {
+            const stepY = 3.0 + (i + 0.5) * STEP_RISE;
+            const stepZ = -3.0 + (i + 0.5) * STEP_RUN; // Starts at -3.0, ends at 3.0
+            // Step is 2m wide (X: 3 to 5), centered at X=4.
+            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, 4.0, stepY, stepZ, Math.PI); // Rotate 180 deg
+        }
+
+        // Top Platform (SE Corner) - Y=4.0
+        createPlatform(4.0, 4.0, 4.0); // Center at X=4, Z=4
 
         return group;
     };
@@ -615,7 +630,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // Add the central staircase
-    const staircase = createStaircase(cobbledStoneMaterial);
+    const staircase = createSpiralStaircase(cobbledStoneMaterial);
     scene.add(staircase);
 
     // --- START OUTER ROOM SETUP (50x50) ---
@@ -667,142 +682,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         
         // 1. North Walls (Z = -5)
         // Outer side (facing North, towards Z=-15)
-        const northInnerOuterKey = `north-inner-wall-outer-${index}`;
-        const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerOuterWall);
-        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterWall);
-
-        const northInnerInnerKey = `north-inner-wall-inner-${index}`;
-        const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerInnerWall);
-        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
-
-        // 2. South Walls (Z = 5)
-        // Outer side (facing South, towards Z=15)
-        const southInnerOuterKey = `south-inner-wall-outer-${index}`;
-        const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerOuterWall);
-        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
-
-        const southInnerInnerKey = `south-inner-wall-inner-${index}`;
-        const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerInnerWall);
-        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
-
-        // 3. East Walls (X = 5)
-        // Outer side (facing East, towards X=15)
-        const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
-        const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerOuterWall.rotation.y = -Math.PI / 2;
-        eastInnerOuterWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastInnerOuterWall);
-        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
-
-        // Inner side (facing West, towards X=0)
-        const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
-        const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerInnerWall.rotation.y = -Math.PI / 2;
-        eastInnerInnerWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastInnerInnerWall);
-        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
-
-        // 4. West Walls (X = -5)
-        // Outer side (facing West, towards X=-15)
-        const westInnerOuterKey = `west-inner-wall-outer-${index}`;
-        const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westInnerOuterWall.rotation.y = Math.PI / 2;
-        westInnerOuterWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westInnerOuterWall);
-        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
-
-        // Inner side (facing East, towards X=0)
-        const westInnerInnerKey = `west-inner-wall-inner-${index}`;
-        const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westInnerInnerWall.rotation.y = Math.PI / 2;
-        westInnerInnerWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westInnerInnerWall);
-        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
-    });
-
-    // 4. Lighting Setup
-    scene.add(new THREE.AmbientLight(0x404050, 1.0));
-    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
-    hemiLight.position.set(0, WALL_HEIGHT, 0);
-    scene.add(hemiLight);
-
-    const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
-    const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
-    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS/2; // Adjust for thicker walls
-    const ARROW_PANEL_OFFSET = 3.2; // Adjusted for 6m panel width (6/2 + 0.2 padding)
-
-    // Dynamic Panel Configuration Generation
-    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
-    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-    const MAX_SEGMENT_INDEX = 4;
-
-    // Outer 50x50 walls
-    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
-        for (const wallNameBase of WALL_NAMES) {
-            const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
-            
-            let x = 0, z = 0;
-            let rotation: [number, number, number] = [0, 0, 0];
-            let depthSign = 0; 
-            let wallAxis: 'x' | 'z' = 'z';
-
-            const centerIndex = i - 2; 
-            const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
-            
-            if (wallNameBase === 'north-wall') {
-                x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-            } else if (wallNameBase === 'south-wall') {
-                x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-            } else if (wallNameBase === 'east-wall') {
-                x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-            } else if (wallNameBase === 'west-wall') {
-                x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-            }
-            
-            let finalX = x;
-            let finalZ = z;
-            
-            if (wallAxis === 'x') {
-                finalX += depthSign * ARROW_DEPTH_OFFSET;
-            } else {
-                finalZ += depthSign * ARROW_DEPTH_OFFSET;
-            }
-
-            dynamicPanelConfigs.push({
-                wallName: panelKey,
-                position: [finalX, PANEL_Y_POSITION, finalZ],
-                rotation: rotation,
-            });
-        }
-    }
-
-    // Inner 30x30 cross walls (at X/Z = +/- 5)
-    // We reuse CROSS_WALL_BOUNDARY and crossWallSegments defined earlier in the useEffect scope.
-
-    crossWallSegments.forEach((segmentCenter, i) => {
-        // 1. North Walls (Z = -5)
-        // Outer side (facing North, towards Z=-15)
         dynamicPanelConfigs.push({
-            wallName: `north-inner-wall-outer-${i}` as keyof PanelConfig,
+            wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
             position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
             rotation: [0, Math.PI, 0], // Facing North (negative Z)
         });
         // Inner side (facing South, towards Z=0)
         dynamicPanelConfigs.push({
-            wallName: `north-inner-wall-inner-${i}` as keyof PanelConfig,
+            wallName: `north-inner-wall-inner-${index}` as keyof PanelConfig,
             position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
             rotation: [0, 0, 0], // Facing South (positive Z)
         });
@@ -810,13 +697,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // 2. South Walls (Z = 5)
         // Outer side (facing South, towards Z=15)
         dynamicPanelConfigs.push({
-            wallName: `south-inner-wall-outer-${i}` as keyof PanelConfig,
+            wallName: `south-inner-wall-outer-${index}` as keyof PanelConfig,
             position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
             rotation: [0, 0, 0], // Facing South (positive Z)
         });
         // Inner side (facing North, towards Z=0)
         dynamicPanelConfigs.push({
-            wallName: `south-inner-wall-inner-${i}` as keyof PanelConfig,
+            wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
             position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
             rotation: [0, Math.PI, 0], // Facing North (negative Z)
         });
@@ -824,13 +711,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // 3. East Walls (X = 5)
         // Outer side (facing East, towards X=15)
         dynamicPanelConfigs.push({
-            wallName: `east-inner-wall-outer-${i}` as keyof PanelConfig,
+            wallName: `east-inner-wall-outer-${index}` as keyof PanelConfig,
             position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
             rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
         });
         // Inner side (facing West, towards X=0)
         dynamicPanelConfigs.push({
-            wallName: `east-inner-wall-inner-${i}` as keyof PanelConfig,
+            wallName: `east-inner-wall-inner-${index}` as keyof PanelConfig,
             position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
             rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
         });
@@ -838,13 +725,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // 4. West Walls (X = -5)
         // Outer side (facing West, towards X=-15)
         dynamicPanelConfigs.push({
-            wallName: `west-inner-wall-outer-${i}` as keyof PanelConfig,
+            wallName: `west-inner-wall-outer-${index}` as keyof PanelConfig,
             position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
             rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
         });
         // Inner side (facing East, towards X=0)
         dynamicPanelConfigs.push({
-            wallName: `west-inner-wall-inner-${i}` as keyof PanelConfig,
+            wallName: `west-inner-wall-inner-${index}` as keyof PanelConfig,
             position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
             rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
         });
