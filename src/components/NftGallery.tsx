@@ -347,7 +347,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
     const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT, WALL_THICKNESS);
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8, metalness: 0.1 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
 
     // --- Floor Texture and Material ---
     const floorSegments: THREE.Mesh[] = [];
@@ -408,9 +408,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         };
     };
 
-    const SEGMENT_TO_SKIP = 0;
     const innerSegmentCenters = [-20, -10, 0, 10, 20];
-    const innerInnerSegmentCenters = [-10, 0, 10];
 
     // 1. Create Modular Floor and Ceiling with hole for 30x30 room
     const ceilingMaterial = new THREE.ShaderMaterial({
@@ -513,65 +511,67 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMeshesRef.current.set(westWallKey, westInnerWall);
     });
 
-    // --- START INNER INNER ROOM SETUP (30x30) ---
-    const INNER_INNER_WALL_BOUNDARY = 15;
-    const innerInnerWallSegments = [-10, 10];
+    // --- START INNER ROOM CROSS SETUP (Walls at X/Z = +/- 5) ---
+    // This creates the cross structure within the 30x30 area (X/Z = [-15, 15])
+    const CROSS_WALL_BOUNDARY = 5;
+    const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
 
-    innerInnerWallSegments.forEach((segmentCenter, i) => {
+    crossWallSegments.forEach((segmentCenter, i) => {
         const index = i;
-        // North Inner Inner Wall (Z = -15)
+        
+        // 1. North Walls (Z = -5)
         const northInnerOuterKey = `north-inner-wall-outer-${index}`;
         const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
+        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
         scene.add(northInnerOuterWall);
         wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterWall);
 
         const northInnerInnerKey = `north-inner-wall-inner-${index}`;
         const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_WALL_BOUNDARY);
+        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
         scene.add(northInnerInnerWall);
         wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
 
-        // South Inner Inner Wall (Z = 15)
+        // 2. South Walls (Z = 5)
         const southInnerOuterKey = `south-inner-wall-outer-${index}`;
         const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
+        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
         scene.add(southInnerOuterWall);
         wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
 
         const southInnerInnerKey = `south-inner-wall-inner-${index}`;
         const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
+        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
         scene.add(southInnerInnerWall);
         wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
 
-        // East Inner Inner Wall (X = 15)
+        // 3. East Walls (X = 5)
         const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
         const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerOuterWall.rotation.y = -Math.PI / 2;
-        eastInnerOuterWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        eastInnerOuterWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastInnerOuterWall);
         wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
 
         const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
         const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         eastInnerInnerWall.rotation.y = -Math.PI / 2;
-        eastInnerInnerWall.position.set(INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        eastInnerInnerWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(eastInnerInnerWall);
         wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
 
-        // West Inner Inner Wall (X = -15)
+        // 4. West Walls (X = -5)
         const westInnerOuterKey = `west-inner-wall-outer-${index}`;
         const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerOuterWall.rotation.y = Math.PI / 2;
-        westInnerOuterWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        westInnerOuterWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(westInnerOuterWall);
         wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
 
         const westInnerInnerKey = `west-inner-wall-inner-${index}`;
         const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
         westInnerInnerWall.rotation.y = Math.PI / 2;
-        westInnerInnerWall.position.set(-INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        westInnerInnerWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
         scene.add(westInnerInnerWall);
         wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
     });
@@ -581,8 +581,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
-
-    // Cove lighting removed - only ambient and hemisphere lighting remain
 
     const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
@@ -599,6 +597,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
     const MAX_SEGMENT_INDEX = 4;
 
+    // Outer 50x50 walls
     for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
         for (const wallNameBase of WALL_NAMES) {
             const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
@@ -638,54 +637,65 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
     }
 
-    // Add configurations for inner 30x30 walls
-    innerInnerWallSegments.forEach((segmentCenter, i) => {
-        // North Inner Wall (Z = -15)
+    // Inner 30x30 cross walls (at X/Z = +/- 5)
+    const crossWallSegments = [-10, 10];
+    const CROSS_WALL_BOUNDARY = 5;
+
+    crossWallSegments.forEach((segmentCenter, i) => {
+        // 1. North Walls (Z = -5)
+        // Outer side (facing North, towards Z=-15)
         dynamicPanelConfigs.push({
             wallName: `north-inner-wall-outer-${i}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, -INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
-            rotation: [0, Math.PI, 0],
+            position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+            rotation: [0, Math.PI, 0], // Facing North (negative Z)
         });
+        // Inner side (facing South, towards Z=0)
         dynamicPanelConfigs.push({
             wallName: `north-inner-wall-inner-${i}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, -INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
-            rotation: [0, 0, 0],
+            position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+            rotation: [0, 0, 0], // Facing South (positive Z)
         });
 
-        // South Inner Wall (Z = 15)
+        // 2. South Walls (Z = 5)
+        // Outer side (facing South, towards Z=15)
         dynamicPanelConfigs.push({
             wallName: `south-inner-wall-outer-${i}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
-            rotation: [0, 0, 0],
+            position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+            rotation: [0, 0, 0], // Facing South (positive Z)
         });
+        // Inner side (facing North, towards Z=0)
         dynamicPanelConfigs.push({
             wallName: `south-inner-wall-inner-${i}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
-            rotation: [0, Math.PI, 0],
+            position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+            rotation: [0, Math.PI, 0], // Facing North (negative Z)
         });
 
-        // East Inner Wall (X = 15)
+        // 3. East Walls (X = 5)
+        // Outer side (facing East, towards X=15)
         dynamicPanelConfigs.push({
             wallName: `east-inner-wall-outer-${i}` as keyof PanelConfig,
-            position: [INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, Math.PI / 2, 0],
+            position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
         });
+        // Inner side (facing West, towards X=0)
         dynamicPanelConfigs.push({
             wallName: `east-inner-wall-inner-${i}` as keyof PanelConfig,
-            position: [INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, -Math.PI / 2, 0],
+            position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
         });
 
-        // West Inner Wall (X = -15)
+        // 4. West Walls (X = -5)
+        // Outer side (facing West, towards X=-15)
         dynamicPanelConfigs.push({
             wallName: `west-inner-wall-outer-${i}` as keyof PanelConfig,
-            position: [-INNER_INNER_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, -Math.PI / 2, 0],
+            position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
         });
+        // Inner side (facing East, towards X=0)
         dynamicPanelConfigs.push({
             wallName: `west-inner-wall-inner-${i}` as keyof PanelConfig,
-            position: [-INNER_INNER_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, Math.PI / 2, 0],
+            position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
         });
     });
 
@@ -725,12 +735,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
 
-    // Collision constants - adjust for thicker walls
+    // Collision constants - only outer boundary remains critical for simple controls
     const WALL_COLLISION_OFFSET = WALL_THICKNESS / 2; // Account for wall thickness in collision detection
-    const INNER_ROOM_MIN_X = -15 + 0.5 + WALL_COLLISION_OFFSET;
-    const INNER_ROOM_MAX_X = 15 - 0.5 - WALL_COLLISION_OFFSET;
-    const INNER_ROOM_MIN_Z = -15 + 0.5 + WALL_COLLISION_OFFSET;
-    const INNER_ROOM_MAX_Z = 15 - 0.5 - WALL_COLLISION_OFFSET;
+    // The internal walls are thin meshes, relying on the player not clipping through them too much.
 
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -802,35 +809,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
         
-        // Store previous position before moving
-        const prevX = camera.position.x;
-        const prevZ = camera.position.z;
-
         controls.moveRight(-velocity.x * delta);
         controls.moveForward(-velocity.z * delta);
         
-        // --- Collision Detection ---
+        // --- Collision Detection (Only outer 50x50 boundary enforced) ---
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
         
-        const isInsideInnerRoom = camera.position.x > INNER_ROOM_MIN_X && camera.position.x < INNER_ROOM_MAX_X &&
-                                  camera.position.z > INNER_ROOM_MIN_Z && camera.position.z < INNER_ROOM_MAX_Z;
-
-        if (isInsideInnerRoom) {
-            if (camera.position.z < INNER_ROOM_MIN_Z) {
-                camera.position.z = INNER_ROOM_MIN_Z;
-            }
-            if (camera.position.z > INNER_ROOM_MAX_Z) {
-                camera.position.z = INNER_ROOM_MAX_Z;
-            }
-            
-            if (camera.position.x < INNER_ROOM_MIN_X) {
-                camera.position.x = INNER_ROOM_MIN_X;
-            }
-            if (camera.position.x > INNER_ROOM_MAX_X) {
-                camera.position.x = INNER_ROOM_MAX_X;
-            }
-        }
+        // Removed complex internal collision logic. Player can now move freely within the 50x50 space, 
+        // but may clip through the thin internal cross walls.
         
         camera.position.y = 1.6;
         
