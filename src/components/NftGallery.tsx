@@ -682,6 +682,140 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         
         // 1. North Walls (Z = -5)
         // Outer side (facing North, towards Z=-15)
+        const northInnerOuterKey = `north-inner-wall-outer-${index}`;
+        const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
+        scene.add(northInnerOuterWall);
+        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterWall);
+
+        const northInnerInnerKey = `north-inner-wall-inner-${index}`;
+        const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
+        scene.add(northInnerInnerWall);
+        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
+
+        // 2. South Walls (Z = 5)
+        // Outer side (facing South, towards Z=15)
+        const southInnerOuterKey = `south-inner-wall-outer-${index}`;
+        const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
+        scene.add(southInnerOuterWall);
+        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
+
+        const southInnerInnerKey = `south-inner-wall-inner-${index}`;
+        const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
+        scene.add(southInnerInnerWall);
+        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
+
+        // 3. East Walls (X = 5)
+        // Outer side (facing East, towards X=15)
+        const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
+        const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerOuterWall.rotation.y = -Math.PI / 2;
+        eastInnerOuterWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerOuterWall);
+        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
+
+        // Inner side (facing West, towards X=0)
+        const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
+        const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerInnerWall.rotation.y = -Math.PI / 2;
+        eastInnerInnerWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(eastInnerInnerWall);
+        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
+
+        // 4. West Walls (X = -5)
+        // Outer side (facing West, towards X=-15)
+        const westInnerOuterKey = `west-inner-wall-outer-${index}`;
+        const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerOuterWall.rotation.y = Math.PI / 2;
+        westInnerOuterWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerOuterWall);
+        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
+
+        // Inner side (facing East, towards X=0)
+        const westInnerInnerKey = `west-inner-wall-inner-${index}`;
+        const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
+        westInnerInnerWall.rotation.y = Math.PI / 2;
+        westInnerInnerWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
+        scene.add(westInnerInnerWall);
+        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
+    });
+
+    // 4. Lighting Setup
+    scene.add(new THREE.AmbientLight(0x404050, 1.0));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // --- Panel and Arrow Constants ---
+    const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
+    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
+    
+    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    
+    const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS/2; // Adjust for thicker walls
+    const ARROW_PANEL_OFFSET = 3.2; // Adjusted for 6m panel width (6/2 + 0.2 padding)
+    // --- End Panel and Arrow Constants ---
+
+    // Dynamic Panel Configuration Generation
+    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
+    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+    const MAX_SEGMENT_INDEX = 4;
+
+    // Outer 50x50 walls
+    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
+        for (const wallNameBase of WALL_NAMES) {
+            const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
+            
+            let x = 0, z = 0;
+            let rotation: [number, number, number] = [0, 0, 0];
+            let depthSign = 0; 
+            let wallAxis: 'x' | 'z' = 'z';
+
+            const centerIndex = i - 2; 
+            const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
+            
+            if (wallNameBase === 'north-wall') {
+                x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
+            } else if (wallNameBase === 'south-wall') {
+                x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
+            } else if (wallNameBase === 'east-wall') {
+                x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
+            } else if (wallNameBase === 'west-wall') {
+                x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
+            }
+            
+            let finalX = x;
+            let finalZ = z;
+            
+            if (wallAxis === 'x') {
+                finalX += depthSign * ARROW_DEPTH_OFFSET;
+            } else {
+                finalZ += depthSign * ARROW_DEPTH_OFFSET;
+            }
+
+            dynamicPanelConfigs.push({
+                wallName: panelKey,
+                position: [finalX, PANEL_Y_POSITION, finalZ],
+                rotation: rotation,
+            });
+        }
+    }
+
+    // Inner 30x30 cross walls (at X/Z = +/- 5)
+    // We reuse CROSS_WALL_BOUNDARY and crossWallSegments defined earlier in the useEffect scope.
+
+    crossWallSegments.forEach((segmentCenter, i) => {
+        const index = i;
+        
+        // 1. North Walls (Z = -5)
+        // Outer side (facing North, towards Z=-15)
         dynamicPanelConfigs.push({
             wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
             position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
