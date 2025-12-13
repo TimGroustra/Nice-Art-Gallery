@@ -854,7 +854,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(westInnerInnerUpperWall);
     });
     
-    // --- CREATE STONE POOL WITH WATER FOUNTAIN ---
+    // --- CREATE STONE POOL WITH TALL WATER FOUNTAIN ---
     // Create the stone pool (10x10)
     const poolGeometry = new THREE.BoxGeometry(10, 0.5, 10);
     const poolMaterial = new THREE.MeshStandardMaterial({ 
@@ -875,8 +875,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     waterSurface.position.set(0, 0.51, 0); // Just above the pool
     scene.add(waterSurface);
     
-    // Create the fountain base (4x4)
-    const fountainBaseGeometry = new THREE.CylinderGeometry(2, 2.5, 0.5, 32);
+    // Create the tall fountain structure (2 walls high = 16m)
+    // Fountain base (4x4x0.5)
+    const fountainBaseGeometry = new THREE.BoxGeometry(4, 0.5, 4);
     const fountainBaseMaterial = new THREE.MeshStandardMaterial({ 
       color: 0x707070, // Darker stone
       roughness: 0.8,
@@ -886,26 +887,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     fountainBase.position.set(0, 0.76, 0); // On top of the water
     scene.add(fountainBase);
     
-    // Create the fountain water jet (cylinder)
-    const fountainWaterGeometry = new THREE.CylinderGeometry(0.3, 0.5, 3, 16);
-    const fountainWaterMaterial = createWaterMaterial();
-    fountainWaterMaterialRef.current = fountainWaterMaterial;
-    const fountainWater = new THREE.Mesh(fountainWaterGeometry, fountainWaterMaterial);
-    fountainWater.position.set(0, 2.26, 0); // On top of the base
-    scene.add(fountainWater);
+    // Fountain pillar (0.8x0.8x15)
+    const fountainPillarGeometry = new THREE.BoxGeometry(0.8, 15, 0.8);
+    const fountainPillarMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x656565, // Medium stone
+      roughness: 0.85,
+      metalness: 0.15
+    });
+    const fountainPillar = new THREE.Mesh(fountainPillarGeometry, fountainPillarMaterial);
+    fountainPillar.position.set(0, 8.26, 0); // Positioned to reach from base to top (15m height)
+    scene.add(fountainPillar);
     
-    // Create the fountain top (sphere)
-    const fountainTopGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+    // Fountain top structure (3x3x1)
+    const fountainTopGeometry = new THREE.BoxGeometry(3, 1, 3);
     const fountainTopMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0x606060,
+      color: 0x606060, // Lighter stone
       roughness: 0.7,
       metalness: 0.3
     });
     const fountainTop = new THREE.Mesh(fountainTopGeometry, fountainTopMaterial);
-    fountainTop.position.set(0, 3.86, 0); // On top of the water jet
+    fountainTop.position.set(0, 16.26, 0); // At the top of the pillar
     scene.add(fountainTop);
     
-    // Add some decorative stones around the fountain
+    // Create multiple water jets from the top structure
+    const createWaterJet = (x: number, z: number) => {
+      const jetGeometry = new THREE.CylinderGeometry(0.1, 0.2, 4, 16);
+      const jetMaterial = createWaterMaterial();
+      const jet = new THREE.Mesh(jetGeometry, jetMaterial);
+      jet.position.set(x, 14.26, z); // Positioned below the top structure
+      scene.add(jet);
+      return jetMaterial;
+    };
+    
+    // Add water jets at each corner of the top structure
+    const jetMaterials = [
+      createWaterJet(1.2, 1.2),
+      createWaterJet(1.2, -1.2),
+      createWaterJet(-1.2, 1.2),
+      createWaterJet(-1.2, -1.2)
+    ];
+    
+    // Store jet materials for animation
+    fountainWaterMaterialRef.current = jetMaterials[0]; // Use first one as reference
+    
+    // Add decorative elements around the fountain
     for (let i = 0; i < 8; i++) {
       const angle = (i / 8) * Math.PI * 2;
       const radius = 3;
@@ -1201,6 +1226,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         waterMaterialRef.current.uniforms.time.value = elapsedTime;
       }
       
+      // Update fountain water jet shader time uniforms
       if (fountainWaterMaterialRef.current && fountainWaterMaterialRef.current.uniforms) {
         fountainWaterMaterialRef.current.uniforms.time.value = elapsedTime;
       }
