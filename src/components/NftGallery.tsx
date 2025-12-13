@@ -638,8 +638,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // Inner 30x30 cross walls (at X/Z = +/- 5)
-    const crossWallSegments = [-10, 10];
-    const CROSS_WALL_BOUNDARY = 5;
+    // Constants defined above: CROSS_WALL_BOUNDARY = 5; crossWallSegments = [-10, 10];
 
     crossWallSegments.forEach((segmentCenter, i) => {
         // 1. North Walls (Z = -5)
@@ -815,9 +814,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // --- Collision Detection (Only outer 50x50 boundary enforced) ---
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
-        
-        // Removed complex internal collision logic. Player can now move freely within the 50x50 space, 
-        // but may clip through the thin internal cross walls.
         
         camera.position.y = 1.6;
         
