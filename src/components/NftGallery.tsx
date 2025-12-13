@@ -692,7 +692,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // Inner side (facing West, towards X=0)
         dynamicPanelConfigs.push({
             wallName: `east-inner-wall-inner-${i}` as keyof PanelConfig,
-            position: [CROSS_WALL_BOUNDARY - ARFLOW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
             rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
         });
 
