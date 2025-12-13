@@ -38,49 +38,48 @@ let currentTargetedArrow: THREE.Mesh | null = null;
 
 // --- GLSL Shader Code for Pulsing Rainbow Ceiling ---
 const ceilingVertexShader = `
-    varying vec2 vUv;
-    void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
 `;
 
 const ceilingFragmentShader = `
-    uniform float time;
-    uniform float opacity;
-    
-    // Function to convert HSV to RGB (Hue, Saturation, Value)
-    vec3 hsv2rgb(vec3 c) {
-        vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-        vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-        return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-    }
+uniform float time;
+uniform float opacity;
 
-    void main() {
-        // 1. Hue shift over time (0.0 to 1.0)
-        float hue = mod(time * 0.05, 1.0);
-        
-        // 2. Pulsing brightness (Value/Lightness)
-        // Pulse adjusted to be slower (0.5 speed) and darker (range 0.2 to 0.4)
-        float pulse = 0.3 + sin(time * 0.5) * 0.1; 
-        
-        // Saturation is high
-        float saturation = 0.8;
-        
-        vec3 color = hsv2rgb(vec3(hue, saturation, pulse));
-        
-        gl_FragColor = vec4(color, opacity);
-    }
+// Function to convert HSV to RGB (Hue, Saturation, Value)
+vec3 hsv2rgb(vec3 c) {
+  vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+  vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+  return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
+void main() {
+  // 1. Hue shift over time (0.0 to 1.0)
+  float hue = mod(time * 0.05, 1.0);
+  
+  // 2. Pulsing brightness (Value/Lightness)
+  // Pulse adjusted to be slower (0.5 speed) and darker (range 0.2 to 0.4)
+  float pulse = 0.3 + sin(time * 0.5) * 0.1;
+  
+  // Saturation is high
+  float saturation = 0.8;
+  
+  vec3 color = hsv2rgb(vec3(hue, saturation, pulse));
+  gl_FragColor = vec4(color, opacity);
+}
 `;
 // --- End GLSL Shader Code ---
 
 // Helper function to determine if content is video or GIF
 const isVideoContent = (contentType: string, url: string) => {
-    return !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
+  return !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
 };
 
 const isGifContent = (contentType: string, url: string) => {
-    return !!(contentType === "image/gif" || url.match(/\.gif(\?|$)/i));
+  return !!(contentType === "image/gif" || url.match(/\.gif(\?|$)/i));
 };
 
 // Helper function for texture cleanup
@@ -94,90 +93,130 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
+// Helper function to create water material with shader
+const createWaterMaterial = () => {
+  const waterVertexShader = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `;
+
+  const waterFragmentShader = `
+    uniform float time;
+    varying vec2 vUv;
+    
+    void main() {
+      // Create wave pattern
+      float wave1 = sin(vUv.x * 10.0 + time) * 0.05;
+      float wave2 = sin(vUv.y * 8.0 + time * 1.2) * 0.03;
+      float wave3 = sin((vUv.x + vUv.y) * 15.0 + time * 0.7) * 0.02;
+      
+      // Combine waves
+      float wave = wave1 + wave2 + wave3;
+      
+      // Base blue color with wave effect
+      vec3 waterColor = vec3(0.1 + wave * 0.5, 0.3 + wave, 0.7 + wave * 0.3);
+      
+      // Add some white highlights for foam
+      float foam = smoothstep(0.8, 1.0, sin(vUv.x * 50.0 + time * 2.0) * sin(vUv.y * 40.0 + time * 1.5));
+      waterColor += vec3(foam * 0.3);
+      
+      gl_FragColor = vec4(waterColor, 0.8);
+    }
+  `;
+
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      time: { value: 0.0 }
+    },
+    vertexShader: waterVertexShader,
+    fragmentShader: waterFragmentShader,
+    transparent: true,
+    side: THREE.DoubleSide
+  });
+};
+
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
-  const [isLocked, setIsLocked] = useState(false); 
-  const [marketBrowserState, setMarketBrowserState] = useState<{
-    open: boolean;
-    collection?: string;
-    tokenId?: string | number;
+  const [isLocked, setIsLocked] = useState(false);
+  const [marketBrowserState, setMarketBrowserState] = useState<{ 
+    open: boolean; 
+    collection?: string; 
+    tokenId?: string | number; 
   }>({ open: false });
-
+  
+  // Refs for water animation
+  const waterMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  const fountainWaterMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  
   // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
-
+    
     // --- Cleanup previous media ---
     if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
+      panel.videoElement.pause();
+      panel.videoElement.removeAttribute('src');
+      panel.videoElement = null;
     }
     if (panel.gifStopFunction) {
-        panel.gifStopFunction();
-        panel.gifStopFunction = null;
+      panel.gifStopFunction();
+      panel.gifStopFunction = null;
     }
     // --- End Cleanup ---
-
+    
     if (isVideo) {
       return new Promise(resolve => {
         let videoEl = panel.videoElement;
         if (!videoEl) {
-            videoEl = document.createElement('video');
-            videoEl.playsInline = true;
-            videoEl.autoplay = true;
-            videoEl.loop = true;
-            videoEl.muted = true;
-            videoEl.style.display = 'none';
-            videoEl.crossOrigin = 'anonymous'; 
-            panel.videoElement = videoEl;
+          videoEl = document.createElement('video');
+          videoEl.playsInline = true;
+          videoEl.autoplay = true;
+          videoEl.loop = true;
+          videoEl.muted = true;
+          videoEl.style.display = 'none';
+          videoEl.crossOrigin = 'anonymous';
+          panel.videoElement = videoEl;
         }
-
         videoEl.src = url;
         videoEl.load();
-        
         if ((window as any).galleryControls?.isLocked?.()) {
-             videoEl.play().catch(e => console.warn("Video playback prevented:", e));
+          videoEl.play().catch(e => console.warn("Video playback prevented:", e));
         }
-        
         const videoTexture = new THREE.VideoTexture(videoEl);
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
-        
         resolve(videoTexture);
       });
     }
     
     if (isGif) {
-        try {
-            const { texture, stop } = await createGifTexture(url);
-            panel.gifStopFunction = stop;
-            return texture;
-        } catch (error) {
-            console.error("Failed to load animated GIF, falling back to static image load:", error);
-            // Fall through to image loader if GIF decoding fails
-        }
+      try {
+        const { texture, stop } = await createGifTexture(url);
+        panel.gifStopFunction = stop;
+        return texture;
+      } catch (error) {
+        console.error("Failed to load animated GIF, falling back to static image load:", error);
+        // Fall through to image loader if GIF decoding fails
+      }
     }
     
     // Default: Image/Static GIF/Fallback
     return new Promise((resolve, reject) => {
-        const loader = new THREE.TextureLoader();
-        loader.setCrossOrigin('anonymous'); 
-        
-        loader.load(url, 
-            (texture) => {
-                resolve(texture);
-            }, 
-            undefined, 
-            (error) => {
-                console.error('Error loading texture:', url, error);
-                showError(`Failed to load image: ${url.substring(0, 50)}...`);
-                reject(error);
-            }
-        );
+      const loader = new THREE.TextureLoader();
+      loader.setCrossOrigin('anonymous');
+      loader.load(url, (texture) => {
+        resolve(texture);
+      }, undefined, (error) => {
+        console.error('Error loading texture:', url, error);
+        showError(`Failed to load image: ${url.substring(0, 50)}...`);
+        reject(error);
+      });
     });
   }, []);
 
@@ -191,50 +230,49 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // Ensure media cleanup on failure/reset
     if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.removeAttribute('src');
-        panel.videoElement = null;
+      panel.videoElement.pause();
+      panel.videoElement.removeAttribute('src');
+      panel.videoElement = null;
     }
     if (panel.gifStopFunction) {
-        panel.gifStopFunction();
-        panel.gifStopFunction = null;
+      panel.gifStopFunction();
+      panel.gifStopFunction = null;
     }
     
     // Handle blank panel case immediately
     if (!source || source.contractAddress === "") {
-        const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
-        const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
-        panel.prevArrow.visible = showArrows;
-        panel.nextArrow.visible = showArrows;
-        return;
+      const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+      const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+      panel.prevArrow.visible = showArrows;
+      panel.nextArrow.visible = showArrows;
+      return;
     }
-
+    
     // --- Fetch Metadata ---
     const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-    
     if (!metadata) {
-        // Graceful failure: metadata fetch failed
-        console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
-        
-        // Display a simple error message on the main panel
-        disposeTextureSafely(panel.mesh);
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        if (context) {
-            canvas.width = 256;
-            canvas.height = 256;
-            context.fillStyle = '#333333';
-            context.fillRect(0, 0, canvas.width, canvas.height);
-            context.fillStyle = '#ff0000';
-            context.font = '20px Arial';
-            context.textAlign = 'center';
-            context.fillText('NFT Unavailable', canvas.width / 2, canvas.height / 2);
-        }
-        const errorTexture = new THREE.CanvasTexture(canvas);
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
-        return;
+      // Graceful failure: metadata fetch failed
+      console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
+      
+      // Display a simple error message on the main panel
+      disposeTextureSafely(panel.mesh);
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      if (context) {
+        canvas.width = 256;
+        canvas.height = 256;
+        context.fillStyle = '#333333';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#ff0000';
+        context.font = '20px Arial';
+        context.textAlign = 'center';
+        context.fillText('NFT Unavailable', canvas.width / 2, canvas.height / 2);
+      }
+      const errorTexture = new THREE.CanvasTexture(canvas);
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
+      return;
     }
-
+    
     try {
       const contentUrl = metadata.contentUrl;
       const isVideo = isVideoContent(metadata.contentType, contentUrl);
@@ -247,59 +285,57 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       disposeTextureSafely(panel.mesh);
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       // --- End Main NFT Mesh Update ---
-
+      
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideo;
       panel.isGif = isGif;
-
-      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
       
+      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
     } catch (error) {
       console.error(`Error loading NFT content for ${panel.wallName}:`, error);
       showError(`Failed to load NFT content for ${panel.wallName}.`);
-      
       // If loading fails, the panel remains dark gray
     }
-
+    
     // --- Update Arrow Visibility ---
     const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
     const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
     panel.prevArrow.visible = showArrows;
     panel.nextArrow.visible = showArrows;
     // --- End Arrow Visibility Update ---
-
   }, [loadTexture]);
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
-        if (panel.videoElement) {
-            if (shouldPlay) {
-                const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
-                if (controlsLocked) {
-                    // Attempt to play, ignoring promise rejection if user gesture is required
-                    panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
-                }
-            } else {
-                panel.videoElement.pause();
-            }
+      if (panel.videoElement) {
+        if (shouldPlay) {
+          const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
+          if (controlsLocked) {
+            // Attempt to play, ignoring promise rejection if user gesture is required
+            panel.videoElement.play().catch(e => console.warn("Video playback prevented:", e));
+          }
+        } else {
+          panel.videoElement.pause();
         }
+      }
     });
   }, []);
 
   useEffect(() => {
     if (!mountRef.current) return;
-
+    
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
+    
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(0, 1.6, -20);
+    
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
-
-    const controls = new PointerLockControls(camera, renderer.domElement);
     
+    const controls = new PointerLockControls(camera, renderer.domElement);
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
       hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
@@ -308,7 +344,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (activeVideos.length === 0) return true;
         return activeVideos.every(p => p.videoElement!.muted);
       },
-      toggleMute: () => { 
+      toggleMute: () => {
         const activeVideos = panelsRef.current.filter(p => p.videoElement);
         if (activeVideos.length > 0) {
           const currentlyMuted = activeVideos[0].videoElement!.muted;
@@ -317,21 +353,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           });
         }
       },
-      isLocked: () => controls.isLocked, 
+      isLocked: () => controls.isLocked,
       getTargetedPanel: () => currentTargetedPanel,
     };
-
+    
     controls.addEventListener('lock', () => {
       setIsLocked(true);
       setInstructionsVisible(false);
       manageVideoPlayback(true);
     });
+    
     controls.addEventListener('unlock', () => {
       setIsLocked(false);
       setInstructionsVisible(true);
       manageVideoPlayback(false);
     });
-
+    
     // --- ROOM GEOMETRY SETUP (50x50) ---
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
@@ -340,222 +377,227 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const LOWER_WALL_HEIGHT = 8; // Height of individual stacked segments
     const PANEL_Y_POSITION = 4.0; // Center the 6m panel vertically on the LOWER 8m wall segment
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
-
-    const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
+    const roomSize = ROOM_SIZE,
+      wallHeight = WALL_HEIGHT,
+      panelYPosition = PANEL_Y_POSITION,
+      boundary = BOUNDARY;
     const halfRoomSize = ROOM_SIZE / 2;
-    
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
+    
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
     
     // Define wall segment geometry once
-    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS); 
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
-
+    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
+    const wallMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x666666, 
+      roughness: 0.8, 
+      metalness: 0.1 
+    });
+    
     // --- Floor Texture and Material ---
     const floorSegments: THREE.Mesh[] = [];
     
     // 1. Cobbled Stone Material (Synchronous)
     const createCobbledStoneMaterial = () => {
-        const canvasSize = 128;
-        const canvas = document.createElement('canvas');
-        canvas.width = canvasSize;
-        canvas.height = canvasSize;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide });
-
-        ctx.fillStyle = '#444444'; // Dark gray base
-        ctx.fillRect(0, 0, canvasSize, canvasSize);
-
-        // Draw random 'cobbles'
-        for (let i = 0; i < 50; i++) {
-            const x = Math.random() * canvasSize;
-            const y = Math.random() * canvasSize;
-            const size = 10 + Math.random() * 15;
-            const color = `hsl(0, 0%, ${40 + Math.random() * 10}%)`; // Shades of gray
-            
-            ctx.fillStyle = color;
-            ctx.beginPath();
-            ctx.arc(x, y, size / 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.wrapS = THREE.RepeatWrapping;
-        texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(4, 4); // Repeat the pattern
-        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        texture.needsUpdate = true;
-
-        return new THREE.MeshStandardMaterial({
-            map: texture,
-            roughness: 0.8,
-            metalness: 0.1,
-            side: THREE.DoubleSide,
-        });
+      const canvasSize = 128;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return new THREE.MeshStandardMaterial({ 
+        color: 0x444444, 
+        roughness: 0.8, 
+        metalness: 0.1, 
+        side: THREE.DoubleSide 
+      });
+      
+      ctx.fillStyle = '#444444'; // Dark gray base
+      ctx.fillRect(0, 0, canvasSize, canvasSize);
+      
+      // Draw random 'cobbles'
+      for (let i = 0; i < 50; i++) {
+        const x = Math.random() * canvasSize;
+        const y = Math.random() * canvasSize;
+        const size = 10 + Math.random() * 15;
+        const color = `hsl(0, 0%, ${40 + Math.random() * 10}%)`; // Shades of gray
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(4, 4); // Repeat the pattern
+      texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      texture.needsUpdate = true;
+      
+      return new THREE.MeshStandardMaterial({ 
+        map: texture, 
+        roughness: 0.8, 
+        metalness: 0.1, 
+        side: THREE.DoubleSide,
+      });
     };
     
     const cobbledStoneMaterial = createCobbledStoneMaterial();
     
     // Helper function to create the square spiral staircase geometry
     const createSpiralStaircase = (material: THREE.Material) => {
-        const group = new THREE.Group();
+      const group = new THREE.Group();
+      const STAIR_WIDTH = 2.0;
+      const FLIGHT_LENGTH = 6.0;
+      const RISE_PER_FLIGHT = 1.0;
+      const NUM_STEPS = 6;
+      const STEP_RISE = RISE_PER_FLIGHT / NUM_STEPS; // 1/6 ≈ 0.1667
+      const STEP_RUN = FLIGHT_LENGTH / NUM_STEPS; // 1.0
+      const PLATFORM_SIZE = 2.0;
+      const PLATFORM_HEIGHT = 0.2;
+      
+      // Helper to create a step mesh
+      const createStep = (width: number, run: number, rise: number, x: number, y: number, z: number, rotationY: number = 0) => {
+        const stepGeometry = new THREE.BoxGeometry(width, rise, run);
+        const step = new THREE.Mesh(stepGeometry, material);
+        step.position.set(x, y, z);
+        step.rotation.y = rotationY;
+        group.add(step);
+      };
+      
+      // Helper to create a platform mesh, where topY is the desired top surface height
+      const createPlatform = (topY: number, centerX: number, centerZ: number) => {
+        const platformGeometry = new THREE.BoxGeometry(PLATFORM_SIZE, PLATFORM_HEIGHT, PLATFORM_SIZE);
+        const platform = new THREE.Mesh(platformGeometry, material);
+        // Position center of platform so its top surface is at topY
+        platform.position.set(centerX, topY - PLATFORM_HEIGHT / 2, centerZ);
+        group.add(platform);
+      };
+      
+      const NUM_FLIGHTS = 16; // To reach 16m height (16 flights * 1m rise)
+      
+      for (let flight = 0; flight < NUM_FLIGHTS; flight++) {
+        const startY = flight * RISE_PER_FLIGHT;
+        const endY = (flight + 1) * RISE_PER_FLIGHT;
+        const patternIndex = flight % 4; // 0: South, 1: West, 2: North, 3: East
         
-        const STAIR_WIDTH = 2.0;
-        const FLIGHT_LENGTH = 6.0;
-        const RISE_PER_FLIGHT = 1.0;
-        const NUM_STEPS = 6; 
-        const STEP_RISE = RISE_PER_FLIGHT / NUM_STEPS; // 1/6 ≈ 0.1667
-        const STEP_RUN = FLIGHT_LENGTH / NUM_STEPS; // 1.0
-        const PLATFORM_SIZE = 2.0;
-        const PLATFORM_HEIGHT = 0.2;
-        
-        // Helper to create a step mesh
-        const createStep = (width: number, run: number, rise: number, x: number, y: number, z: number, rotationY: number = 0) => {
-            const stepGeometry = new THREE.BoxGeometry(width, rise, run);
-            const step = new THREE.Mesh(stepGeometry, material);
-            step.position.set(x, y, z);
-            step.rotation.y = rotationY;
-            group.add(step);
-        };
-
-        // Helper to create a platform mesh, where topY is the desired top surface height
-        const createPlatform = (topY: number, centerX: number, centerZ: number) => {
-            const platformGeometry = new THREE.BoxGeometry(PLATFORM_SIZE, PLATFORM_HEIGHT, PLATFORM_SIZE);
-            const platform = new THREE.Mesh(platformGeometry, material);
-            // Position center of platform so its top surface is at topY
-            platform.position.set(centerX, topY - PLATFORM_HEIGHT / 2, centerZ);
-            group.add(platform);
-        };
-        
-        const NUM_FLIGHTS = 16; // To reach 16m height (16 flights * 1m rise)
-
-        for (let flight = 0; flight < NUM_FLIGHTS; flight++) {
-            const startY = flight * RISE_PER_FLIGHT;
-            const endY = (flight + 1) * RISE_PER_FLIGHT;
-            const patternIndex = flight % 4; // 0: South, 1: West, 2: North, 3: East
-
-            // 1. Create Steps for the Flight
-            for (let i = 0; i < NUM_STEPS; i++) {
-                const stepY = startY + (i + 0.5) * STEP_RISE;
-                
-                let stepX = 0, stepZ = 0, rotationY = 0;
-
-                if (patternIndex === 0) { // South Wall (X: 4 -> -2, Z=4)
-                    stepX = 4.0 - (i + 0.5) * STEP_RUN;
-                    stepZ = 4.0;
-                    rotationY = Math.PI / 2;
-                } else if (patternIndex === 1) { // West Wall (Z: 3 -> -3, X=-4)
-                    stepX = -4.0;
-                    stepZ = 3.0 - (i + 0.5) * STEP_RUN;
-                    rotationY = 0;
-                } else if (patternIndex === 2) { // North Wall (X: -3 -> 3, Z=-4)
-                    stepX = -3.0 + (i + 0.5) * STEP_RUN;
-                    stepZ = -4.0;
-                    rotationY = -Math.PI / 2;
-                } else if (patternIndex === 3) { // East Wall (Z: -3 -> 3, X=4)
-                    stepX = 4.0;
-                    stepZ = -3.0 + (i + 0.5) * STEP_RUN;
-                    rotationY = Math.PI;
-                }
-                
-                createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, stepZ, rotationY);
-            }
-
-            // 2. Create Platform at the end of the flight
-            let platformX = 0, platformZ = 0;
-            
-            if (patternIndex === 0) { // Ends SW
-                platformX = -4.0; platformZ = 4.0;
-            } else if (patternIndex === 1) { // Ends NW
-                platformX = -4.0; platformZ = -4.0;
-            } else if (patternIndex === 2) { // Ends NE
-                platformX = 4.0; platformZ = -4.0;
-            } else if (patternIndex === 3) { // Ends SE
-                platformX = 4.0; platformZ = 4.0;
-            }
-            
-            // Create platform at the top of the current flight (endY)
-            createPlatform(endY, platformX, platformZ);
+        // 1. Create Steps for the Flight
+        for (let i = 0; i < NUM_STEPS; i++) {
+          const stepY = startY + (i + 0.5) * STEP_RISE;
+          let stepX = 0, stepZ = 0, rotationY = 0;
+          
+          if (patternIndex === 0) { // South Wall (X: 4 -> -2, Z=4)
+            stepX = 4.0 - (i + 0.5) * STEP_RUN;
+            stepZ = 4.0;
+            rotationY = Math.PI / 2;
+          } else if (patternIndex === 1) { // West Wall (Z: 3 -> -3, X=-4)
+            stepX = -4.0;
+            stepZ = 3.0 - (i + 0.5) * STEP_RUN;
+            rotationY = 0;
+          } else if (patternIndex === 2) { // North Wall (X: -3 -> 3, Z=-4)
+            stepX = -3.0 + (i + 0.5) * STEP_RUN;
+            stepZ = -4.0;
+            rotationY = -Math.PI / 2;
+          } else if (patternIndex === 3) { // East Wall (Z: -3 -> 3, X=4)
+            stepX = 4.0;
+            stepZ = -3.0 + (i + 0.5) * STEP_RUN;
+            rotationY = Math.PI;
+          }
+          
+          createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, stepZ, rotationY);
         }
-
-        return group;
+        
+        // 2. Create Platform at the end of the flight
+        let platformX = 0, platformZ = 0;
+        if (patternIndex === 0) { // Ends SW
+          platformX = -4.0;
+          platformZ = 4.0;
+        } else if (patternIndex === 1) { // Ends NW
+          platformX = -4.0;
+          platformZ = -4.0;
+        } else if (patternIndex === 2) { // Ends NE
+          platformX = 4.0;
+          platformZ = -4.0;
+        } else if (patternIndex === 3) { // Ends SE
+          platformX = 4.0;
+          platformZ = 4.0;
+        }
+        
+        // Create platform at the top of the current flight (endY)
+        createPlatform(endY, platformX, platformZ);
+      }
+      
+      return group;
     };
     
     // 2. Placeholder Material for ETN Logo Floor (Async)
-    const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
-        color: 0x0a0a0a,
-        roughness: 0.2,
-        metalness: 0.1,
-        side: THREE.DoubleSide,
+    const placeholderFloorMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x0a0a0a, 
+      roughness: 0.2, 
+      metalness: 0.1, 
+      side: THREE.DoubleSide,
     });
-
-    const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
-        const electricBlue = '#00FFFF';
-        const shinyBlack = '#0a0a0a';
-        const canvasSize = 1024;
-
-        const mainCanvas = document.createElement('canvas');
-        mainCanvas.width = canvasSize;
-        mainCanvas.height = canvasSize;
-        const mainCtx = mainCanvas.getContext('2d');
-        if (!mainCtx) return;
-
-        mainCtx.fillStyle = shinyBlack;
-        mainCtx.fillRect(0, 0, canvasSize, canvasSize);
-
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = '/electroneum-logo-symbol.svg';
-
-        img.onload = () => {
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = canvasSize;
-            tempCanvas.height = canvasSize;
-            const tempCtx = tempCanvas.getContext('2d');
-            if (!tempCtx) return;
-
-            const padding = canvasSize * 0.1;
-            const imageSize = canvasSize - (padding * 2);
-            tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
-
-            tempCtx.globalCompositeOperation = 'source-in';
-            tempCtx.fillStyle = electricBlue;
-            tempCtx.fillRect(0, 0, canvasSize, canvasSize);
-
-            mainCtx.drawImage(tempCanvas, 0, 0);
-
-            const texture = new THREE.CanvasTexture(mainCanvas);
-            texture.wrapS = THREE.RepeatWrapping;
-            texture.wrapT = THREE.RepeatWrapping;
-            texture.repeat.set(1, 1);
-            texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            texture.needsUpdate = true;
-
-            callback(texture);
-        };
-
-        img.onerror = (err) => {
-            console.error('Failed to load floor texture SVG:', err);
-        };
-    };
-
-    const innerSegmentCenters = [-20, -10, 0, 10, 20];
     
-    // Constants for inner cross structure
+    const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
+      const electricBlue = '#00FFFF';
+      const shinyBlack = '#0a0a0a';
+      const canvasSize = 1024;
+      const mainCanvas = document.createElement('canvas');
+      mainCanvas.width = canvasSize;
+      mainCanvas.height = canvasSize;
+      const mainCtx = mainCanvas.getContext('2d');
+      if (!mainCtx) return;
+      
+      mainCtx.fillStyle = shinyBlack;
+      mainCtx.fillRect(0, 0, canvasSize, canvasSize);
+      
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = '/electroneum-logo-symbol.svg';
+      img.onload = () => {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvasSize;
+        tempCanvas.height = canvasSize;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) return;
+        
+        const padding = canvasSize * 0.1;
+        const imageSize = canvasSize - (padding * 2);
+        tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
+        tempCtx.globalCompositeOperation = 'source-in';
+        tempCtx.fillStyle = electricBlue;
+        tempCtx.fillRect(0, 0, canvasSize, canvasSize);
+        
+        mainCtx.drawImage(tempCanvas, 0, 0);
+        
+        const texture = new THREE.CanvasTexture(mainCanvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1, 1);
+        texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        texture.needsUpdate = true;
+        
+        callback(texture);
+      };
+      img.onerror = (err) => {
+        console.error('Failed to load floor texture SVG:', err);
+      };
+    };
+    
+    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // Constants for inner cross structure
     const CROSS_WALL_BOUNDARY = 5;
     const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
-
+    
     // 1. Create Modular Floor and Ceiling
     const ceilingMaterial = new THREE.ShaderMaterial({
-        uniforms: {
-            time: { value: 0.0 },
-            opacity: { value: 1.0 }
-        },
-        vertexShader: ceilingVertexShader,
-        fragmentShader: ceilingFragmentShader,
-        side: THREE.DoubleSide,
-        transparent: true,
+      uniforms: {
+        time: { value: 0.0 },
+        opacity: { value: 1.0 }
+      },
+      vertexShader: ceilingVertexShader,
+      fragmentShader: ceilingFragmentShader,
+      side: THREE.DoubleSide,
+      transparent: true,
     });
     
     // Define the area to cut out (30x30 room centered in the 50x50 space)
@@ -563,51 +605,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const HOLE_HALF_SIZE = HOLE_SIZE / 2;
     
     for (let i = 0; i < NUM_SEGMENTS; i++) {
-        for (let j = 0; j < NUM_SEGMENTS; j++) {
-            const segmentCenterX = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
-            const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
-            
-            // Check if this segment is within the 30x30 area
-            const isCentral3x3Segment = Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
-            
-            let floorMaterialToUse = placeholderFloorMaterial;
-
-            if (isCentral3x3Segment) {
-                // If it's the central 10x10 segment, skip floor creation but add ceiling
-                if (segmentCenterX === 0 && segmentCenterZ === 0) { 
-                    // Ceiling Segment (Always create ceiling)
-                    const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
-                    ceiling.rotation.x = Math.PI / 2;
-                    ceiling.position.x = segmentCenterX;
-                    ceiling.position.z = segmentCenterZ;
-                    ceiling.position.y = WALL_HEIGHT + 0.01; // Positioned slightly above the new wall height (16.01)
-                    scene.add(ceiling);
-                    
-                    continue; // Skip floor creation for the staircase area
-                } else if (segmentCenterX === 0 || segmentCenterZ === 0) {
-                    // This is the central cross pathway (4 segments excluding center). Use cobbled stone.
-                    floorMaterialToUse = cobbledStoneMaterial;
-                } else {
-                    // This is one of the four 30x30 corner segments. Use ETN logo floor.
-                    // floorMaterialToUse remains placeholderFloorMaterial
-                }
-            } else {
-                // Outer 50x50 segments. Use ETN logo floor.
-                // floorMaterialToUse remains placeholderFloorMaterial
-            }
-            
-            // Floor Segment
-            const floorSegment = new THREE.Mesh(segmentGeometry, floorMaterialToUse);
-            floorSegment.rotation.x = Math.PI / 2;
-            floorSegment.position.x = segmentCenterX;
-            floorSegment.position.z = segmentCenterZ;
-            scene.add(floorSegment);
-            
-            // Only add segments that need the async texture update to the list
-            if (floorMaterialToUse === placeholderFloorMaterial) {
-                floorSegments.push(floorSegment);
-            }
-
+      for (let j = 0; j < NUM_SEGMENTS; j++) {
+        const segmentCenterX = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+        const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
+        
+        // Check if this segment is within the 30x30 area
+        const isCentral3x3Segment = Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
+        
+        let floorMaterialToUse = placeholderFloorMaterial;
+        if (isCentral3x3Segment) {
+          // If it's the central 10x10 segment, skip floor creation but add ceiling
+          if (segmentCenterX === 0 && segmentCenterZ === 0) {
             // Ceiling Segment (Always create ceiling)
             const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
             ceiling.rotation.x = Math.PI / 2;
@@ -615,342 +623,471 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             ceiling.position.z = segmentCenterZ;
             ceiling.position.y = WALL_HEIGHT + 0.01; // Positioned slightly above the new wall height (16.01)
             scene.add(ceiling);
+            continue; // Skip floor creation for the staircase area
+          } else if (segmentCenterX === 0 || segmentCenterZ === 0) {
+            // This is the central cross pathway (4 segments excluding center). Use cobbled stone.
+            floorMaterialToUse = cobbledStoneMaterial;
+          } else {
+            // This is one of the four 30x30 corner segments. Use ETN logo floor.
+            // floorMaterialToUse remains placeholderFloorMaterial
+          }
+        } else {
+          // Outer 50x50 segments. Use ETN logo floor.
+          // floorMaterialToUse remains placeholderFloorMaterial
         }
+        
+        // Floor Segment
+        const floorSegment = new THREE.Mesh(segmentGeometry, floorMaterialToUse);
+        floorSegment.rotation.x = Math.PI / 2;
+        floorSegment.position.x = segmentCenterX;
+        floorSegment.position.z = segmentCenterZ;
+        scene.add(floorSegment);
+        
+        // Only add segments that need the async texture update to the list
+        if (floorMaterialToUse === placeholderFloorMaterial) {
+          floorSegments.push(floorSegment);
+        }
+        
+        // Ceiling Segment (Always create ceiling)
+        const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.x = segmentCenterX;
+        ceiling.position.z = segmentCenterZ;
+        ceiling.position.y = WALL_HEIGHT + 0.01; // Positioned slightly above the new wall height (16.01)
+        scene.add(ceiling);
+      }
     }
-
+    
     // Asynchronously create and apply the custom floor texture to the segments that need it
     createCustomFloorTexture((texture) => {
-        const newFloorMaterial = new THREE.MeshStandardMaterial({
-            map: texture,
-            roughness: 0.2,
-            metalness: 0.1,
-            side: THREE.DoubleSide,
-        });
-        floorSegments.forEach(segment => {
-            // Dispose of the placeholder material before replacing it
-            if (segment.material === placeholderFloorMaterial) {
-                segment.material.dispose();
-                segment.material = newFloorMaterial;
-            }
-        });
-        placeholderFloorMaterial.dispose();
+      const newFloorMaterial = new THREE.MeshStandardMaterial({ 
+        map: texture, 
+        roughness: 0.2, 
+        metalness: 0.1, 
+        side: THREE.DoubleSide,
+      });
+      floorSegments.forEach(segment => {
+        // Dispose of the placeholder material before replacing it
+        if (segment.material === placeholderFloorMaterial) {
+          segment.material.dispose();
+          segment.material = newFloorMaterial;
+        }
+      });
+      placeholderFloorMaterial.dispose();
     });
     
     // Add the central staircase
     const staircase = createSpiralStaircase(cobbledStoneMaterial);
     scene.add(staircase);
-
+    
     // --- START OUTER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = halfRoomSize;
-    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x666666, 
+      roughness: 0.8, 
+      metalness: 0.1 
+    });
     
     // Wall segments are 8m high (LOWER_WALL_HEIGHT)
     // wallSegmentGeometry is already defined above.
-    
     const LOWER_WALL_CENTER_Y = LOWER_WALL_HEIGHT / 2; // 4.0
     const UPPER_WALL_CENTER_Y = LOWER_WALL_HEIGHT + LOWER_WALL_CENTER_Y; // 12.0
-
+    
     innerSegmentCenters.forEach((segmentCenter, i) => {
-        const index = i;
-
-        // --- LOWER WALLS (Y=4.0) ---
-        // North Outer Wall (Z = -25)
-        const northWallKey = `north-wall-${index}`;
-        const northLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        northLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -INNER_WALL_BOUNDARY);
-        scene.add(northLowerWall);
-        wallMeshesRef.current.set(northWallKey, northLowerWall);
-
-        // South Outer Wall (Z = 25)
-        const southWallKey = `south-wall-${index}`;
-        const southLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        southLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, INNER_WALL_BOUNDARY);
-        scene.add(southLowerWall);
-        wallMeshesRef.current.set(southWallKey, southLowerWall);
-
-        // East Outer Wall (X = 25)
-        const eastWallKey = `east-wall-${index}`;
-        const eastLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        eastLowerWall.rotation.y = -Math.PI / 2;
-        eastLowerWall.position.set(INNER_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
-        scene.add(eastLowerWall);
-        wallMeshesRef.current.set(eastWallKey, eastLowerWall);
-
-        // West Outer Wall (X = -25)
-        const westWallKey = `west-wall-${index}`;
-        const westLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        westLowerWall.rotation.y = Math.PI / 2;
-        westLowerWall.position.set(-INNER_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
-        scene.add(westLowerWall);
-        wallMeshesRef.current.set(westWallKey, westLowerWall);
-        
-        // --- UPPER WALLS (Y=12.0) ---
-        
-        // North Outer Wall (Z = -25)
-        const northUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        northUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -INNER_WALL_BOUNDARY);
-        scene.add(northUpperWall);
-
-        // South Outer Wall (Z = 25)
-        const southUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        southUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, INNER_WALL_BOUNDARY);
-        scene.add(southUpperWall);
-
-        // East Outer Wall (X = 25)
-        const eastUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        eastUpperWall.rotation.y = -Math.PI / 2;
-        eastUpperWall.position.set(INNER_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-        scene.add(eastUpperWall);
-
-        // West Outer Wall (X = -25)
-        const westUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        westUpperWall.rotation.y = Math.PI / 2;
-        westUpperWall.position.set(-INNER_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-        scene.add(westUpperWall);
+      const index = i;
+      
+      // --- LOWER WALLS (Y=4.0) ---
+      // North Outer Wall (Z = -25)
+      const northWallKey = `north-wall-${index}`;
+      const northLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      northLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -INNER_WALL_BOUNDARY);
+      scene.add(northLowerWall);
+      wallMeshesRef.current.set(northWallKey, northLowerWall);
+      
+      // South Outer Wall (Z = 25)
+      const southWallKey = `south-wall-${index}`;
+      const southLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      southLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, INNER_WALL_BOUNDARY);
+      scene.add(southLowerWall);
+      wallMeshesRef.current.set(southWallKey, southLowerWall);
+      
+      // East Outer Wall (X = 25)
+      const eastWallKey = `east-wall-${index}`;
+      const eastLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      eastLowerWall.rotation.y = -Math.PI / 2;
+      eastLowerWall.position.set(INNER_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+      scene.add(eastLowerWall);
+      wallMeshesRef.current.set(eastWallKey, eastLowerWall);
+      
+      // West Outer Wall (X = -25)
+      const westWallKey = `west-wall-${index}`;
+      const westLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      westLowerWall.rotation.y = Math.PI / 2;
+      westLowerWall.position.set(-INNER_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+      scene.add(westLowerWall);
+      wallMeshesRef.current.set(westWallKey, westLowerWall);
+      
+      // --- UPPER WALLS (Y=12.0) ---
+      // North Outer Wall (Z = -25)
+      const northUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      northUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -INNER_WALL_BOUNDARY);
+      scene.add(northUpperWall);
+      
+      // South Outer Wall (Z = 25)
+      const southUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      southUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, INNER_WALL_BOUNDARY);
+      scene.add(southUpperWall);
+      
+      // East Outer Wall (X = 25)
+      const eastUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      eastUpperWall.rotation.y = -Math.PI / 2;
+      eastUpperWall.position.set(INNER_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+      scene.add(eastUpperWall);
+      
+      // West Outer Wall (X = -25)
+      const westUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      westUpperWall.rotation.y = Math.PI / 2;
+      westUpperWall.position.set(-INNER_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+      scene.add(westUpperWall);
     });
-
+    
     // --- START INNER ROOM CROSS SETUP (Walls at X/Z = +/- 5) ---
-
     crossWallSegments.forEach((segmentCenter, i) => {
-        const index = i;
-        
-        // 1. North Walls (Z = -5)
-        // Outer side (facing North, towards Z=-15)
-        const northInnerOuterKey = `north-inner-wall-outer-${index}`;
-        const northInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        northInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerOuterLowerWall);
-        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterLowerWall);
-        
-        const northInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        northInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerOuterUpperWall);
-
-
-        const northInnerInnerKey = `north-inner-wall-inner-${index}`;
-        const northInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        northInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerInnerLowerWall);
-        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerLowerWall);
-        
-        const northInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        northInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerInnerUpperWall);
-
-
-        // 2. South Walls (Z = 5)
-        // Outer side (facing South, towards Z=15)
-        const southInnerOuterKey = `south-inner-wall-outer-${index}`;
-        const southInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        southInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerOuterLowerWall);
-        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterLowerWall);
-        
-        const southInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        southInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerOuterUpperWall);
-
-
-        const southInnerInnerKey = `south-inner-wall-inner-${index}`;
-        const southInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        southInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerInnerLowerWall);
-        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerLowerWall);
-        
-        const southInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        southInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerInnerUpperWall);
-
-
-        // 3. East Walls (X = 5)
-        // Outer side (facing East, towards X=15)
-        const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
-        const eastInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerOuterLowerWall.rotation.y = -Math.PI / 2;
-        eastInnerOuterLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
-        scene.add(eastInnerOuterLowerWall);
-        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterLowerWall);
-        
-        const eastInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerOuterUpperWall.rotation.y = -Math.PI / 2;
-        eastInnerOuterUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-        scene.add(eastInnerOuterUpperWall);
-
-
-        // Inner side (facing West, towards X=0)
-        const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
-        const eastInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerInnerLowerWall.rotation.y = -Math.PI / 2;
-        eastInnerInnerLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
-        scene.add(eastInnerInnerLowerWall);
-        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerLowerWall);
-        
-        const eastInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerInnerUpperWall.rotation.y = -Math.PI / 2;
-        eastInnerInnerUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-        scene.add(eastInnerInnerUpperWall);
-
-
-        // 4. West Walls (X = -5)
-        // Outer side (facing West, towards X=-15)
-        const westInnerOuterKey = `west-inner-wall-outer-${index}`;
-        const westInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        westInnerOuterLowerWall.rotation.y = Math.PI / 2;
-        westInnerOuterLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
-        scene.add(westInnerOuterLowerWall);
-        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterLowerWall);
-        
-        const westInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        westInnerOuterUpperWall.rotation.y = Math.PI / 2;
-        westInnerOuterUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-        scene.add(westInnerOuterUpperWall);
-
-
-        // Inner side (facing East, towards X=0)
-        const westInnerInnerKey = `west-inner-wall-inner-${index}`;
-        const westInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        westInnerInnerLowerWall.rotation.y = Math.PI / 2;
-        westInnerInnerLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
-        scene.add(westInnerInnerLowerWall);
-        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerLowerWall);
-        
-        const westInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-        westInnerInnerUpperWall.rotation.y = Math.PI / 2;
-        westInnerInnerUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-        scene.add(westInnerInnerUpperWall);
+      const index = i;
+      
+      // 1. North Walls (Z = -5)
+      // Outer side (facing North, towards Z=-15)
+      const northInnerOuterKey = `north-inner-wall-outer-${index}`;
+      const northInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      northInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+      scene.add(northInnerOuterLowerWall);
+      wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterLowerWall);
+      
+      const northInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      northInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+      scene.add(northInnerOuterUpperWall);
+      
+      const northInnerInnerKey = `north-inner-wall-inner-${index}`;
+      const northInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      northInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+      scene.add(northInnerInnerLowerWall);
+      wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerLowerWall);
+      
+      const northInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      northInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+      scene.add(northInnerInnerUpperWall);
+      
+      // 2. South Walls (Z = 5)
+      // Outer side (facing South, towards Z=15)
+      const southInnerOuterKey = `south-inner-wall-outer-${index}`;
+      const southInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      southInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+      scene.add(southInnerOuterLowerWall);
+      wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterLowerWall);
+      
+      const southInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      southInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+      scene.add(southInnerOuterUpperWall);
+      
+      const southInnerInnerKey = `south-inner-wall-inner-${index}`;
+      const southInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      southInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+      scene.add(southInnerInnerLowerWall);
+      wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerLowerWall);
+      
+      const southInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      southInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+      scene.add(southInnerInnerUpperWall);
+      
+      // 3. East Walls (X = 5)
+      // Outer side (facing East, towards X=15)
+      const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
+      const eastInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      eastInnerOuterLowerWall.rotation.y = -Math.PI / 2;
+      eastInnerOuterLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+      scene.add(eastInnerOuterLowerWall);
+      wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterLowerWall);
+      
+      const eastInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      eastInnerOuterUpperWall.rotation.y = -Math.PI / 2;
+      eastInnerOuterUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+      scene.add(eastInnerOuterUpperWall);
+      
+      // Inner side (facing West, towards X=0)
+      const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
+      const eastInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      eastInnerInnerLowerWall.rotation.y = -Math.PI / 2;
+      eastInnerInnerLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+      scene.add(eastInnerInnerLowerWall);
+      wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerLowerWall);
+      
+      const eastInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      eastInnerInnerUpperWall.rotation.y = -Math.PI / 2;
+      eastInnerInnerUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+      scene.add(eastInnerInnerUpperWall);
+      
+      // 4. West Walls (X = -5)
+      // Outer side (facing West, towards X=-15)
+      const westInnerOuterKey = `west-inner-wall-outer-${index}`;
+      const westInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      westInnerOuterLowerWall.rotation.y = Math.PI / 2;
+      westInnerOuterLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+      scene.add(westInnerOuterLowerWall);
+      wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterLowerWall);
+      
+      const westInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      westInnerOuterUpperWall.rotation.y = Math.PI / 2;
+      westInnerOuterUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+      scene.add(westInnerOuterUpperWall);
+      
+      // Inner side (facing East, towards X=0)
+      const westInnerInnerKey = `west-inner-wall-inner-${index}`;
+      const westInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      westInnerInnerLowerWall.rotation.y = Math.PI / 2;
+      westInnerInnerLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+      scene.add(westInnerInnerLowerWall);
+      wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerLowerWall);
+      
+      const westInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+      westInnerInnerUpperWall.rotation.y = Math.PI / 2;
+      westInnerInnerUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+      scene.add(westInnerInnerUpperWall);
     });
-
+    
+    // --- CREATE STONE POOL WITH WATER FOUNTAIN ---
+    // Create the stone pool (10x10)
+    const poolGeometry = new THREE.BoxGeometry(10, 0.5, 10);
+    const poolMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x808080, // Stone gray
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    const pool = new THREE.Mesh(poolGeometry, poolMaterial);
+    pool.position.set(0, 0.25, 0); // Position at ground level
+    scene.add(pool);
+    
+    // Create the water surface (slightly smaller than the pool)
+    const waterGeometry = new THREE.PlaneGeometry(9.8, 9.8);
+    const waterMaterial = createWaterMaterial();
+    waterMaterialRef.current = waterMaterial;
+    const waterSurface = new THREE.Mesh(waterGeometry, waterMaterial);
+    waterSurface.rotation.x = -Math.PI / 2;
+    waterSurface.position.set(0, 0.51, 0); // Just above the pool
+    scene.add(waterSurface);
+    
+    // Create the fountain base (4x4)
+    const fountainBaseGeometry = new THREE.CylinderGeometry(2, 2.5, 0.5, 32);
+    const fountainBaseMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x707070, // Darker stone
+      roughness: 0.8,
+      metalness: 0.2
+    });
+    const fountainBase = new THREE.Mesh(fountainBaseGeometry, fountainBaseMaterial);
+    fountainBase.position.set(0, 0.76, 0); // On top of the water
+    scene.add(fountainBase);
+    
+    // Create the fountain water jet (cylinder)
+    const fountainWaterGeometry = new THREE.CylinderGeometry(0.3, 0.5, 3, 16);
+    const fountainWaterMaterial = createWaterMaterial();
+    fountainWaterMaterialRef.current = fountainWaterMaterial;
+    const fountainWater = new THREE.Mesh(fountainWaterGeometry, fountainWaterMaterial);
+    fountainWater.position.set(0, 2.26, 0); // On top of the base
+    scene.add(fountainWater);
+    
+    // Create the fountain top (sphere)
+    const fountainTopGeometry = new THREE.SphereGeometry(0.6, 16, 16);
+    const fountainTopMaterial = new THREE.MeshStandardMaterial({ 
+      color: 0x606060,
+      roughness: 0.7,
+      metalness: 0.3
+    });
+    const fountainTop = new THREE.Mesh(fountainTopGeometry, fountainTopMaterial);
+    fountainTop.position.set(0, 3.86, 0); // On top of the water jet
+    scene.add(fountainTop);
+    
+    // Add some decorative stones around the fountain
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const radius = 3;
+      const stoneGeometry = new THREE.SphereGeometry(0.3 + Math.random() * 0.2, 8, 8);
+      const stoneMaterial = new THREE.MeshStandardMaterial({ 
+        color: 0x777777,
+        roughness: 0.9,
+        metalness: 0.1
+      });
+      const stone = new THREE.Mesh(stoneGeometry, stoneMaterial);
+      stone.position.set(
+        Math.cos(angle) * radius,
+        0.51,
+        Math.sin(angle) * radius
+      );
+      scene.add(stone);
+    }
+    // --- END POOL AND FOUNTAIN ---
+    
     // 4. Lighting Setup
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
-
+    
     // --- Panel and Arrow Constants ---
     const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
-    const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
+    const panelMaterial = new THREE.MeshBasicMaterial({ 
+      color: 0x333333, 
+      side: THREE.DoubleSide, 
+      transparent: true, 
+      opacity: 0 
+    });
     
-    const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
+    const ARROW_COLOR_DEFAULT = 0xcccccc,
+      ARROW_COLOR_HOVER = 0x00ff00;
     const arrowShape = new THREE.Shape();
-    arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15); arrowShape.lineTo(0, 0.15);
+    arrowShape.moveTo(0, 0.15);
+    arrowShape.lineTo(0.3, 0);
+    arrowShape.lineTo(0, -0.15);
+    arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
-    const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
+    const arrowMaterial = new THREE.MeshBasicMaterial({ 
+      color: ARROW_COLOR_DEFAULT, 
+      side: THREE.DoubleSide 
+    });
     
     const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS/2; // Adjust for thicker walls
     const ARROW_PANEL_OFFSET = 3.2; // Adjusted for 6m panel width (6/2 + 0.2 padding)
     // --- End Panel and Arrow Constants ---
-
+    
     // Dynamic Panel Configuration Generation
-    const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
+    const dynamicPanelConfigs: { 
+      wallName: keyof PanelConfig, 
+      position: [number, number, number], 
+      rotation: [number, number, number] 
+    }[] = [];
+    
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
-    const MAX_SEGMENT_INDEX = 4;
-
-    // Outer 50x50 walls
-    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) { 
-        for (const wallNameBase of WALL_NAMES) {
-            const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
-            
-            let x = 0, z = 0;
-            let rotation: [number, number, number] = [0, 0, 0];
-            let depthSign = 0; 
-            let wallAxis: 'x' | 'z' = 'z';
-
-            const centerIndex = i - 2; 
-            const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE; 
-            
-            if (wallNameBase === 'north-wall') {
-                x = segmentCenter; z = -INNER_WALL_BOUNDARY; rotation = [0, 0, 0]; depthSign = 1; wallAxis = 'z';
-            } else if (wallNameBase === 'south-wall') {
-                x = segmentCenter; z = INNER_WALL_BOUNDARY; rotation = [0, Math.PI, 0]; depthSign = -1; wallAxis = 'z';
-            } else if (wallNameBase === 'east-wall') {
-                x = INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, -Math.PI / 2, 0]; depthSign = -1; wallAxis = 'x';
-            } else if (wallNameBase === 'west-wall') {
-                x = -INNER_WALL_BOUNDARY; z = segmentCenter; rotation = [0, Math.PI / 2, 0]; depthSign = 1; wallAxis = 'x';
-            }
-            
-            let finalX = x;
-            let finalZ = z;
-            
-            if (wallAxis === 'x') {
-                finalX += depthSign * ARROW_DEPTH_OFFSET;
-            } else {
-                finalZ += depthSign * ARROW_DEPTH_OFFSET;
-            }
-
-            dynamicPanelConfigs.push({
-                wallName: panelKey,
-                position: [finalX, PANEL_Y_POSITION, finalZ],
-                rotation: rotation,
-            });
+    const MAX_SEGMENT_INDEX = 4; // Outer 50x50 walls
+    
+    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
+      for (const wallNameBase of WALL_NAMES) {
+        const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
+        let x = 0, z = 0;
+        let rotation: [number, number, number] = [0, 0, 0];
+        let depthSign = 0;
+        let wallAxis: 'x' | 'z' = 'z';
+        const centerIndex = i - 2;
+        const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
+        
+        if (wallNameBase === 'north-wall') {
+          x = segmentCenter;
+          z = -INNER_WALL_BOUNDARY;
+          rotation = [0, 0, 0];
+          depthSign = 1;
+          wallAxis = 'z';
+        } else if (wallNameBase === 'south-wall') {
+          x = segmentCenter;
+          z = INNER_WALL_BOUNDARY;
+          rotation = [0, Math.PI, 0];
+          depthSign = -1;
+          wallAxis = 'z';
+        } else if (wallNameBase === 'east-wall') {
+          x = INNER_WALL_BOUNDARY;
+          z = segmentCenter;
+          rotation = [0, -Math.PI / 2, 0];
+          depthSign = -1;
+          wallAxis = 'x';
+        } else if (wallNameBase === 'west-wall') {
+          x = -INNER_WALL_BOUNDARY;
+          z = segmentCenter;
+          rotation = [0, Math.PI / 2, 0];
+          depthSign = 1;
+          wallAxis = 'x';
         }
+        
+        let finalX = x;
+        let finalZ = z;
+        if (wallAxis === 'x') {
+          finalX += depthSign * ARROW_DEPTH_OFFSET;
+        } else {
+          finalZ += depthSign * ARROW_DEPTH_OFFSET;
+        }
+        
+        dynamicPanelConfigs.push({
+          wallName: panelKey,
+          position: [finalX, PANEL_Y_POSITION, finalZ],
+          rotation: rotation,
+        });
+      }
     }
-
+    
     // Inner 30x30 cross walls (at X/Z = +/- 5)
     // We reuse CROSS_WALL_BOUNDARY and crossWallSegments defined earlier in the useEffect scope.
-
     crossWallSegments.forEach((segmentCenter, i) => {
-        const index = i;
-        
-        // 1. North Walls (Z = -5)
-        // Outer side (facing North, towards Z=-15)
-        dynamicPanelConfigs.push({
-            wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
-            rotation: [0, Math.PI, 0], // Facing North (negative Z)
-        });
-        // Inner side (facing South, towards Z=0)
-        dynamicPanelConfigs.push({
-            wallName: `north-inner-wall-inner-${index}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
-            rotation: [0, 0, 0], // Facing South (positive Z)
-        });
-
-        // 2. South Walls (Z = 5)
-        // Outer side (facing South, towards Z=15)
-        dynamicPanelConfigs.push({
-            wallName: `south-inner-wall-outer-${index}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
-            rotation: [0, 0, 0], // Facing South (positive Z)
-        });
-        // Inner side (facing North, towards Z=0)
-        dynamicPanelConfigs.push({
-            wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
-            position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
-            rotation: [0, Math.PI, 0], // Facing North (negative Z)
-        });
-
-        // 3. East Walls (X = 5)
-        // Outer side (facing East, towards X=15)
-        dynamicPanelConfigs.push({
-            wallName: `east-inner-wall-outer-${index}` as keyof PanelConfig,
-            position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
-        });
-        // Inner side (facing West, towards X=0)
-        dynamicPanelConfigs.push({
-            wallName: `east-inner-wall-inner-${index}` as keyof PanelConfig,
-            position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
-        });
-
-        // 4. West Walls (X = -5)
-        // Outer side (facing West, towards X=-15)
-        dynamicPanelConfigs.push({
-            wallName: `west-inner-wall-outer-${index}` as keyof PanelConfig,
-            position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
-        });
-        // Inner side (facing East, towards X=0)
-        dynamicPanelConfigs.push({
-            wallName: `west-inner-wall-inner-${index}` as keyof PanelConfig,
-            position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
-            rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
-        });
+      const index = i;
+      
+      // 1. North Walls (Z = -5)
+      // Outer side (facing North, towards Z=-15)
+      dynamicPanelConfigs.push({
+        wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        rotation: [0, Math.PI, 0], // Facing North (negative Z)
+      });
+      
+      // Inner side (facing South, towards Z=0)
+      dynamicPanelConfigs.push({
+        wallName: `north-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+        rotation: [0, 0, 0], // Facing South (positive Z)
+      });
+      
+      // 2. South Walls (Z = 5)
+      // Outer side (facing South, towards Z=15)
+      dynamicPanelConfigs.push({
+        wallName: `south-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+        rotation: [0, 0, 0], // Facing South (positive Z)
+      });
+      
+      // Inner side (facing North, towards Z=0)
+      dynamicPanelConfigs.push({
+        wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        rotation: [0, Math.PI, 0], // Facing North (negative Z)
+      });
+      
+      // 3. East Walls (X = 5)
+      // Outer side (facing East, towards X=15)
+      dynamicPanelConfigs.push({
+        wallName: `east-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
+      });
+      
+      // Inner side (facing West, towards X=0)
+      dynamicPanelConfigs.push({
+        wallName: `east-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
+      });
+      
+      // 4. West Walls (X = -5)
+      // Outer side (facing West, towards X=-15)
+      dynamicPanelConfigs.push({
+        wallName: `west-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
+      });
+      
+      // Inner side (facing East, towards X=0)
+      dynamicPanelConfigs.push({
+        wallName: `west-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
+      });
     });
-
+    
     // Clear existing panels before populating
     panelsRef.current = [];
-
+    
     dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
@@ -959,7 +1096,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-      
       const basePosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]);
       
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
@@ -973,21 +1109,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const nextPosition = new THREE.Vector3(config.position[0], config.position[1], config.position[2]).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
       scene.add(nextArrow);
-
+      
       const panel: Panel = {
-        mesh, wallName: config.wallName as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow,
-        videoElement: null, gifStopFunction: null,
+        mesh,
+        wallName: config.wallName as keyof PanelConfig,
+        metadataUrl: '',
+        isVideo: false,
+        isGif: false,
+        prevArrow,
+        nextArrow,
+        videoElement: null,
+        gifStopFunction: null,
       };
+      
       panelsRef.current.push(panel);
     });
-
+    
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
-    const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
-
+    const velocity = new THREE.Vector3(),
+      direction = new THREE.Vector3(),
+      speed = 20.0;
+    
     // Collision constants - only outer boundary remains critical for simple controls
     const WALL_COLLISION_OFFSET = WALL_THICKNESS / 2; // Account for wall thickness in collision detection
     // The internal walls are thin meshes, relying on the player not clipping through them too much.
-
+    
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
         case 'KeyW': moveForward = true; break;
@@ -996,6 +1142,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         case 'KeyD': moveRight = true; break;
       }
     };
+    
     const onKeyUp = (e: KeyboardEvent) => {
       switch (e.code) {
         case 'KeyW': moveForward = false; break;
@@ -1004,15 +1151,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         case 'KeyD': moveRight = false; break;
       }
     };
+    
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
-
+    
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
     const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
-
+    
     const onDocumentMouseDown = () => {
       if (!controls.isLocked) return;
+      
       if (currentTargetedArrow) {
         const panel = panelsRef.current.find(p => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow);
         if (panel) {
@@ -1025,36 +1174,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       } else if (currentTargetedPanel) {
         const source = getCurrentNftSource(currentTargetedPanel.wallName);
         if (source) {
-          setMarketBrowserState({
-            open: true,
-            collection: source.contractAddress,
-            tokenId: source.tokenId,
+          setMarketBrowserState({ 
+            open: true, 
+            collection: source.contractAddress, 
+            tokenId: source.tokenId, 
           });
           controls.unlock();
         }
       }
     };
+    
     document.addEventListener('mousedown', onDocumentMouseDown);
-
+    
     let prevTime = performance.now();
     const startTime = performance.now();
     
     const animate = () => {
       requestAnimationFrame(animate);
-      const time = performance.now(), delta = (time - prevTime) / 1000;
+      
+      const time = performance.now(),
+        delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
-
+      
+      // Update water shader time uniforms
+      if (waterMaterialRef.current && waterMaterialRef.current.uniforms) {
+        waterMaterialRef.current.uniforms.time.value = elapsedTime;
+      }
+      
+      if (fountainWaterMaterialRef.current && fountainWaterMaterialRef.current.uniforms) {
+        fountainWaterMaterialRef.current.uniforms.time.value = elapsedTime;
+      }
+      
       // Update ceiling shader time uniform
       if (ceilingMaterial.uniforms) {
-          ceilingMaterial.uniforms.time.value = elapsedTime;
+        ceilingMaterial.uniforms.time.value = elapsedTime;
       }
-
+      
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
+        
         direction.z = Number(moveForward) - Number(moveBackward);
         direction.x = Number(moveRight) - Number(moveLeft);
         direction.normalize();
+        
         if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
         if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
         
@@ -1064,7 +1227,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // --- Collision Detection (Only outer 50x50 boundary enforced) ---
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
-        
         camera.position.y = 1.6;
         
         raycaster.setFromCamera(center, camera);
@@ -1077,10 +1239,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         
         currentTargetedPanel = null;
         currentTargetedArrow = null;
-
+        
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
           const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
+          
           if (panel) {
             if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
             else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
@@ -1090,79 +1253,77 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         }
       }
+      
       prevTime = time;
       renderer.render(scene, camera);
     };
-
+    
     const onWindowResize = () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     };
+    
     window.addEventListener('resize', onWindowResize);
-
+    
     const reloadAllPanelContent = async () => {
-        console.log("WebGL Context Restored. Reloading all panel content...");
-        for (const panel of panelsRef.current) {
-            const source = getCurrentNftSource(panel.wallName);
-            if (source) {
-                await updatePanelContent(panel, source);
-                await new Promise(resolve => setTimeout(resolve, 100)); 
-            }
+      console.log("WebGL Context Restored. Reloading all panel content...");
+      for (const panel of panelsRef.current) {
+        const source = getCurrentNftSource(panel.wallName);
+        if (source) {
+          await updatePanelContent(panel, source);
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
-        manageVideoPlayback(controls.isLocked);
+      }
+      manageVideoPlayback(controls.isLocked);
     };
-
+    
     // Context Loss Handling
     const canvas = renderer.domElement;
-    
     const handleContextLost = (event: Event) => {
-        event.preventDefault();
-        console.warn("WebGL Context Lost. Screen may go white.");
+      event.preventDefault();
+      console.warn("WebGL Context Lost. Screen may go white.");
     };
-
+    
     const handleContextRestored = () => {
-        console.log("WebGL Context Restored. Reinitializing resources.");
-        reloadAllPanelContent();
+      console.log("WebGL Context Restored. Reinitializing resources.");
+      reloadAllPanelContent();
     };
-
+    
     canvas.addEventListener('webglcontextlost', handleContextLost, false);
     canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
-
+    
     const fetchAndRenderPanelsSequentially = async () => {
       await initializeGalleryConfig();
       
       // Apply wall colors from config
       for (const [panelKey, config] of Object.entries(GALLERY_PANEL_CONFIG)) {
-          if (config.wall_color) {
-              const wallMesh = wallMeshesRef.current.get(panelKey);
-              if (wallMesh && wallMesh.material instanceof THREE.MeshStandardMaterial) {
-                  wallMesh.material.color.set(config.wall_color);
-              }
+        if (config.wall_color) {
+          const wallMesh = wallMeshesRef.current.get(panelKey);
+          if (wallMesh && wallMesh.material instanceof THREE.MeshStandardMaterial) {
+            wallMesh.material.color.set(config.wall_color);
           }
+        }
       }
-
+      
       // Process panels sequentially
       for (const panel of panelsRef.current) {
         const source = getCurrentNftSource(panel.wallName);
         await updatePanelContent(panel, source);
-        await new Promise(resolve => setTimeout(resolve, 100)); 
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     };
-
+    
     fetchAndRenderPanelsSequentially();
-
     animate();
-
+    
     return () => {
       document.removeEventListener('mousedown', onDocumentMouseDown);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('resize', onWindowResize);
-      
       canvas.removeEventListener('webglcontextlost', handleContextLost);
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-      
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
       
@@ -1173,28 +1334,28 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.videoElement.removeAttribute('src');
         }
         if (panel.gifStopFunction) {
-            panel.gifStopFunction();
+          panel.gifStopFunction();
         }
       });
-
+      
       scene.traverse(obj => {
         if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
           obj.geometry.dispose();
           if (Array.isArray(obj.material)) {
-            obj.material.forEach(m => { 
-              if (m.map) m.map.dispose(); 
-              m.dispose(); 
+            obj.material.forEach(m => {
+              if (m.map) m.map.dispose();
+              m.dispose();
             });
-          } else { 
-            if (obj.material.map) obj.material.map.dispose(); 
-            obj.material.dispose(); 
+          } else {
+            if (obj.material.map) obj.material.map.dispose();
+            obj.material.dispose();
           }
         }
       });
-      renderer.dispose();
       
+      renderer.dispose();
       delete (window as any).galleryControls;
-      currentTargetedPanel = null; 
+      currentTargetedPanel = null;
       currentTargetedArrow = null;
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
@@ -1203,11 +1364,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     <>
       <div ref={mountRef} className="w-full h-full" />
       {marketBrowserState.open && (
-        <MarketBrowserRefined
-          collection={marketBrowserState.collection || ""}
-          tokenId={marketBrowserState.tokenId || ""}
-          open={marketBrowserState.open}
-          onClose={() => setMarketBrowserState({ open: false })}
+        <MarketBrowserRefined 
+          collection={marketBrowserState.collection || ""} 
+          tokenId={marketBrowserState.tokenId || ""} 
+          open={marketBrowserState.open} 
+          onClose={() => setMarketBrowserState({ open: false })} 
         />
       )}
     </>
