@@ -409,6 +409,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
 
     const innerSegmentCenters = [-20, -10, 0, 10, 20];
+    
+    // Constants for inner cross structure
+    const CROSS_WALL_BOUNDARY = 5;
+    const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
 
     // 1. Create Modular Floor and Ceiling with hole for 30x30 room
     const ceilingMaterial = new THREE.ShaderMaterial({
@@ -431,14 +435,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             const segmentCenterX = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
             const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
             
-            // Check if this segment is within the 30x30 area to be cut out
-            const isInHoleArea = 
-                segmentCenterX > -HOLE_HALF_SIZE && segmentCenterX < HOLE_HALF_SIZE &&
-                segmentCenterZ > -HOLE_HALF_SIZE && segmentCenterZ < HOLE_HALF_SIZE;
-            
-            // Skip creating ceiling segments that fall within the 30x30 hole area
-            if (isInHoleArea) continue;
+            // Check if this segment is within the 30x30 area
+            const isCentral3x3Segment = Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
 
+            if (isCentral3x3Segment) {
+                // If it's one of the 9 segments in the 30x30 area, check if it's part of the central cross pathway (X=0 or Z=0)
+                if (segmentCenterX === 0 || segmentCenterZ === 0) {
+                    // This is the central cross pathway (5 segments). Skip floor/ceiling.
+                    continue;
+                }
+            }
+            
+            // If we reach here, it's either an outer 50x50 segment OR one of the four 30x30 corner segments.
             // Floor Segment with placeholder material
             const floorSegment = new THREE.Mesh(segmentGeometry, placeholderFloorMaterial);
             floorSegment.rotation.x = Math.PI / 2;
@@ -447,7 +455,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             scene.add(floorSegment);
             floorSegments.push(floorSegment);
 
-            // Ceiling Segment (only create if not in hole area)
+            // Ceiling Segment
             const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenterX;
@@ -513,8 +521,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- START INNER ROOM CROSS SETUP (Walls at X/Z = +/- 5) ---
     // This creates the cross structure within the 30x30 area (X/Z = [-15, 15])
-    const CROSS_WALL_BOUNDARY = 5;
-    const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
+    // Constants defined above: CROSS_WALL_BOUNDARY = 5; crossWallSegments = [-10, 10];
 
     crossWallSegments.forEach((segmentCenter, i) => {
         const index = i;
@@ -638,7 +645,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
 
     // Inner 30x30 cross walls (at X/Z = +/- 5)
-    // Constants defined above: CROSS_WALL_BOUNDARY = 5; crossWallSegments = [-10, 10];
+    // We reuse CROSS_WALL_BOUNDARY and crossWallSegments defined earlier in the useEffect scope.
 
     crossWallSegments.forEach((segmentCenter, i) => {
         // 1. North Walls (Z = -5)
