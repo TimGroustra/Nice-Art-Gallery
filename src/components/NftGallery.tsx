@@ -411,7 +411,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const SEGMENT_TO_SKIP = 0;
     const innerSegmentCenters = [-20, -10, 0, 10, 20];
     const innerInnerSegmentCenters = [-10, 0, 10];
-    const innerInnerInnerSegmentCenters = [0];
 
     // 1. Create Modular Floor and Ceiling with hole for 30x30 room
     const ceilingMaterial = new THREE.ShaderMaterial({
@@ -577,41 +576,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
     });
 
-    // --- START INNER INNER INNER ROOM SETUP (10x10) ---
-    const INNER_INNER_INNER_WALL_BOUNDARY = 5;
-    
-    innerInnerInnerSegmentCenters.forEach(segmentCenter => {
-        // North Wall (Z = -5)
-        const northCenterKey = `north-center-wall-0`;
-        const northWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(northWall);
-        wallMeshesRef.current.set(northCenterKey, northWall);
-
-        // South Wall (Z = 5)
-        const southCenterKey = `south-center-wall-0`;
-        const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
-        scene.add(southWall);
-        wallMeshesRef.current.set(southCenterKey, southWall);
-
-        // East Wall (X = 5)
-        const eastCenterKey = `east-center-wall-0`;
-        const eastWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastWall.rotation.y = -Math.PI / 2;
-        eastWall.position.set(INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastWall);
-        wallMeshesRef.current.set(eastCenterKey, eastWall);
-
-        // West Wall (X = -5)
-        const westCenterKey = `west-center-wall-0`;
-        const westWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westWall.rotation.y = Math.PI / 2;
-        westWall.position.set(-INNER_INNER_INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westWall);
-        wallMeshesRef.current.set(westCenterKey, westWall);
-    });
-
     // 4. Lighting Setup
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
@@ -725,34 +689,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         });
     });
 
-    // Add configurations for the central 10x10 walls
-    const centerWallBoundary = 5;
-    const centerWallSegmentCenter = 0;
-
-    dynamicPanelConfigs.push({
-        wallName: `north-center-wall-0` as keyof PanelConfig,
-        position: [centerWallSegmentCenter, PANEL_Y_POSITION, -centerWallBoundary - ARROW_DEPTH_OFFSET],
-        rotation: [0, Math.PI, 0],
-    });
-
-    dynamicPanelConfigs.push({
-        wallName: `south-center-wall-0` as keyof PanelConfig,
-        position: [centerWallSegmentCenter, PANEL_Y_POSITION, centerWallBoundary + ARROW_DEPTH_OFFSET],
-        rotation: [0, 0, 0],
-    });
-
-    dynamicPanelConfigs.push({
-        wallName: `east-center-wall-0` as keyof PanelConfig,
-        position: [centerWallBoundary + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
-        rotation: [0, Math.PI / 2, 0],
-    });
-
-    dynamicPanelConfigs.push({
-        wallName: `west-center-wall-0` as keyof PanelConfig,
-        position: [-centerWallBoundary - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, centerWallSegmentCenter],
-        rotation: [0, -Math.PI / 2, 0],
-    });
-
     // Clear existing panels before populating
     panelsRef.current = [];
 
@@ -791,14 +727,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Collision constants - adjust for thicker walls
     const WALL_COLLISION_OFFSET = WALL_THICKNESS / 2; // Account for wall thickness in collision detection
-    const INNER_ROOM_MIN_X = -5 + 0.5 + WALL_COLLISION_OFFSET;
-    const INNER_ROOM_MAX_X = 5 - 0.5 - WALL_COLLISION_OFFSET;
-    const INNER_ROOM_MIN_Z = -5 + 0.5 + WALL_COLLISION_OFFSET;
-    const INNER_ROOM_MAX_Z = 5 - 0.5 - WALL_COLLISION_OFFSET;
-    const CORRIDOR_MIN_X = -15 + 0.5 + WALL_COLLISION_OFFSET;
-    const CORRIDOR_MAX_X = 15 - 0.5 - WALL_COLLISION_OFFSET;
-    const CORRIDOR_MIN_Z = -15 + 0.5 + WALL_COLLISION_OFFSET;
-    const CORRIDOR_MAX_Z = 15 - 0.5 - WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MIN_X = -15 + 0.5 + WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MAX_X = 15 - 0.5 - WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MIN_Z = -15 + 0.5 + WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MAX_Z = 15 - 0.5 - WALL_COLLISION_OFFSET;
 
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -884,21 +816,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const isInsideInnerRoom = camera.position.x > INNER_ROOM_MIN_X && camera.position.x < INNER_ROOM_MAX_X &&
                                   camera.position.z > INNER_ROOM_MIN_Z && camera.position.z < INNER_ROOM_MAX_Z;
 
-        const isNearXAxisOpening = camera.position.z > -5 && camera.position.z < 5;
-        const isNearZAxisOpening = camera.position.x > -5 && camera.position.x < 5;
-
         if (isInsideInnerRoom) {
-            if (camera.position.z < INNER_ROOM_MIN_Z && !isNearZAxisOpening) {
+            if (camera.position.z < INNER_ROOM_MIN_Z) {
                 camera.position.z = INNER_ROOM_MIN_Z;
             }
-            if (camera.position.z > INNER_ROOM_MAX_Z && !isNearZAxisOpening) {
+            if (camera.position.z > INNER_ROOM_MAX_Z) {
                 camera.position.z = INNER_ROOM_MAX_Z;
             }
             
-            if (camera.position.x < INNER_ROOM_MIN_X && !isNearXAxisOpening) {
+            if (camera.position.x < INNER_ROOM_MIN_X) {
                 camera.position.x = INNER_ROOM_MIN_X;
             }
-            if (camera.position.x > INNER_ROOM_MAX_X && !isNearXAxisOpening) {
+            if (camera.position.x > INNER_ROOM_MAX_X) {
                 camera.position.x = INNER_ROOM_MAX_X;
             }
         }
