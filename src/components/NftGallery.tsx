@@ -344,8 +344,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const halfRoomSize = ROOM_SIZE / 2;
     
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
-    const wallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT);
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
+    // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
+    const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
+    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT, WALL_THICKNESS);
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x444444, roughness: 0.8, metalness: 0.1 });
 
     // --- Floor Texture and Material ---
     const floorSegments: THREE.Mesh[] = [];
@@ -463,8 +465,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- START OUTER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = halfRoomSize;
     const INNER_WALL_HEIGHT = WALL_HEIGHT;
-    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1 });
-    const innerWallSegmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT);
+    const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
+    const innerWallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT, WALL_THICKNESS);
 
     innerSegmentCenters.forEach((segmentCenter, i) => {
         const index = i;
@@ -479,7 +481,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // South Outer Wall (Z = 25)
         const southWallKey = `south-wall-${index}`;
         const southInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerWall.rotation.y = Math.PI;
         southInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_WALL_BOUNDARY);
         scene.add(southInnerWall);
         wallMeshesRef.current.set(southWallKey, southInnerWall);
@@ -523,14 +524,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // South Inner Inner Wall (Z = 15)
         const southInnerOuterKey = `south-inner-wall-outer-${index}`;
         const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerOuterWall.rotation.y = Math.PI;
         southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
         scene.add(southInnerOuterWall);
         wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
 
         const southInnerInnerKey = `south-inner-wall-inner-${index}`;
         const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerInnerWall.rotation.y = Math.PI;
         southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_WALL_BOUNDARY);
         scene.add(southInnerInnerWall);
         wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
@@ -580,7 +579,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // South Wall (Z = 5)
         const southCenterKey = `south-center-wall-0`;
         const southWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southWall.rotation.y = Math.PI;
         southWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_INNER_INNER_WALL_BOUNDARY);
         scene.add(southWall);
         wallMeshesRef.current.set(southCenterKey, southWall);
@@ -702,7 +700,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-    const ARROW_DEPTH_OFFSET = 0.15, ARROW_PANEL_OFFSET = 1.5;
+    const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS/2; // Adjust for thicker walls
+    const ARROW_PANEL_OFFSET = 1.5;
 
     // Dynamic Panel Configuration Generation
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
@@ -863,15 +862,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false;
     const velocity = new THREE.Vector3(), direction = new THREE.Vector3(), speed = 20.0;
 
-    // Collision constants
-    const INNER_ROOM_MIN_X = -5 + 0.5;
-    const INNER_ROOM_MAX_X = 5 - 0.5;
-    const INNER_ROOM_MIN_Z = -5 + 0.5;
-    const INNER_ROOM_MAX_Z = 5 - 0.5;
-    const CORRIDOR_MIN_X = -15 + 0.5;
-    const CORRIDOR_MAX_X = 15 - 0.5;
-    const CORRIDOR_MIN_Z = -15 + 0.5;
-    const CORRIDOR_MAX_Z = 15 - 0.5;
+    // Collision constants - adjust for thicker walls
+    const WALL_COLLISION_OFFSET = WALL_THICKNESS / 2; // Account for wall thickness in collision detection
+    const INNER_ROOM_MIN_X = -5 + 0.5 + WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MAX_X = 5 - 0.5 - WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MIN_Z = -5 + 0.5 + WALL_COLLISION_OFFSET;
+    const INNER_ROOM_MAX_Z = 5 - 0.5 - WALL_COLLISION_OFFSET;
+    const CORRIDOR_MIN_X = -15 + 0.5 + WALL_COLLISION_OFFSET;
+    const CORRIDOR_MAX_X = 15 - 0.5 - WALL_COLLISION_OFFSET;
+    const CORRIDOR_MIN_Z = -15 + 0.5 + WALL_COLLISION_OFFSET;
+    const CORRIDOR_MAX_Z = 15 - 0.5 - WALL_COLLISION_OFFSET;
 
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
