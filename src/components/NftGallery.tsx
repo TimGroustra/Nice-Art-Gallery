@@ -12,8 +12,8 @@ import { MarketBrowserRefined } from './MarketBrowserRefined';
 RectAreaLightUniformsLib.init();
 
 // Constants for geometry
-const PANEL_WIDTH = 4; // Increased from 2
-const PANEL_HEIGHT = 4; // Increased from 2
+const PANEL_WIDTH = 6; // Increased from 4
+const PANEL_HEIGHT = 6; // Increased from 4
 
 // Define types for the panel objects
 interface Panel {
@@ -337,7 +337,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const NUM_SEGMENTS = 5;
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
     const WALL_HEIGHT = 8; // Doubled height
-    const PANEL_Y_POSITION = 4.0; // Center the 4m panel vertically on the 8m wall
+    const PANEL_Y_POSITION = 4.0; // Center the 6m panel vertically on the 8m wall
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
 
     const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
@@ -603,7 +603,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_COLOR_DEFAULT = 0xcccccc, ARROW_COLOR_HOVER = 0x00ff00;
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
     const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS/2; // Adjust for thicker walls
-    const ARROW_PANEL_OFFSET = 2.5; // Adjusted for larger panel width (4/2 + 0.5 padding)
+    const ARROW_PANEL_OFFSET = 3.2; // Adjusted for 6m panel width (6/2 + 0.2 padding)
 
     // Dynamic Panel Configuration Generation
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
@@ -692,7 +692,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // Inner side (facing West, towards X=0)
         dynamicPanelConfigs.push({
             wallName: `east-inner-wall-inner-${i}` as keyof PanelConfig,
-            position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+            position: [CROSS_WALL_BOUNDARY - ARFLOW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
             rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
         });
 
