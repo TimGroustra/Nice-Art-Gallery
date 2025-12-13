@@ -94,171 +94,6 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
-// Refactored loadTexture to handle Video, GIF, and Image
-const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
-  const isVideo = isVideoContent(contentType, url);
-  const isGif = isGifContent(contentType, url);
-
-  // --- Cleanup previous media ---
-  if (panel.videoElement) {
-      panel.videoElement.pause();
-      panel.videoElement.removeAttribute('src');
-      panel.videoElement = null;
-  }
-  if (panel.gifStopFunction) {
-      panel.gifStopFunction();
-      panel.gifStopFunction = null;
-  }
-  // --- End Cleanup ---
-
-  if (isVideo) {
-    return new Promise(resolve => {
-      let videoEl = panel.videoElement;
-      if (!videoEl) {
-          videoEl = document.createElement('video');
-          videoEl.playsInline = true;
-          videoEl.autoplay = true;
-          videoEl.loop = true;
-          videoEl.muted = true;
-          videoEl.style.display = 'none';
-          videoEl.crossOrigin = 'anonymous'; 
-          panel.videoElement = videoEl;
-      }
-
-      videoEl.src = url;
-      videoEl.load();
-      
-      if ((window as any).galleryControls?.isLocked?.()) {
-           videoEl.play().catch(e => console.warn("Video playback prevented:", e));
-      }
-      
-      const videoTexture = new THREE.VideoTexture(videoEl);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      
-      resolve(videoTexture);
-    });
-  }
-  
-  if (isGif) {
-      try {
-          const { texture, stop } = await createGifTexture(url);
-          panel.gifStopFunction = stop;
-          return texture;
-      } catch (error) {
-          console.error("Failed to load animated GIF, falling back to static image load:", error);
-          // Fall through to image loader if GIF decoding fails
-      }
-  }
-  
-  // Default: Image/Static GIF/Fallback
-  return new Promise((resolve, reject) => {
-      const loader = new THREE.TextureLoader();
-      loader.setCrossOrigin('anonymous'); 
-      
-      loader.load(url, 
-          (texture) => {
-              resolve(texture);
-          }, 
-          undefined, 
-          (error) => {
-              console.error('Error loading texture:', url, error);
-              showError(`Failed to load image: ${url.substring(0, 50)}...`);
-              reject(error);
-          }
-      );
-  });
-}, []);
-
-const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
-  // --- Reset NFT panel ---
-  disposeTextureSafely(panel.mesh);
-  panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
-  panel.metadataUrl = '';
-  panel.isVideo = false;
-  panel.isGif = false;
-  
-  // Ensure media cleanup on failure/reset
-  if (panel.videoElement) {
-      panel.videoElement.pause();
-      panel.videoElement.removeAttribute('src');
-      panel.videoElement = null;
-  }
-  if (panel.gifStopFunction) {
-      panel.gifStopFunction();
-      panel.gifStopFunction = null;
-  }
-  
-  // Handle blank panel case immediately
-  if (!source || source.contractAddress === "") {
-      const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
-      const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
-      panel.prevArrow.visible = showArrows;
-      panel.nextArrow.visible = showArrows;
-      return;
-  }
-
-  // --- Fetch Metadata ---
-  const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-  
-  if (!metadata) {
-      // Graceful failure: metadata fetch failed
-      console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
-      
-      // Display a simple error message on the main panel
-      disposeTextureSafely(panel.mesh);
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      if (context) {
-          canvas.width = 256;
-          canvas.height = 256;
-          context.fillStyle = '#333333';
-          context.fillRect(0, 0, canvas.width, canvas.height);
-          context.fillStyle = '#ff0000';
-          context.font = '20px Arial';
-          context.textAlign = 'center';
-          context.fillText('NFT Unavailable', canvas.width / 2, canvas.height / 2);
-      }
-      const errorTexture = new THREE.CanvasTexture(canvas);
-      panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
-      return;
-  }
-
-  try {
-    const contentUrl = metadata.contentUrl;
-    const isVideo = isVideoContent(metadata.contentType, contentUrl);
-    const isGif = isGifContent(metadata.contentType, contentUrl);
-    
-    // AWAIT the texture loading to ensure the image data is ready
-    const texture = await loadTexture(contentUrl, panel, metadata.contentType);
-    
-    // --- Main NFT Mesh Update ---
-    disposeTextureSafely(panel.mesh);
-    panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
-    // --- End Main NFT Mesh Update ---
-
-    panel.metadataUrl = metadata.source;
-    panel.isVideo = isVideo;
-    panel.isGif = isGif;
-
-    showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
-    
-  } catch (error) {
-    console.error(`Error loading NFT content for ${panel.wallName}:`, error);
-    showError(`Failed to load NFT content for ${panel.wallName}.`);
-    
-    // If loading fails, the panel remains dark gray
-  }
-
-  // --- Update Arrow Visibility ---
-  const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
-  const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
-  panel.prevArrow.visible = showArrows;
-  panel.nextArrow.visible = showArrows;
-  // --- End Arrow Visibility Update ---
-
-}, [loadTexture]);
-
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -269,6 +104,171 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
+
+  // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
+  const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
+    const isVideo = isVideoContent(contentType, url);
+    const isGif = isGifContent(contentType, url);
+
+    // --- Cleanup previous media ---
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
+    if (panel.gifStopFunction) {
+        panel.gifStopFunction();
+        panel.gifStopFunction = null;
+    }
+    // --- End Cleanup ---
+
+    if (isVideo) {
+      return new Promise(resolve => {
+        let videoEl = panel.videoElement;
+        if (!videoEl) {
+            videoEl = document.createElement('video');
+            videoEl.playsInline = true;
+            videoEl.autoplay = true;
+            videoEl.loop = true;
+            videoEl.muted = true;
+            videoEl.style.display = 'none';
+            videoEl.crossOrigin = 'anonymous'; 
+            panel.videoElement = videoEl;
+        }
+
+        videoEl.src = url;
+        videoEl.load();
+        
+        if ((window as any).galleryControls?.isLocked?.()) {
+             videoEl.play().catch(e => console.warn("Video playback prevented:", e));
+        }
+        
+        const videoTexture = new THREE.VideoTexture(videoEl);
+        videoTexture.minFilter = THREE.LinearFilter;
+        videoTexture.magFilter = THREE.LinearFilter;
+        
+        resolve(videoTexture);
+      });
+    }
+    
+    if (isGif) {
+        try {
+            const { texture, stop } = await createGifTexture(url);
+            panel.gifStopFunction = stop;
+            return texture;
+        } catch (error) {
+            console.error("Failed to load animated GIF, falling back to static image load:", error);
+            // Fall through to image loader if GIF decoding fails
+        }
+    }
+    
+    // Default: Image/Static GIF/Fallback
+    return new Promise((resolve, reject) => {
+        const loader = new THREE.TextureLoader();
+        loader.setCrossOrigin('anonymous'); 
+        
+        loader.load(url, 
+            (texture) => {
+                resolve(texture);
+            }, 
+            undefined, 
+            (error) => {
+                console.error('Error loading texture:', url, error);
+                showError(`Failed to load image: ${url.substring(0, 50)}...`);
+                reject(error);
+            }
+        );
+    });
+  }, []);
+
+  const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
+    // --- Reset NFT panel ---
+    disposeTextureSafely(panel.mesh);
+    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x333333 }); // Dark gray placeholder
+    panel.metadataUrl = '';
+    panel.isVideo = false;
+    panel.isGif = false;
+    
+    // Ensure media cleanup on failure/reset
+    if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+    }
+    if (panel.gifStopFunction) {
+        panel.gifStopFunction();
+        panel.gifStopFunction = null;
+    }
+    
+    // Handle blank panel case immediately
+    if (!source || source.contractAddress === "") {
+        const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+        const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+        panel.prevArrow.visible = showArrows;
+        panel.nextArrow.visible = showArrows;
+        return;
+    }
+
+    // --- Fetch Metadata ---
+    const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+    
+    if (!metadata) {
+        // Graceful failure: metadata fetch failed
+        console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
+        
+        // Display a simple error message on the main panel
+        disposeTextureSafely(panel.mesh);
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        if (context) {
+            canvas.width = 256;
+            canvas.height = 256;
+            context.fillStyle = '#333333';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.fillStyle = '#ff0000';
+            context.font = '20px Arial';
+            context.textAlign = 'center';
+            context.fillText('NFT Unavailable', canvas.width / 2, canvas.height / 2);
+        }
+        const errorTexture = new THREE.CanvasTexture(canvas);
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
+        return;
+    }
+
+    try {
+      const contentUrl = metadata.contentUrl;
+      const isVideo = isVideoContent(metadata.contentType, contentUrl);
+      const isGif = isGifContent(metadata.contentType, contentUrl);
+      
+      // AWAIT the texture loading to ensure the image data is ready
+      const texture = await loadTexture(contentUrl, panel, metadata.contentType);
+      
+      // --- Main NFT Mesh Update ---
+      disposeTextureSafely(panel.mesh);
+      panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
+      // --- End Main NFT Mesh Update ---
+
+      panel.metadataUrl = metadata.source;
+      panel.isVideo = isVideo;
+      panel.isGif = isGif;
+
+      showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
+      
+    } catch (error) {
+      console.error(`Error loading NFT content for ${panel.wallName}:`, error);
+      showError(`Failed to load NFT content for ${panel.wallName}.`);
+      
+      // If loading fails, the panel remains dark gray
+    }
+
+    // --- Update Arrow Visibility ---
+    const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
+    const showArrows = collectionConfig && collectionConfig.tokenIds.length > 1;
+    panel.prevArrow.visible = showArrows;
+    panel.nextArrow.visible = showArrows;
+    // --- End Arrow Visibility Update ---
+
+  }, [loadTexture]);
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
     panelsRef.current.forEach(panel => {
