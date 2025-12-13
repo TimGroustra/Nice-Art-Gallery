@@ -416,61 +416,65 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             group.add(step);
         };
 
-        // Helper to create a platform mesh
-        const createPlatform = (y: number, centerX: number, centerZ: number) => {
+        // Helper to create a platform mesh, where topY is the desired top surface height
+        const createPlatform = (topY: number, centerX: number, centerZ: number) => {
             const platformGeometry = new THREE.BoxGeometry(PLATFORM_SIZE, PLATFORM_HEIGHT, PLATFORM_SIZE);
             const platform = new THREE.Mesh(platformGeometry, material);
-            platform.position.set(centerX, y + PLATFORM_HEIGHT / 2, centerZ);
+            // Position center of platform so its top surface is at topY
+            platform.position.set(centerX, topY - PLATFORM_HEIGHT / 2, centerZ);
             group.add(platform);
         };
-
-        // --- Flight 1 (South Wall: X=4 to X=-2, Z=4) ---
-        // Rises from Y=0.0 to Y=1.0
-        for (let i = 0; i < NUM_STEPS; i++) {
-            const stepY = (i + 0.5) * STEP_RISE;
-            const stepX = 4.0 - (i + 0.5) * STEP_RUN; // Starts at 4.0, ends at -2.0
-            // Step is 2m wide (Z: 3 to 5), centered at Z=4.
-            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, 4.0, Math.PI / 2); // Rotate 90 deg to align width with Z axis
-        }
         
-        // Platform 1 (SW Corner) - Y=1.0
-        createPlatform(1.0, -4.0, 4.0); // Center at X=-4, Z=4
+        const NUM_FLIGHTS = 8; // To reach 8m height (8 flights * 1m rise)
 
-        // --- Flight 2 (West Wall: Z=3 to Z=-3, X=-4) ---
-        // Rises from Y=1.0 to Y=2.0
-        for (let i = 0; i < NUM_STEPS; i++) {
-            const stepY = 1.0 + (i + 0.5) * STEP_RISE;
-            const stepZ = 3.0 - (i + 0.5) * STEP_RUN; // Starts at 3.0, ends at -3.0
-            // Step is 2m wide (X: -5 to -3), centered at X=-4.
-            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, -4.0, stepY, stepZ, 0); 
+        for (let flight = 0; flight < NUM_FLIGHTS; flight++) {
+            const startY = flight * RISE_PER_FLIGHT;
+            const endY = (flight + 1) * RISE_PER_FLIGHT;
+            const patternIndex = flight % 4; // 0: South, 1: West, 2: North, 3: East
+
+            // 1. Create Steps for the Flight
+            for (let i = 0; i < NUM_STEPS; i++) {
+                const stepY = startY + (i + 0.5) * STEP_RISE;
+                
+                let stepX = 0, stepZ = 0, rotationY = 0;
+
+                if (patternIndex === 0) { // South Wall (X: 4 -> -2, Z=4)
+                    stepX = 4.0 - (i + 0.5) * STEP_RUN;
+                    stepZ = 4.0;
+                    rotationY = Math.PI / 2;
+                } else if (patternIndex === 1) { // West Wall (Z: 3 -> -3, X=-4)
+                    stepX = -4.0;
+                    stepZ = 3.0 - (i + 0.5) * STEP_RUN;
+                    rotationY = 0;
+                } else if (patternIndex === 2) { // North Wall (X: -3 -> 3, Z=-4)
+                    stepX = -3.0 + (i + 0.5) * STEP_RUN;
+                    stepZ = -4.0;
+                    rotationY = -Math.PI / 2;
+                } else if (patternIndex === 3) { // East Wall (Z: -3 -> 3, X=4)
+                    stepX = 4.0;
+                    stepZ = -3.0 + (i + 0.5) * STEP_RUN;
+                    rotationY = Math.PI;
+                }
+                
+                createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, stepZ, rotationY);
+            }
+
+            // 2. Create Platform at the end of the flight
+            let platformX = 0, platformZ = 0;
+            
+            if (patternIndex === 0) { // Ends SW
+                platformX = -4.0; platformZ = 4.0;
+            } else if (patternIndex === 1) { // Ends NW
+                platformX = -4.0; platformZ = -4.0;
+            } else if (patternIndex === 2) { // Ends NE
+                platformX = 4.0; platformZ = -4.0;
+            } else if (patternIndex === 3) { // Ends SE
+                platformX = 4.0; platformZ = 4.0;
+            }
+            
+            // Create platform at the top of the current flight (endY)
+            createPlatform(endY, platformX, platformZ);
         }
-
-        // Platform 2 (NW Corner) - Y=2.0
-        createPlatform(2.0, -4.0, -4.0); // Center at X=-4, Z=-4
-
-        // --- Flight 3 (North Wall: X=-3 to X=3, Z=-4) ---
-        // Rises from Y=2.0 to Y=3.0
-        for (let i = 0; i < NUM_STEPS; i++) {
-            const stepY = 2.0 + (i + 0.5) * STEP_RISE;
-            const stepX = -3.0 + (i + 0.5) * STEP_RUN; // Starts at -3.0, ends at 3.0
-            // Step is 2m wide (Z: -5 to -3), centered at Z=-4.
-            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, stepX, stepY, -4.0, -Math.PI / 2); // Rotate -90 deg
-        }
-
-        // Platform 3 (NE Corner) - Y=3.0
-        createPlatform(3.0, 4.0, -4.0); // Center at X=4, Z=-4
-
-        // --- Flight 4 (East Wall: Z=-3 to Z=3, X=4) ---
-        // Rises from Y=3.0 to Y=4.0
-        for (let i = 0; i < NUM_STEPS; i++) {
-            const stepY = 3.0 + (i + 0.5) * STEP_RISE;
-            const stepZ = -3.0 + (i + 0.5) * STEP_RUN; // Starts at -3.0, ends at 3.0
-            // Step is 2m wide (X: 3 to 5), centered at X=4.
-            createStep(STAIR_WIDTH, STEP_RUN, STEP_RISE, 4.0, stepY, stepZ, Math.PI); // Rotate 180 deg
-        }
-
-        // Top Platform (SE Corner) - Y=4.0
-        createPlatform(4.0, 4.0, 4.0); // Center at X=4, Z=4
 
         return group;
     };
@@ -573,7 +577,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                     ceiling.rotation.x = Math.PI / 2;
                     ceiling.position.x = segmentCenterX;
                     ceiling.position.z = segmentCenterZ;
-                    ceiling.position.y = wallHeight; // Positioned at the new height (8)
+                    ceiling.position.y = wallHeight + 0.01; // Positioned slightly above the wall height
                     scene.add(ceiling);
                     
                     continue; // Skip floor creation for the staircase area
@@ -606,7 +610,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenterX;
             ceiling.position.z = segmentCenterZ;
-            ceiling.position.y = wallHeight; // Positioned at the new height (8)
+            ceiling.position.y = wallHeight + 0.01; // Positioned slightly above the wall height
             scene.add(ceiling);
         }
     }
