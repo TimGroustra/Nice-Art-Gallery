@@ -550,6 +550,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(westUpperWall);
     });
     // --- START INNER ROOM CROSS SETUP (Walls at X/Z = +/- 5) ---
+    // Only create lower walls for the inner 30x30 area
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
       // 1. North Walls (Z = -5)
@@ -559,17 +560,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       northInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
       scene.add(northInnerOuterLowerWall);
       wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterLowerWall);
-      const northInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      northInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
-      scene.add(northInnerOuterUpperWall);
+      // Inner side (facing South, towards Z=0)
       const northInnerInnerKey = `north-inner-wall-inner-${index}`;
       const northInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
       northInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
       scene.add(northInnerInnerLowerWall);
       wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerLowerWall);
-      const northInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      northInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
-      scene.add(northInnerInnerUpperWall);
       // 2. South Walls (Z = 5)
       // Outer side (facing South, towards Z=15)
       const southInnerOuterKey = `south-inner-wall-outer-${index}`;
@@ -577,17 +573,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       southInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
       scene.add(southInnerOuterLowerWall);
       wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterLowerWall);
-      const southInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      southInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
-      scene.add(southInnerOuterUpperWall);
+      // Inner side (facing North, towards Z=0)
       const southInnerInnerKey = `south-inner-wall-inner-${index}`;
       const southInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
       southInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
       scene.add(southInnerInnerLowerWall);
       wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerLowerWall);
-      const southInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      southInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
-      scene.add(southInnerInnerUpperWall);
       // 3. East Walls (X = 5)
       // Outer side (facing East, towards X=15)
       const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
@@ -596,10 +587,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       eastInnerOuterLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
       scene.add(eastInnerOuterLowerWall);
       wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterLowerWall);
-      const eastInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      eastInnerOuterUpperWall.rotation.y = -Math.PI / 2;
-      eastInnerOuterUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-      scene.add(eastInnerOuterUpperWall);
       // Inner side (facing West, towards X=0)
       const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
       const eastInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
@@ -607,10 +594,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       eastInnerInnerLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
       scene.add(eastInnerInnerLowerWall);
       wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerLowerWall);
-      const eastInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      eastInnerInnerUpperWall.rotation.y = -Math.PI / 2;
-      eastInnerInnerUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-      scene.add(eastInnerInnerUpperWall);
       // 4. West Walls (X = -5)
       // Outer side (facing West, towards X=-15)
       const westInnerOuterKey = `west-inner-wall-outer-${index}`;
@@ -619,10 +602,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       westInnerOuterLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
       scene.add(westInnerOuterLowerWall);
       wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterLowerWall);
-      const westInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      westInnerOuterUpperWall.rotation.y = Math.PI / 2;
-      westInnerOuterUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-      scene.add(westInnerOuterUpperWall);
       // Inner side (facing East, towards X=0)
       const westInnerInnerKey = `west-inner-wall-inner-${index}`;
       const westInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
@@ -630,10 +609,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       westInnerInnerLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
       scene.add(westInnerInnerLowerWall);
       wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerLowerWall);
-      const westInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
-      westInnerInnerUpperWall.rotation.y = Math.PI / 2;
-      westInnerInnerUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
-      scene.add(westInnerInnerUpperWall);
     });
     // --- CREATE STONE POOL WITH TALL WATER FOUNTAIN ---
     // Create the stone pool (10x10)
