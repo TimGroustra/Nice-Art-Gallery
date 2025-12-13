@@ -336,7 +336,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
-    const WALL_HEIGHT = 16; // Doubled height to 16m
+    const WALL_HEIGHT = 16; // Total height
     const LOWER_WALL_HEIGHT = 8; // Height of individual stacked segments
     const PANEL_Y_POSITION = 4.0; // Center the 6m panel vertically on the LOWER 8m wall segment
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
@@ -347,7 +347,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
-    // Use 8m height for segments
+    
+    // Define wall segment geometry once
     const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS); 
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
 
@@ -642,8 +643,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- START OUTER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = halfRoomSize;
     const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
-    // Wall segments are 8m high
-    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS); 
+    
+    // Wall segments are 8m high (LOWER_WALL_HEIGHT)
+    // wallSegmentGeometry is already defined above.
     
     const LOWER_WALL_CENTER_Y = LOWER_WALL_HEIGHT / 2; // 4.0
     const UPPER_WALL_CENTER_Y = LOWER_WALL_HEIGHT + LOWER_WALL_CENTER_Y; // 12.0
