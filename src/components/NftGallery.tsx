@@ -336,8 +336,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
-    const WALL_HEIGHT = 8; // Doubled height
-    const PANEL_Y_POSITION = 4.0; // Center the 6m panel vertically on the 8m wall
+    const WALL_HEIGHT = 16; // Doubled height to 16m
+    const LOWER_WALL_HEIGHT = 8; // Height of individual stacked segments
+    const PANEL_Y_POSITION = 4.0; // Center the 6m panel vertically on the LOWER 8m wall segment
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
 
     const roomSize = ROOM_SIZE, wallHeight = WALL_HEIGHT, panelYPosition = PANEL_Y_POSITION, boundary = BOUNDARY;
@@ -346,7 +347,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
-    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, WALL_HEIGHT, WALL_THICKNESS);
+    // Use 8m height for segments
+    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS); 
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
 
     // --- Floor Texture and Material ---
@@ -425,7 +427,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             group.add(platform);
         };
         
-        const NUM_FLIGHTS = 8; // To reach 8m height (8 flights * 1m rise)
+        const NUM_FLIGHTS = 16; // To reach 16m height (16 flights * 1m rise)
 
         for (let flight = 0; flight < NUM_FLIGHTS; flight++) {
             const startY = flight * RISE_PER_FLIGHT;
@@ -577,7 +579,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                     ceiling.rotation.x = Math.PI / 2;
                     ceiling.position.x = segmentCenterX;
                     ceiling.position.z = segmentCenterZ;
-                    ceiling.position.y = wallHeight + 0.01; // Positioned slightly above the wall height
+                    ceiling.position.y = WALL_HEIGHT + 0.01; // Positioned slightly above the new wall height (16.01)
                     scene.add(ceiling);
                     
                     continue; // Skip floor creation for the staircase area
@@ -610,7 +612,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             ceiling.rotation.x = Math.PI / 2;
             ceiling.position.x = segmentCenterX;
             ceiling.position.z = segmentCenterZ;
-            ceiling.position.y = wallHeight + 0.01; // Positioned slightly above the wall height
+            ceiling.position.y = WALL_HEIGHT + 0.01; // Positioned slightly above the new wall height (16.01)
             scene.add(ceiling);
         }
     }
@@ -639,47 +641,73 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- START OUTER ROOM SETUP (50x50) ---
     const INNER_WALL_BOUNDARY = halfRoomSize;
-    const INNER_WALL_HEIGHT = WALL_HEIGHT;
     const innerWallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
-    const innerWallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, INNER_WALL_HEIGHT, WALL_THICKNESS);
+    // Wall segments are 8m high
+    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS); 
+    
+    const LOWER_WALL_CENTER_Y = LOWER_WALL_HEIGHT / 2; // 4.0
+    const UPPER_WALL_CENTER_Y = LOWER_WALL_HEIGHT + LOWER_WALL_CENTER_Y; // 12.0
 
     innerSegmentCenters.forEach((segmentCenter, i) => {
         const index = i;
 
+        // --- LOWER WALLS (Y=4.0) ---
         // North Outer Wall (Z = -25)
         const northWallKey = `north-wall-${index}`;
-        const northInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -INNER_WALL_BOUNDARY);
-        scene.add(northInnerWall);
-        wallMeshesRef.current.set(northWallKey, northInnerWall);
+        const northLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        northLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -INNER_WALL_BOUNDARY);
+        scene.add(northLowerWall);
+        wallMeshesRef.current.set(northWallKey, northLowerWall);
 
         // South Outer Wall (Z = 25)
         const southWallKey = `south-wall-${index}`;
-        const southInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, INNER_WALL_BOUNDARY);
-        scene.add(southInnerWall);
-        wallMeshesRef.current.set(southWallKey, southInnerWall);
+        const southLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        southLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, INNER_WALL_BOUNDARY);
+        scene.add(southLowerWall);
+        wallMeshesRef.current.set(southWallKey, southLowerWall);
 
         // East Outer Wall (X = 25)
         const eastWallKey = `east-wall-${index}`;
-        const eastInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerWall.rotation.y = -Math.PI / 2;
-        eastInnerWall.position.set(INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastInnerWall);
-        wallMeshesRef.current.set(eastWallKey, eastInnerWall);
+        const eastLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        eastLowerWall.rotation.y = -Math.PI / 2;
+        eastLowerWall.position.set(INNER_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+        scene.add(eastLowerWall);
+        wallMeshesRef.current.set(eastWallKey, eastLowerWall);
 
         // West Outer Wall (X = -25)
         const westWallKey = `west-wall-${index}`;
-        const westInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westInnerWall.rotation.y = Math.PI / 2;
-        westInnerWall.position.set(-INNER_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westInnerWall);
-        wallMeshesRef.current.set(westWallKey, westInnerWall);
+        const westLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        westLowerWall.rotation.y = Math.PI / 2;
+        westLowerWall.position.set(-INNER_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+        scene.add(westLowerWall);
+        wallMeshesRef.current.set(westWallKey, westLowerWall);
+        
+        // --- UPPER WALLS (Y=12.0) ---
+        
+        // North Outer Wall (Z = -25)
+        const northUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        northUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -INNER_WALL_BOUNDARY);
+        scene.add(northUpperWall);
+
+        // South Outer Wall (Z = 25)
+        const southUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        southUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, INNER_WALL_BOUNDARY);
+        scene.add(southUpperWall);
+
+        // East Outer Wall (X = 25)
+        const eastUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        eastUpperWall.rotation.y = -Math.PI / 2;
+        eastUpperWall.position.set(INNER_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+        scene.add(eastUpperWall);
+
+        // West Outer Wall (X = -25)
+        const westUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        westUpperWall.rotation.y = Math.PI / 2;
+        westUpperWall.position.set(-INNER_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+        scene.add(westUpperWall);
     });
 
     // --- START INNER ROOM CROSS SETUP (Walls at X/Z = +/- 5) ---
-    // This creates the cross structure within the 30x30 area (X/Z = [-15, 15])
-    // Constants defined above: CROSS_WALL_BOUNDARY = 5; crossWallSegments = [-10, 10];
 
     crossWallSegments.forEach((segmentCenter, i) => {
         const index = i;
@@ -687,64 +715,107 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // 1. North Walls (Z = -5)
         // Outer side (facing North, towards Z=-15)
         const northInnerOuterKey = `north-inner-wall-outer-${index}`;
-        const northInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerOuterWall);
-        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterWall);
+        const northInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        northInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+        scene.add(northInnerOuterLowerWall);
+        wallMeshesRef.current.set(northInnerOuterKey, northInnerOuterLowerWall);
+        
+        const northInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        northInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+        scene.add(northInnerOuterUpperWall);
+
 
         const northInnerInnerKey = `north-inner-wall-inner-${index}`;
-        const northInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        northInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
-        scene.add(northInnerInnerWall);
-        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerWall);
+        const northInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        northInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+        scene.add(northInnerInnerLowerWall);
+        wallMeshesRef.current.set(northInnerInnerKey, northInnerInnerLowerWall);
+        
+        const northInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        northInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, -CROSS_WALL_BOUNDARY);
+        scene.add(northInnerInnerUpperWall);
+
 
         // 2. South Walls (Z = 5)
         // Outer side (facing South, towards Z=15)
         const southInnerOuterKey = `south-inner-wall-outer-${index}`;
-        const southInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerOuterWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerOuterWall);
-        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterWall);
+        const southInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        southInnerOuterLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+        scene.add(southInnerOuterLowerWall);
+        wallMeshesRef.current.set(southInnerOuterKey, southInnerOuterLowerWall);
+        
+        const southInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        southInnerOuterUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+        scene.add(southInnerOuterUpperWall);
+
 
         const southInnerInnerKey = `south-inner-wall-inner-${index}`;
-        const southInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        southInnerInnerWall.position.set(segmentCenter, INNER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
-        scene.add(southInnerInnerWall);
-        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerWall);
+        const southInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        southInnerInnerLowerWall.position.set(segmentCenter, LOWER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+        scene.add(southInnerInnerLowerWall);
+        wallMeshesRef.current.set(southInnerInnerKey, southInnerInnerLowerWall);
+        
+        const southInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        southInnerInnerUpperWall.position.set(segmentCenter, UPPER_WALL_CENTER_Y, CROSS_WALL_BOUNDARY);
+        scene.add(southInnerInnerUpperWall);
+
 
         // 3. East Walls (X = 5)
         // Outer side (facing East, towards X=15)
         const eastInnerOuterKey = `east-inner-wall-outer-${index}`;
-        const eastInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerOuterWall.rotation.y = -Math.PI / 2;
-        eastInnerOuterWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastInnerOuterWall);
-        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterWall);
+        const eastInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerOuterLowerWall.rotation.y = -Math.PI / 2;
+        eastInnerOuterLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+        scene.add(eastInnerOuterLowerWall);
+        wallMeshesRef.current.set(eastInnerOuterKey, eastInnerOuterLowerWall);
+        
+        const eastInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerOuterUpperWall.rotation.y = -Math.PI / 2;
+        eastInnerOuterUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+        scene.add(eastInnerOuterUpperWall);
+
 
         // Inner side (facing West, towards X=0)
         const eastInnerInnerKey = `east-inner-wall-inner-${index}`;
-        const eastInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        eastInnerInnerWall.rotation.y = -Math.PI / 2;
-        eastInnerInnerWall.position.set(CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(eastInnerInnerWall);
-        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerWall);
+        const eastInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerInnerLowerWall.rotation.y = -Math.PI / 2;
+        eastInnerInnerLowerWall.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+        scene.add(eastInnerInnerLowerWall);
+        wallMeshesRef.current.set(eastInnerInnerKey, eastInnerInnerLowerWall);
+        
+        const eastInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        eastInnerInnerUpperWall.rotation.y = -Math.PI / 2;
+        eastInnerInnerUpperWall.position.set(CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+        scene.add(eastInnerInnerUpperWall);
+
 
         // 4. West Walls (X = -5)
         // Outer side (facing West, towards X=-15)
         const westInnerOuterKey = `west-inner-wall-outer-${index}`;
-        const westInnerOuterWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westInnerOuterWall.rotation.y = Math.PI / 2;
-        westInnerOuterWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westInnerOuterWall);
-        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterWall);
+        const westInnerOuterLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        westInnerOuterLowerWall.rotation.y = Math.PI / 2;
+        westInnerOuterLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+        scene.add(westInnerOuterLowerWall);
+        wallMeshesRef.current.set(westInnerOuterKey, westInnerOuterLowerWall);
+        
+        const westInnerOuterUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        westInnerOuterUpperWall.rotation.y = Math.PI / 2;
+        westInnerOuterUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+        scene.add(westInnerOuterUpperWall);
+
 
         // Inner side (facing East, towards X=0)
         const westInnerInnerKey = `west-inner-wall-inner-${index}`;
-        const westInnerInnerWall = new THREE.Mesh(innerWallSegmentGeometry, innerWallMaterial.clone());
-        westInnerInnerWall.rotation.y = Math.PI / 2;
-        westInnerInnerWall.position.set(-CROSS_WALL_BOUNDARY, INNER_WALL_HEIGHT / 2, segmentCenter);
-        scene.add(westInnerInnerWall);
-        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerWall);
+        const westInnerInnerLowerWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        westInnerInnerLowerWall.rotation.y = Math.PI / 2;
+        westInnerInnerLowerWall.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_CENTER_Y, segmentCenter);
+        scene.add(westInnerInnerLowerWall);
+        wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerLowerWall);
+        
+        const westInnerInnerUpperWall = new THREE.Mesh(wallSegmentGeometry, innerWallMaterial.clone());
+        westInnerInnerUpperWall.rotation.y = Math.PI / 2;
+        westInnerInnerUpperWall.position.set(-CROSS_WALL_BOUNDARY, UPPER_WALL_CENTER_Y, segmentCenter);
+        scene.add(westInnerInnerUpperWall);
     });
 
     // 4. Lighting Setup
