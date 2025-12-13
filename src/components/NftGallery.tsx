@@ -610,6 +610,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(westInnerInnerLowerWall);
       wallMeshesRef.current.set(westInnerInnerKey, westInnerInnerLowerWall);
     });
+    // --- CREATE FLOOR PLATFORM FOR 1ST FLOOR ---
+    // Create a platform that covers the inner 30x30 area walls
+    const platformGeometry = new THREE.PlaneGeometry(30, 30);
+    const platformMaterial = new THREE.MeshStandardMaterial({
+      color: 0x555555,
+      roughness: 0.7,
+      metalness: 0.3,
+      side: THREE.DoubleSide
+    });
+    const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+    platform.rotation.x = Math.PI / 2;
+    platform.position.set(0, 8.1, 0); // Positioned at the top of the lower walls (8m height)
+    scene.add(platform);
     // --- CREATE STONE POOL WITH TALL WATER FOUNTAIN ---
     // Create the stone pool (10x10)
     const poolGeometry = new THREE.BoxGeometry(10, 0.5, 10);
