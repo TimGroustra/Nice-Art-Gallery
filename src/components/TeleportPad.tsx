@@ -6,18 +6,22 @@ interface TeleportPadProps {
   targetPosition: [number, number, number];
   onTeleport: (target: [number, number, number]) => void;
   scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
 }
 
 const TeleportPad: React.FC<TeleportPadProps> = ({ 
   position, 
   targetPosition, 
   onTeleport,
-  scene
+  scene,
+  camera
 }) => {
   const padRef = useRef<THREE.Mesh | null>(null);
   const glowRef = useRef<THREE.Mesh | null>(null);
   const animationRef = useRef<number>(0);
-  const isActiveRef = useRef(false);
+  const isPlayerOnPadRef = useRef(false);
+  const hasTeleportedRef = useRef(false);
+  const padPosition = new THREE.Vector3(...position);
 
   useEffect(() => {
     // Create square teleport pad base (2x2 units)
@@ -67,10 +71,23 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
     
     animate();
 
-    // Handle teleport interaction
-    const handleTeleport = () => {
-      if (!isActiveRef.current) {
-        isActiveRef.current = true;
+    // Check if player is on the pad
+    const checkPlayerOnPad = () => {
+      if (!camera) return;
+      
+      const playerPosition = camera.position.clone();
+      const distanceToPad = playerPosition.distanceTo(padPosition);
+      
+      // Check if player is within pad boundaries (2x2 pad + small buffer)
+      const isOnPad = (
+        Math.abs(playerPosition.x - padPosition.x) < 1.2 &&
+        Math.abs(playerPosition.z - padPosition.z) < 1.2 &&
+        Math.abs(playerPosition.y - padPosition.y) < 2.0
+      );
+      
+      // Player stepped on the pad
+      if (isOnPad && !isPlayerOnPadRef.current) {
+        isPlayerOnPadRef.current = true;
         
         // Visual feedback for activation
         if (padRef.current) {
@@ -81,38 +98,38 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
           (glowRef.current.material as THREE.MeshBasicMaterial).color.set(0xffffff);
         }
         
-        // Teleport after delay
-        setTimeout(() => {
-          onTeleport(targetPosition);
-          
-          // Reset visual feedback
-          if (padRef.current) {
-            (padRef.current.material as THREE.MeshStandardMaterial).emissive.set(0x0066cc);
-          }
-          
-          if (glowRef.current) {
-            (glowRef.current.material as THREE.MeshBasicMaterial).color.set(0x00aaff);
-          }
-          
-          isActiveRef.current = false;
-        }, 800);
+        // Teleport after delay only if not already teleported
+        if (!hasTeleportedRef.current) {
+          hasTeleportedRef.current = true;
+          setTimeout(() => {
+            onTeleport(targetPosition);
+          }, 800);
+        }
+      }
+      
+      // Player stepped off the pad
+      if (!isOnPad && isPlayerOnPadRef.current) {
+        isPlayerOnPadRef.current = false;
+        
+        // Reset visual feedback
+        if (padRef.current) {
+          (padRef.current.material as THREE.MeshStandardMaterial).emissive.set(0x0066cc);
+        }
+        
+        if (glowRef.current) {
+          (glowRef.current.material as THREE.MeshBasicMaterial).color.set(0x00aaff);
+        }
       }
     };
 
-    // Add click event listener to the pad
-    const handlePadClick = (event: MouseEvent) => {
-      if (event.target === pad) {
-        handleTeleport();
-      }
-    };
-    
-    pad.addEventListener('click', handlePadClick as EventListener);
+    // Check player position periodically
+    const positionCheckInterval = setInterval(checkPlayerOnPad, 100);
 
     return () => {
       cancelAnimationFrame(animationRef.current);
+      clearInterval(positionCheckInterval);
       
       if (padRef.current) {
-        padRef.current.removeEventListener('click', handlePadClick as EventListener);
         scene.remove(padRef.current);
         padRef.current.geometry.dispose();
         if (Array.isArray(padRef.current.material)) {
@@ -128,7 +145,12 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
         (glowRef.current.material as THREE.Material).dispose();
       }
     };
-  }, [position, targetPosition, onTeleport, scene]);
+  }, [position, targetPosition, onTeleport, scene, camera]);
+
+  // Reset teleport state when target position changes
+  useEffect(() => {
+    hasTeleportedRef.current = false;
+  }, [targetPosition]);
 
   return null; // This component doesn't render anything to the DOM
 };

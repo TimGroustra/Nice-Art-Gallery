@@ -1131,19 +1131,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           onClose={() => setMarketBrowserState({ open: false })} 
         />
       )}
-      {sceneRef.current && (
+      {sceneRef.current && cameraRef.current && (
         <>
           <TeleportPad 
             position={[0, 0.1, 0]} 
             targetPosition={[0, 8.1, 0]} 
             onTeleport={handleTeleport}
             scene={sceneRef.current}
+            camera={cameraRef.current}
           />
           <TeleportPad 
             position={[0, 8.1, 0]} 
             targetPosition={[0, 0.1, 0]} 
             onTeleport={handleTeleport}
             scene={sceneRef.current}
+            camera={cameraRef.current}
           />
         </>
       )}
