@@ -203,6 +203,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const fadeStartTimeRef = useRef(0);
   const FADE_DURATION = 0.5; // seconds
 
+  // --- NEW: Panoramic Texture Generator ---
+  const createPanoramicTexture = useCallback(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return new THREE.Texture();
+
+    // Simple blue gradient for ocean/sky shoreline view
+    const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+    gradient.addColorStop(0, '#0077be'); // Deep blue (ocean)
+    gradient.addColorStop(0.5, '#87ceeb'); // Light blue (sky)
+    gradient.addColorStop(1, '#ffffff'); // White (horizon/clouds)
+    
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1024, 512);
+
+    // Add a simple "shoreline" effect
+    ctx.fillStyle = '#f0e68c'; // Khaki/sand color
+    ctx.fillRect(0, 450, 1024, 62);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(5, 1); // Repeat horizontally across the 5 segments
+    return texture;
+  }, []);
+  // --- END NEW: Panoramic Texture Generator ---
+
   // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
@@ -459,19 +488,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // --- Window Materials and Geometries ---
-    const GLASS_COLOR = 0xddddff;
     const FRAME_COLOR = 0xffffff;
     const upperWallCenterY = LOWER_WALL_HEIGHT + LOWER_WALL_HEIGHT / 2; // 12.0
-
-    const glassMaterial = new THREE.MeshPhysicalMaterial({
-        color: GLASS_COLOR,
-        metalness: 0.0,
-        roughness: 0.1,
-        transmission: 0.9,
-        transparent: true,
-        opacity: 0.5,
-        side: THREE.DoubleSide,
-    });
 
     const frameMaterial = new THREE.MeshStandardMaterial({
         color: FRAME_COLOR,
@@ -485,6 +503,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     const postPositions = [-25, -15, -5, 5, 15, 25]; // 6 posts, 5 segments
     
+    // NEW: Panoramic View Texture and Material
+    const panoramicTexture = createPanoramicTexture();
+    const panoramicMaterial = new THREE.MeshBasicMaterial({ 
+        map: panoramicTexture, 
+        side: THREE.DoubleSide,
+    });
+
     // Helper function to create windows for a given wall
     const createWindows = (wallName: string, rotationY: number, depthAxis: 'x' | 'z', depthSign: number) => {
         const depthOffset = halfRoomSize * depthSign; // Z = +/- 25 or X = +/- 25
@@ -527,7 +552,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             // Glass Pane (5 segments, between posts)
             if (i < postPositions.length - 1) {
                 const segmentCenterX = (postPositions[i] + postPositions[i+1]) / 2;
-                const glass = new THREE.Mesh(windowSegmentGeometry, glassMaterial.clone());
+                // Use panoramicMaterial for the view
+                const glass = new THREE.Mesh(windowSegmentGeometry, panoramicMaterial.clone()); 
                 glass.rotation.y = rotationY;
                 
                 if (depthAxis === 'z') {
@@ -548,23 +574,27 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const northWall = new THREE.Mesh(lowerOuterWallGeometry, wallMaterial.clone());
     northWall.position.set(0, halfLowerWallHeight, -halfRoomSize); // Center Y is 4.0
     scene.add(northWall);
+    wallMeshesRef.current.set('north-wall', northWall);
     
     // South Wall (Z = 25)
     const southWall = new THREE.Mesh(lowerOuterWallGeometry, wallMaterial.clone());
     southWall.position.set(0, halfLowerWallHeight, halfRoomSize);
     scene.add(southWall);
+    wallMeshesRef.current.set('south-wall', southWall);
     
     // East Wall (X = 25)
     const eastWall = new THREE.Mesh(lowerOuterWallGeometry, wallMaterial.clone());
     eastWall.rotation.y = Math.PI / 2;
     eastWall.position.set(halfRoomSize, halfLowerWallHeight, 0);
     scene.add(eastWall);
+    wallMeshesRef.current.set('east-wall', eastWall);
     
     // West Wall (X = -25)
     const westWall = new THREE.Mesh(lowerOuterWallGeometry, wallMaterial.clone());
     westWall.rotation.y = Math.PI / 2;
     westWall.position.set(-halfRoomSize, halfLowerWallHeight, 0);
     scene.add(westWall);
+    wallMeshesRef.current.set('west-wall', westWall);
     
     // --- NEW: Create Panoramic Windows (Y=8 to Y=16) ---
     createWindows('north-wall', 0, 'z', -1);
@@ -582,11 +612,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         let wall1 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         wall1.position.set(segmentCenter, halfLowerWallHeight, -CROSS_WALL_BOUNDARY);
         scene.add(wall1);
+        wallMeshesRef.current.set(`north-inner-wall-outer-${segmentCenter === -10 ? 0 : 1}`, wall1);
 
         // Z = CROSS_WALL_BOUNDARY (5)
         let wall2 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         wall2.position.set(segmentCenter, halfLowerWallHeight, CROSS_WALL_BOUNDARY);
         scene.add(wall2);
+        wallMeshesRef.current.set(`south-inner-wall-outer-${segmentCenter === -10 ? 0 : 1}`, wall2);
     });
 
     // Vertical Walls (X = +/- 5)
@@ -596,13 +628,379 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         wall3.rotation.y = Math.PI / 2;
         wall3.position.set(-CROSS_WALL_BOUNDARY, halfLowerWallHeight, segmentCenter);
         scene.add(wall3);
+        wallMeshesRef.current.set(`west-inner-wall-outer-${segmentCenter === -10 ? 0 : 1}`, wall3);
 
         // X = CROSS_WALL_BOUNDARY (5)
         let wall4 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
         wall4.rotation.y = Math.PI / 2;
         wall4.position.set(CROSS_WALL_BOUNDARY, halfLowerWallHeight, segmentCenter);
         scene.add(wall4);
+        wallMeshesRef.current.set(`east-inner-wall-outer-${segmentCenter === -10 ? 0 : 1}`, wall4);
     });
     
     // --- Floor Texture and Material ---
-// ... (rest of the file)
+    const floorTexture = new THREE.TextureLoader().load('/placeholder.svg');
+    floorTexture.wrapS = THREE.RepeatWrapping;
+    floorTexture.wrapT = THREE.RepeatWrapping;
+    floorTexture.repeat.set(ROOM_SIZE / 2, ROOM_SIZE / 2);
+    
+    const floorMaterial = new THREE.MeshStandardMaterial({ 
+      map: floorTexture, 
+      color: 0xcccccc, 
+      roughness: 0.9, 
+      metalness: 0.1 
+    });
+    const floorGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    // --- Ceiling ---
+    const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    const ceilingUniforms = {
+      time: { value: 0.0 },
+      resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+    };
+    const ceilingMaterial = new THREE.ShaderMaterial({
+      uniforms: ceilingUniforms,
+      vertexShader: starryNightVertexShader,
+      fragmentShader: starryNightFragmentShader,
+      side: THREE.DoubleSide,
+    });
+    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = WALL_HEIGHT;
+    scene.add(ceiling);
+
+    // --- Lighting ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    // RectAreaLight for the ceiling (simulating soft, even light)
+    const rectLight = new THREE.RectAreaLight(0xffffff, 1, ROOM_SIZE, ROOM_SIZE);
+    rectLight.position.set(0, WALL_HEIGHT - 0.1, 0);
+    rectLight.rotation.x = -Math.PI / 2;
+    scene.add(rectLight);
+
+    // --- Panel Creation ---
+    const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
+    const arrowGeometry = new THREE.PlaneGeometry(0.5, 0.5);
+    const arrowMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
+    
+    const createPanel = (wallName: keyof PanelConfig, x: number, z: number, rotationY: number, offset: number) => {
+      const panelMesh = new THREE.Mesh(panelGeometry, new THREE.MeshBasicMaterial({ color: 0x333333 }));
+      panelMesh.position.set(x, panelYPosition, z);
+      panelMesh.rotation.y = rotationY;
+      panelMesh.userData = { wallName, type: 'panel' };
+      scene.add(panelMesh);
+      
+      // Arrows
+      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      prevArrow.position.set(x + offset * (PANEL_WIDTH / 2 + 0.5), panelYPosition, z + offset * 0);
+      prevArrow.rotation.y = rotationY;
+      prevArrow.userData = { wallName, type: 'arrow', direction: 'prev' };
+      scene.add(prevArrow);
+      
+      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      nextArrow.position.set(x - offset * (PANEL_WIDTH / 2 + 0.5), panelYPosition, z - offset * 0);
+      nextArrow.rotation.y = rotationY;
+      nextArrow.userData = { wallName, type: 'arrow', direction: 'next' };
+      scene.add(nextArrow);
+      
+      // Rotate arrows correctly based on wall orientation
+      if (rotationY === 0 || rotationY === Math.PI) {
+        // North/South walls (Z changes)
+        prevArrow.position.set(x - (PANEL_WIDTH / 2 + 0.5) * Math.sin(rotationY), panelYPosition, z + (PANEL_WIDTH / 2 + 0.5) * Math.cos(rotationY));
+        nextArrow.position.set(x + (PANEL_WIDTH / 2 + 0.5) * Math.sin(rotationY), panelYPosition, z - (PANEL_WIDTH / 2 + 0.5) * Math.cos(rotationY));
+        
+        // Adjust rotation for visual arrow direction (e.g., pointing left/right)
+        prevArrow.rotation.y = rotationY + Math.PI / 2;
+        nextArrow.rotation.y = rotationY - Math.PI / 2;
+      } else {
+        // East/West walls (X changes)
+        prevArrow.position.set(x + (PANEL_WIDTH / 2 + 0.5) * Math.cos(rotationY), panelYPosition, z + (PANEL_WIDTH / 2 + 0.5) * Math.sin(rotationY));
+        nextArrow.position.set(x - (PANEL_WIDTH / 2 + 0.5) * Math.cos(rotationY), panelYPosition, z - (PANEL_WIDTH / 2 + 0.5) * Math.sin(rotationY));
+        
+        // Adjust rotation for visual arrow direction
+        prevArrow.rotation.y = rotationY + Math.PI / 2;
+        nextArrow.rotation.y = rotationY - Math.PI / 2;
+      }
+      
+      // Hide arrows initially
+      prevArrow.visible = false;
+      nextArrow.visible = false;
+
+      return { mesh: panelMesh, wallName, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
+    };
+
+    // --- Panel Placement Logic ---
+    panelsRef.current = [];
+    const panelKeys = Object.keys(GALLERY_PANEL_CONFIG) as (keyof PanelConfig)[];
+    
+    panelKeys.forEach(key => {
+      const parts = key.split('-');
+      const wallType = parts[0];
+      const segmentIndex = parseInt(parts[parts.length - 1]);
+      
+      let x = 0, z = 0, rotationY = 0, offset = 0;
+      const spacing = ROOM_SEGMENT_SIZE; // 10m spacing
+
+      if (wallType === 'north') {
+        // Outer North Wall (Z = -24.75)
+        x = -halfRoomSize + spacing * (segmentIndex + 0.5);
+        z = -halfRoomSize + WALL_THICK / 2;
+        rotationY = 0;
+        offset = 1;
+      } else if (wallType === 'south') {
+        // Outer South Wall (Z = 24.75)
+        x = halfRoomSize - spacing * (segmentIndex + 0.5);
+        z = halfRoomSize - WALL_THICK / 2;
+        rotationY = Math.PI;
+        offset = 1;
+      } else if (wallType === 'east') {
+        // Outer East Wall (X = 24.75)
+        x = halfRoomSize - WALL_THICK / 2;
+        z = halfRoomSize - spacing * (segmentIndex + 0.5);
+        rotationY = -Math.PI / 2;
+        offset = 1;
+      } else if (wallType === 'west') {
+        // Outer West Wall (X = -24.75)
+        x = -halfRoomSize + WALL_THICK / 2;
+        z = -halfRoomSize + spacing * (segmentIndex + 0.5);
+        rotationY = Math.PI / 2;
+        offset = 1;
+      } else if (wallType === 'north-inner') {
+        // Inner North Walls (Z = -4.75)
+        const isOuter = parts[parts.length - 2] === 'outer';
+        const xPos = segmentIndex === 0 ? -10 : 10;
+        x = xPos;
+        z = -CROSS_WALL_BOUNDARY + WALL_THICK / 2;
+        rotationY = 0;
+        offset = 1;
+      } else if (wallType === 'south-inner') {
+        // Inner South Walls (Z = 4.75)
+        const isOuter = parts[parts.length - 2] === 'outer';
+        const xPos = segmentIndex === 0 ? 10 : -10;
+        x = xPos;
+        z = CROSS_WALL_BOUNDARY - WALL_THICK / 2;
+        rotationY = Math.PI;
+        offset = 1;
+      } else if (wallType === 'east-inner') {
+        // Inner East Walls (X = 4.75)
+        const isOuter = parts[parts.length - 2] === 'outer';
+        const zPos = segmentIndex === 0 ? 10 : -10;
+        x = CROSS_WALL_BOUNDARY - WALL_THICK / 2;
+        z = zPos;
+        rotationY = -Math.PI / 2;
+        offset = 1;
+      } else if (wallType === 'west-inner') {
+        // Inner West Walls (X = -4.75)
+        const isOuter = parts[parts.length - 2] === 'outer';
+        const zPos = segmentIndex === 0 ? -10 : 10;
+        x = -CROSS_WALL_BOUNDARY + WALL_THICK / 2;
+        z = zPos;
+        rotationY = Math.PI / 2;
+        offset = 1;
+      } else if (wallType === 'north-center') {
+        // Center Walls (Z = -0.25)
+        x = 0;
+        z = -WALL_THICK / 2;
+        rotationY = 0;
+        offset = 1;
+      } else if (wallType === 'south-center') {
+        // Center Walls (Z = 0.25)
+        x = 0;
+        z = WALL_THICK / 2;
+        rotationY = Math.PI;
+        offset = 1;
+      } else if (wallType === 'east-center') {
+        // Center Walls (X = 0.25)
+        x = WALL_THICK / 2;
+        z = 0;
+        rotationY = -Math.PI / 2;
+        offset = 1;
+      } else if (wallType === 'west-center') {
+        // Center Walls (X = -0.25)
+        x = -WALL_THICK / 2;
+        z = 0;
+        rotationY = Math.PI / 2;
+        offset = 1;
+      }
+      
+      const panel = createPanel(key, x, z, rotationY, offset);
+      panelsRef.current.push(panel);
+    });
+    
+    // --- Initial Config Load and Panel Update ---
+    initializeGalleryConfig().then(() => {
+      panelsRef.current.forEach(panel => {
+        const source = getCurrentNftSource(panel.wallName);
+        updatePanelContent(panel, source);
+      });
+    });
+
+    // --- Raycasting Setup ---
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    
+    const onMouseMove = (event: MouseEvent) => {
+      if (!controls.isLocked) return;
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    };
+    
+    const onMouseDown = (event: MouseEvent) => {
+      if (!controls.isLocked) return;
+      
+      if (currentTargetedArrow) {
+        const { wallName, direction } = currentTargetedArrow.userData;
+        if (updatePanelIndex(wallName, direction)) {
+          const panel = panelsRef.current.find(p => p.wallName === wallName);
+          if (panel) {
+            const source = getCurrentNftSource(wallName);
+            updatePanelContent(panel, source);
+          }
+        }
+      } else if (currentTargetedPanel) {
+        // Open Market Browser
+        const source = getCurrentNftSource(currentTargetedPanel.wallName);
+        if (source) {
+          setMarketBrowserState({
+            open: true,
+            collection: source.contractAddress,
+            tokenId: source.tokenId,
+          });
+        }
+      }
+    };
+    
+    window.addEventListener('mousemove', onMouseMove, false);
+    window.addEventListener('mousedown', onMouseDown, false);
+
+    // --- Animation Loop ---
+    let previousTime = 0;
+    const animate = (time: number) => {
+      const delta = (time - previousTime) / 1000;
+      previousTime = time;
+      
+      // Update ceiling shader time
+      ceilingUniforms.time.value += delta;
+
+      // Raycasting for interaction
+      if (controls.isLocked) {
+        raycaster.setFromCamera(mouse, camera);
+        
+        const interactableObjects = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
+        const intersects = raycaster.intersectObjects(interactableObjects, true);
+        
+        // Reset previous targets
+        if (currentTargetedPanel) {
+          (currentTargetedPanel.mesh.material as THREE.MeshBasicMaterial).color.setHex(0xffffff);
+          currentTargetedPanel = null;
+        }
+        if (currentTargetedArrow) {
+          (currentTargetedArrow.material as THREE.MeshBasicMaterial).color.setHex(0xffffff);
+          currentTargetedArrow = null;
+        }
+        
+        if (intersects.length > 0) {
+          const intersection = intersects[0];
+          const object = intersection.object as THREE.Mesh;
+          
+          if (object.userData.type === 'panel') {
+            const panel = panelsRef.current.find(p => p.mesh === object);
+            if (panel) {
+              currentTargetedPanel = panel;
+              (object.material as THREE.MeshBasicMaterial).color.setHex(0xaaaaaa); // Highlight panel
+            }
+          } else if (object.userData.type === 'arrow') {
+            currentTargetedArrow = object;
+            (object.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00); // Highlight arrow
+          }
+        }
+      }
+      
+      // Teleport Fade Logic
+      if (isTeleportingRef.current) {
+        const elapsed = (time / 1000) - fadeStartTimeRef.current;
+        const t = Math.min(1, elapsed / FADE_DURATION);
+        
+        if (t < 0.5) {
+          // Fade out (t goes from 0 to 1)
+          renderer.domElement.style.opacity = String(1 - t * 2);
+        } else {
+          // Fade in (t goes from 0 to 1)
+          renderer.domElement.style.opacity = String((t - 0.5) * 2);
+        }
+        
+        if (t >= 1) {
+          isTeleportingRef.current = false;
+          renderer.domElement.style.opacity = '1';
+        }
+      }
+
+      controls.update(delta);
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    };
+    
+    animate(0);
+
+    // Handle window resize
+    const onWindowResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      ceilingUniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onWindowResize, false);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove, false);
+      window.removeEventListener('mousedown', onMouseDown, false);
+      window.removeEventListener('resize', onWindowResize, false);
+      controls.dispose();
+      renderer.dispose();
+      
+      // Dispose of all panel textures and materials
+      panelsRef.current.forEach(panel => {
+        disposeTextureSafely(panel.mesh);
+        if (panel.videoElement) {
+          panel.videoElement.pause();
+          panel.videoElement.removeAttribute('src');
+        }
+        if (panel.gifStopFunction) {
+          panel.gifStopFunction();
+        }
+        scene.remove(panel.mesh);
+        scene.remove(panel.prevArrow);
+        scene.remove(panel.nextArrow);
+      });
+      
+      // Dispose of panoramic texture
+      panoramicTexture.dispose();
+      
+      if (mountRef.current && renderer.domElement) {
+        mountRef.current.removeChild(renderer.domElement);
+      }
+      
+      delete (window as any).galleryControls;
+    };
+  }, [setInstructionsVisible, updatePanelContent, createPanoramicTexture, manageVideoPlayback]);
+
+  return (
+    <>
+      <div ref={mountRef} className="w-full h-full" />
+      <MarketBrowserRefined
+        open={marketBrowserState.open}
+        collection={marketBrowserState.collection || ''}
+        tokenId={marketBrowserState.tokenId || 0}
+        onClose={() => setMarketBrowserState({ open: false })}
+      />
+    </>
+  );
+};
+
+export default NftGallery;
