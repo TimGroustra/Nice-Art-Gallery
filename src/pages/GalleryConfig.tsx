@@ -32,6 +32,9 @@ interface PanelLock {
 
 const REQUIRED_GEM_BALANCE = 5;
 
+// Fixed contract address to use for all panels
+const FIXED_CONTRACT_ADDRESS = '0x947321143E176DC02FD4Ac82d5688759dCAb83ed';
+
 // Outer ring indices
 const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
 type OuterFloor = 'ground' | 'first';
@@ -101,6 +104,7 @@ const formatWalletAddress = (address: string | undefined | null) => {
   return `${address.slice(0, 6)}...${address.slice(len - 4)}`;
 };
 
+// Default visual colors used by the 3D scene – we still persist them, but not editable here
 const DEFAULT_WALL_COLOR = '#36454F';
 const DEFAULT_TEXT_COLOR = '#40E0D0';
 
@@ -190,7 +194,8 @@ const GalleryConfig = () => {
         console.error(keysError);
         toast.error('Failed to fetch panel keys');
       } else if (keysData) {
-        setPanelKeys(keysData.map((k) => k.panel_key).sort());
+        const keys = keysData.map((k) => k.panel_key).sort();
+        setPanelKeys(keys);
       }
 
       const { data: locksData, error: locksError } = await supabase
@@ -213,38 +218,80 @@ const GalleryConfig = () => {
     fetchPanelData();
   }, [isAuthorized]);
 
-  // Fetch config for selected panel
-  const fetchPanelConfig = useCallback(async (panelKey: string) => {
-    if (!panelKey) {
-      setCurrentConfig({});
-      return;
-    }
-    setIsLoading(true);
-    const { data, error } = await supabase
-      .from('gallery_config')
-      .select('*')
-      .eq('panel_key', panelKey)
-      .single();
+  // Deterministically assign a unique token ID per panel key.
+  // We define an ordered list of known panel keys and map index -> tokenId = index + 1.
+  const getTokenIdForPanel = useCallback((panelKey: string): number => {
+    const ordered: string[] = [];
 
-    if (error && error.code !== 'PGRST116') {
-      console.error(error);
-      toast.error(`Failed to fetch config for ${panelKey}`);
-      setCurrentConfig({
-        panel_key: panelKey,
-        show_collection: true,
-        default_token_id: 1,
-      });
-    } else if (data) {
-      setCurrentConfig(data as GalleryConfigRow);
-    } else {
-      setCurrentConfig({
-        panel_key: panelKey,
-        show_collection: true,
-        default_token_id: 1,
-      });
+    // Outer walls in a consistent order
+    OUTER_INDICES.forEach((i) => ordered.push(`north-wall-${i}`));
+    OUTER_INDICES.forEach((i) => ordered.push(`south-wall-${i}`));
+    OUTER_INDICES.forEach((i) => ordered.push(`east-wall-${i}`));
+    OUTER_INDICES.forEach((i) => ordered.push(`west-wall-${i}`));
+
+    // Inner 30x30 walls
+    ordered.push(...INNER_WALL_KEYS);
+
+    // Deduplicate for safety
+    const unique = Array.from(new Set(ordered));
+    const index = unique.indexOf(panelKey);
+    if (index === -1) {
+      // Fallback for any unexpected keys: map after known ones
+      return unique.length + 1;
     }
-    setIsLoading(false);
+    return index + 1; // Token IDs start at 1
   }, []);
+
+  // Fetch config for selected panel, but always enforce fixed contract + unique token mapping
+  const fetchPanelConfig = useCallback(
+    async (panelKey: string) => {
+      if (!panelKey) {
+        setCurrentConfig({});
+        return;
+      }
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('gallery_config')
+        .select('*')
+        .eq('panel_key', panelKey)
+        .single();
+
+      const mappedTokenId = getTokenIdForPanel(panelKey);
+
+      if (error && error.code !== 'PGRST116') {
+        console.error(error);
+        toast.error(`Failed to fetch config for ${panelKey}`);
+        setCurrentConfig({
+          panel_key: panelKey,
+          collection_name: null,
+          contract_address: FIXED_CONTRACT_ADDRESS,
+          default_token_id: mappedTokenId,
+          show_collection: false,
+        });
+      } else if (data) {
+        const row = data as GalleryConfigRow;
+        setCurrentConfig({
+          panel_key: row.panel_key,
+          collection_name: row.collection_name,
+          // Enforce our fixed contract + mapped token
+          contract_address: FIXED_CONTRACT_ADDRESS,
+          default_token_id: mappedTokenId,
+          show_collection: row.show_collection ?? false,
+        });
+      } else {
+        // No existing row, initialize with fixed contract + token mapping
+        setCurrentConfig({
+          panel_key: panelKey,
+          collection_name: null,
+          contract_address: FIXED_CONTRACT_ADDRESS,
+          default_token_id: mappedTokenId,
+          show_collection: false,
+        });
+      }
+      setIsLoading(false);
+    },
+    [getTokenIdForPanel],
+  );
 
   useEffect(() => {
     if (isAuthorized && selectedPanelKey) {
@@ -280,7 +327,7 @@ const GalleryConfig = () => {
     setSelectedPanelKey(panelKey);
   };
 
-  // Save handler
+  // Save handler – uses existing upsert, but forces our contract + token mapping
   const handleSave = async () => {
     if (!isAuthorized) {
       toast.error('You are not authorized to save configurations.');
@@ -305,15 +352,16 @@ const GalleryConfig = () => {
     let days = Number(lockDurationDays);
     days = Math.max(0, Math.min(30, days));
 
-    const contractAddress = currentConfig.contract_address?.trim() || null;
+    const mappedTokenId = getTokenIdForPanel(selectedPanelKey);
+
+    // We let users change collection_name and show_collection,
+    // but contract + token are always our fixed mapping.
     const dataToUpsert = {
       panel_key: selectedPanelKey,
       collection_name: currentConfig.collection_name || null,
-      contract_address: contractAddress,
-      default_token_id: currentConfig.default_token_id
-        ? Number(currentConfig.default_token_id)
-        : 1,
-      show_collection: currentConfig.show_collection ?? true,
+      contract_address: FIXED_CONTRACT_ADDRESS,
+      default_token_id: mappedTokenId,
+      show_collection: currentConfig.show_collection ?? false,
       wall_color: DEFAULT_WALL_COLOR,
       text_color: DEFAULT_TEXT_COLOR,
     };
@@ -381,8 +429,8 @@ const GalleryConfig = () => {
 
     const lockData = {
       panel_id: selectedPanelKey,
-      contract_address: contractAddress || '0x',
-      token_id: String(dataToUpsert.default_token_id),
+      contract_address: FIXED_CONTRACT_ADDRESS,
+      token_id: String(mappedTokenId),
       locked_by_address: walletAddress!,
       locked_until: lockedUntil,
       locking_gem_token_id: lockingGemTokenId,
@@ -523,7 +571,8 @@ const GalleryConfig = () => {
           <CardHeader className="border-b pb-4">
             <CardTitle>Gallery Configuration</CardTitle>
             <CardDescription>
-              Select a wall panel from the blueprint and edit its NFT source and behavior.
+              Select a wall panel from the blueprint and edit its display name, scope, and lock.
+              All panels show unique tokens from the same contract.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-4">
@@ -593,8 +642,8 @@ const GalleryConfig = () => {
                   <div className="absolute inset-[28%] border border-cyan-400/40 rounded-md" />
                 )}
 
-                {/* OUTER WALL PANELS – show as horizontal/vertical chains */}
-                {/* North outer wall: horizontal chain at top */}
+                {/* OUTER WALL PANELS – oriented like the room */}
+                {/* North outer wall */}
                 <div className="absolute top-3 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('north', idx);
@@ -623,7 +672,7 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* South outer wall: horizontal chain at bottom */}
+                {/* South outer wall */}
                 <div className="absolute bottom-3 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('south', idx);
@@ -652,7 +701,7 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* West outer wall: vertical chain on left */}
+                {/* West outer wall */}
                 <div className="absolute top-[20%] bottom-[20%] left-3 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('west', idx);
@@ -681,7 +730,7 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* East outer wall: vertical chain on right */}
+                {/* East outer wall */}
                 <div className="absolute top-[20%] bottom-[20%] right-3 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('east', idx);
@@ -710,10 +759,10 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* INNER 30x30 CROSS – only displayed on Ground floor */}
+                {/* INNER 30x30 CROSS – Ground floor only */}
                 {outerFloor === 'ground' && (
                   <>
-                    {/* North inner wall (top of inner square) */}
+                    {/* North inner wall */}
                     <div className="absolute top-[30%] left-[30%] right-[30%] flex justify-between gap-1">
                       <button
                         type="button"
@@ -749,7 +798,7 @@ const GalleryConfig = () => {
                       </button>
                     </div>
 
-                    {/* South inner wall (bottom of inner square) */}
+                    {/* South inner wall */}
                     <div className="absolute bottom-[30%] left-[30%] right-[30%] flex justify-between gap-1">
                       <button
                         type="button"
@@ -785,7 +834,7 @@ const GalleryConfig = () => {
                       </button>
                     </div>
 
-                    {/* West inner wall (left side of inner square) */}
+                    {/* West inner wall */}
                     <div className="absolute top-[35%] bottom-[35%] left-[30%] flex flex-col justify-between gap-1">
                       <button
                         type="button"
@@ -821,7 +870,7 @@ const GalleryConfig = () => {
                       </button>
                     </div>
 
-                    {/* East inner wall (right side of inner square) */}
+                    {/* East inner wall */}
                     <div className="absolute top-[35%] bottom-[35%] right-[30%] flex flex-col justify-between gap-1">
                       <button
                         type="button"
@@ -864,7 +913,8 @@ const GalleryConfig = () => {
                 Selected panel:{' '}
                 {selectedPanelKey ? (
                   <span className="font-medium text-foreground">
-                    {getFriendlyLabel(selectedPanelKey)}
+                    {getFriendlyLabel(selectedPanelKey)} — Token #
+                    {getTokenIdForPanel(selectedPanelKey)}
                   </span>
                 ) : (
                   <span>None selected. Click a panel above.</span>
@@ -917,29 +967,20 @@ const GalleryConfig = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="contract_address">Contract Address</Label>
-                  <Input
-                    id="contract_address"
-                    name="contract_address"
-                    value={currentConfig.contract_address || ''}
-                    onChange={handleInputChange}
-                    placeholder="0x..."
-                    disabled={isLoading || isPanelLockedByOther}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="default_token_id">Default Token ID</Label>
-                  <Input
-                    id="default_token_id"
-                    name="default_token_id"
-                    type="number"
-                    value={currentConfig.default_token_id || ''}
-                    onChange={handleInputChange}
-                    placeholder="e.g., 1"
-                    disabled={isLoading || isPanelLockedByOther}
-                  />
+                {/* Show the fixed contract + token as read-only info */}
+                <div className="space-y-1 text-xs text-muted-foreground">
+                  <p>
+                    Contract:{' '}
+                    <span className="font-mono break-all">
+                      {FIXED_CONTRACT_ADDRESS}
+                    </span>
+                  </p>
+                  <p>
+                    Token ID:{' '}
+                    <span className="font-mono">
+                      {selectedPanelKey ? getTokenIdForPanel(selectedPanelKey) : '—'}
+                    </span>
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -970,13 +1011,13 @@ const GalleryConfig = () => {
                       Show Entire Collection
                     </Label>
                     <p className="text-sm text-muted-foreground">
-                      If enabled, users can browse all tokens. If disabled, only the default token
-                      will be shown.
+                      If enabled, users can browse all tokens from this contract on this panel. If
+                      disabled, only the mapped token is shown.
                     </p>
                   </div>
                   <Switch
                     id="show_collection"
-                    checked={currentConfig.show_collection ?? true}
+                    checked={currentConfig.show_collection ?? false}
                     onCheckedChange={handleSwitchChange}
                     disabled={isLoading || isPanelLockedByOther}
                   />
@@ -993,9 +1034,9 @@ const GalleryConfig = () => {
         {/* RIGHT: Preview */}
         <div className="lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
           <NftPreviewPane
-            contractAddress={currentConfig.contract_address || null}
+            contractAddress={FIXED_CONTRACT_ADDRESS}
             tokenId={
-              currentConfig.default_token_id ? Number(currentConfig.default_token_id) : null
+              selectedPanelKey ? getTokenIdForPanel(selectedPanelKey) : null
             }
           />
         </div>
