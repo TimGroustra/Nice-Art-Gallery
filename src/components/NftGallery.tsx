@@ -424,8 +424,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
     const WALL_HEIGHT = 16;
     const LOWER_WALL_HEIGHT = 8;
-    const LOWER_PANEL_Y = 4.0; // center of lower 8m
-    const UPPER_PANEL_Y = 12.0; // center of upper 8m (8..16)
+    const LOWER_PANEL_Y = 5.0;   // moved up from 4.0 to raise lower tier
+    const UPPER_PANEL_Y = 12.0;  // center of upper 8m (unchanged)
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
     const halfRoomSize = ROOM_SIZE / 2;
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
@@ -676,7 +676,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // Teleport buttons (unchanged)
+    // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
     const TELEPORT_BUTTON_HOVER_COLOR = 0x00ffff;
     const TELEPORT_BUTTON_RADIUS = 1.0;
