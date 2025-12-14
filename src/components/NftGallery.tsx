@@ -109,6 +109,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
+  const teleportPadsRef = useRef<THREE.Mesh[]>([]);
   
   // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
@@ -211,7 +212,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
     
     // --- Fetch Metadata ---
-    const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+    const metadata: NftMetadata | null = await getCachedNftMeta(source.contractAddress, source.tokenId);
     
     if (!metadata) {
       // Graceful failure: metadata fetch failed
@@ -291,6 +292,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       cameraRef.current.position.y = targetPosition[1];
     }
   }, []);
+
+  // Check if player is on a teleport pad
+  const checkTeleportProximity = useCallback(() => {
+    if (!cameraRef.current || !controlsRef.current || !controlsRef.current.isLocked) return;
+    
+    const playerPosition = cameraRef.current.position;
+    
+    // Check each teleport pad for proximity
+    for (const pad of teleportPadsRef.current) {
+      const distance = playerPosition.distanceTo(pad.position);
+      
+      // If player is close to the pad (within 1 unit)
+      if (distance < 1.5) {
+        // Trigger teleport
+        if (pad.position.y < 1) {
+          // Ground floor pad - teleport to first floor
+          handleTeleport([0, 8.1, 0]);
+        } else {
+          // First floor pad - teleport to ground floor
+          handleTeleport([0, 0.1, 0]);
+        }
+        break;
+      }
+    }
+  }, [handleTeleport]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -1012,6 +1038,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             }
           }
         }
+        
+        // Check for teleport pad proximity
+        checkTeleportProximity();
       }
       
       prevTime = time;
@@ -1118,7 +1147,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       currentTargetedPanel = null;
       currentTargetedArrow = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, handleTeleport]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, handleTeleport, checkTeleportProximity]);
 
   return (
     <>
