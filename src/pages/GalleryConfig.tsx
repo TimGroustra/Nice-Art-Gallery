@@ -439,7 +439,7 @@ const GalleryConfig = () => {
         const newLock: PanelLock = {
           panel_id: selectedPanelKey,
           locked_by_address: walletAddress!,
-          locked_until,
+          locked_until: lockedUntil,
           locking_gem_token_id: lockingGemTokenId,
         };
         if (idx !== -1) {
