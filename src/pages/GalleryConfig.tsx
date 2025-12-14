@@ -32,7 +32,7 @@ interface PanelLock {
 
 const REQUIRED_GEM_BALANCE = 5;
 
-// Fixed contract address to use for all panels
+// Fixed Bolt Jar contract address
 const FIXED_CONTRACT_ADDRESS = '0x947321143E176DC02FD4Ac82d5688759dCAb83ed';
 
 // Outer ring indices
@@ -104,7 +104,7 @@ const formatWalletAddress = (address: string | undefined | null) => {
   return `${address.slice(0, 6)}...${address.slice(len - 4)}`;
 };
 
-// Default visual colors used by the 3D scene – we still persist them, but not editable here
+// Default visual colors for 3D scene
 const DEFAULT_WALL_COLOR = '#36454F';
 const DEFAULT_TEXT_COLOR = '#40E0D0';
 
@@ -121,7 +121,6 @@ const GalleryConfig = () => {
     refetch: refetchGems,
   } = useAvailableGems(walletAddress || null);
 
-  const [panelKeys, setPanelKeys] = useState<string[]>([]);
   const [selectedPanelKey, setSelectedPanelKey] = useState<string>('');
   const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfigRow>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -132,7 +131,6 @@ const GalleryConfig = () => {
   const isAuthorized =
     isConnected && !!walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
 
-  // Lock helpers
   const getLockStatus = useCallback(
     (panelKey: string) => {
       const lock = panelLocks.find((l) => l.panel_id === panelKey);
@@ -182,22 +180,11 @@ const GalleryConfig = () => {
     }
   }, [isConnected, walletAddress, isGemsLoading, ownedTokens.length, navigate]);
 
-  // Fetch panel keys + locks
+  // Fetch locks once authorized
   useEffect(() => {
     if (!isAuthorized) return;
 
-    const fetchPanelData = async () => {
-      const { data: keysData, error: keysError } = await supabase
-        .from('gallery_config')
-        .select('panel_key');
-      if (keysError) {
-        console.error(keysError);
-        toast.error('Failed to fetch panel keys');
-      } else if (keysData) {
-        const keys = keysData.map((k) => k.panel_key).sort();
-        setPanelKeys(keys);
-      }
-
+    const fetchLocks = async () => {
       const { data: locksData, error: locksError } = await supabase
         .from('panel_locks')
         .select('panel_id, locked_by_address, locked_until, locking_gem_token_id');
@@ -215,34 +202,36 @@ const GalleryConfig = () => {
       }
     };
 
-    fetchPanelData();
+    fetchLocks();
   }, [isAuthorized]);
 
   // Deterministically assign a unique token ID per panel key.
-  // We define an ordered list of known panel keys and map index -> tokenId = index + 1.
+  // We include both ground and first tiers for outer walls.
   const getTokenIdForPanel = useCallback((panelKey: string): number => {
     const ordered: string[] = [];
 
-    // Outer walls in a consistent order
-    OUTER_INDICES.forEach((i) => ordered.push(`north-wall-${i}`));
-    OUTER_INDICES.forEach((i) => ordered.push(`south-wall-${i}`));
-    OUTER_INDICES.forEach((i) => ordered.push(`east-wall-${i}`));
-    OUTER_INDICES.forEach((i) => ordered.push(`west-wall-${i}`));
+    // Outer walls – ground then first for each wall
+    OUTER_INDICES.forEach((i) => ordered.push(`north-wall-${i}-ground`));
+    OUTER_INDICES.forEach((i) => ordered.push(`north-wall-${i}-first`));
+    OUTER_INDICES.forEach((i) => ordered.push(`south-wall-${i}-ground`));
+    OUTER_INDICES.forEach((i) => ordered.push(`south-wall-${i}-first`));
+    OUTER_INDICES.forEach((i) => ordered.push(`east-wall-${i}-ground`));
+    OUTER_INDICES.forEach((i) => ordered.push(`east-wall-${i}-first`));
+    OUTER_INDICES.forEach((i) => ordered.push(`west-wall-${i}-ground`));
+    OUTER_INDICES.forEach((i) => ordered.push(`west-wall-${i}-first`));
 
     // Inner 30x30 walls
     ordered.push(...INNER_WALL_KEYS);
 
-    // Deduplicate for safety
     const unique = Array.from(new Set(ordered));
     const index = unique.indexOf(panelKey);
     if (index === -1) {
-      // Fallback for any unexpected keys: map after known ones
       return unique.length + 1;
     }
-    return index + 1; // Token IDs start at 1
+    return index + 1;
   }, []);
 
-  // Fetch config for selected panel, but always enforce fixed contract + unique token mapping
+  // Fetch config for selected panel, but enforce fixed contract + mapped token
   const fetchPanelConfig = useCallback(
     async (panelKey: string) => {
       if (!panelKey) {
@@ -273,13 +262,11 @@ const GalleryConfig = () => {
         setCurrentConfig({
           panel_key: row.panel_key,
           collection_name: row.collection_name,
-          // Enforce our fixed contract + mapped token
           contract_address: FIXED_CONTRACT_ADDRESS,
           default_token_id: mappedTokenId,
           show_collection: row.show_collection ?? false,
         });
       } else {
-        // No existing row, initialize with fixed contract + token mapping
         setCurrentConfig({
           panel_key: panelKey,
           collection_name: null,
@@ -299,20 +286,20 @@ const GalleryConfig = () => {
     }
   }, [isAuthorized, selectedPanelKey, fetchPanelConfig]);
 
-  // Blueprint helpers
-  const getOuterPanelKey = (wall: OuterWall, index: number) =>
-    `${wall}-wall-${index}`;
+  const getOuterPanelKey = (wall: OuterWall, index: number, floor: OuterFloor) =>
+    `${wall}-wall-${index}-${floor}`;
 
-  const isOuterSelected = (wall: OuterWall, index: number) =>
-    selectedPanelKey === getOuterPanelKey(wall, index);
+  const isOuterSelected = (wall: OuterWall, index: number, floor: OuterFloor) =>
+    selectedPanelKey === getOuterPanelKey(wall, index, floor);
 
   const getFriendlyLabel = (panelKey: string): string => {
     if (PANEL_LABELS[panelKey]) return PANEL_LABELS[panelKey];
-    const match = panelKey.match(/^(north|south|east|west)-wall-(\d+)$/);
+
+    const match = panelKey.match(/^(north|south|east|west)-wall-(\d+)-(ground|first)$/);
     if (match) {
-      const [, wall, idxStr] = match;
+      const [, wall, idxStr, floor] = match;
       const idx = parseInt(idxStr, 10);
-      return outerLabel(wall as OuterWall, idx, outerFloor);
+      return outerLabel(wall as OuterWall, idx, floor as OuterFloor);
     }
     return panelKey;
   };
@@ -327,7 +314,7 @@ const GalleryConfig = () => {
     setSelectedPanelKey(panelKey);
   };
 
-  // Save handler – uses existing upsert, but forces our contract + token mapping
+  // Save handler
   const handleSave = async () => {
     if (!isAuthorized) {
       toast.error('You are not authorized to save configurations.');
@@ -354,8 +341,6 @@ const GalleryConfig = () => {
 
     const mappedTokenId = getTokenIdForPanel(selectedPanelKey);
 
-    // We let users change collection_name and show_collection,
-    // but contract + token are always our fixed mapping.
     const dataToUpsert = {
       panel_key: selectedPanelKey,
       collection_name: currentConfig.collection_name || null,
@@ -548,7 +533,6 @@ const GalleryConfig = () => {
       availableTokens.length === 0 &&
       lockDurationDays > 0);
 
-  // Helper for inner 30x30 buttons
   const innerButtonClasses = (key: string) => {
     const lockStatus = getLockStatus(key);
     const isSelected = key === selectedPanelKey;
@@ -572,7 +556,7 @@ const GalleryConfig = () => {
             <CardTitle>Gallery Configuration</CardTitle>
             <CardDescription>
               Select a wall panel from the blueprint and edit its display name, scope, and lock.
-              All panels show unique tokens from the same contract.
+              All panels show unique tokens from the Bolt Jar contract.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 pt-4">
@@ -585,20 +569,6 @@ const GalleryConfig = () => {
                 Disconnect Wallet
               </Button>
             </div>
-
-            {availableTokens.length === 0 &&
-              !isPanelLockedByOther &&
-              !selectedPanelLockStatus?.isLockedByMe &&
-              lockDurationDays > 0 && (
-                <Alert variant="destructive">
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>No Gems Available</AlertTitle>
-                  <AlertDescription>
-                    You must have at least one ElectroGem token that is not currently locking
-                    another panel to save a new configuration.
-                  </AlertDescription>
-                </Alert>
-              )}
 
             {/* Blueprint */}
             <div className="rounded-lg border bg-background p-4 space-y-4">
@@ -637,23 +607,21 @@ const GalleryConfig = () => {
               </div>
 
               <div className="relative mx-auto aspect-[4/3] max-w-2xl border border-dashed border-muted rounded-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-                {/* 30x30 core outline (only meaningful for ground) */}
                 {outerFloor === 'ground' && (
                   <div className="absolute inset-[28%] border border-cyan-400/40 rounded-md" />
                 )}
 
-                {/* OUTER WALL PANELS – oriented like the room */}
                 {/* North outer wall */}
                 <div className="absolute top-3 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
-                    const key = getOuterPanelKey('north', idx);
+                    const key = getOuterPanelKey('north', idx, outerFloor);
                     const lockStatus = getLockStatus(key);
-                    const isSelected = isOuterSelected('north', idx);
+                    const isSelected = isOuterSelected('north', idx, outerFloor);
                     const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
                     const label = outerFloor === 'first' ? `N${idx + 1} 1F` : `N${idx + 1} G`;
                     return (
                       <button
-                        key={key + outerFloor}
+                        key={key}
                         type="button"
                         onClick={() => handleSelectPanel(key)}
                         className={[
@@ -675,14 +643,14 @@ const GalleryConfig = () => {
                 {/* South outer wall */}
                 <div className="absolute bottom-3 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
-                    const key = getOuterPanelKey('south', idx);
+                    const key = getOuterPanelKey('south', idx, outerFloor);
                     const lockStatus = getLockStatus(key);
-                    const isSelected = isOuterSelected('south', idx);
+                    const isSelected = isOuterSelected('south', idx, outerFloor);
                     const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
                     const label = outerFloor === 'first' ? `S${idx + 1} 1F` : `S${idx + 1} G`;
                     return (
                       <button
-                        key={key + outerFloor}
+                        key={key}
                         type="button"
                         onClick={() => handleSelectPanel(key)}
                         className={[
@@ -704,14 +672,14 @@ const GalleryConfig = () => {
                 {/* West outer wall */}
                 <div className="absolute top-[20%] bottom-[20%] left-3 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
-                    const key = getOuterPanelKey('west', idx);
+                    const key = getOuterPanelKey('west', idx, outerFloor);
                     const lockStatus = getLockStatus(key);
-                    const isSelected = isOuterSelected('west', idx);
+                    const isSelected = isOuterSelected('west', idx, outerFloor);
                     const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
                     const label = outerFloor === 'first' ? `W${idx + 1} 1F` : `W${idx + 1} G`;
                     return (
                       <button
-                        key={key + outerFloor}
+                        key={key}
                         type="button"
                         onClick={() => handleSelectPanel(key)}
                         className={[
@@ -733,14 +701,14 @@ const GalleryConfig = () => {
                 {/* East outer wall */}
                 <div className="absolute top-[20%] bottom-[20%] right-3 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
-                    const key = getOuterPanelKey('east', idx);
+                    const key = getOuterPanelKey('east', idx, outerFloor);
                     const lockStatus = getLockStatus(key);
-                    const isSelected = isOuterSelected('east', idx);
+                    const isSelected = isOuterSelected('east', idx, outerFloor);
                     const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
                     const label = outerFloor === 'first' ? `E${idx + 1} 1F` : `E${idx + 1} G`;
                     return (
                       <button
-                        key={key + outerFloor}
+                        key={key}
                         type="button"
                         onClick={() => handleSelectPanel(key)}
                         className={[
@@ -967,7 +935,6 @@ const GalleryConfig = () => {
                   />
                 </div>
 
-                {/* Show the fixed contract + token as read-only info */}
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <p>
                     Contract:{' '}
