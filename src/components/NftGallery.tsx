@@ -581,7 +581,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // === Single starry ceiling covering full 50x50 using the provided image ===
+    // === Single starry ceiling covering full 50x50 using your provided image ===
     const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const ceilingLoader = new THREE.TextureLoader();
     ceilingLoader.setCrossOrigin('anonymous');
@@ -768,14 +768,619 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const sculptureA = makeSculptureVariant(0);
     const sculptureB = makeSculptureVariant(1);
 
-    // Outer wall corners, mid‑wall decor, inner panels, movement, raycasting,
-    // and cleanup code continues here exactly as in the previous working version...
-    // (unchanged from your last good NftGallery file)
-    // -------------------------------------------------------------------------
-    // For brevity in this explanation, that remainder is omitted, but in your
-    // project this file remains otherwise identical, so all gallery behavior
-    // still works with the new ceiling.
-    // -------------------------------------------------------------------------
+    // Outer wall corners
+    const inset = 2.5;
+    planterA(-halfRoomSize + inset, -halfRoomSize + inset);
+    sculptureA(halfRoomSize - inset, -halfRoomSize + inset);
+    planterB(-halfRoomSize + inset, halfRoomSize - inset);
+    sculptureB(halfRoomSize - inset, halfRoomSize - inset);
+
+    const midPositions = [-15, -5, 5, 15];
+
+    // North wall: z = -halfRoomSize
+    midPositions.forEach((x, idx) => {
+      const z = -halfRoomSize + 0.8;
+      if (idx % 2 === 0) {
+        planterC(x, z);
+      } else {
+        sculptureA(x, z + 0.2);
+      }
+    });
+
+    // South wall: z = +halfRoomSize
+    midPositions.forEach((x, idx) => {
+      const z = halfRoomSize - 0.8;
+      if (idx % 2 === 0) {
+        planterB(x, z);
+      } else {
+        sculptureB(x, z - 0.2);
+      }
+    });
+
+    // East wall: x = +halfRoomSize
+    midPositions.forEach((z, idx) => {
+      const x = halfRoomSize - 0.8;
+      if (idx % 2 === 0) {
+        planterA(x, z);
+      } else {
+        sculptureA(x - 0.2, z);
+      }
+    });
+
+    // West wall: x = -halfRoomSize
+    midPositions.forEach((z, idx) => {
+      const x = -halfRoomSize + 0.8;
+      if (idx % 2 === 0) {
+        planterB(x, z);
+      } else {
+        sculptureB(x + 0.2, z);
+      }
+    });
+
+    // Cross-wall decor
+    crossWallSegments.forEach((segmentCenter) => {
+      sculptureA(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
+      addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
+    });
+    crossWallSegments.forEach((segmentCenter) => {
+      planterC(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
+      addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
+    });
+
+    // Teleport buttons
+    const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
+    const TELEPORT_BUTTON_HOVER_COLOR = 0x00ffff;
+    const TELEPORT_BUTTON_RADIUS = 1.0;
+    const TELEPORT_BUTTON_HEIGHT = 0.2;
+    const PLAYER_HEIGHT = 1.6;
+
+    const buttonGeometry = new THREE.CylinderGeometry(
+      TELEPORT_BUTTON_RADIUS,
+      TELEPORT_BUTTON_RADIUS,
+      TELEPORT_BUTTON_HEIGHT,
+      32,
+    );
+    const buttonMaterial = new THREE.MeshStandardMaterial({
+      color: TELEPORT_BUTTON_COLOR,
+      emissive: TELEPORT_BUTTON_COLOR,
+      emissiveIntensity: 0.5,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
+
+    const GROUND_BUTTON_Y = 0.1 + TELEPORT_BUTTON_HEIGHT / 2;
+    const FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2;
+
+    const groundButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
+    groundButton.position.set(0, GROUND_BUTTON_Y, 0);
+    groundButton.userData = { isTeleportButton: true, targetY: FIRST_FLOOR_TARGET_Y };
+    scene.add(groundButton);
+
+    const FIRST_FLOOR_BUTTON_Y = PLATFORM_Y + WALL_THICKNESS / 2 + TELEPORT_BUTTON_HEIGHT / 2;
+    const GROUND_FLOOR_TARGET_Y = PLAYER_HEIGHT;
+
+    const firstFloorButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
+    firstFloorButton.position.set(0, FIRST_FLOOR_BUTTON_Y, 0);
+    firstFloorButton.userData = { isTeleportButton: true, targetY: GROUND_FLOOR_TARGET_Y };
+    scene.add(firstFloorButton);
+
+    const teleportButtons = [groundButton, firstFloorButton];
+
+    const fadeMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0,
+      depthTest: false,
+    });
+    const fadeGeometry = new THREE.PlaneGeometry(100, 100);
+    const fadeScreen = new THREE.Mesh(fadeGeometry, fadeMaterial);
+    fadeScreen.renderOrder = 999;
+    scene.add(fadeScreen);
+
+    const performTeleport = (targetY: number) => {
+      if (isTeleportingRef.current) return;
+      isTeleportingRef.current = true;
+      fadeStartTimeRef.current = performance.now();
+
+      controls.unlock();
+
+      setTimeout(() => {
+        camera.position.y = targetY;
+        controls.lock();
+      }, FADE_DURATION * 1000);
+    };
+
+    // Lighting
+    scene.add(new THREE.AmbientLight(0x404050, 1.0));
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
+    hemiLight.position.set(0, WALL_HEIGHT, 0);
+    scene.add(hemiLight);
+
+    // Panel and arrows
+    const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
+    const basePanelMaterial = new THREE.MeshBasicMaterial({
+      color: 0x333333,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0,
+    });
+
+    const ARROW_COLOR_DEFAULT = 0xcccccc;
+    const ARROW_COLOR_HOVER = 0x00ff00;
+    const arrowShape = new THREE.Shape();
+    arrowShape.moveTo(0, 0.15);
+    arrowShape.lineTo(0.3, 0);
+    arrowShape.lineTo(0, -0.15);
+    arrowShape.lineTo(0, 0.15);
+    const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
+    const arrowMaterial = new THREE.MeshBasicMaterial({
+      color: ARROW_COLOR_DEFAULT,
+      side: THREE.DoubleSide,
+    });
+
+    const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
+    const ARROW_PANEL_OFFSET = 3.2;
+
+    const dynamicPanelConfigs: {
+      wallName: keyof PanelConfig;
+      position: [number, number, number];
+      rotation: [number, number, number];
+    }[] = [];
+
+    const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
+    const MAX_SEGMENT_INDEX = 4;
+
+    for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
+      for (const wallNameBase of WALL_NAMES) {
+        const wallKey = `${wallNameBase}-${i}` as keyof PanelConfig;
+
+        const yLevelsOuter = [LOWER_PANEL_Y, UPPER_PANEL_Y];
+
+        for (const panelY of yLevelsOuter) {
+          let x = 0;
+          let z = 0;
+          let rotation: [number, number, number] = [0, 0, 0];
+          let depthSign = 0;
+          let wallAxis: 'x' | 'z' = 'z';
+          const centerIndex = i - 2;
+          const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
+
+          if (wallNameBase === 'north-wall') {
+            x = segmentCenter;
+            z = -INNER_WALL_BOUNDARY;
+            rotation = [0, 0, 0];
+            depthSign = 1;
+            wallAxis = 'z';
+          } else if (wallNameBase === 'south-wall') {
+            x = segmentCenter;
+            z = INNER_WALL_BOUNDARY;
+            rotation = [0, Math.PI, 0];
+            depthSign = -1;
+            wallAxis = 'z';
+          } else if (wallNameBase === 'east-wall') {
+            x = INNER_WALL_BOUNDARY;
+            z = segmentCenter;
+            rotation = [0, -Math.PI / 2, 0];
+            depthSign = -1;
+            wallAxis = 'x';
+          } else if (wallNameBase === 'west-wall') {
+            x = -INNER_WALL_BOUNDARY;
+            z = segmentCenter;
+            rotation = [0, Math.PI / 2, 0];
+            depthSign = 1;
+            wallAxis = 'x';
+          }
+
+          let finalX = x;
+          let finalZ = z;
+          if (wallAxis === 'x') {
+            finalX += depthSign * ARROW_DEPTH_OFFSET;
+          } else {
+            finalZ += depthSign * ARROW_DEPTH_OFFSET;
+          }
+
+          dynamicPanelConfigs.push({
+            wallName: wallKey,
+            position: [finalX, panelY, finalZ],
+            rotation,
+          });
+        }
+      }
+    }
+
+    crossWallSegments.forEach((segmentCenter, i) => {
+      const index = i;
+
+      dynamicPanelConfigs.push({
+        wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [segmentCenter, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        rotation: [0, Math.PI, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `north-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [segmentCenter, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+        rotation: [0, 0, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `south-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [segmentCenter, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+        rotation: [0, 0, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [segmentCenter, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        rotation: [0, Math.PI, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `east-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, segmentCenter],
+        rotation: [0, Math.PI / 2, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `east-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, segmentCenter],
+        rotation: [0, -Math.PI / 2, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `west-inner-wall-outer-${index}` as keyof PanelConfig,
+        position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, segmentCenter],
+        rotation: [0, -Math.PI / 2, 0],
+      });
+
+      dynamicPanelConfigs.push({
+        wallName: `west-inner-wall-inner-${index}` as keyof PanelConfig,
+        position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, segmentCenter],
+        rotation: [0, Math.PI / 2, 0],
+      });
+    });
+
+    panelsRef.current = [];
+
+    dynamicPanelConfigs.forEach((config) => {
+      const mesh = new THREE.Mesh(panelGeometry, basePanelMaterial.clone());
+      mesh.position.set(config.position[0], config.position[1], config.position[2]);
+      mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      scene.add(mesh);
+
+      const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
+      const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+
+      const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      prevArrow.rotation.set(config.rotation[0], config.rotation[1] + Math.PI, config.rotation[2]);
+      const prevPosition = new THREE.Vector3(
+        config.position[0],
+        config.position[1],
+        config.position[2],
+      ).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+      prevArrow.position.copy(prevPosition);
+      scene.add(prevArrow);
+
+      const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
+      nextArrow.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
+      const nextPosition = new THREE.Vector3(
+        config.position[0],
+        config.position[1],
+        config.position[2],
+      ).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+      nextArrow.position.copy(nextPosition);
+      scene.add(nextArrow);
+
+      const panel: Panel = {
+        mesh,
+        wallName: config.wallName,
+        metadataUrl: '',
+        isVideo: false,
+        isGif: false,
+        prevArrow,
+        nextArrow,
+        videoElement: null,
+        gifStopFunction: null,
+      };
+
+      panelsRef.current.push(panel);
+    });
+
+    // Movement, raycasting, rendering, cleanup ...
+    let moveForward = false,
+      moveBackward = false,
+      moveLeft = false,
+      moveRight = false;
+    const velocity = new THREE.Vector3();
+    const direction = new THREE.Vector3();
+    const speed = 20.0;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'KeyW':
+          moveForward = true;
+          break;
+        case 'KeyA':
+          moveLeft = true;
+          break;
+        case 'KeyS':
+          moveBackward = true;
+          break;
+        case 'KeyD':
+          moveRight = true;
+          break;
+      }
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'KeyW':
+          moveForward = false;
+          break;
+        case 'KeyA':
+          moveLeft = false;
+          break;
+        case 'KeyS':
+          moveBackward = false;
+          break;
+        case 'KeyD':
+          moveRight = false;
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+    const raycaster = new THREE.Raycaster();
+    const center = new THREE.Vector2(0, 0);
+
+    const interactiveMeshes = panelsRef.current
+      .flatMap((p) => [p.mesh, p.prevArrow, p.nextArrow])
+      .concat(teleportButtons);
+
+    const onDocumentMouseDown = () => {
+      if (!controls.isLocked) return;
+
+      if (currentTargetedArrow) {
+        const panel = panelsRef.current.find(
+          (p) => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow,
+        );
+        if (panel) {
+          const dir = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
+
+          if (updatePanelIndex(panel.wallName, dir)) {
+            const sameWallPanels = panelsRef.current.filter((p) => p.wallName === panel.wallName);
+            const source = getCurrentNftSource(panel.wallName);
+            sameWallPanels.forEach((pnl) => {
+              updatePanelContent(pnl, source);
+            });
+          }
+        }
+      } else if (currentTargetedPanel) {
+        const source = getCurrentNftSource(currentTargetedPanel.wallName);
+        if (source) {
+          setMarketBrowserState({
+            open: true,
+            collection: source.contractAddress,
+            tokenId: source.tokenId,
+          });
+          controls.unlock();
+        }
+      } else if (currentTargetedButton) {
+        performTeleport(currentTargetedButton.userData.targetY);
+      }
+    };
+
+    document.addEventListener('mousedown', onDocumentMouseDown);
+
+    let prevTime = performance.now();
+    const startTime = performance.now();
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+
+      const time = performance.now();
+      const delta = (time - prevTime) / 1000;
+      const elapsedTime = (time - startTime) / 1000;
+
+      if (rainbowMaterialRef.current) {
+        rainbowMaterialRef.current.uniforms.time.value = elapsedTime;
+      }
+
+      if (isTeleportingRef.current) {
+        const elapsed = (time - fadeStartTimeRef.current) / 1000;
+        let opacity = 0;
+
+        if (elapsed < FADE_DURATION) {
+          opacity = Math.min(1, elapsed / FADE_DURATION);
+        } else if (elapsed < FADE_DURATION * 2) {
+          opacity = Math.max(0, 1 - (elapsed - FADE_DURATION) / FADE_DURATION);
+        } else {
+          isTeleportingRef.current = false;
+          opacity = 0;
+        }
+
+        fadeMaterial.opacity = opacity;
+
+        fadeScreen.position.copy(camera.position);
+        fadeScreen.position.add(
+          camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.1),
+        );
+        fadeScreen.quaternion.copy(camera.quaternion);
+      }
+
+      if (controls.isLocked) {
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+
+        direction.z = Number(moveForward) - Number(moveBackward);
+        direction.x = Number(moveRight) - Number(moveLeft);
+        direction.normalize();
+
+        if (moveForward || moveBackward) velocity.z -= direction.z * speed * delta;
+        if (moveLeft || moveRight) velocity.x -= direction.x * speed * delta;
+
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+
+        camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
+        camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
+
+        raycaster.setFromCamera(center, camera);
+        const intersects = raycaster.intersectObjects(interactiveMeshes);
+
+        panelsRef.current.forEach((p) => {
+          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc);
+          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc);
+        });
+
+        teleportButtons.forEach((b) => {
+          (b.material as THREE.MeshStandardMaterial).color.setHex(TELEPORT_BUTTON_COLOR);
+          (b.material as THREE.MeshStandardMaterial).emissive.setHex(TELEPORT_BUTTON_COLOR);
+        });
+
+        currentTargetedPanel = null;
+        currentTargetedArrow = null;
+        currentTargetedButton = null;
+
+        if (intersects.length > 0 && intersects[0].distance < 5) {
+          const intersectedMesh = intersects[0].object as THREE.Mesh;
+
+          if (intersectedMesh.userData.isTeleportButton) {
+            currentTargetedButton = intersectedMesh;
+            (intersectedMesh.material as THREE.MeshStandardMaterial).color.setHex(
+              TELEPORT_BUTTON_HOVER_COLOR,
+            );
+            (intersectedMesh.material as THREE.MeshStandardMaterial).emissive.setHex(
+              TELEPORT_BUTTON_HOVER_COLOR,
+            );
+          } else {
+            const panel = panelsRef.current.find(
+              (p) =>
+                p.mesh === intersectedMesh ||
+                p.prevArrow === intersectedMesh ||
+                p.nextArrow === intersectedMesh,
+            );
+
+            if (panel) {
+              if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
+              else if (
+                intersectedMesh === panel.prevArrow ||
+                intersectedMesh === panel.nextArrow
+              ) {
+                currentTargetedArrow = intersectedMesh;
+                (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(
+                  ARROW_COLOR_HOVER,
+                );
+              }
+            }
+          }
+        }
+      }
+
+      prevTime = time;
+      renderer.render(scene, camera);
+    };
+
+    const onWindowResize = () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    };
+
+    window.addEventListener('resize', onWindowResize);
+
+    const reloadAllPanelContent = async () => {
+      console.log('WebGL Context Restored. Reloading all panel content...');
+      for (const panel of panelsRef.current) {
+        const source = getCurrentNftSource(panel.wallName);
+        if (source) {
+          await updatePanelContent(panel, source);
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+      }
+      manageVideoPlayback(controls.isLocked);
+    };
+
+    const canvas = renderer.domElement;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      console.warn('WebGL Context Lost. Screen may go white.');
+    };
+
+    const handleContextRestored = () => {
+      console.log('WebGL Context Restored. Reinitializing resources.');
+      reloadAllPanelContent();
+    };
+
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
+
+    const fetchAndRenderPanelsSequentially = async () => {
+      await initializeGalleryConfig();
+
+      for (const [panelKey, config] of Object.entries(GALLERY_PANEL_CONFIG)) {
+        if (config.wall_color) {
+          const wallMesh = wallMeshesRef.current.get(panelKey);
+          if (wallMesh && wallMesh.material instanceof THREE.MeshStandardMaterial) {
+            wallMesh.material.color.set(config.wall_color);
+          }
+        }
+      }
+
+      for (const panel of panelsRef.current) {
+        const source = getCurrentNftSource(panel.wallName);
+        await updatePanelContent(panel, source);
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    };
+
+    fetchAndRenderPanelsSequentially();
+    animate();
+
+    return () => {
+      document.removeEventListener('mousedown', onDocumentMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('resize', onWindowResize);
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      canvas.removeEventListener('webglcontextrestored', handleContextRestored);
+      mountRef.current?.removeChild(renderer.domElement);
+      controls.dispose();
+
+      panelsRef.current.forEach((panel) => {
+        if (panel.videoElement) {
+          panel.videoElement.pause();
+          panel.videoElement.removeAttribute('src');
+        }
+        if (panel.gifStopFunction) {
+          panel.gifStopFunction();
+        }
+      });
+
+      scene.traverse((obj) => {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.Points) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => {
+              if ((m as any).map) (m as any).map.dispose();
+              m.dispose();
+            });
+          } else {
+            const mat = obj.material as any;
+            if (mat.map) mat.map.dispose();
+            mat.dispose();
+          }
+        }
+      });
+
+      renderer.dispose();
+      delete (window as any).galleryControls;
+      currentTargetedPanel = null;
+      currentTargetedArrow = null;
+      currentTargetedButton = null;
+    };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
