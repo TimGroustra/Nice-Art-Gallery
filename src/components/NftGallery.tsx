@@ -659,18 +659,45 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // --- CREATE FLOOR PLATFORM FOR 1ST FLOOR ---
-    // Create a platform that covers the inner 30x30 area walls
-    const platformGeometry = new THREE.PlaneGeometry(30, 30);
+    // Create a platform that covers the inner 30x30 area walls, with a 10x10 hole in the center.
     const platformMaterial = new THREE.MeshStandardMaterial({
       color: 0x555555,
       roughness: 0.7,
       metalness: 0.3,
       side: THREE.DoubleSide
     });
-    const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-    platform.rotation.x = Math.PI / 2;
-    platform.position.set(0, 8.1, 0); // Positioned at the top of the lower walls (8m height)
-    scene.add(platform);
+    
+    const PLATFORM_Y = 8.1;
+    const HOLE_HALF_SIZE = 5; // 10x10 hole
+
+    // 1. North Segment (30x10, Z: -15 to -5)
+    const northPlatformGeometry = new THREE.PlaneGeometry(30, 10);
+    const northPlatform = new THREE.Mesh(northPlatformGeometry, platformMaterial);
+    northPlatform.rotation.x = Math.PI / 2;
+    northPlatform.position.set(0, PLATFORM_Y, -HOLE_HALF_SIZE - 5); // Center Z: -10
+    scene.add(northPlatform);
+
+    // 2. South Segment (30x10, Z: 5 to 15)
+    const southPlatformGeometry = new THREE.PlaneGeometry(30, 10);
+    const southPlatform = new THREE.Mesh(southPlatformGeometry, platformMaterial);
+    southPlatform.rotation.x = Math.PI / 2;
+    southPlatform.position.set(0, PLATFORM_Y, HOLE_HALF_SIZE + 5); // Center Z: 10
+    scene.add(southPlatform);
+
+    // 3. West Segment (10x10, X: -15 to -5, Z: -5 to 5)
+    const westPlatformGeometry = new THREE.PlaneGeometry(10, 10);
+    const westPlatform = new THREE.Mesh(westPlatformGeometry, platformMaterial);
+    westPlatform.rotation.x = Math.PI / 2;
+    westPlatform.position.set(-HOLE_HALF_SIZE - 5, PLATFORM_Y, 0); // Center X: -10
+    scene.add(westPlatform);
+
+    // 4. East Segment (10x10, X: 5 to 15, Z: -5 to 5)
+    const eastPlatformGeometry = new THREE.PlaneGeometry(10, 10);
+    const eastPlatform = new THREE.Mesh(eastPlatformGeometry, platformMaterial);
+    eastPlatform.rotation.x = Math.PI / 2;
+    eastPlatform.position.set(HOLE_HALF_SIZE + 5, PLATFORM_Y, 0); // Center X: 10
+    scene.add(eastPlatform);
+    
     // --- END POOL AND FOUNTAIN ---
     
     // 4. Lighting Setup
