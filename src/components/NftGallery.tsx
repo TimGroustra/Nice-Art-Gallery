@@ -940,7 +940,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
 
-      // Fix: Remove delta parameter from controls.update()
+      // Fix: Call controls.update() without parameters
       controls.update();
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
