@@ -353,14 +353,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       wallHeight = WALL_HEIGHT,
       panelYPosition = PANEL_Y_POSITION,
       boundary = BOUNDARY;
-    const halfRoomSize = ROOM_SIZE / 2;
+    const halfRoomSize = ROOM_SIZE / 2; // 25
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
     
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
     
     // Define the boundary for the outer walls where panels are placed (50 / 2 = 25)
-    const INNER_WALL_BOUNDARY = ROOM_SIZE / 2; 
+    const INNER_WALL_BOUNDARY = ROOM_SIZE / 2; // 25
 
     // Define wall segment geometry once
     const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
@@ -376,6 +376,65 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       roughness: 0.8, 
       metalness: 0.1,
       side: THREE.DoubleSide
+    });
+    
+    // --- NEW: Create Outer Walls (50x16) ---
+    const outerWallGeometry = new THREE.BoxGeometry(ROOM_SIZE + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS); // Add thickness buffer
+    const halfWallHeight = WALL_HEIGHT / 2; // 8.0
+    
+    // North Wall (Z = -25)
+    const northWall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
+    northWall.position.set(0, halfWallHeight, -halfRoomSize);
+    scene.add(northWall);
+    
+    // South Wall (Z = 25)
+    const southWall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
+    southWall.position.set(0, halfWallHeight, halfRoomSize);
+    scene.add(southWall);
+    
+    // East Wall (X = 25)
+    const eastWall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
+    eastWall.rotation.y = Math.PI / 2;
+    eastWall.position.set(halfRoomSize, halfWallHeight, 0);
+    scene.add(eastWall);
+    
+    // West Wall (X = -25)
+    const westWall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
+    westWall.rotation.y = Math.PI / 2;
+    westWall.position.set(-halfRoomSize, halfWallHeight, 0);
+    scene.add(westWall);
+    
+    // --- NEW: Create Inner Cross Walls (8m high, 10m segments) ---
+    const halfLowerWallHeight = LOWER_WALL_HEIGHT / 2; // 4.0
+    const CROSS_WALL_BOUNDARY = 5;
+    const crossWallSegments = [-10, 10];
+    
+    // Horizontal Walls (Z = +/- 5)
+    crossWallSegments.forEach(segmentCenter => { 
+        // Z = -CROSS_WALL_BOUNDARY (-5)
+        let wall1 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        wall1.position.set(segmentCenter, halfLowerWallHeight, -CROSS_WALL_BOUNDARY);
+        scene.add(wall1);
+
+        // Z = CROSS_WALL_BOUNDARY (5)
+        let wall2 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        wall2.position.set(segmentCenter, halfLowerWallHeight, CROSS_WALL_BOUNDARY);
+        scene.add(wall2);
+    });
+
+    // Vertical Walls (X = +/- 5)
+    crossWallSegments.forEach(segmentCenter => { 
+        // X = -CROSS_WALL_BOUNDARY (-5)
+        let wall3 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        wall3.rotation.y = Math.PI / 2;
+        wall3.position.set(-CROSS_WALL_BOUNDARY, halfLowerWallHeight, segmentCenter);
+        scene.add(wall3);
+
+        // X = CROSS_WALL_BOUNDARY (5)
+        let wall4 = new THREE.Mesh(wallSegmentGeometry, wallMaterial.clone());
+        wall4.rotation.y = Math.PI / 2;
+        wall4.position.set(CROSS_WALL_BOUNDARY, halfLowerWallHeight, segmentCenter);
+        scene.add(wall4);
     });
     
     // --- Floor Texture and Material ---
@@ -480,10 +539,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
     };
     
-    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // Constants for inner cross structure
-    const CROSS_WALL_BOUNDARY = 5;
-    const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
-    
     // 1. Create Modular Floor and Ceiling
     const ceilingMaterial = new THREE.ShaderMaterial({
       uniforms: {
@@ -557,10 +612,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     
     // --- CREATE FLOOR PLATFORM FOR 1ST FLOOR ---
+    // Calculate new platform Y to sit above 8m walls (LOWER_WALL_HEIGHT)
+    const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01; // 8.0 + 0.25 + 0.01 = 8.26
+    
     // Create a platform that covers the inner 30x30 area walls with same thickness as walls
     const platformGeometry = new THREE.BoxGeometry(30, WALL_THICKNESS, 30); // Make it thick like walls
     const platform = new THREE.Mesh(platformGeometry, concreteMaterial.clone()); // Use concrete material
-    const PLATFORM_Y = 8.1 - (WALL_THICKNESS / 2); // 7.85
     platform.position.set(0, PLATFORM_Y, 0); // Positioned at the top of the lower walls, adjusted for thickness
     scene.add(platform);
     
@@ -568,8 +625,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const shaderPlaneGeometry = new THREE.PlaneGeometry(HOLE_SIZE, HOLE_SIZE); // 30x30
     const shaderPlane = new THREE.Mesh(shaderPlaneGeometry, ceilingMaterial);
     
-    // Position calculation: PLATFORM_Y (7.85) - WALL_THICKNESS/2 (0.25) = 7.6
-    const SHADER_PLANE_Y = PLATFORM_Y - WALL_THICKNESS / 2 - 0.01; // 7.59 (Slightly below the platform)
+    // Position calculation: SHADER_PLANE_Y should be exactly at Y=8.0 (top of the lower walls)
+    const SHADER_PLANE_Y = LOWER_WALL_HEIGHT; // 8.0
     
     shaderPlane.rotation.x = -Math.PI / 2; // Rotate to face downwards
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
@@ -593,7 +650,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // Ground Floor Button (Teleports to 1st floor)
     const GROUND_BUTTON_Y = 0.1 + TELEPORT_BUTTON_HEIGHT / 2; // 0.2
-    // Target Y: Platform center (7.85) + Player height (1.6) + half wall thickness (0.25) = 9.7
+    // Target Y: PLATFORM_Y + Player height (1.6) + half wall thickness (0.25) = 8.26 + 1.6 + 0.25 = 10.11
     const FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2; 
     
     const groundButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
@@ -602,7 +659,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(groundButton);
     
     // First Floor Button (Teleports to Ground floor)
-    // Button Y: Platform center (7.85) + half wall thickness (0.25) + half button height (0.1) = 8.2
+    // Button Y: PLATFORM_Y + half wall thickness (0.25) + half button height (0.1) = 8.26 + 0.25 + 0.1 = 8.61
     const FIRST_FLOOR_BUTTON_Y = PLATFORM_Y + WALL_THICKNESS / 2 + TELEPORT_BUTTON_HEIGHT / 2; 
     const GROUND_FLOOR_TARGET_Y = PLAYER_HEIGHT; // 1.6
     
