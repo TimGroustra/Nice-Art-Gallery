@@ -37,8 +37,8 @@ let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedButton: THREE.Mesh | null = null; // New global state for button
 
-// --- GLSL Shader Code for Pulsing Rainbow Ceiling ---
-const ceilingVertexShader = `
+// --- GLSL Shader Code for Pulsing Rainbow Platform Underside ---
+const platformVertexShader = `
  varying vec2 vUv;
  void main() {
    vUv = uv;
@@ -46,7 +46,7 @@ const ceilingVertexShader = `
  }
 `;
 
-const ceilingFragmentShader = `
+const platformFragmentShader = `
  uniform float time;
  uniform float opacity;
  
@@ -72,7 +72,95 @@ const ceilingFragmentShader = `
    gl_FragColor = vec4(color, opacity);
  }
 `;
-// --- End GLSL Shader Code ---
+// --- End GLSL Shader Code for Platform Underside ---
+
+// --- GLSL Shader Code for Starry Night Ceiling ---
+const starryNightVertexShader = `
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const starryNightFragmentShader = `
+  uniform float time;
+  uniform vec2 resolution;
+  
+  // Hash function for pseudo-random numbers
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(41.41, 28.28))) * 43758.5453);
+  }
+
+  // 3D Noise function (simplified for 2D use with time)
+  float noise(vec3 x) {
+    vec3 p = floor(x);
+    vec3 f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    
+    vec2 uv = (p.xy + vec2(37.0, 17.0) * p.z) + f.xy;
+    vec2 rg = textureLod(iChannel0, (uv + 0.5) / 256.0, 0.0).yx;
+    return mix(rg.x, rg.y, f.z);
+  }
+  
+  // Star field generation
+  float star(vec2 uv, float flare) {
+    float d = length(uv);
+    float m = 0.05 + 0.05 * sin(time * 0.1);
+    float star_shape = 0.01 / d;
+    float star_glow = 0.001 / (d * d);
+    return star_shape + star_glow * flare;
+  }
+
+  void main() {
+    vec2 uv = gl_FragCoord.xy / resolution.xy;
+    vec2 p = uv * 10.0;
+    vec3 color = vec3(0.0);
+    
+    // 1. Nebula background (slowly shifting noise)
+    float n = hash(floor(p * 0.5));
+    float nebula_speed = time * 0.01;
+    float nebula_scale = 0.5;
+    
+    // Use a simple noise pattern for nebulas
+    float nebula_noise = hash(p * 0.1 + nebula_speed);
+    nebula_noise += hash(p * 0.2 + nebula_speed * 1.5) * 0.5;
+    nebula_noise = fract(nebula_noise);
+    
+    // Color the nebula (electric blue/purple shift)
+    vec3 nebula_color = mix(vec3(0.1, 0.1, 0.3), vec3(0.0, 0.5, 0.5), nebula_noise);
+    color += nebula_color * 0.5;
+    
+    // 2. Star field
+    p = uv * 100.0;
+    vec2 grid = floor(p);
+    vec2 f = fract(p);
+    
+    // Add subtle movement to stars
+    vec2 offset = vec2(sin(time * 0.05), cos(time * 0.03)) * 0.1;
+    
+    for (int i = -1; i <= 1; i++) {
+      for (int j = -1; j <= 1; j++) {
+        vec2 g = grid + vec2(float(i), float(j));
+        float h = hash(g);
+        
+        // Star position within the cell
+        vec2 center = vec2(h, fract(h * 10.0)) + offset;
+        
+        // Only draw bright stars based on hash threshold
+        if (h > 0.99) {
+          float flare = h * 10.0;
+          vec3 star_color = mix(vec3(1.0, 0.9, 0.8), vec3(0.8, 0.9, 1.0), fract(h * 100.0));
+          color += star_color * star(f - center, flare);
+        }
+      }
+    }
+    
+    gl_FragColor = vec4(color, 1.0);
+  }
+`;
+// --- End GLSL Shader Code for Starry Night Ceiling ---
+
 
 // Helper function to determine if content is video or GIF
 const isVideoContent = (contentType: string, url: string) => {
@@ -370,14 +458,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       metalness: 0.1 
     });
     
-    // Define standard ceiling material (new)
-    const standardCeilingMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xcccccc, 
-      roughness: 0.8, 
-      metalness: 0.1,
-      side: THREE.DoubleSide
-    });
-    
     // --- NEW: Create Outer Walls (50x16) ---
     const outerWallGeometry = new THREE.BoxGeometry(ROOM_SIZE + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS); // Add thickness buffer
     const halfWallHeight = WALL_HEIGHT / 2; // 8.0
@@ -540,15 +620,29 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     
     // 1. Create Modular Floor and Ceiling
-    const ceilingMaterial = new THREE.ShaderMaterial({
+    
+    // Material for the pulsing rainbow effect (under platform)
+    const platformShaderMaterial = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0.0 },
         opacity: { value: 1.0 }
       },
-      vertexShader: ceilingVertexShader,
-      fragmentShader: ceilingFragmentShader,
+      vertexShader: platformVertexShader,
+      fragmentShader: platformFragmentShader,
       side: THREE.DoubleSide,
       transparent: true,
+    });
+    
+    // Material for the starry night effect (main ceiling)
+    const starryNightMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0.0 },
+        resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
+        // iChannel0 is a placeholder for a texture, but we'll rely on procedural noise for simplicity
+      },
+      vertexShader: starryNightVertexShader,
+      fragmentShader: starryNightFragmentShader,
+      side: THREE.DoubleSide,
     });
     
     // Define the area to cut out (30x30 room centered in the 50x50 space)
@@ -581,8 +675,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           floorSegments.push(floorSegment);
         }
         
-        // Ceiling Segment (Use standard material for the main ceiling)
-        const ceiling = new THREE.Mesh(segmentGeometry, standardCeilingMaterial);
+        // Ceiling Segment (Use starry night material for the main ceiling)
+        const ceiling = new THREE.Mesh(segmentGeometry, starryNightMaterial);
         ceiling.rotation.x = Math.PI / 2;
         ceiling.position.x = segmentCenterX;
         ceiling.position.z = segmentCenterZ;
@@ -621,9 +715,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     platform.position.set(0, PLATFORM_Y, 0); // Positioned at the top of the lower walls, adjusted for thickness
     scene.add(platform);
     
-    // --- NEW: Add Shader Plane underneath the 1st floor platform (30x30 area) ---
+    // --- Add Shader Plane underneath the 1st floor platform (30x30 area) ---
     const shaderPlaneGeometry = new THREE.PlaneGeometry(HOLE_SIZE, HOLE_SIZE); // 30x30
-    const shaderPlane = new THREE.Mesh(shaderPlaneGeometry, ceilingMaterial);
+    const shaderPlane = new THREE.Mesh(shaderPlaneGeometry, platformShaderMaterial);
     
     // Position calculation: SHADER_PLANE_Y should be exactly at Y=8.0 (top of the lower walls)
     const SHADER_PLANE_Y = LOWER_WALL_HEIGHT; // 8.0
@@ -788,7 +882,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
     
     // Inner 30x30 cross walls (at X/Z = +/- 5)
-    // We reuse CROSS_WALL_BOUNDARY and crossWallSegments defined earlier in the useEffect scope.
+    const CROSS_WALL_BOUNDARY = 5;
+    const crossWallSegments = [-10, 10];
+    
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
       
@@ -965,9 +1061,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
       
-      // Update ceiling shader time uniform
-      if (ceilingMaterial.uniforms) {
-        ceilingMaterial.uniforms.time.value = elapsedTime;
+      // Update shader time uniforms
+      if (platformShaderMaterial.uniforms) {
+        platformShaderMaterial.uniforms.time.value = elapsedTime;
+      }
+      if (starryNightMaterial.uniforms) {
+        starryNightMaterial.uniforms.time.value = elapsedTime;
       }
       
       // --- Teleport Fade Animation ---
@@ -1063,6 +1162,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      
+      // Update resolution uniform for the starry night shader
+      if (starryNightMaterial.uniforms) {
+        starryNightMaterial.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
+      }
     };
     
     window.addEventListener('resize', onWindowResize);
