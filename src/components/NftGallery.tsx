@@ -69,7 +69,7 @@ const ceilingFragmentShader = `
     float d = rand(i + vec2(1.0, 1.0));
     vec2 u = f * f * (3.0 - 2.0 * f);
     return mix(a, b, u.x) +
-           (c - a)* u.y * (1.0 - u.x) +
+           (c - a) * u.y * (1.0 - u.x) +
            (d - b) * u.x * u.y;
   }
 
@@ -89,26 +89,36 @@ const ceilingFragmentShader = `
     vec3 cloudColor = vec3(0.06, 0.08, 0.18);
     skyColor = mix(skyColor, cloudColor, clouds * 0.7);
 
-    float starDensity = 120.0;
+    // Slightly higher density, but less grid-like distribution
+    float starDensity = 150.0;
     float starField = 0.0;
 
+    // Use a more irregular mapping to break up grid patterns
     vec2 starUv = vUv * starDensity;
+    starUv += vec2(
+      sin(time * 0.13 + vUv.y * 15.3),
+      cos(time * 0.17 + vUv.x * 17.1)
+    ) * 0.15;
 
     vec2 id = floor(starUv);
     vec2 fracUv = fract(starUv);
 
-    float rnd = rand(id * 37.0);
+    float cellRand = rand(id * 37.0);
 
-    float threshold = 0.985;
-    if (rnd > threshold) {
+    // Lower threshold so stars are more frequent but each is softer,
+    // reducing the perception of dotted lines.
+    float threshold = 0.975;
+    if (cellRand > threshold) {
       float d = length(fracUv - 0.5);
-      float star = smoothstep(0.45, 0.0, d);
-      float twinkle = 0.5 + 0.5 * sin(time * (1.0 + rnd * 5.0) + rnd * 10.0);
+      // Softer star falloff
+      float star = smoothstep(0.5, 0.0, d);
+      float twinkle = 0.4 + 0.6 * sin(time * (1.2 + cellRand * 4.5) + cellRand * 9.3);
       starField += star * twinkle;
     }
 
-    float scattered = pow(rand(vUv * 100.0 + time * 0.05), 50.0);
-    starField += scattered * 0.8;
+    // Scatter a few very small random sparkles to break any remaining pattern
+    float scattered = pow(rand(vUv * 123.0 + time * 0.11), 70.0);
+    starField += scattered * 0.6;
 
     vec3 starColor = vec3(0.7, 0.9, 1.0);
     vec3 color = skyColor + starField * starColor;
