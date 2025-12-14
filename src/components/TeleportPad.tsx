@@ -76,7 +76,6 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
       if (!camera) return;
       
       const playerPosition = camera.position.clone();
-      const distanceToPad = playerPosition.distanceTo(padPosition);
       
       // Check if player is within pad boundaries (2x2 pad + small buffer)
       const isOnPad = (
@@ -126,8 +125,14 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
     const positionCheckInterval = setInterval(checkPlayerOnPad, 100);
 
     return () => {
-      cancelAnimationFrame(animationRef.current);
       clearInterval(positionCheckInterval);
+      cancelAnimationFrame(animationRef.current);
+      
+      if (glowRef.current) {
+        scene.remove(glowRef.current);
+        glowRef.current.geometry.dispose();
+        (glowRef.current.material as THREE.Material).dispose();
+      }
       
       if (padRef.current) {
         scene.remove(padRef.current);
@@ -137,12 +142,6 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
         } else {
           (padRef.current.material as THREE.Material).dispose();
         }
-      }
-      
-      if (glowRef.current) {
-        scene.remove(glowRef.current);
-        glowRef.current.geometry.dispose();
-        (glowRef.current.material as THREE.Material).dispose();
       }
     };
   }, [position, targetPosition, onTeleport, scene, camera]);
