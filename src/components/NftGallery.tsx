@@ -164,7 +164,7 @@ const isGifContent = (contentType: string, url: string) =>
 const disposeTextureSafely = (mesh: THREE.Mesh) => {
   if (mesh.material instanceof THREE.MeshBasicMaterial) {
     if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-      (mesh.material.map as any).dispose?.();
+      mesh.material.map.dispose();
       mesh.material.map = null;
     }
     mesh.material.dispose();
@@ -243,6 +243,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.gifStopFunction = stop;
           return texture;
         } catch (error) {
+          console.error('Failed to load animated GIF, falling back to static image load:', error);
         }
       }
 
@@ -294,6 +295,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
 
       if (!metadata) {
+        console.warn(
+          `Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`,
+        );
+
         disposeTextureSafely(panel.mesh);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -888,51 +893,99 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
     });
 
-    // --- Couch & coffee table setups in 10x10 corners of the 30x30 platform ---
-    const addCouchSetup = (x: number, z: number, rotationY: number) => {
-      const couchBaseGeom = new THREE.BoxGeometry(4, 0.4, 1.4);
-      const couchBackGeom = new THREE.BoxGeometry(4, 0.8, 0.2);
-      const couchSideGeom = new THREE.BoxGeometry(1.4, 0.4, 1.4);
+    // --- Human-scale couches & coffee tables on ground floor 10x10 corners ---
+    const addHumanCouchSetup = (x: number, z: number, rotationY: number) => {
+      // Seat: about 0.45m high, 0.9m deep, 2m wide
+      const seatGeom = new THREE.BoxGeometry(2.0, 0.45, 0.9);
+      const backGeom = new THREE.BoxGeometry(2.0, 0.8, 0.15);
+      const armGeom = new THREE.BoxGeometry(0.25, 0.6, 0.9);
 
-      const seat = new THREE.Mesh(couchBaseGeom, decoMetal);
-      seat.position.set(x, PLATFORM_Y + 0.2, z);
+      const cushionColor = 0x1f2933;
+
+      const seatMat = new THREE.MeshStandardMaterial({
+        color: cushionColor,
+        roughness: 0.6,
+        metalness: 0.1,
+      });
+      const backMat = new THREE.MeshStandardMaterial({
+        color: cushionColor,
+        roughness: 0.6,
+        metalness: 0.1,
+      });
+      const armMat = new THREE.MeshStandardMaterial({
+        color: 0x101827,
+        roughness: 0.7,
+        metalness: 0.15,
+      });
+
+      const seat = new THREE.Mesh(seatGeom, seatMat);
+      seat.position.set(x, 0.45 / 2, z);
       seat.rotation.y = rotationY;
       scene.add(seat);
 
-      const back = new THREE.Mesh(couchBackGeom, decoGlass);
-      back.position.set(x, PLATFORM_Y + 0.8, z - 0.7 * Math.cos(rotationY));
+      // Back sits behind seat in couch's local -Z
+      const back = new THREE.Mesh(backGeom, backMat);
+      const backOffset = 0.9 / 2 + 0.15 / 2;
+      back.position.set(
+        x - Math.sin(rotationY) * 0,
+        0.45 + 0.8 / 2,
+        z - Math.cos(rotationY) * backOffset,
+      );
       back.rotation.y = rotationY;
       scene.add(back);
 
-      const side = new THREE.Mesh(couchSideGeom, decoMetal);
-      const sideOffsetX = 2 * Math.cos(rotationY + Math.PI / 2);
-      const sideOffsetZ = 2 * Math.sin(rotationY + Math.PI / 2);
-      side.position.set(x + sideOffsetX, PLATFORM_Y + 0.2, z + sideOffsetZ);
-      side.rotation.y = rotationY;
-      scene.add(side);
+      // Arms at each side along local X
+      const armOffsetX = 2.0 / 2 + 0.25 / 2;
+      const armY = 0.6 / 2 + 0.1;
+      const leftArm = new THREE.Mesh(armGeom, armMat);
+      leftArm.position.set(
+        x - Math.cos(rotationY) * armOffsetX,
+        armY,
+        z + Math.sin(rotationY) * armOffsetX,
+      );
+      leftArm.rotation.y = rotationY;
+      scene.add(leftArm);
 
-      const tableTopGeom = new THREE.BoxGeometry(1.8, 0.12, 1.0);
-      const tableLegGeom = new THREE.CylinderGeometry(0.08, 0.08, 0.4, 16);
+      const rightArm = new THREE.Mesh(armGeom, armMat);
+      rightArm.position.set(
+        x + Math.cos(rotationY) * armOffsetX,
+        armY,
+        z - Math.sin(rotationY) * armOffsetX,
+      );
+      rightArm.rotation.y = rotationY;
+      scene.add(rightArm);
 
-      const tableX = x + 1.3 * Math.cos(rotationY + Math.PI / 2);
-      const tableZ = z + 1.3 * Math.sin(rotationY + Math.PI / 2);
+      // Simple low coffee table in front of couch
+      const tableTopGeom = new THREE.BoxGeometry(1.4, 0.08, 0.7);
+      const legGeom = new THREE.CylinderGeometry(0.06, 0.06, 0.35, 12);
 
-      const tableTop = new THREE.Mesh(tableTopGeom, decoGlass);
-      tableTop.position.set(tableX, PLATFORM_Y + 0.3, tableZ);
+      const tableTopMat = new THREE.MeshStandardMaterial({
+        color: 0x0f172a,
+        roughness: 0.4,
+        metalness: 0.3,
+      });
+      const tableLegMat = decoAccent;
+
+      const forwardOffset = 0.9 / 2 + 0.5; // in front of seat
+      const tableX = x;
+      const tableZ = z + Math.cos(rotationY) * forwardOffset;
+
+      const tableTop = new THREE.Mesh(tableTopGeom, tableTopMat);
+      tableTop.position.set(tableX, 0.35 + 0.08 / 2, tableZ);
       tableTop.rotation.y = rotationY;
       scene.add(tableTop);
 
-      const leg = new THREE.Mesh(tableLegGeom, decoAccent);
-      leg.position.set(tableX, PLATFORM_Y + 0.1, tableZ);
+      const leg = new THREE.Mesh(legGeom, tableLegMat);
+      leg.position.set(tableX, 0.35 / 2, tableZ);
       scene.add(leg);
     };
 
-    // Place 4 setups roughly at corners of the platform (inside its 30x30 area)
-    addCouchSetup(-10, -10, Math.PI / 4);
-    addCouchSetup(10, -10, -Math.PI / 4);
-    addCouchSetup(-10, 10, (3 * Math.PI) / 4);
-    addCouchSetup(10, 10, -3 * Math.PI / 4);
-    // --- End couch setups ---
+    // Place 4 setups roughly inside the central 30x30 square, but on ground floor
+    addHumanCouchSetup(-10, -10, Math.PI / 4);           // front-left area
+    addHumanCouchSetup(10, -10, -Math.PI / 4);           // front-right
+    addHumanCouchSetup(-10, 10, (3 * Math.PI) / 4);      // back-left
+    addHumanCouchSetup(10, 10, -3 * Math.PI / 4);        // back-right
+    // --- End human couch setups ---
 
     // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
