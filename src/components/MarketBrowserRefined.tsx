@@ -58,9 +58,7 @@ function openCenteredPopup(url: string, title = "Marketplace", w = 1100, h = 800
   const top = height / 2 - h / 2 + dualScreenTop;
   const features = `scrollbars=yes,width=${w},height=${h},top=${top},left=${left}`;
   const newWin = window.open(url, title, features);
-  if (newWin) try {
-    newWin.focus();
-  } catch {}
+  if (newWin) try { newWin.focus(); } catch {}
   return !!newWin;
 }
 
@@ -71,12 +69,7 @@ function openCenteredPopup(url: string, title = "Marketplace", w = 1100, h = 800
  * - open: whether to show modal
  * - onClose: callback
  */
-export function MarketBrowserRefined({
-  collection,
-  tokenId,
-  open,
-  onClose,
-}: {
+export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
   collection: string;
   tokenId: string | number;
   open: boolean;
@@ -87,12 +80,7 @@ export function MarketBrowserRefined({
   const [probeState, setProbeState] = useState<Record<string, ProbeStatus>>({});
   const mounted = useRef(true);
 
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   // Effect to trigger server-side probing when the modal opens
   useEffect(() => {
@@ -104,18 +92,18 @@ export function MarketBrowserRefined({
     // Set initial states based on probe requirement or whitelist
     const initialStates: Record<string, ProbeStatus> = {};
     markets.forEach(m => {
-      if (m.probeRequired) {
-        initialStates[m.id] = "checking";
-      } else {
-        // For markets that don't require a probe
-        if (m.id === "panth") {
-          const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
-          initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
+        if (m.probeRequired) {
+            initialStates[m.id] = "checking";
         } else {
-          // For other non-probed markets (like Rarible), assume available.
-          initialStates[m.id] = "available";
+            // For markets that don't require a probe
+            if (m.id === "panth") {
+                const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
+                initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
+            } else {
+                // For other non-probed markets (like Rarible), assume available.
+                initialStates[m.id] = "available";
+            }
         }
-      }
     });
     setProbeState(initialStates);
 
@@ -136,8 +124,9 @@ export function MarketBrowserRefined({
   function handleSelect(marketId: string) {
     const market = markets.find((m) => m.id === marketId);
     if (!market) return;
-
+    
     const state = probeState[marketId];
+    
     // If we are still checking, do nothing (only applies to probeRequired markets)
     if (state === "checking") return;
 
@@ -162,26 +151,18 @@ export function MarketBrowserRefined({
     <div
       role="dialog"
       aria-modal
-      style={{
-        position: "fixed",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1400,
-        background: "rgba(0,0,0,0.6)",
-      }}
+      style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1400, background: "rgba(0,0,0,0.6)" }}
       onClick={() => onClose()}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(500px, 94vw)",
-          maxWidth: "500px",
-          height: "auto",
-          background: "#0b1220",
-          borderRadius: 12,
-          overflow: "hidden",
+      <div 
+        onClick={(e) => e.stopPropagation()} 
+        style={{ 
+          width: "min(500px, 94vw)", 
+          maxWidth: "500px", 
+          height: "auto", 
+          background: "#0b1220", 
+          borderRadius: 12, 
+          overflow: "hidden" 
         }}
       >
         {/* LEFT: marketplaces chooser */}
@@ -195,9 +176,10 @@ export function MarketBrowserRefined({
               // Disable if unavailable OR error
               const disabled = state === "unavailable" || state === "error";
               const checking = state === "checking" || state === undefined;
-
+              
               let statusText = "Tap to open";
               let statusColor = "#9aa4b2";
+
               if (checking) {
                 statusText = "Checking…";
                 statusColor = "#9fb7ff";
@@ -208,8 +190,8 @@ export function MarketBrowserRefined({
                 statusText = "Available";
                 statusColor = "#9fffba";
               } else if (state === "error") {
-                statusText = "Error";
-                statusColor = "#ff7a7a";
+                statusText = "Error"; 
+                statusColor = "#ff7a7a"; 
               }
 
               return (
@@ -217,7 +199,7 @@ export function MarketBrowserRefined({
                   key={m.id}
                   onClick={() => handleSelect(m.id)}
                   // Disable if checking OR disabled (unavailable/error)
-                  disabled={checking || disabled}
+                  disabled={checking || disabled} 
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -229,13 +211,14 @@ export function MarketBrowserRefined({
                     color: disabled ? "#6e7a86" : "#e6eef8",
                     border: "1px solid rgba(255,255,255,0.03)",
                     cursor: checking || disabled ? "not-allowed" : "pointer",
-                    textAlign: "left",
+                    textAlign: "left"
                   }}
                 >
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{m.name}</div>
                     <div style={{ fontSize: 12, color: disabled ? "#6e7a86" : "#9aa4b2", marginTop: 4, wordBreak: 'break-all' }}>{m.url}</div>
                   </div>
+
                   <div style={{ minWidth: 120, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
                     {checking ? (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -253,17 +236,11 @@ export function MarketBrowserRefined({
             })}
           </div>
 
-          <div style={{ marginTop: "auto", display: "flex", justifyContent: "flex-end", gap: 8 }}>
-            <button
-              onClick={() => onClose()}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 8,
-                background: "#18202a",
-                color: "#cbd6e3",
-                border: "1px solid rgba(255,255,255,0.03)",
-              }}
-            >
+          <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
+            <button onClick={() => { navigator.clipboard?.writeText(markets[0].url); }} style={{ padding: "10px 12px", borderRadius: 8, background: "#0b6cff", color: "#fff", border: "none" }}>
+              Copy ElectroSwap link
+            </button>
+            <button onClick={() => onClose()} style={{ padding: "10px 12px", borderRadius: 8, background: "#18202a", color: "#cbd6e3", border: "1px solid rgba(255,255,255,0.03)" }}>
               Cancel
             </button>
           </div>
