@@ -43,94 +43,6 @@ let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedButton: THREE.Mesh | null = null;
 
-// --- GLSL Shader Code for Starry Night Ceiling ---
-const ceilingVertexShader = `
-  varying vec2 vUv;
-  void main() {
-    vUv = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const ceilingFragmentShader = `
-  varying vec2 vUv;
-  uniform float time;
-
-  float rand(vec2 co) {
-    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
-  }
-
-  float noise(vec2 p){
-    vec2 i = floor(p);
-    vec2 f = fract(p);
-    float a = rand(i);
-    float b = rand(i + vec2(1.0, 0.0));
-    float c = rand(i + vec2(0.0, 1.0));
-    float d = rand(i + vec2(1.0, 1.0));
-    vec2 u = f * f * (3.0 - 2.0 * f);
-    return mix(a, b, u.x) +
-           (c - a)* u.y * (1.0 - u.x) +
-           (d - b) * u.x * u.y;
-  }
-
-  void main() {
-    vec2 uv = vUv * 2.0 - 1.0;
-
-    // Base vertical gradient sky
-    float height = uv.y * 0.6 + 0.5;
-    vec3 topColor = vec3(0.02, 0.03, 0.08);
-    vec3 bottomColor = vec3(0.01, 0.01, 0.04);
-    vec3 skyColor = mix(bottomColor, topColor, height);
-
-    // Soft moving clouds
-    float t = time * 0.03;
-    float n1 = noise(uv * 3.0 + vec2(t, 0.0));
-    float n2 = noise(uv * 6.0 - vec2(0.0, t * 0.7));
-    float clouds = smoothstep(0.4, 0.9, n1 + n2 * 0.5);
-    vec3 cloudColor = vec3(0.06, 0.08, 0.18);
-    skyColor = mix(skyColor, cloudColor, clouds * 0.7);
-
-    // --- Star field: fewer, larger, clustered stars (no grid) ---
-
-    // Large-scale mask so some areas have more stars, some almost none
-    float starMask = noise(vUv * 4.0 + vec2(time * 0.02, -time * 0.015));
-    starMask = smoothstep(0.3, 0.8, starMask); // kill stars in dark zones
-
-    float starField = 0.0;
-
-    // Base scattered tiny stars
-    float r1 = rand(vUv * 90.0 + time * 0.03);
-    float tiny = pow(r1, 28.0);        // a decent number of small stars
-    starField += tiny * 0.7;
-
-    // Some brighter & bigger stars using another random sample
-    float r2 = rand(vUv * 55.0 - time * 0.02);
-    float big = pow(r2, 9.0);          // noticeably larger & rarer
-    starField += big * 2.0;
-
-    // Slight “halo” by sampling a nearby offset
-    float r3 = rand((vUv + 0.01) * 55.0 + time * 0.01);
-    float halo = pow(r3, 14.0) * 0.5;
-    starField += halo;
-
-    // Apply star clustering mask
-    starField *= starMask;
-
-    // Gentle twinkle
-    float twinkle = 0.7 + 0.3 * sin(time * 0.8 + r2 * 18.0);
-    starField *= twinkle;
-
-    vec3 starColor = vec3(0.8, 0.93, 1.0);
-    vec3 color = skyColor + starField * starColor;
-
-    // Vignette
-    float vignette = smoothstep(1.35, 0.2, length(uv));
-    color *= vignette;
-
-    gl_FragColor = vec4(color, 1.0);
-  }
-`;
-
 // --- GLSL Shader Code for Rainbow Under-Platform Plane ---
 const rainbowVertexShader = `
   varying vec2 vUv;
@@ -203,7 +115,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const fadeStartTimeRef = useRef(0);
   const FADE_DURATION = 0.5;
 
-  const ceilingMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
   const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
 
   const loadTexture = useCallback(
@@ -453,18 +364,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       metalness: 0.1,
     });
 
-    // Starry ceiling material
-    const ceilingMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0.0 },
-      },
-      vertexShader: ceilingVertexShader,
-      fragmentShader: ceilingFragmentShader,
-      side: THREE.DoubleSide,
-      transparent: false,
-    });
-    ceilingMaterialRef.current = ceilingMaterial;
-
     // Rainbow underside material
     const rainbowMaterial = new THREE.ShaderMaterial({
       uniforms: {
@@ -646,13 +545,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (floorMaterialToUse === placeholderFloorMaterial) {
           floorSegments.push(floorSegment);
         }
-
-        const ceilingSeg = new THREE.Mesh(segmentGeometry, ceilingMaterial);
-        ceilingSeg.rotation.x = Math.PI / 2;
-        ceilingSeg.position.x = segmentCenterX;
-        ceilingSeg.position.z = segmentCenterZ;
-        ceilingSeg.position.y = WALL_HEIGHT + 0.01;
-        scene.add(ceilingSeg);
       }
     }
 
@@ -688,6 +580,37 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.rotation.x = -Math.PI / 2;
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
+
+    // === Single nebula ceiling covering full 50x50 ===
+    // Replace the old tiled ceiling with one big image.
+    const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    const ceilingLoader = new THREE.TextureLoader();
+    ceilingLoader.setCrossOrigin('anonymous');
+
+    ceilingLoader.load(
+      // Put your starry nebula image in public/textures/space-nebula.jpg (or adjust the path).
+      '/textures/space-nebula.jpg',
+      (nebulaTexture) => {
+        nebulaTexture.wrapS = THREE.ClampToEdgeWrapping;
+        nebulaTexture.wrapT = THREE.ClampToEdgeWrapping;
+        nebulaTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        nebulaTexture.needsUpdate = true;
+
+        const ceilingMaterial = new THREE.MeshBasicMaterial({
+          map: nebulaTexture,
+          side: THREE.BackSide, // so it's visible from inside
+        });
+
+        const nebulaCeiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+        nebulaCeiling.rotation.x = Math.PI / 2;
+        nebulaCeiling.position.set(0, WALL_HEIGHT + 0.01, 0);
+        scene.add(nebulaCeiling);
+      },
+      undefined,
+      (err) => {
+        console.error('Failed to load nebula ceiling texture:', err);
+      },
+    );
 
     // --- Decorative props (futuristic, but no couches/tables) ---
     const decoMetal = new THREE.MeshStandardMaterial({
@@ -1263,9 +1186,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
 
-      if (ceilingMaterialRef.current) {
-        ceilingMaterialRef.current.uniforms.time.value = elapsedTime;
-      }
       if (rainbowMaterialRef.current) {
         rainbowMaterialRef.current.uniforms.time.value = elapsedTime;
       }
