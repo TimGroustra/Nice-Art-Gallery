@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 
-interface GalleryConfig {
+interface GalleryConfigRow {
   panel_key: string;
   collection_name: string | null;
   contract_address: string | null;
@@ -26,7 +26,7 @@ interface GalleryConfig {
 interface PanelLock {
   panel_id: string;
   locked_by_address: string;
-  locked_until: string; // ISO string
+  locked_until: string; // ISO
   locking_gem_token_id: string | null;
 }
 
@@ -34,25 +34,11 @@ const REQUIRED_GEM_BALANCE = 5;
 const DEFAULT_WALL_COLOR = '#36454F';
 const DEFAULT_TEXT_COLOR = '#40E0D0';
 
-// Outer wall segments: indices 0..4 from galleryConfig.ts
+// Outer ring indices
 const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
+type OuterFloor = 'ground' | 'first';
+type OuterWall = 'north' | 'south' | 'east' | 'west';
 
-// Helper to create human-readable labels for outer wall segments
-const outerLabel = (wall: 'north' | 'south' | 'east' | 'west', index: number, floor: 'ground' | 'first') => {
-  const base =
-    wall === 'north'
-      ? 'North Outer'
-      : wall === 'south'
-      ? 'South Outer'
-      : wall === 'east'
-      ? 'East Outer'
-      : 'West Outer';
-  const seg = `Segment ${index + 1}`;
-  const floorLabel = floor === 'ground' ? 'Ground' : '1st Floor';
-  return `${base} – ${seg} (${floorLabel})`;
-};
-
-// Inner/cross walls: from galleryConfig.ts
 const INNER_WALL_KEYS = [
   'north-inner-wall-outer-0',
   'north-inner-wall-inner-0',
@@ -79,24 +65,23 @@ const CENTER_WALL_KEYS = [
   'west-center-wall-0',
 ] as const;
 
-// Friendly labels for non‑outer panels
 const PANEL_LABELS: Record<string, string> = {
-  // Inner cross walls – north side of cross
+  // Inner cross walls – north
   'north-inner-wall-outer-0': 'Inner North – West Segment (Outer Face)',
   'north-inner-wall-inner-0': 'Inner North – West Segment (Inner Face)',
   'north-inner-wall-outer-1': 'Inner North – East Segment (Outer Face)',
   'north-inner-wall-inner-1': 'Inner North – East Segment (Inner Face)',
-  // Inner cross walls – south side of cross
+  // Inner cross walls – south
   'south-inner-wall-outer-0': 'Inner South – West Segment (Outer Face)',
   'south-inner-wall-inner-0': 'Inner South – West Segment (Inner Face)',
   'south-inner-wall-outer-1': 'Inner South – East Segment (Outer Face)',
   'south-inner-wall-inner-1': 'Inner South – East Segment (Inner Face)',
-  // Inner cross walls – east side of cross
+  // Inner cross walls – east
   'east-inner-wall-outer-0': 'Inner East – North Segment (Outer Face)',
   'east-inner-wall-inner-0': 'Inner East – North Segment (Inner Face)',
   'east-inner-wall-outer-1': 'Inner East – South Segment (Outer Face)',
   'east-inner-wall-inner-1': 'Inner East – South Segment (Inner Face)',
-  // Inner cross walls – west side of cross
+  // Inner cross walls – west
   'west-inner-wall-outer-0': 'Inner West – North Segment (Outer Face)',
   'west-inner-wall-inner-0': 'Inner West – North Segment (Inner Face)',
   'west-inner-wall-outer-1': 'Inner West – South Segment (Outer Face)',
@@ -108,20 +93,29 @@ const PANEL_LABELS: Record<string, string> = {
   'west-center-wall-0': 'Center Ring – West Wall',
 };
 
-// Helper function to format wallet address
+const outerLabel = (wall: OuterWall, index: number, floor: OuterFloor) => {
+  const base =
+    wall === 'north'
+      ? 'North Outer'
+      : wall === 'south'
+      ? 'South Outer'
+      : wall === 'east'
+      ? 'East Outer'
+      : 'West Outer';
+  const seg = `Segment ${index + 1}`;
+  const floorLabel = floor === 'ground' ? 'Ground' : '1st Floor';
+  return `${base} – ${seg} (${floorLabel})`;
+};
+
 const formatWalletAddress = (address: string | undefined | null) => {
   if (!address) return 'N/A';
   const len = address.length;
   if (len <= 10) return address;
-  return `${address.substring(0, 6)}...${address.substring(len - 4)}`;
+  return `${address.slice(0, 6)}...${address.slice(len - 4)}`;
 };
-
-// Blueprint floor type
-type OuterFloor = 'ground' | 'first';
 
 const GalleryConfig = () => {
   const navigate = useNavigate();
-
   const { address: walletAddress, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
 
@@ -135,44 +129,41 @@ const GalleryConfig = () => {
 
   const [panelKeys, setPanelKeys] = useState<string[]>([]);
   const [selectedPanelKey, setSelectedPanelKey] = useState<string>('');
-  const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfig>>({});
+  const [currentConfig, setCurrentConfig] = useState<Partial<GalleryConfigRow>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [panelLocks, setPanelLocks] = useState<PanelLock[]>([]);
   const [lockDurationDays, setLockDurationDays] = useState(1);
   const [poorContrast, setPoorContrast] = useState(false);
   const [outerFloor, setOuterFloor] = useState<OuterFloor>('ground');
 
-  // --- Contrast helper ---
-  const getContrastRatio = (hex1: string, hex2: string): number => {
+  // Derived: isAuthorized
+  const isAuthorized =
+    isConnected && !!walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
+
+  // Contrast helper
+  useEffect(() => {
     const getLuminance = (hex: string): number => {
       const rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
       if (!rgb) return 0;
-
-      const sRGB = [parseInt(rgb[1], 16), parseInt(rgb[2], 16), parseInt(rgb[3], 16)].map(
-        (val) => {
-          let v = val / 255.0;
-          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-        },
-      );
-
-      return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+      const toLinear = (val: number) => {
+        const v = val / 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      };
+      const [r, g, b] = [rgb[1], rgb[2], rgb[3]].map((v) => toLinear(parseInt(v, 16)));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     };
 
-    const lum1 = getLuminance(hex1);
-    const lum2 = getLuminance(hex2);
-    const lighter = Math.max(lum1, lum2);
-    const darker = Math.min(lum1, lum2);
-    return (lighter + 0.05) / (darker + 0.05);
-  };
-
-  useEffect(() => {
     const wallColor = currentConfig.wall_color || DEFAULT_WALL_COLOR;
     const textColor = currentConfig.text_color || DEFAULT_TEXT_COLOR;
-    const ratio = getContrastRatio(wallColor, textColor);
-    setPoorContrast(ratio < 3.0);
+    const lum1 = getLuminance(wallColor);
+    const lum2 = getLuminance(textColor);
+    const lighter = Math.max(lum1, lum2);
+    const darker = Math.min(lum1, lum2);
+    const ratio = (lighter + 0.05) / (darker + 0.05);
+    setPoorContrast(ratio < 3);
   }, [currentConfig.wall_color, currentConfig.text_color]);
 
-  // --- Lock helpers ---
+  // Lock helpers – stable hook order
   const getLockStatus = useCallback(
     (panelKey: string) => {
       const lock = panelLocks.find((l) => l.panel_id === panelKey);
@@ -184,39 +175,37 @@ const GalleryConfig = () => {
           lockingGemTokenId: null as string | null,
         };
       }
-
       const lockedUntilDate = new Date(lock.locked_until);
       const now = new Date();
-      if (lockedUntilDate > now) {
-        const isLockedByMe =
-          walletAddress &&
-          lock.locked_by_address &&
-          lock.locked_by_address.toLowerCase() === walletAddress.toLowerCase();
+      if (lockedUntilDate <= now) {
         return {
-          isLocked: true,
-          isLockedByMe,
-          lockedUntil: lockedUntilDate,
-          lockingGemTokenId: lock.locking_gem_token_id,
+          isLocked: false,
+          isLockedByMe: false,
+          lockedUntil: null,
+          lockingGemTokenId: null,
         };
       }
+      const isLockedByMe =
+        !!walletAddress &&
+        lock.locked_by_address &&
+        lock.locked_by_address.toLowerCase() === walletAddress.toLowerCase();
       return {
-        isLocked: false,
-        isLockedByMe: false,
-        lockedUntil: null,
-        lockingGemTokenId: null,
+        isLocked: true,
+        isLockedByMe,
+        lockedUntil: lockedUntilDate,
+        lockingGemTokenId: lock.locking_gem_token_id,
       };
     },
     [panelLocks, walletAddress],
   );
 
-  // --- Auth / authorization ---
+  // Redirect / authorization check
   useEffect(() => {
     if (!isConnected || !walletAddress) {
       toast.warning('Please connect your wallet to access configuration.');
       navigate('/login');
       return;
     }
-
     if (!isGemsLoading && ownedTokens.length > 0 && ownedTokens.length < REQUIRED_GEM_BALANCE) {
       toast.error(
         `Access denied. You need at least ${REQUIRED_GEM_BALANCE} ElectroGems to configure the gallery.`,
@@ -224,10 +213,7 @@ const GalleryConfig = () => {
     }
   }, [isConnected, walletAddress, isGemsLoading, ownedTokens.length, navigate]);
 
-  const isAuthorized =
-    isConnected && walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
-
-  // --- Fetch panel keys + locks when authorized ---
+  // Fetch panel keys + locks
   useEffect(() => {
     if (!isAuthorized) return;
 
@@ -236,13 +222,10 @@ const GalleryConfig = () => {
         .from('gallery_config')
         .select('panel_key');
       if (keysError) {
-        toast.error('Failed to fetch panel keys');
         console.error(keysError);
-      } else {
-        // Use all known keys (including those not yet in DB) for the blueprint;
-        // but we still keep DB keys so you can see which are configured.
-        const dbKeys = keysData.map((item) => item.panel_key);
-        setPanelKeys(dbKeys.sort());
+        toast.error('Failed to fetch panel keys');
+      } else if (keysData) {
+        setPanelKeys(keysData.map((k) => k.panel_key).sort());
       }
 
       const { data: locksData, error: locksError } = await supabase
@@ -251,7 +234,7 @@ const GalleryConfig = () => {
 
       if (locksError) {
         console.error('Failed to fetch panel locks:', locksError);
-      } else {
+      } else if (locksData) {
         setPanelLocks(
           locksData.map((lock) => ({
             ...lock,
@@ -265,6 +248,7 @@ const GalleryConfig = () => {
     fetchPanelData();
   }, [isAuthorized]);
 
+  // Fetch config for selected panel
   const fetchPanelConfig = useCallback(async (panelKey: string) => {
     if (!panelKey) {
       setCurrentConfig({});
@@ -278,8 +262,8 @@ const GalleryConfig = () => {
       .single();
 
     if (error && error.code !== 'PGRST116') {
-      toast.error(`Failed to fetch config for ${panelKey}`);
       console.error(error);
+      toast.error(`Failed to fetch config for ${panelKey}`);
       setCurrentConfig({
         panel_key: panelKey,
         show_collection: true,
@@ -287,7 +271,7 @@ const GalleryConfig = () => {
         text_color: DEFAULT_TEXT_COLOR,
       });
     } else if (data) {
-      setCurrentConfig(data);
+      setCurrentConfig(data as GalleryConfigRow);
     } else {
       setCurrentConfig({
         panel_key: panelKey,
@@ -304,9 +288,37 @@ const GalleryConfig = () => {
     if (isAuthorized && selectedPanelKey) {
       fetchPanelConfig(selectedPanelKey);
     }
-  }, [selectedPanelKey, fetchPanelConfig, isAuthorized]);
+  }, [isAuthorized, selectedPanelKey, fetchPanelConfig]);
 
-  // --- Save handler (unchanged logic, but driven by selectedPanelKey) ---
+  // Blueprint helpers (no hooks here)
+  const getOuterPanelKey = (wall: OuterWall, index: number) =>
+    `${wall}-wall-${index}`;
+
+  const isOuterSelected = (wall: OuterWall, index: number) =>
+    selectedPanelKey === getOuterPanelKey(wall, index);
+
+  const getFriendlyLabel = (panelKey: string): string => {
+    if (PANEL_LABELS[panelKey]) return PANEL_LABELS[panelKey];
+    const match = panelKey.match(/^(north|south|east|west)-wall-(\d+)$/);
+    if (match) {
+      const [, wall, idxStr] = match;
+      const idx = parseInt(idxStr, 10);
+      return outerLabel(wall as OuterWall, idx, outerFloor);
+    }
+    return panelKey;
+  };
+
+  const outerWalls = useMemo(
+    () => ['north', 'south', 'east', 'west'] as OuterWall[],
+    [],
+  );
+
+  const handleSelectPanel = (panelKey: string) => {
+    if (panelKey === selectedPanelKey) return;
+    setSelectedPanelKey(panelKey);
+  };
+
+  // Save handler
   const handleSave = async () => {
     if (!isAuthorized) {
       toast.error('You are not authorized to save configurations.');
@@ -316,8 +328,8 @@ const GalleryConfig = () => {
       toast.error('Please select a panel to configure from the blueprint.');
       return;
     }
-    setIsLoading(true);
 
+    setIsLoading(true);
     const lockStatus = getLockStatus(selectedPanelKey);
 
     if (lockStatus.isLocked && !lockStatus.isLockedByMe) {
@@ -349,26 +361,28 @@ const GalleryConfig = () => {
       .upsert(dataToUpsert, { onConflict: 'panel_key' });
 
     if (configError) {
-      toast.error('Failed to save configuration.');
       console.error(configError);
+      toast.error('Failed to save configuration.');
       setIsLoading(false);
       return;
     }
 
+    const lockStatusNow = getLockStatus(selectedPanelKey);
+
     if (days === 0) {
-      if (lockStatus.isLockedByMe) {
+      if (lockStatusNow.isLockedByMe) {
         const { error: deleteError } = await supabase
           .from('panel_locks')
           .delete()
           .eq('panel_id', selectedPanelKey);
 
         if (deleteError) {
-          toast.error('Configuration saved, but failed to unlock panel.');
           console.error(deleteError);
+          toast.error('Configuration saved, but failed to unlock panel.');
         } else {
           toast.success(
             `Configuration saved and panel unlocked. ElectroGem #${
-              lockStatus.lockingGemTokenId || 'N/A'
+              lockStatusNow.lockingGemTokenId || 'N/A'
             } is now available.`,
           );
           setPanelLocks((prev) => prev.filter((l) => l.panel_id !== selectedPanelKey));
@@ -381,11 +395,11 @@ const GalleryConfig = () => {
       return;
     }
 
-    // Locking/extending
+    // Locking path
     let lockingGemTokenId: string | null = null;
 
-    if (lockStatus.isLockedByMe) {
-      lockingGemTokenId = lockStatus.lockingGemTokenId || null;
+    if (lockStatusNow.isLockedByMe) {
+      lockingGemTokenId = lockStatusNow.lockingGemTokenId || null;
       if (!lockingGemTokenId && availableTokens.length > 0) {
         lockingGemTokenId = availableTokens[0];
       }
@@ -398,16 +412,6 @@ const GalleryConfig = () => {
         return;
       }
       lockingGemTokenId = availableTokens[0];
-    }
-
-    if (!lockingGemTokenId && !lockStatus.isLockedByMe) {
-      if (availableTokens.length === 0) {
-        toast.error(
-          'No available ElectroGem tokens to lock this panel. You must own an unused gem.',
-        );
-        setIsLoading(false);
-        return;
-      }
     }
 
     const calculatedLockDurationMs = days * 24 * 60 * 60 * 1000;
@@ -427,8 +431,8 @@ const GalleryConfig = () => {
       .upsert(lockData, { onConflict: 'panel_id' });
 
     if (lockError) {
-      toast.warning('Configuration saved, but failed to update panel lock.');
       console.error(lockError);
+      toast.warning('Configuration saved, but failed to update panel lock.');
     } else {
       const gemMessage = lockingGemTokenId ? ` using Gem #${lockingGemTokenId}` : '';
       toast.success(
@@ -436,15 +440,17 @@ const GalleryConfig = () => {
       );
 
       setPanelLocks((prev) => {
-        const existingIndex = prev.findIndex((l) => l.panel_id === selectedPanelKey);
+        const idx = prev.findIndex((l) => l.panel_id === selectedPanelKey);
         const newLock: PanelLock = {
           panel_id: selectedPanelKey,
           locked_by_address: walletAddress!,
           locked_until,
           locking_gem_token_id: lockingGemTokenId,
         };
-        if (existingIndex !== -1) {
-          return [...prev.slice(0, existingIndex), newLock, ...prev.slice(existingIndex + 1)];
+        if (idx !== -1) {
+          const copy = [...prev];
+          copy[idx] = newLock;
+          return copy;
         }
         return [...prev, newLock];
       });
@@ -463,61 +469,58 @@ const GalleryConfig = () => {
     setCurrentConfig((prev) => ({ ...prev, show_collection: checked }));
   };
 
-  // --- Unauthorized view ---
-  const renderUnauthorizedState = () => (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle>Access Required</CardTitle>
-          <CardDescription>
-            Gallery configuration requires a connected wallet with sufficient ElectroGem balance.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {isGemsLoading && (
-            <div className="flex items-center space-x-2 text-primary">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Checking ElectroGem ownership for {formatWalletAddress(walletAddress)}...</span>
-            </div>
-          )}
-          {gemsError && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Ownership Check Error</AlertTitle>
-              <AlertDescription>Could not verify ownership: {gemsError}</AlertDescription>
-            </Alert>
-          )}
-          {ownedTokens.length > 0 && ownedTokens.length < REQUIRED_GEM_BALANCE && (
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Insufficient Balance</AlertTitle>
-              <AlertDescription>
-                You currently hold {ownedTokens.length} ElectroGems. You need at least{' '}
-                {REQUIRED_GEM_BALANCE} to access configuration.
-              </AlertDescription>
-            </Alert>
-          )}
-          <div className="flex justify-between items-center pt-4">
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Wallet className="h-4 w-4" />
-              Connected: {formatWalletAddress(walletAddress)}
-            </p>
-            <Button variant="outline" onClick={() => disconnect()}>
-              Disconnect
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-
   if (!isAuthorized) {
-    return renderUnauthorizedState();
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+        <Card className="w-full max-w-lg">
+          <CardHeader>
+            <CardTitle>Access Required</CardTitle>
+            <CardDescription>
+              Gallery configuration requires a connected wallet with sufficient ElectroGem balance.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isGemsLoading && (
+              <div className="flex items-center space-x-2 text-primary">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span>Checking ElectroGem ownership for {formatWalletAddress(walletAddress)}...</span>
+              </div>
+            )}
+            {gemsError && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Ownership Check Error</AlertTitle>
+                <AlertDescription>Could not verify ownership: {gemsError}</AlertDescription>
+              </Alert>
+            )}
+            {ownedTokens.length > 0 && ownedTokens.length < REQUIRED_GEM_BALANCE && (
+              <Alert variant="destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Insufficient Balance</AlertTitle>
+                <AlertDescription>
+                  You currently hold {ownedTokens.length} ElectroGems. You need at least{' '}
+                  {REQUIRED_GEM_BALANCE} to access configuration.
+                </AlertDescription>
+              </Alert>
+            )}
+            <div className="flex justify-between items-center pt-4">
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Wallet className="h-4 w-4" />
+                Connected: {formatWalletAddress(walletAddress)}
+              </p>
+              <Button variant="outline" onClick={() => disconnect()}>
+                Disconnect
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   const selectedPanelLockStatus = selectedPanelKey ? getLockStatus(selectedPanelKey) : null;
   const isPanelLockedByOther =
-    selectedPanelLockStatus?.isLocked && !selectedPanelLockStatus.isLockedByMe;
+    !!selectedPanelLockStatus?.isLocked && !selectedPanelLockStatus.isLockedByMe;
   const gemUsedForLock = selectedPanelLockStatus?.lockingGemTokenId || null;
   const nextAvailableGem = availableTokens[0];
 
@@ -527,42 +530,6 @@ const GalleryConfig = () => {
       : `Save Configuration & Lock Panel for ${lockDurationDays} Day${
           lockDurationDays > 1 ? 's' : ''
         }`;
-
-  // --- Blueprint helpers ---
-
-  // Map from wall + floor + index to panel key
-  const getOuterPanelKey = (wall: 'north' | 'south' | 'east' | 'west', index: number) => {
-    const base = `${wall}-wall-${index}`;
-    // In your 3D layout each base key has two vertical panels; here we treat both heights
-    // as the same logical config key (we keep the base) so config applies to that slot.
-    return base;
-  };
-
-  const isOuterSelected = (wall: 'north' | 'south' | 'east' | 'west', index: number) =>
-    selectedPanelKey === getOuterPanelKey(wall, index);
-
-  const getFriendlyLabel = (panelKey: string): string => {
-    if (PANEL_LABELS[panelKey]) return PANEL_LABELS[panelKey];
-
-    // Fallback for outer walls:
-    const match = panelKey.match(/^(north|south|east|west)-wall-(\d+)$/);
-    if (match) {
-      const [, wall, idxStr] = match;
-      const idx = parseInt(idxStr, 10);
-      return outerLabel(wall as 'north' | 'south' | 'east' | 'west', idx, outerFloor);
-    }
-    return panelKey;
-  };
-
-  const outerWalls = useMemo(
-    () => ['north', 'south', 'east', 'west'] as const,
-    [],
-  );
-
-  const handleSelectPanel = (panelKey: string) => {
-    if (panelKey === selectedPanelKey) return;
-    setSelectedPanelKey(panelKey);
-  };
 
   const isSaveDisabled =
     isLoading ||
@@ -574,7 +541,7 @@ const GalleryConfig = () => {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8">
-        {/* LEFT: Configuration + Blueprint */}
+        {/* LEFT */}
         <Card className="space-y-0 overflow-hidden">
           <CardHeader className="border-b pb-4">
             <CardTitle>Gallery Configuration</CardTitle>
@@ -582,7 +549,6 @@ const GalleryConfig = () => {
               Select a wall panel from the blueprint and edit its NFT source and appearance.
             </CardDescription>
           </CardHeader>
-
           <CardContent className="space-y-6 pt-4">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -608,7 +574,7 @@ const GalleryConfig = () => {
                 </Alert>
               )}
 
-            {/* Blueprint Section */}
+            {/* Blueprint */}
             <div className="rounded-lg border bg-background p-4 space-y-4">
               <div className="flex items-center justify-between gap-4 flex-wrap">
                 <div>
@@ -617,7 +583,6 @@ const GalleryConfig = () => {
                     Click a panel in the sketch to select it. Use the floor toggle for outer walls.
                   </p>
                 </div>
-                {/* Floor toggle for outer walls */}
                 <div className="inline-flex items-center rounded-full bg-secondary p-1 text-xs">
                   <button
                     type="button"
@@ -644,13 +609,10 @@ const GalleryConfig = () => {
                 </div>
               </div>
 
-              {/* Outer walls layout */}
               <div className="relative mx-auto aspect-[4/3] max-w-2xl border border-dashed border-muted rounded-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-                {/* Simple central square indicating the inner maze */}
                 <div className="absolute inset-[28%] border border-cyan-400/40 rounded-md" />
 
-                {/* Outer wall strips: we fake positions with absolute flex rows */}
-                {/* North row */}
+                {/* North */}
                 <div className="absolute top-2 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('north', idx);
@@ -678,7 +640,7 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* South row */}
+                {/* South */}
                 <div className="absolute bottom-2 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('south', idx);
@@ -706,7 +668,7 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* West column */}
+                {/* West */}
                 <div className="absolute top-[22%] bottom-[22%] left-2 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('west', idx);
@@ -734,7 +696,7 @@ const GalleryConfig = () => {
                   })}
                 </div>
 
-                {/* East column */}
+                {/* East */}
                 <div className="absolute top-[22%] bottom-[22%] right-2 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
                     const key = getOuterPanelKey('east', idx);
@@ -763,7 +725,7 @@ const GalleryConfig = () => {
                 </div>
               </div>
 
-              {/* Inner / Center panel quick list selectors */}
+              {/* Inner / center lists */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                 <div>
                   <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -825,7 +787,6 @@ const GalleryConfig = () => {
                 </div>
               </div>
 
-              {/* Currently selected panel label */}
               <div className="pt-2 border-t border-border mt-3 text-xs text-muted-foreground">
                 Selected panel:{' '}
                 {selectedPanelKey ? (
@@ -838,7 +799,7 @@ const GalleryConfig = () => {
               </div>
             </div>
 
-            {/* Lock status message */}
+            {/* Lock status */}
             {selectedPanelKey && selectedPanelLockStatus && (
               <Alert variant="default" className="bg-secondary">
                 <Gem className="h-4 w-4" />
@@ -882,6 +843,7 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="contract_address">Contract Address</Label>
                   <Input
@@ -893,6 +855,7 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="default_token_id">Default Token ID</Label>
                   <Input
@@ -932,6 +895,7 @@ const GalleryConfig = () => {
                     />
                   </div>
                 </div>
+
                 {poorContrast && (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
@@ -956,7 +920,7 @@ const GalleryConfig = () => {
                     value={lockDurationDays}
                     onChange={(e) => {
                       const value = Number(e.target.value);
-                      if (!isNaN(value) && value >= 0) {
+                      if (!Number.isNaN(value) && value >= 0) {
                         setLockDurationDays(value);
                       }
                     }}
@@ -982,6 +946,7 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
+
                 <Button onClick={handleSave} disabled={isSaveDisabled}>
                   {isLoading ? 'Saving...' : saveButtonText}
                 </Button>
