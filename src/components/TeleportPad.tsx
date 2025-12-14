@@ -101,7 +101,8 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
         if (!hasTeleportedRef.current) {
           hasTeleportedRef.current = true;
           setTimeout(() => {
-            onTeleport(targetPosition);
+            // Directly set camera position for immediate teleportation
+            camera.position.set(targetPosition[0], targetPosition[1], targetPosition[2]);
           }, 800);
         }
       }
@@ -109,6 +110,7 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
       // Player stepped off the pad
       if (!isOnPad && isPlayerOnPadRef.current) {
         isPlayerOnPadRef.current = false;
+        hasTeleportedRef.current = false; // Reset teleport state when stepping off
         
         // Reset visual feedback
         if (padRef.current) {
@@ -145,11 +147,6 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
       }
     };
   }, [position, targetPosition, onTeleport, scene, camera]);
-
-  // Reset teleport state when target position changes
-  useEffect(() => {
-    hasTeleportedRef.current = false;
-  }, [targetPosition]);
 
   return null; // This component doesn't render anything to the DOM
 };
