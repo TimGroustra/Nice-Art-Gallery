@@ -6,12 +6,13 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
+import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
 
 // Constants for geometry
-const PANEL_WIDTH = 6; // Increased from 4
+const PANEL_WIDTH = 6;  // Increased from 4
 const PANEL_HEIGHT = 6; // Increased from 4
 
 // Define types for the panel objects
@@ -67,7 +68,6 @@ void main() {
   float saturation = 0.8;
   
   vec3 color = hsv2rgb(vec3(hue, saturation, pulse));
-  
   gl_FragColor = vec4(color, opacity);
 }
 `;
@@ -99,7 +99,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{ open: boolean; collection?: string; tokenId?: string | number; }>({ open: false });
-  
+
   // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
@@ -132,11 +132,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
         videoEl.src = url;
         videoEl.load();
-        
         if ((window as any).galleryControls?.isLocked?.()) {
           videoEl.play().catch(e => console.warn("Video playback prevented:", e));
         }
-
         const videoTexture = new THREE.VideoTexture(videoEl);
         videoTexture.minFilter = THREE.LinearFilter;
         videoTexture.magFilter = THREE.LinearFilter;
@@ -199,11 +197,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // --- Fetch Metadata ---
     const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-
     if (!metadata) {
       // Graceful failure: metadata fetch failed
       console.warn(`Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`);
-      
       // Display a simple error message on the main panel
       disposeTextureSafely(panel.mesh);
       const canvas = document.createElement('canvas');
@@ -241,7 +237,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panel.isGif = isGif;
 
       showSuccess(isVideo ? `Loaded video NFT: ${metadata.title}` : isGif ? `Loaded animated GIF: ${metadata.title}` : `Loaded image NFT: ${metadata.title}`);
-
     } catch (error) {
       console.error(`Error loading NFT content for ${panel.wallName}:`, error);
       showError(`Failed to load NFT content for ${panel.wallName}.`);
@@ -254,7 +249,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panel.prevArrow.visible = showArrows;
     panel.nextArrow.visible = showArrows;
     // --- End Arrow Visibility Update ---
-
   }, [loadTexture]);
 
   const manageVideoPlayback = useCallback((shouldPlay: boolean) => {
@@ -288,7 +282,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     mountRef.current.appendChild(renderer.domElement);
 
     const controls = new PointerLockControls(camera, renderer.domElement);
-
     (window as any).galleryControls = {
       lockControls: () => controls.lock(),
       hasVideo: () => panelsRef.current.some(p => p.videoElement !== null),
@@ -330,18 +323,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const LOWER_WALL_HEIGHT = 8; // Height of individual stacked segments
     const PANEL_Y_POSITION = 4.0; // Center the 6m panel vertically on the LOWER 8m wall segment
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
-
     const roomSize = ROOM_SIZE,
       wallHeight = WALL_HEIGHT,
       panelYPosition = PANEL_Y_POSITION,
       boundary = BOUNDARY;
     const halfRoomSize = ROOM_SIZE / 2;
-
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
 
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
-    
+
     // Define wall segment geometry once
     const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
@@ -386,6 +377,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         side: THREE.DoubleSide,
       });
     };
+
     const concreteMaterial = createConcreteMaterial();
 
     // 2. Placeholder Material for ETN Logo Floor (Async)
@@ -412,7 +404,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
       img.src = '/electroneum-logo-symbol.svg';
-
       img.onload = () => {
         const tempCanvas = document.createElement('canvas');
         tempCanvas.width = canvasSize;
@@ -423,7 +414,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const padding = canvasSize * 0.1;
         const imageSize = canvasSize - (padding * 2);
         tempCtx.drawImage(img, padding, padding, imageSize, imageSize);
-        
+
         tempCtx.globalCompositeOperation = 'source-in';
         tempCtx.fillStyle = electricBlue;
         tempCtx.fillRect(0, 0, canvasSize, canvasSize);
@@ -436,17 +427,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         texture.repeat.set(1, 1);
         texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
         texture.needsUpdate = true;
+
         callback(texture);
       };
-
       img.onerror = (err) => {
         console.error('Failed to load floor texture SVG:', err);
       };
     };
 
-    const innerSegmentCenters = [-20, -10, 0, 10, 20];
-
-    // Constants for inner cross structure
+    const innerSegmentCenters = [-20, -10, 0, 10, 20]; // Constants for inner cross structure
     const CROSS_WALL_BOUNDARY = 5;
     const crossWallSegments = [-10, 10]; // Segments are 10 units wide, centered at -10 and 10.
 
@@ -470,24 +459,23 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       for (let j = 0; j < NUM_SEGMENTS; j++) {
         const segmentCenterX = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
         const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
-        
+
         // Check if this segment is within the 30x30 area (segments centered at -10, 0, 10)
         const isCentral3x3Segment = Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
-        
-        let floorMaterialToUse = placeholderFloorMaterial; // Default to ETN logo floor (outer 50x50)
 
+        let floorMaterialToUse = placeholderFloorMaterial; // Default to ETN logo floor (outer 50x50)
         if (isCentral3x3Segment) {
           // If it's within the 30x30 center, use concrete material
           floorMaterialToUse = concreteMaterial;
-        } 
-        
+        }
+
         // Floor Segment
         const floorSegment = new THREE.Mesh(segmentGeometry, floorMaterialToUse);
         floorSegment.rotation.x = Math.PI / 2;
         floorSegment.position.x = segmentCenterX;
         floorSegment.position.z = segmentCenterZ;
         scene.add(floorSegment);
-        
+
         // Only add segments that need the async texture update (ETN logo floor) to the list
         if (floorMaterialToUse === placeholderFloorMaterial) {
           floorSegments.push(floorSegment);
@@ -659,20 +647,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // --- CREATE FLOOR PLATFORM FOR 1ST FLOOR ---
-    // Create a platform that covers the inner 30x30 area walls
-    const platformGeometry = new THREE.PlaneGeometry(30, 30);
-    const platformMaterial = new THREE.MeshStandardMaterial({
-      color: 0x555555,
-      roughness: 0.7,
-      metalness: 0.3,
-      side: THREE.DoubleSide
-    });
-    const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-    platform.rotation.x = Math.PI / 2;
-    platform.position.set(0, 8.1, 0); // Positioned at the top of the lower walls (8m height)
+    // Create a platform that covers the inner 30x30 area walls with same thickness as walls
+    const platformGeometry = new THREE.BoxGeometry(30, WALL_THICKNESS, 30); // Make it thick like walls
+    const platform = new THREE.Mesh(platformGeometry, concreteMaterial.clone()); // Use concrete material
+    platform.position.set(0, 8.1 - (WALL_THICKNESS / 2), 0); // Positioned at the top of the lower walls, adjusted for thickness
     scene.add(platform);
+
     // --- END POOL AND FOUNTAIN ---
-    
+
     // 4. Lighting Setup
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
@@ -682,10 +664,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // --- Panel and Arrow Constants ---
     const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const panelMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide, transparent: true, opacity: 0 });
-
     const ARROW_COLOR_DEFAULT = 0xcccccc,
       ARROW_COLOR_HOVER = 0x00ff00;
-
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
     arrowShape.lineTo(0.3, 0);
@@ -693,14 +673,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     arrowShape.lineTo(0, 0.15);
     const arrowGeometry = new THREE.ShapeGeometry(arrowShape);
     const arrowMaterial = new THREE.MeshBasicMaterial({ color: ARROW_COLOR_DEFAULT, side: THREE.DoubleSide });
-
     const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS/2; // Adjust for thicker walls
     const ARROW_PANEL_OFFSET = 3.2; // Adjusted for 6m panel width (6/2 + 0.2 padding)
+
     // --- End Panel and Arrow Constants ---
 
     // Dynamic Panel Configuration Generation
     const dynamicPanelConfigs: { wallName: keyof PanelConfig, position: [number, number, number], rotation: [number, number, number] }[] = [];
-
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
     const MAX_SEGMENT_INDEX = 4; // Outer 50x50 walls
 
@@ -711,7 +690,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         let rotation: [number, number, number] = [0, 0, 0];
         let depthSign = 0;
         let wallAxis: 'x' | 'z' = 'z';
-        
         const centerIndex = i - 2;
         const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
 
@@ -769,6 +747,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
         rotation: [0, Math.PI, 0], // Facing North (negative Z)
       });
+
       // Inner side (facing South, towards Z=0)
       dynamicPanelConfigs.push({
         wallName: `north-inner-wall-inner-${index}` as keyof PanelConfig,
@@ -783,6 +762,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
         rotation: [0, 0, 0], // Facing South (positive Z)
       });
+
       // Inner side (facing North, towards Z=0)
       dynamicPanelConfigs.push({
         wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
@@ -797,6 +777,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
         rotation: [0, Math.PI / 2, 0], // Facing East (positive X)
       });
+
       // Inner side (facing West, towards X=0)
       dynamicPanelConfigs.push({
         wallName: `east-inner-wall-inner-${index}` as keyof PanelConfig,
@@ -811,6 +792,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
         rotation: [0, -Math.PI / 2, 0], // Facing West (negative X)
       });
+
       // Inner side (facing East, towards X=0)
       dynamicPanelConfigs.push({
         wallName: `west-inner-wall-inner-${index}` as keyof PanelConfig,
@@ -821,7 +803,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Clear existing panels before populating
     panelsRef.current = [];
-
     dynamicPanelConfigs.forEach(config => {
       const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
@@ -865,7 +846,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Collision constants - only outer boundary remains critical for simple controls
     const WALL_COLLISION_OFFSET = WALL_THICKNESS / 2; // Account for wall thickness in collision detection
-
     // The internal walls are thin meshes, relying on the player not clipping through them too much.
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -908,15 +888,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       } else if (currentTargetedPanel) {
         const source = getCurrentNftSource(currentTargetedPanel.wallName);
         if (source) {
-          setMarketBrowserState({
-            open: true,
-            collection: source.contractAddress,
-            tokenId: source.tokenId,
-          });
+          setMarketBrowserState({ open: true, collection: source.contractAddress, tokenId: source.tokenId });
           controls.unlock();
         }
       }
     };
+
     document.addEventListener('mousedown', onDocumentMouseDown);
 
     let prevTime = performance.now();
@@ -928,7 +905,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const time = performance.now(),
         delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
-      
+
       // Update ceiling shader time uniform
       if (ceilingMaterial.uniforms) {
         ceilingMaterial.uniforms.time.value = elapsedTime;
@@ -967,7 +944,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
           const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
-
           if (panel) {
             if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
             else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
@@ -987,6 +963,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     };
+
     window.addEventListener('resize', onWindowResize);
 
     const reloadAllPanelContent = async () => {
@@ -1047,7 +1024,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       window.removeEventListener('resize', onWindowResize);
       canvas.removeEventListener('webglcontextlost', handleContextLost);
       canvas.removeEventListener('webglcontextrestored', handleContextRestored);
-
       mountRef.current?.removeChild(renderer.domElement);
       controls.dispose();
 
@@ -1076,7 +1052,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         }
       });
-      
+
       renderer.dispose();
       delete (window as any).galleryControls;
       currentTargetedPanel = null;
