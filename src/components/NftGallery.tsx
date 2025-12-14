@@ -166,7 +166,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.gifStopFunction = stop;
           return texture;
         } catch (error) {
-        console.error('Failed to load animated GIF, falling back to static image load:', error);
+          console.error('Failed to load animated GIF, falling back to static image load:', error);
         }
       }
 
@@ -581,7 +581,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // === Single starry ceiling using brightened 1:1 texture ===
+    // === Single starry ceiling using brightened 1:1 texture, oriented downward ===
     const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const ceilingLoader = new THREE.TextureLoader();
     ceilingLoader.setCrossOrigin('anonymous');
@@ -596,14 +596,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         const ceilingMaterial = new THREE.MeshStandardMaterial({
           map: nebulaTexture,
-          color: 0xffffff, // ensure full brightness from the texture
-          emissive: new THREE.Color(0x222244), // subtle glow so stars are always visible
+          color: 0xffffff,
+          emissive: new THREE.Color(0x222244),
           emissiveIntensity: 0.8,
-          side: THREE.BackSide,
+          side: THREE.FrontSide, // front faces into the room
         });
 
         const nebulaCeiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        nebulaCeiling.rotation.x = Math.PI / 2;
+        // Rotate so front side points downward into the room
+        nebulaCeiling.rotation.x = -Math.PI / 2;
         nebulaCeiling.position.set(0, WALL_HEIGHT + 0.01, 0);
         scene.add(nebulaCeiling);
       },
