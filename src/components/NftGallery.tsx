@@ -702,10 +702,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const PLAYER_HEIGHT = 1.6;
     
     const buttonGeometry = new THREE.CylinderGeometry(TELEPORT_BUTTON_RADIUS, TELEPORT_BUTTON_RADIUS, TELEPORT_BUTTON_HEIGHT, 32);
-    const buttonMaterial = new THREE.MeshBasicMaterial({ 
+    const buttonMaterial = new THREE.MeshStandardMaterial({ 
         color: TELEPORT_BUTTON_COLOR, 
         emissive: TELEPORT_BUTTON_COLOR, 
-        emissiveIntensity: 0.5 
+        emissiveIntensity: 0.5,
+        roughness: 0.1, // Added standard material properties
+        metalness: 0.9,
     });
     
     // Ground Floor Button (Teleports to 1st floor)
@@ -1084,8 +1086,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         });
         
         teleportButtons.forEach(b => {
-            (b.material as THREE.MeshBasicMaterial).color.setHex(TELEPORT_BUTTON_COLOR);
-            (b.material as THREE.MeshBasicMaterial).emissive.setHex(TELEPORT_BUTTON_COLOR);
+            // Fixed TS errors by casting to MeshStandardMaterial
+            (b.material as THREE.MeshStandardMaterial).color.setHex(TELEPORT_BUTTON_COLOR);
+            (b.material as THREE.MeshStandardMaterial).emissive.setHex(TELEPORT_BUTTON_COLOR);
         });
         
         currentTargetedPanel = null;
@@ -1097,8 +1100,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           
           if (intersectedMesh.userData.isTeleportButton) {
               currentTargetedButton = intersectedMesh;
-              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(TELEPORT_BUTTON_HOVER_COLOR);
-              (intersectedMesh.material as THREE.MeshBasicMaterial).emissive.setHex(TELEPORT_BUTTON_HOVER_COLOR);
+              // Fixed TS errors by casting to MeshStandardMaterial
+              (intersectedMesh.material as THREE.MeshStandardMaterial).color.setHex(TELEPORT_BUTTON_HOVER_COLOR);
+              (intersectedMesh.material as THREE.MeshStandardMaterial).emissive.setHex(TELEPORT_BUTTON_HOVER_COLOR);
           } else {
               const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
               
