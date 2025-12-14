@@ -581,13 +581,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // === Single starry ceiling covering full 50x50 using your provided image ===
+    // === Single starry ceiling using new 1:1 texture ===
     const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const ceilingLoader = new THREE.TextureLoader();
     ceilingLoader.setCrossOrigin('anonymous');
 
     ceilingLoader.load(
-      '/textures/starry_night_sky_background_1409-2.jpg',
+      '/textures/starry_night_sky_background_1409-square.jpg',
       (nebulaTexture) => {
         nebulaTexture.wrapS = THREE.ClampToEdgeWrapping;
         nebulaTexture.wrapT = THREE.ClampToEdgeWrapping;
