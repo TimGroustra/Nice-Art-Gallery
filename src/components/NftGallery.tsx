@@ -424,7 +424,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
     const WALL_HEIGHT = 16;
     const LOWER_WALL_HEIGHT = 8;
-    const LOWER_PANEL_Y = 5.0;   // lifted up
+    const LOWER_PANEL_Y = 5.0;
     const UPPER_PANEL_Y = 12.0;
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
     const halfRoomSize = ROOM_SIZE / 2;
@@ -676,7 +676,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // --- Decorative props for futuristic gallery (ground floor wall joins) ---
+    // --- Decorative props (futuristic) ---
     const decoMetal = new THREE.MeshStandardMaterial({
       color: 0x111827,
       roughness: 0.2,
@@ -696,6 +696,103 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       roughness: 0.1,
       metalness: 0.5,
     });
+
+    const makePlanterVariant = (variant: number) => {
+      const baseRadiusTop = variant === 0 ? 0.45 : variant === 1 ? 0.35 : 0.5;
+      const baseRadiusBottom = variant === 0 ? 0.6 : variant === 1 ? 0.55 : 0.7;
+      const height = variant === 0 ? 0.5 : variant === 1 ? 0.65 : 0.55;
+      const crownSize = variant === 0 ? 0.6 : variant === 1 ? 0.8 : 0.5;
+      const color = variant === 0 ? 0x22c55e : variant === 1 ? 0x4ade80 : 0xa855f7;
+
+      return (x: number, z: number) => {
+        const potGeom = new THREE.CylinderGeometry(baseRadiusTop, baseRadiusBottom, height, 16);
+        const trunkGeom = new THREE.CylinderGeometry(0.06, 0.12, 0.9, 8);
+        const crownGeom = new THREE.SphereGeometry(crownSize, 18, 18);
+
+        const potMat = new THREE.MeshStandardMaterial({
+          color: 0x020617,
+          roughness: 0.2,
+          metalness: 0.7,
+        });
+        const trunkMat = new THREE.MeshStandardMaterial({
+          color: 0x6b7280,
+          roughness: 0.6,
+        });
+        const leafMat = new THREE.MeshStandardMaterial({
+          color,
+          emissive: new THREE.Color(color),
+          emissiveIntensity: 0.35,
+        });
+
+        const pot = new THREE.Mesh(potGeom, potMat);
+        pot.position.set(x, height / 2, z);
+        scene.add(pot);
+
+        const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+        trunk.position.set(x, height + 0.45, z);
+        scene.add(trunk);
+
+        const crown = new THREE.Mesh(crownGeom, leafMat);
+        crown.position.set(x, height + 1.1, z);
+        scene.add(crown);
+      };
+    };
+
+    const makeSculptureVariant = (variant: number) => {
+      return (x: number, z: number) => {
+        const baseGeom =
+          variant === 0
+            ? new THREE.CylinderGeometry(0.6, 0.7, 0.3, 20)
+            : new THREE.BoxGeometry(0.9, 0.3, 0.9);
+        const base = new THREE.Mesh(baseGeom, decoMetal);
+        base.position.set(x, 0.15, z);
+        scene.add(base);
+
+        if (variant === 0) {
+          const columnGeom = new THREE.CylinderGeometry(0.15, 0.15, 1.4, 16);
+          const column = new THREE.Mesh(columnGeom, decoAccent);
+          column.position.set(x, 0.9, z);
+          column.rotation.y = Math.PI / 4;
+          scene.add(column);
+
+          const orbGeom = new THREE.SphereGeometry(0.35, 24, 24);
+          const orb = new THREE.Mesh(
+            orbGeom,
+            new THREE.MeshStandardMaterial({
+              color: 0xffffff,
+              emissive: new THREE.Color(0x60a5fa),
+              emissiveIntensity: 1.2,
+              roughness: 0.05,
+              metalness: 0.9,
+            }),
+          );
+          orb.position.set(x, 1.8, z);
+          scene.add(orb);
+        } else {
+          // Variant 1: stacked glass prisms
+          const prismGeom = new THREE.BoxGeometry(0.35, 0.6, 0.35);
+          for (let i = 0; i < 3; i++) {
+            const prism = new THREE.Mesh(prismGeom, decoGlass);
+            prism.position.set(x, 0.5 + i * 0.55, z);
+            prism.rotation.y = (i * Math.PI) / 8;
+            scene.add(prism);
+          }
+          const capGeom = new THREE.OctahedronGeometry(0.4, 0);
+          const cap = new THREE.Mesh(
+            capGeom,
+            new THREE.MeshStandardMaterial({
+              color: 0xffffff,
+              emissive: new THREE.Color(0x22d3ee),
+              emissiveIntensity: 0.9,
+              roughness: 0.2,
+              metalness: 0.7,
+            }),
+          );
+          cap.position.set(x, 2.2, z);
+          scene.add(cap);
+        }
+      };
+    };
 
     const addSideTable = (x: number, z: number, rotationY = 0) => {
       const topGeom = new THREE.CylinderGeometry(1.0, 1.0, 0.15, 24);
@@ -724,7 +821,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const doorRight = new THREE.Mesh(doorGeom, decoGlass);
 
       const offset = 0.6;
-      // place doors slightly in front on local Z
       doorLeft.position.set(x - Math.cos(rotationY) * offset, 0.75, z - Math.sin(rotationY) * offset);
       doorRight.position.set(x + Math.cos(rotationY) * offset, 0.75, z + Math.sin(rotationY) * offset);
       doorLeft.rotation.y = rotationY;
@@ -733,89 +829,70 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       scene.add(doorRight);
     };
 
-    const addPlanter = (x: number, z: number) => {
-      const potGeom = new THREE.CylinderGeometry(0.45, 0.6, 0.5, 16);
-      const trunkGeom = new THREE.CylinderGeometry(0.07, 0.12, 0.9, 8);
-      const crownGeom = new THREE.SphereGeometry(0.6, 18, 18);
+    const planterA = makePlanterVariant(0);
+    const planterB = makePlanterVariant(1);
+    const planterC = makePlanterVariant(2);
+    const sculptureA = makeSculptureVariant(0);
+    const sculptureB = makeSculptureVariant(1);
 
-      const potMat = new THREE.MeshStandardMaterial({
-        color: 0x020617,
-        roughness: 0.2,
-        metalness: 0.7,
-      });
-      const trunkMat = new THREE.MeshStandardMaterial({
-        color: 0x6b7280,
-        roughness: 0.6,
-      });
-      const leafMat = new THREE.MeshStandardMaterial({
-        color: 0x22c55e,
-        emissive: new THREE.Color(0x22c55e),
-        emissiveIntensity: 0.3,
-      });
-
-      const pot = new THREE.Mesh(potGeom, potMat);
-      pot.position.set(x, 0.25, z);
-      scene.add(pot);
-
-      const trunk = new THREE.Mesh(trunkGeom, trunkMat);
-      trunk.position.set(x, 0.85, z);
-      scene.add(trunk);
-
-      const crown = new THREE.Mesh(crownGeom, leafMat);
-      crown.position.set(x, 1.5, z);
-      scene.add(crown);
-    };
-
-    const addSculpture = (x: number, z: number) => {
-      // Base
-      const baseGeom = new THREE.CylinderGeometry(0.6, 0.7, 0.3, 20);
-      const base = new THREE.Mesh(baseGeom, decoMetal);
-      base.position.set(x, 0.15, z);
-      scene.add(base);
-
-      // Twisting column
-      const columnGeom = new THREE.CylinderGeometry(0.15, 0.15, 1.4, 16);
-      const column = new THREE.Mesh(columnGeom, decoAccent);
-      column.position.set(x, 0.9, z);
-      column.rotation.y = Math.PI / 4;
-      scene.add(column);
-
-      // Floating orb
-      const orbGeom = new THREE.SphereGeometry(0.35, 24, 24);
-      const orb = new THREE.Mesh(orbGeom, new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: new THREE.Color(0x60a5fa),
-        emissiveIntensity: 1.2,
-        roughness: 0.05,
-        metalness: 0.9,
-      }));
-      orb.position.set(x, 1.8, z);
-      scene.add(orb);
-    };
-
-    // Place props at outer wall corners (slightly inset)
+    // Outer wall corners (unique combos)
     const inset = 2.5;
-    const ySafe = 0; // positions are at ground-level via y in each helper
+    planterA(-halfRoomSize + inset, -halfRoomSize + inset); // NW
+    sculptureA(halfRoomSize - inset, -halfRoomSize + inset); // NE
+    planterB(-halfRoomSize + inset, halfRoomSize - inset); // SW
+    sculptureB(halfRoomSize - inset, halfRoomSize - inset); // SE
 
-    // North‑west and north‑east corners
-    addPlanter(-halfRoomSize + inset, -halfRoomSize + inset);
-    addSideTable(halfRoomSize - inset, -halfRoomSize + inset, 0);
+    // Objects between outer wall panels at ground level, against walls
+    const panelCenters = [-20, -10, 0, 10, 20];
+    const midPositions = [-15, -5, 5, 15];
 
-    // South‑west and south‑east corners
-    addCabinet(-halfRoomSize + inset, halfRoomSize - inset, Math.PI);
-    addPlanter(halfRoomSize - inset, halfRoomSize - inset);
-
-    // Cross-wall intersections at z = ±CROSS_WALL_BOUNDARY
-    crossWallSegments.forEach((segmentCenter) => {
-      // Near north inner wall join
-      addSculpture(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
-      // Near south inner wall join
-      addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
+    // North wall: z = -halfRoomSize
+    midPositions.forEach((x, idx) => {
+      const z = -halfRoomSize + 0.8;
+      if (idx % 2 === 0) {
+        planterC(x, z);
+      } else {
+        sculptureA(x, z + 0.2);
+      }
     });
 
-    // East/west cross intersections
+    // South wall: z = +halfRoomSize
+    midPositions.forEach((x, idx) => {
+      const z = halfRoomSize - 0.8;
+      if (idx % 2 === 0) {
+        planterB(x, z);
+      } else {
+        sculptureB(x, z - 0.2);
+      }
+    });
+
+    // East wall: x = +halfRoomSize
+    midPositions.forEach((z, idx) => {
+      const x = halfRoomSize - 0.8;
+      if (idx % 2 === 0) {
+        planterA(x, z);
+      } else {
+        sculptureA(x - 0.2, z);
+      }
+    });
+
+    // West wall: x = -halfRoomSize
+    midPositions.forEach((z, idx) => {
+      const x = -halfRoomSize + 0.8;
+      if (idx % 2 === 0) {
+        planterB(x, z);
+      } else {
+        sculptureB(x + 0.2, z);
+      }
+    });
+
+    // Existing inner cross-wall decor for variety
     crossWallSegments.forEach((segmentCenter) => {
-      addPlanter(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
+      sculptureA(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
+      addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
+    });
+    crossWallSegments.forEach((segmentCenter) => {
+      planterC(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
       addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
     });
     // --- End decorative props ---
@@ -1143,7 +1220,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (panel) {
           const dir = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
 
-          // Update index once per wallName, then refresh all panels with same wallName
           if (updatePanelIndex(panel.wallName, dir)) {
             const sameWallPanels = panelsRef.current.filter((p) => p.wallName === panel.wallName);
             const source = getCurrentNftSource(panel.wallName);
@@ -1193,7 +1269,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (elapsed < FADE_DURATION) {
           opacity = Math.min(1, elapsed / FADE_DURATION);
         } else if (elapsed < FADE_DURATION * 2) {
-          opacity = Math.max(0, 1 - (elapsed - FADE_DURATION) / FA_DURATION);
+          opacity = Math.max(0, 1 - (elapsed - FADE_DURATION) / FADE_DURATION);
         } else {
           isTeleportingRef.current = false;
           opacity = 0;
