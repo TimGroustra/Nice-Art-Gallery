@@ -110,12 +110,26 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
+  const fadeScreenRef = useRef<THREE.Mesh | null>(null);
+  const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
+  const raycasterRef = useRef<THREE.Raycaster | null>(null);
 
   const isTeleportingRef = useRef(false);
   const fadeStartTimeRef = useRef(0);
   const FADE_DURATION = 0.5;
 
   const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+
+  // Movement state
+  const moveForwardRef = useRef(false);
+  const moveBackwardRef = useRef(false);
+  const moveLeftRef = useRef(false);
+  const moveRightRef = useRef(false);
+  const velocityRef = useRef(new THREE.Vector3());
+  const directionRef = useRef(new THREE.Vector3());
+  const prevTimeRef = useRef(performance.now());
 
   const loadTexture = useCallback(
     async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
@@ -215,7 +229,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         return;
       }
 
-      const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+      const metadata: NftMetadata | null = await getCachedNftMetadata(
+        source.contractAddress,
+        source.tokenId,
+      );
 
       if (!metadata) {
         disposeTextureSafely(panel.mesh);
@@ -232,16 +249,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           context.fillText('NFT Unavailable', canvas.width / 2, canvas.height / 2);
         }
         const errorTexture = new THREE.CanvasTexture(canvas);
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: errorTexture, side: THREE.DoubleSide });
+        panel.mesh.material = new THREE.MeshBasicMaterial({
+          map: errorTexture,
+          side: THREE.DoubleSide,
+        });
         return;
       }
 
       try {
         const contentUrl = metadata.contentUrl;
-        const isVideo = isVideoContent(metadata.contentType, contentUrl);
-        const isGif = isGifContent(metadata.contentType, contentUrl);
+        const contentType = metadata.contentType || '';
+        const isVideo = isVideoContent(contentType, contentUrl);
+        const isGif = isGifContent(contentType, contentUrl);
 
-        const texture = await loadTexture(contentUrl, panel, metadata.contentType);
+        const texture = await loadTexture(contentUrl, panel, contentType);
 
         disposeTextureSafely(panel.mesh);
         panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
@@ -276,7 +297,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (shouldPlay) {
           const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
           if (controlsLocked) {
-            panel.videoElement.play().catch((e) => console.warn('Video playback prevented:', e));
+            panel.videoElement
+              .play()
+              .catch((e) => console.warn('Video playback prevented:', e));
           }
         } else {
           panel.videoElement.pause();
@@ -292,11 +315,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     sceneRef.current = scene;
     scene.background = new THREE.Color(0x000000);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(
+      75,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      1000,
+    );
     cameraRef.current = camera;
     camera.position.set(0, 1.6, -20);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
+    rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
@@ -357,7 +386,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_THICKNESS = 0.5;
     const INNER_WALL_BOUNDARY = ROOM_SIZE / 2;
 
-    const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
+    const wallSegmentGeometry = new THREE.BoxGeometry(
+      ROOM_SEGMENT_SIZE,
+      LOWER_WALL_HEIGHT,
+      WALL_THICKNESS,
+    );
     const wallMaterial = new THREE.MeshStandardMaterial({
       color: 0x666666,
       roughness: 0.8,
@@ -376,7 +409,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
     rainbowMaterialRef.current = rainbowMaterial;
 
-    const outerWallGeometry = new THREE.BoxGeometry(ROOM_SIZE + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS);
+    const outerWallGeometry = new THREE.BoxGeometry(
+      ROOM_SIZE + WALL_THICKNESS,
+      WALL_HEIGHT,
+      WALL_THICKNESS,
+    );
     const halfWallHeight = WALL_HEIGHT / 2;
 
     const northWall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
@@ -529,7 +566,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const segmentCenterX = (i - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
         const segmentCenterZ = (j - (NUM_SEGMENTS - 1) / 2) * ROOM_SEGMENT_SIZE;
 
-        const isCentral3x3Segment = Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
+        const isCentral3x3Segment =
+          Math.abs(segmentCenterX) <= 10 && Math.abs(segmentCenterZ) <= 10;
         let floorMaterialToUse = placeholderFloorMaterial;
 
         if (isCentral3x3Segment) {
@@ -588,10 +626,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     rainbowCeiling.position.set(0, WALL_HEIGHT + 0.01, 0);
     scene.add(rainbowCeiling);
 
-    // --- Decorative props omitted for brevity (unchanged) ---
-    // ... all existing decor, teleport buttons, lights, etc remain the same ...
-
-    // Teleport buttons (unchanged content)
+    // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
     const TELEPORT_BUTTON_HOVER_COLOR = 0x00ffff;
     const TELEPORT_BUTTON_RADIUS = 1.0;
@@ -620,7 +655,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     groundButton.userData = { isTeleportButton: true, targetY: FIRST_FLOOR_TARGET_Y };
     scene.add(groundButton);
 
-    const FIRST_FLOOR_BUTTON_Y = PLATFORM_Y + WALL_THICKNESS / 2 + TELEPORT_BUTTON_HEIGHT / 2;
+    const FIRST_FLOOR_BUTTON_Y =
+      PLATFORM_Y + WALL_THICKNESS / 2 + TELEPORT_BUTTON_HEIGHT / 2;
     const GROUND_FLOOR_TARGET_Y = PLAYER_HEIGHT;
 
     const firstFloorButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
@@ -628,7 +664,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     firstFloorButton.userData = { isTeleportButton: true, targetY: GROUND_FLOOR_TARGET_Y };
     scene.add(firstFloorButton);
 
-    const teleportButtons = [groundButton, firstFloorButton];
+    teleportButtonsRef.current = [groundButton, firstFloorButton];
 
     const fadeMaterial = new THREE.MeshBasicMaterial({
       color: 0x000000,
@@ -636,8 +672,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       opacity: 0,
       depthTest: false,
     });
+    fadeMaterialRef.current = fadeMaterial;
     const fadeGeometry = new THREE.PlaneGeometry(100, 100);
     const fadeScreen = new THREE.Mesh(fadeGeometry, fadeMaterial);
+    fadeScreenRef.current = fadeScreen;
     fadeScreen.renderOrder = 999;
     scene.add(fadeScreen);
 
@@ -758,7 +796,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     }
 
-    // INNER 30x30 walls – single tier (unchanged keys)
+    // INNER 30x30 walls – single tier
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
 
@@ -819,7 +857,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
 
-      const wallRotation = new THREE.Euler(config.rotation[0], config.rotation[1], config.rotation[2], 'XYZ');
+      const wallRotation = new THREE.Euler(
+        config.rotation[0],
+        config.rotation[1],
+        config.rotation[2],
+        'XYZ',
+      );
       const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
 
       const prevArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
@@ -830,6 +873,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         config.position[2],
       ).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
       prevArrow.position.copy(prevPosition);
+      prevArrow.userData = { isArrow: true, direction: 'prev' };
       scene.add(prevArrow);
 
       const nextArrow = new THREE.Mesh(arrowGeometry, arrowMaterial.clone());
@@ -840,6 +884,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         config.position[2],
       ).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
       nextArrow.position.copy(nextPosition);
+      nextArrow.userData = { isArrow: true, direction: 'next' };
       scene.add(nextArrow);
 
       const panel: Panel = {
@@ -857,12 +902,331 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panelsRef.current.push(panel);
     });
 
-    // Movement, raycasting, rendering, cleanup ... (unchanged logic)
-    // ... keep the rest of the file exactly as it was ...
+    // Raycaster
+    const raycaster = new THREE.Raycaster();
+    raycasterRef.current = raycaster;
 
-    // NOTE: For brevity in this explanation block, the rest of the original NftGallery.tsx
-    // (movement, raycasting, animate loop, resize, context lost handlers, fetchAndRenderPanelsSequentially, cleanup)
-    // should remain identical to your current version, just appended here after dynamicPanelConfigs usage.
+    // Movement + controls
+    const onKeyDown = (event: KeyboardEvent) => {
+      switch (event.code) {
+        case 'ArrowUp':
+        case 'KeyW':
+          moveForwardRef.current = true;
+          break;
+        case 'ArrowLeft':
+        case 'KeyA':
+          moveLeftRef.current = true;
+          break;
+        case 'ArrowDown':
+        case 'KeyS':
+          moveBackwardRef.current = true;
+          break;
+        case 'ArrowRight':
+        case 'KeyD':
+          moveRightRef.current = true;
+          break;
+        default:
+          break;
+      }
+    };
+
+    const onKeyUp = (event: KeyboardEvent) => {
+      switch (event.code) {
+        case 'ArrowUp':
+        case 'KeyW':
+          moveForwardRef.current = false;
+          break;
+        case 'ArrowLeft':
+        case 'KeyA':
+          moveLeftRef.current = false;
+          break;
+        case 'ArrowDown':
+        case 'KeyS':
+          moveBackwardRef.current = false;
+          break;
+        case 'ArrowRight':
+        case 'KeyD':
+          moveRightRef.current = false;
+          break;
+        default:
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+    // Mouse click
+    const onClick = (event: MouseEvent) => {
+      if (!controls.isLocked) return;
+
+      // If we have a targeted teleport button, teleport
+      if (currentTargetedButton && currentTargetedButton.userData?.isTeleportButton) {
+        const targetY = currentTargetedButton.userData.targetY as number;
+        performTeleport(targetY);
+        return;
+      }
+
+      // Arrow click to change NFT
+      if (currentTargetedArrow) {
+        const direction = currentTargetedArrow.userData?.direction as 'next' | 'prev';
+        const panel = panelsRef.current.find(
+          (p) => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow,
+        );
+        if (panel) {
+          const updated = updatePanelIndex(panel.wallName, direction);
+          if (updated) {
+            const src = getCurrentNftSource(panel.wallName);
+            updatePanelContent(panel, src);
+          }
+        }
+        return;
+      }
+
+      // Panel click: open marketplace browser if metadata URL exists
+      if (currentTargetedPanel && currentTargetedPanel.metadataUrl) {
+        const config = GALLERY_PANEL_CONFIG[currentTargetedPanel.wallName];
+        if (config && config.contractAddress && config.tokenIds.length > 0) {
+          const tokenId = config.tokenIds[config.currentIndex];
+          setMarketBrowserState({
+            open: true,
+            collection: config.contractAddress,
+            tokenId,
+          });
+        }
+      }
+    };
+
+    renderer.domElement.addEventListener('click', onClick);
+
+    // Resize handling
+    const onWindowResize = () => {
+      if (!cameraRef.current || !rendererRef.current) return;
+      const cam = cameraRef.current;
+      const rend = rendererRef.current;
+      cam.aspect = window.innerWidth / window.innerHeight;
+      cam.updateProjectionMatrix();
+      rend.setSize(window.innerWidth, window.innerHeight);
+    };
+    window.addEventListener('resize', onWindowResize);
+
+    // Context lost / restore
+    const onContextLost = (event: WebGLContextEvent) => {
+      event.preventDefault();
+      console.warn('[NftGallery] WebGL context lost');
+    };
+    const onContextRestored = () => {
+      console.info('[NftGallery] WebGL context restored');
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost as any, false);
+    renderer.domElement.addEventListener(
+      'webglcontextrestored',
+      onContextRestored as any,
+      false,
+    );
+
+    // Initial config + panel loading
+    let stopAnimation = false;
+
+    const fetchAndRenderPanelsSequentially = async () => {
+      try {
+        await initializeGalleryConfig();
+        for (const panel of panelsRef.current) {
+          const src = getCurrentNftSource(panel.wallName);
+          await updatePanelContent(panel, src);
+        }
+      } catch (e) {
+        console.error('Failed to initialize gallery panels:', e);
+      }
+    };
+
+    fetchAndRenderPanelsSequentially();
+
+    // Animation loop
+    const animate = () => {
+      if (stopAnimation) return;
+
+      const time = performance.now();
+      const delta = (time - prevTimeRef.current) / 1000;
+      prevTimeRef.current = time;
+
+      // Update movement
+      if (controls.isLocked) {
+        const velocity = velocityRef.current;
+        const direction = directionRef.current;
+
+        direction.z = Number(moveForwardRef.current) - Number(moveBackwardRef.current);
+        direction.x = Number(moveRightRef.current) - Number(moveLeftRef.current);
+        direction.normalize();
+
+        const speed = 20.0;
+
+        if (moveForwardRef.current || moveBackwardRef.current)
+          velocity.z -= direction.z * speed * delta;
+        if (moveLeftRef.current || moveRightRef.current)
+          velocity.x -= direction.x * speed * delta;
+
+        velocity.x -= velocity.x * 10.0 * delta;
+        velocity.z -= velocity.z * 10.0 * delta;
+
+        controls.moveRight(-velocity.x * delta);
+        controls.moveForward(-velocity.z * delta);
+
+        // Clamp within bounds
+        const pos = camera.position;
+        pos.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.x));
+        pos.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.z));
+      }
+
+      // Update shader time
+      if (rainbowMaterialRef.current) {
+        rainbowMaterialRef.current.uniforms.time.value += delta;
+      }
+
+      // Position fade screen in front of camera
+      if (fadeScreenRef.current && cameraRef.current) {
+        const cam = cameraRef.current;
+        fadeScreenRef.current.position.copy(cam.position);
+        fadeScreenRef.current.quaternion.copy(cam.quaternion);
+      }
+
+      // Fade animation
+      if (isTeleportingRef.current && fadeMaterialRef.current) {
+        const elapsed = (time - fadeStartTimeRef.current) / 1000;
+        const half = FADE_DURATION;
+        if (elapsed < half) {
+          fadeMaterialRef.current.opacity = elapsed / half;
+        } else if (elapsed < 2 * half) {
+          fadeMaterialRef.current.opacity = 1 - (elapsed - half) / half;
+        } else {
+          fadeMaterialRef.current.opacity = 0;
+          isTeleportingRef.current = false;
+        }
+      }
+
+      // Raycast from center of screen
+      if (cameraRef.current && raycasterRef.current) {
+        const cam = cameraRef.current;
+        const raycaster = raycasterRef.current;
+
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), cam);
+
+        const objectsToTest: THREE.Object3D[] = [];
+        panelsRef.current.forEach((p) => {
+          objectsToTest.push(p.mesh, p.prevArrow, p.nextArrow);
+        });
+        objectsToTest.push(...teleportButtonsRef.current);
+
+        const intersects = raycaster.intersectObjects(objectsToTest, false);
+
+        currentTargetedPanel = null;
+        currentTargetedArrow = null;
+        currentTargetedButton = null;
+
+        // Reset arrow colors and button colors
+        panelsRef.current.forEach((p) => {
+          if (p.prevArrow.material instanceof THREE.MeshBasicMaterial) {
+            (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
+          }
+          if (p.nextArrow.material instanceof THREE.MeshBasicMaterial) {
+            (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
+          }
+        });
+        teleportButtonsRef.current.forEach((btn) => {
+          if (btn.material instanceof THREE.MeshStandardMaterial) {
+            (btn.material as THREE.MeshStandardMaterial).color.setHex(TELEPORT_BUTTON_COLOR);
+            (btn.material as THREE.MeshStandardMaterial).emissive.setHex(TELEPORT_BUTTON_COLOR);
+          }
+        });
+
+        if (intersects.length > 0) {
+          const hit = intersects[0].object as THREE.Mesh;
+          const panelHit = panelsRef.current.find(
+            (p) => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit,
+          );
+
+          if (hit.userData?.isTeleportButton) {
+            currentTargetedButton = hit;
+            if (hit.material instanceof THREE.MeshStandardMaterial) {
+              (hit.material as THREE.MeshStandardMaterial).color.setHex(
+                TELEPORT_BUTTON_HOVER_COLOR,
+              );
+              (hit.material as THREE.MeshStandardMaterial).emissive.setHex(
+                TELEPORT_BUTTON_HOVER_COLOR,
+              );
+            }
+          } else if (panelHit) {
+            if (hit === panelHit.prevArrow || hit === panelHit.nextArrow) {
+              currentTargetedArrow = hit;
+              if (hit.material instanceof THREE.MeshBasicMaterial) {
+                (hit.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
+              }
+            } else if (hit === panelHit.mesh) {
+              currentTargetedPanel = panelHit;
+            }
+          }
+        }
+      }
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    };
+
+    prevTimeRef.current = performance.now();
+    requestAnimationFrame(animate);
+
+    // Cleanup
+    return () => {
+      stopAnimation = true;
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+      renderer.domElement.removeEventListener('click', onClick);
+      window.removeEventListener('resize', onWindowResize);
+      renderer.domElement.removeEventListener(
+        'webglcontextlost',
+        onContextLost as any,
+        false,
+      );
+      renderer.domElement.removeEventListener(
+        'webglcontextrestored',
+        onContextRestored as any,
+        false,
+      );
+
+      (window as any).galleryControls = undefined;
+
+      panelsRef.current.forEach((panel) => {
+        disposeTextureSafely(panel.mesh);
+        if (panel.videoElement) {
+          panel.videoElement.pause();
+          panel.videoElement.removeAttribute('src');
+          panel.videoElement = null;
+        }
+        if (panel.gifStopFunction) {
+          panel.gifStopFunction();
+          panel.gifStopFunction = null;
+        }
+      });
+
+      scene.traverse((obj) => {
+        if ((obj as any).geometry) {
+          (obj as any).geometry.dispose();
+        }
+        if ((obj as any).material) {
+          const mat = (obj as any).material;
+          if (Array.isArray(mat)) {
+            mat.forEach((m: THREE.Material) => m.dispose());
+          } else {
+            (mat as THREE.Material).dispose();
+          }
+        }
+      });
+
+      renderer.dispose();
+      if (renderer.domElement.parentElement) {
+        renderer.domElement.parentElement.removeChild(renderer.domElement);
+      }
+    };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
