@@ -940,8 +940,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
 
-      // Fix: Call controls.update() without parameters
-      controls.update();
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     };
