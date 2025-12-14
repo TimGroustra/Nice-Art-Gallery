@@ -101,8 +101,7 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
         if (!hasTeleportedRef.current) {
           hasTeleportedRef.current = true;
           setTimeout(() => {
-            // Directly set camera position for immediate teleportation
-            camera.position.set(targetPosition[0], targetPosition[1], targetPosition[2]);
+            onTeleport(targetPosition); // <-- Using the callback now
           }, 800);
         }
       }
