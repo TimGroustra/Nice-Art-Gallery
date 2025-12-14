@@ -91,7 +91,7 @@ const ceilingFragmentShader = `
     skyColor = mix(skyColor, cloudColor, clouds * 0.7);
 
     // Main star field (bigger, twinkling stars)
-    float starDensity = 80.0;        // was 120.0
+    float starDensity = 80.0;
     float starField = 0.0;
 
     vec2 starUv = vUv * starDensity;
@@ -102,7 +102,7 @@ const ceilingFragmentShader = `
     float rnd = rand(id * 37.0);
 
     // Stricter threshold so there are fewer grid stars
-    float threshold = 0.992;         // was 0.985
+    float threshold = 0.992;
     if (rnd > threshold) {
       float d = length(fracUv - 0.5);
       float star = smoothstep(0.45, 0.0, d);
@@ -112,14 +112,9 @@ const ceilingFragmentShader = `
       starField += star * twinkle;
     }
 
-    // Remove or heavily reduce the scattered micro-noise dots that looked like "..........."
-    // Old version:
-    // float scattered = pow(rand(vUv * 100.0 + time * 0.05), 50.0);
-    // starField += scattered * 0.8;
-    //
-    // New version: very subtle scatter, almost imperceptible
+    // Very subtle scatter, almost imperceptible
     float scatterSeed = rand(vUv * 60.0 + time * 0.02);
-    float scattered = pow(scatterSeed, 80.0); // much rarer, dimmer specks
+    float scattered = pow(scatterSeed, 80.0);
     starField += scattered * 0.2;
 
     vec3 starColor = vec3(0.7, 0.9, 1.0);
@@ -175,14 +170,14 @@ const isGifContent = (contentType: string, url: string) =>
   !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
 const disposeTextureSafely = (mesh: THREE.Mesh) => {
-  if (mesh.material instanceof THREE.MeshBasicMaterial) {
-    if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-      // @ts-expect-error allow mutation for cleanup
-      mesh.material.map.dispose();
-      // @ts-expect-error allow mutation for cleanup
-      mesh.material.map = null;
+  const material = mesh.material;
+  if (material instanceof THREE.MeshBasicMaterial) {
+    const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
+    if (mat.map) {
+      mat.map.dispose();
+      mat.map = null;
     }
-    mesh.material.dispose();
+    mat.dispose();
   }
 };
 
@@ -220,7 +215,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
 
       if (panel.gifStopFunction) {
-        panel.gifStopFunction();
         panel.gifStopFunction = null;
       }
 
@@ -1092,7 +1086,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       dynamicPanelConfigs.push({
         wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
-        position: [segmentCenter, INNER_LOER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        position: [segmentCenter, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
         rotation: [0, Math.PI, 0],
       });
 
