@@ -739,7 +739,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const panelKeys = Object.keys(GALLERY_PANEL_CONFIG) as (keyof PanelConfig)[];
     
     panelKeys.forEach(key => {
-      const parts = key.split('-');
+      const parts = (key as string).split('-'); // Fix: explicitly cast key to string
       const wallType = parts[0];
       const segmentIndex = parseInt(parts[parts.length - 1]);
       
@@ -749,24 +749,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (wallType === 'north') {
         // Outer North Wall (Z = -24.75)
         x = -halfRoomSize + spacing * (segmentIndex + 0.5);
-        z = -halfRoomSize + WALL_THICK / 2;
+        z = -halfRoomSize + WALL_THICKNESS / 2; // Fix: use correct variable name
         rotationY = 0;
         offset = 1;
       } else if (wallType === 'south') {
         // Outer South Wall (Z = 24.75)
         x = halfRoomSize - spacing * (segmentIndex + 0.5);
-        z = halfRoomSize - WALL_THICK / 2;
+        z = halfRoomSize - WALL_THICKNESS / 2; // Fix: use correct variable name
         rotationY = Math.PI;
         offset = 1;
       } else if (wallType === 'east') {
         // Outer East Wall (X = 24.75)
-        x = halfRoomSize - WALL_THICK / 2;
+        x = halfRoomSize - WALL_THICKNESS / 2; // Fix: use correct variable name
         z = halfRoomSize - spacing * (segmentIndex + 0.5);
         rotationY = -Math.PI / 2;
         offset = 1;
       } else if (wallType === 'west') {
         // Outer West Wall (X = -24.75)
-        x = -halfRoomSize + WALL_THICK / 2;
+        x = -halfRoomSize + WALL_THICKNESS / 2; // Fix: use correct variable name
         z = -halfRoomSize + spacing * (segmentIndex + 0.5);
         rotationY = Math.PI / 2;
         offset = 1;
@@ -775,7 +775,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const isOuter = parts[parts.length - 2] === 'outer';
         const xPos = segmentIndex === 0 ? -10 : 10;
         x = xPos;
-        z = -CROSS_WALL_BOUNDARY + WALL_THICK / 2;
+        z = -CROSS_WALL_BOUNDARY + WALL_THICKNESS / 2; // Fix: use correct variable name
         rotationY = 0;
         offset = 1;
       } else if (wallType === 'south-inner') {
@@ -783,14 +783,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const isOuter = parts[parts.length - 2] === 'outer';
         const xPos = segmentIndex === 0 ? 10 : -10;
         x = xPos;
-        z = CROSS_WALL_BOUNDARY - WALL_THICK / 2;
+        z = CROSS_WALL_BOUNDARY - WALL_THICKNESS / 2; // Fix: use correct variable name
         rotationY = Math.PI;
         offset = 1;
       } else if (wallType === 'east-inner') {
         // Inner East Walls (X = 4.75)
         const isOuter = parts[parts.length - 2] === 'outer';
         const zPos = segmentIndex === 0 ? 10 : -10;
-        x = CROSS_WALL_BOUNDARY - WALL_THICK / 2;
+        x = CROSS_WALL_BOUNDARY - WALL_THICKNESS / 2; // Fix: use correct variable name
         z = zPos;
         rotationY = -Math.PI / 2;
         offset = 1;
@@ -798,31 +798,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // Inner West Walls (X = -4.75)
         const isOuter = parts[parts.length - 2] === 'outer';
         const zPos = segmentIndex === 0 ? -10 : 10;
-        x = -CROSS_WALL_BOUNDARY + WALL_THICK / 2;
+        x = -CROSS_WALL_BOUNDARY + WALL_THICKNESS / 2; // Fix: use correct variable name
         z = zPos;
         rotationY = Math.PI / 2;
         offset = 1;
       } else if (wallType === 'north-center') {
         // Center Walls (Z = -0.25)
         x = 0;
-        z = -WALL_THICK / 2;
+        z = -WALL_THICKNESS / 2; // Fix: use correct variable name
         rotationY = 0;
         offset = 1;
       } else if (wallType === 'south-center') {
         // Center Walls (Z = 0.25)
         x = 0;
-        z = WALL_THICK / 2;
+        z = WALL_THICKNESS / 2; // Fix: use correct variable name
         rotationY = Math.PI;
         offset = 1;
       } else if (wallType === 'east-center') {
         // Center Walls (X = 0.25)
-        x = WALL_THICK / 2;
+        x = WALL_THICKNESS / 2; // Fix: use correct variable name
         z = 0;
         rotationY = -Math.PI / 2;
         offset = 1;
       } else if (wallType === 'west-center') {
         // Center Walls (X = -0.25)
-        x = -WALL_THICK / 2;
+        x = -WALL_THICKNESS / 2; // Fix: use correct variable name
         z = 0;
         rotationY = Math.PI / 2;
         offset = 1;
@@ -940,7 +940,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
 
-      controls.update(delta);
+      // Fix: Remove delta parameter from controls.update()
+      controls.update();
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     };
