@@ -15,20 +15,19 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
   scene
 }) => {
   const padRef = useRef<THREE.Mesh | null>(null);
-  const beamRef = useRef<THREE.Mesh | null>(null);
-  const particlesRef = useRef<THREE.Points | null>(null);
+  const glowRef = useRef<THREE.Mesh | null>(null);
   const animationRef = useRef<number>(0);
   const isActiveRef = useRef(false);
 
   useEffect(() => {
-    // Create teleport pad base
-    const geometry = new THREE.CylinderGeometry(1, 1, 0.2, 32);
+    // Create square teleport pad base (2x2 units)
+    const geometry = new THREE.BoxGeometry(2, 0.2, 2);
     const material = new THREE.MeshStandardMaterial({ 
-      color: 0x4a0080,
-      emissive: 0x9932cc,
-      emissiveIntensity: 0.5,
-      metalness: 0.8,
-      roughness: 0.2
+      color: 0x1a3f7c, // Dark blue base
+      emissive: 0x0066cc,
+      emissiveIntensity: 0.3,
+      metalness: 0.7,
+      roughness: 0.3
     });
     
     const pad = new THREE.Mesh(geometry, material);
@@ -36,82 +35,31 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
     scene.add(pad);
     padRef.current = pad;
 
-    // Create teleport beam
-    const beamGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0, 32);
-    const beamMaterial = new THREE.MeshBasicMaterial({
-      color: 0x9932cc,
+    // Create glowing effect around the pad
+    const glowGeometry = new THREE.BoxGeometry(2.2, 0.1, 2.2);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00aaff, // Bright blue glow
       transparent: true,
-      opacity: 0.7
+      opacity: 0.6,
+      side: THREE.DoubleSide
     });
     
-    const beam = new THREE.Mesh(beamGeometry, beamMaterial);
-    beam.position.set(...position);
-    beam.position.y += 2; // Start above the pad
-    beam.scale.y = 0; // Initially hidden
-    scene.add(beam);
-    beamRef.current = beam;
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    glow.position.set(...position);
+    glow.position.y += 0.1; // Slightly above the pad
+    scene.add(glow);
+    glowRef.current = glow;
 
-    // Create particle system for teleport effect
-    const particleCount = 100;
-    const particleGeometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    
-    for (let i = 0; i < particleCount; i++) {
-      const i3 = i * 3;
-      positions[i3] = (Math.random() - 0.5) * 2;
-      positions[i3 + 1] = Math.random() * 4;
-      positions[i3 + 2] = (Math.random() - 0.5) * 2;
-      
-      colors[i3] = 0.6; // R
-      colors[i3 + 1] = 0.2; // G
-      colors[i3 + 2] = 0.8; // B
-    }
-    
-    particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    
-    const particleMaterial = new THREE.PointsMaterial({
-      size: 0.1,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.8
-    });
-    
-    const particles = new THREE.Points(particleGeometry, particleMaterial);
-    particles.position.set(...position);
-    particles.visible = false;
-    scene.add(particles);
-    particlesRef.current = particles;
-
-    // Animation function
+    // Animation function for pulsing glow
     const animate = () => {
-      if (padRef.current) {
-        // Pulsing effect for the pad
-        const pulse = Math.sin(Date.now() * 0.005) * 0.1 + 1;
-        padRef.current.scale.set(pulse, 1, pulse);
+      if (glowRef.current) {
+        // Pulsing effect for the glow
+        const pulse = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+        glowRef.current.scale.set(pulse, 1, pulse);
         
-        // Rotate the pad slowly
-        padRef.current.rotation.y += 0.01;
-      }
-      
-      if (beamRef.current && isActiveRef.current) {
-        // Animate beam
-        const pulse = Math.sin(Date.now() * 0.01) * 0.2 + 1;
-        beamRef.current.scale.x = pulse;
-        beamRef.current.scale.z = pulse;
-      }
-      
-      if (particlesRef.current && particlesRef.current.visible) {
-        // Animate particles
-        const positions = particlesRef.current.geometry.attributes.position.array as Float32Array;
-        for (let i = 0; i < positions.length; i += 3) {
-          positions[i + 1] += 0.05; // Move particles upward
-          if (positions[i + 1] > 4) {
-            positions[i + 1] = 0; // Reset particle to bottom
-          }
-        }
-        particlesRef.current.geometry.attributes.position.needsUpdate = true;
+        // Color pulsing effect
+        const intensity = Math.sin(Date.now() * 0.003) * 0.2 + 0.8;
+        (glowRef.current.material as THREE.MeshBasicMaterial).opacity = intensity * 0.6;
       }
       
       animationRef.current = requestAnimationFrame(animate);
@@ -119,44 +67,42 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
     
     animate();
 
-    // Handle click interaction
-    const handleClick = () => {
+    // Handle teleport interaction
+    const handleTeleport = () => {
       if (!isActiveRef.current) {
         isActiveRef.current = true;
         
-        // Show beam and particles
-        if (beamRef.current) {
-          beamRef.current.visible = true;
-          beamRef.current.scale.y = 10;
+        // Visual feedback for activation
+        if (padRef.current) {
+          (padRef.current.material as THREE.MeshStandardMaterial).emissive.set(0x00ffff);
         }
         
-        if (particlesRef.current) {
-          particlesRef.current.visible = true;
+        if (glowRef.current) {
+          (glowRef.current.material as THREE.MeshBasicMaterial).color.set(0xffffff);
         }
         
         // Teleport after delay
         setTimeout(() => {
           onTeleport(targetPosition);
           
-          // Hide effects
-          if (beamRef.current) {
-            beamRef.current.visible = false;
-            beamRef.current.scale.y = 0;
+          // Reset visual feedback
+          if (padRef.current) {
+            (padRef.current.material as THREE.MeshStandardMaterial).emissive.set(0x0066cc);
           }
           
-          if (particlesRef.current) {
-            particlesRef.current.visible = false;
+          if (glowRef.current) {
+            (glowRef.current.material as THREE.MeshBasicMaterial).color.set(0x00aaff);
           }
           
           isActiveRef.current = false;
-        }, 1500);
+        }, 800);
       }
     };
 
     // Add click event listener to the pad
     const handlePadClick = (event: MouseEvent) => {
       if (event.target === pad) {
-        handleClick();
+        handleTeleport();
       }
     };
     
@@ -176,16 +122,10 @@ const TeleportPad: React.FC<TeleportPadProps> = ({
         }
       }
       
-      if (beamRef.current) {
-        scene.remove(beamRef.current);
-        beamRef.current.geometry.dispose();
-        (beamRef.current.material as THREE.Material).dispose();
-      }
-      
-      if (particlesRef.current) {
-        scene.remove(particlesRef.current);
-        particlesRef.current.geometry.dispose();
-        (particlesRef.current.material as THREE.Material).dispose();
+      if (glowRef.current) {
+        scene.remove(glowRef.current);
+        glowRef.current.geometry.dispose();
+        (glowRef.current.material as THREE.Material).dispose();
       }
     };
   }, [position, targetPosition, onTeleport, scene]);
