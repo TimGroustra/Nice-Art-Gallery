@@ -732,20 +732,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'] as const;
     const MAX_SEGMENT_INDEX = 4;
 
-    // OUTER WALL PANELS: separate keys for ground and first tiers
+    // OUTER WALL PANELS: both tiers share the SAME wall key (no -ground/-first suffix),
+    // matching galleryConfig keys like 'north-wall-0'
     for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
       for (const wallNameBase of WALL_NAMES) {
         const centerIndex = i - 2;
         const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
 
-        // Two vertical tiers
-        const tiers: { y: number; suffix: 'ground' | 'first' }[] = [
-          { y: LOWER_PANEL_Y, suffix: 'ground' },
-          { y: UPPER_PANEL_Y, suffix: 'first' },
+        const tiers: { y: number }[] = [
+          { y: LOWER_PANEL_Y }, // ground tier
+          { y: UPPER_PANEL_Y }, // first floor tier
         ];
 
         for (const tier of tiers) {
-          const wallKey = `${wallNameBase}-${i}-${tier.suffix}` as keyof PanelConfig;
+          const wallKey = `${wallNameBase}-${i}` as keyof PanelConfig;
 
           let x = 0;
           let z = 0;
@@ -796,7 +796,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     }
 
-    // INNER 30x30 walls – single tier
+    // INNER 30x30 walls – single tier (keys already match galleryConfig)
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
 
