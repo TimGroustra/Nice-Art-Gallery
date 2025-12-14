@@ -1004,7 +1004,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const GROUND_BUTTON_Y = 0.1 + TELEPORT_BUTTON_HEIGHT / 2;
-    the FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2;
+    const FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2;
 
     const groundButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
     groundButton.position.set(0, GROUND_BUTTON_Y, 0);
