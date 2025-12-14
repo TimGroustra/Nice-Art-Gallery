@@ -164,7 +164,9 @@ const isGifContent = (contentType: string, url: string) =>
 const disposeTextureSafely = (mesh: THREE.Mesh) => {
   if (mesh.material instanceof THREE.MeshBasicMaterial) {
     if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
+      // @ts-expect-error allow mutation for cleanup
       mesh.material.map.dispose();
+      // @ts-expect-error allow mutation for cleanup
       mesh.material.map = null;
     }
     mesh.material.dispose();
@@ -677,7 +679,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // --- Decorative props (futuristic) ---
+    // --- Decorative props (futuristic, but no couches/tables) ---
     const decoMetal = new THREE.MeshStandardMaterial({
       color: 0x111827,
       roughness: 0.2,
@@ -835,7 +837,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const sculptureA = makeSculptureVariant(0);
     const sculptureB = makeSculptureVariant(1);
 
-    // Outer wall corners (away from the 10x10 couch areas)
+    // Outer wall corners (away from 10x10 couch areas)
     const inset = 2.5;
     planterA(-halfRoomSize + inset, -halfRoomSize + inset);
     sculptureA(halfRoomSize - inset, -halfRoomSize + inset);
@@ -884,7 +886,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Cross-wall decor (not inside 10x10 couch corners)
+    // Cross-wall decor (not inside 10x10 corners)
     crossWallSegments.forEach((segmentCenter) => {
       sculptureA(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
       addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
@@ -893,160 +895,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       planterC(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
       addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
     });
-
-    // --- L-shaped 8-seater couches with coffee tables in each outer 10x10 corner ---
-    const addLCouchCorner = (corner: 'nw' | 'ne' | 'sw' | 'se') => {
-      const seatHeight = 0.45;
-      const seatDepth = 0.9;
-      const longLength = 3.0;   // ~4 seats
-      const shortLength = 3.0;  // ~4 seats
-      const backHeight = 0.8;
-      const armThickness = 0.3;
-
-      const cushionColor = 0x1f2933;
-      const seatMat = new THREE.MeshStandardMaterial({
-        color: cushionColor,
-        roughness: 0.6,
-        metalness: 0.1,
-      });
-      const backMat = seatMat;
-      const armMat = new THREE.MeshStandardMaterial({
-        color: 0x101827,
-        roughness: 0.7,
-        metalness: 0.15,
-      });
-
-      // Outer corner coordinate (just inside the 10x10 corner)
-      let cornerX = 0;
-      let cornerZ = 0;
-      let faceDirX = 0;
-      let faceDirZ = 0;
-
-      if (corner === 'nw') {
-        cornerX = -10 + 1.8;
-        cornerZ = -10 + 1.8;
-        faceDirX = 1;
-        faceDirZ = 1;
-      } else if (corner === 'ne') {
-        cornerX = 10 - 1.8;
-        cornerZ = -10 + 1.8;
-        faceDirX = -1;
-        faceDirZ = 1;
-      } else if (corner === 'sw') {
-        cornerX = -10 + 1.8;
-        cornerZ = 10 - 1.8;
-        faceDirX = 1;
-        faceDirZ = -1;
-      } else {
-        // 'se'
-        cornerX = 10 - 1.8;
-        cornerZ = 10 - 1.8;
-        faceDirX = -1;
-        faceDirZ = -1;
-      }
-
-      const len = Math.sqrt(faceDirX * faceDirX + faceDirZ * faceDirZ) || 1;
-      const fx = faceDirX / len;
-      const fz = faceDirZ / len;
-      const rx = fz;
-      const rz = -fx;
-
-      // Long seat along facing direction
-      const longSeatGeom = new THREE.BoxGeometry(longLength, seatHeight, seatDepth);
-      const longSeat = new THREE.Mesh(longSeatGeom, seatMat);
-      longSeat.position.set(
-        cornerX - rx * (seatDepth / 2) - fx * (longLength / 2),
-        seatHeight / 2,
-        cornerZ - rz * (seatDepth / 2) - fz * (longLength / 2),
-      );
-      const longRotY = Math.atan2(-fx, -fz);
-      longSeat.rotation.y = longRotY;
-      scene.add(longSeat);
-
-      // Long back
-      const longBackGeom = new THREE.BoxGeometry(longLength, backHeight, 0.18);
-      const longBack = new THREE.Mesh(longBackGeom, backMat);
-      const backOffset = seatDepth / 2 + 0.18 / 2;
-      longBack.position.set(
-        longSeat.position.x + fx * backOffset,
-        seatHeight + backHeight / 2,
-        longSeat.position.z + fz * backOffset,
-      );
-      longBack.rotation.y = longRotY;
-      scene.add(longBack);
-
-      // Short seat perpendicular (forms the L)
-      const shortSeatGeom = new THREE.BoxGeometry(shortLength, seatHeight, seatDepth);
-      const shortSeat = new THREE.Mesh(shortSeatGeom, seatMat);
-      shortSeat.position.set(
-        cornerX - fx * (seatDepth / 2) - rx * (shortLength / 2),
-        seatHeight / 2,
-        cornerZ - fz * (seatDepth / 2) - rz * (shortLength / 2),
-      );
-      const shortRotY = Math.atan2(-rx, -rz);
-      shortSeat.rotation.y = shortRotY;
-      scene.add(shortSeat);
-
-      // Short back
-      const shortBackGeom = new THREE.BoxGeometry(shortLength, backHeight, 0.18);
-      const shortBack = new THREE.Mesh(shortBackGeom, backMat);
-      shortBack.position.set(
-        shortSeat.position.x + rx * backOffset,
-        seatHeight + backHeight / 2,
-        shortSeat.position.z + rz * backOffset,
-      );
-      shortBack.rotation.y = shortRotY;
-      scene.add(shortBack);
-
-      // Arms at far ends
-      const armGeom = new THREE.BoxGeometry(armThickness, backHeight, seatDepth);
-      const arm1 = new THREE.Mesh(armGeom, armMat);
-      arm1.position.set(
-        longSeat.position.x - fx * (longLength / 2 + armThickness / 2),
-        seatHeight + backHeight / 2 - 0.05,
-        longSeat.position.z - fz * (longLength / 2 + armThickness / 2),
-      );
-      arm1.rotation.y = longRotY;
-      scene.add(arm1);
-
-      const arm2 = new THREE.Mesh(armGeom, armMat);
-      arm2.position.set(
-        shortSeat.position.x - rx * (shortLength / 2 + armThickness / 2),
-        seatHeight + backHeight / 2 - 0.05,
-        shortSeat.position.z - rz * (shortLength / 2 + armThickness / 2),
-      );
-      arm2.rotation.y = shortRotY;
-      scene.add(arm2);
-
-      // Coffee table in the nook in front of the L, facing center
-      const tableTopGeom = new THREE.BoxGeometry(1.6, 0.08, 1.0);
-      const tableLegGeom = new THREE.BoxGeometry(0.15, 0.35, 0.15);
-      const tableTopMat = new THREE.MeshStandardMaterial({
-        color: 0x0f172a,
-        roughness: 0.4,
-        metalness: 0.3,
-      });
-      const tableLegMat = decoAccent;
-
-      // Place table slightly toward gallery center from corner
-      const nookX = cornerX + fx * 1.8;
-      const nookZ = cornerZ + fz * 1.8;
-
-      const tableTop = new THREE.Mesh(tableTopGeom, tableTopMat);
-      tableTop.position.set(nookX, seatHeight + 0.2, nookZ);
-      tableTop.rotation.y = Math.atan2(-fx, -fz);
-      scene.add(tableTop);
-
-      const tableLeg = new THREE.Mesh(tableLegGeom, tableLegMat);
-      tableLeg.position.set(nookX, 0.2, nookZ);
-      scene.add(tableLeg);
-    };
-
-    // Add L-shaped 8‑seater couch + coffee table in each 10x10 corner (outer corner, facing in)
-    addLCouchCorner('nw');
-    addLCouchCorner('ne');
-    addLCouchCorner('sw');
-    addLCouchCorner('se');
 
     // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
