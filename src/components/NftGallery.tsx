@@ -37,40 +37,97 @@ let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedButton: THREE.Mesh | null = null; // New global state for button
 
-// --- GLSL Shader Code for Pulsing Rainbow Ceiling ---
+// --- GLSL Shader Code for Starry Night Ceiling ---
 const ceilingVertexShader = `
- varying vec2 vUv;
- void main() {
-   vUv = uv;
-   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
- }
+  varying vec2 vUv;
+  void main() {
+    vUv = uv;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
 `;
 
+// Fragment shader: starry night with parallax clouds and twinkling stars
 const ceilingFragmentShader = `
- uniform float time;
- uniform float opacity;
- 
- // Function to convert HSV to RGB (Hue, Saturation, Value)
- vec3 hsv2rgb(vec3 c) {
-   vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
-   vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
- }
- 
- void main() {
-   // 1. Hue shift over time (0.0 to 1.0)
-   float hue = mod(time * 0.05, 1.0);
-   
-   // 2. Pulsing brightness (Value/Lightness)
-   // Pulse adjusted to be slower (0.5 speed) and darker (range 0.2 to 0.4)
-   float pulse = 0.3 + sin(time * 0.5) * 0.1;
-   
-   // Saturation is high
-   float saturation = 0.8;
-   
-   vec3 color = hsv2rgb(vec3(hue, saturation, pulse));
-   gl_FragColor = vec4(color, opacity);
- }
+  varying vec2 vUv;
+  uniform float time;
+
+  // 2D random
+  float rand(vec2 co) {
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
+  }
+
+  // 2D noise
+  float noise(vec2 p){
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    float a = rand(i);
+    float b = rand(i + vec2(1.0, 0.0));
+    float c = rand(i + vec2(0.0, 1.0));
+    float d = rand(i + vec2(1.0, 1.0));
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    return mix(a, b, u.x) +
+           (c - a)* u.y * (1.0 - u.x) +
+           (d - b) * u.x * u.y;
+  }
+
+  void main() {
+    // Map UV to centered coordinates for nicer symmetry
+    vec2 uv = vUv * 2.0 - 1.0;
+
+    // Base sky color (deep blue gradient)
+    float height = uv.y * 0.6 + 0.5; // from 0..1
+    vec3 topColor = vec3(0.02, 0.03, 0.08);   // very dark blue
+    vec3 bottomColor = vec3(0.01, 0.01, 0.04); // almost black
+    vec3 skyColor = mix(bottomColor, topColor, height);
+
+    // Moving soft nebula clouds using layered noise
+    float t = time * 0.03;
+    float n1 = noise(uv * 3.0 + vec2(t, 0.0));
+    float n2 = noise(uv * 6.0 - vec2(0.0, t * 0.7));
+    float clouds = smoothstep(0.4, 0.9, n1 + n2 * 0.5);
+
+    vec3 cloudColor = vec3(0.06, 0.08, 0.18);
+    skyColor = mix(skyColor, cloudColor, clouds * 0.7);
+
+    // Star field: many tiny white and cyan stars that twinkle
+    float starDensity = 120.0;
+    float starField = 0.0;
+
+    vec2 starUv = vUv * starDensity;
+
+    vec2 id = floor(starUv);
+    vec2 fracUv = fract(starUv);
+
+    // random value per cell
+    float rnd = rand(id * 37.0);
+
+    // Only some cells contain stars
+    float threshold = 0.985;
+    if (rnd > threshold) {
+      // Soft circular star shape
+      float d = length(fracUv - 0.5);
+      float star = smoothstep(0.45, 0.0, d);
+
+      // Twinkle: use time and random offset
+      float twinkle = 0.5 + 0.5 * sin(time * (1.0 + rnd * 5.0) + rnd * 10.0);
+
+      starField += star * twinkle;
+    }
+
+    // Add some additional tiny scattered stars
+    float scattered = pow(rand(vUv * 100.0 + time * 0.05), 50.0);
+    starField += scattered * 0.8;
+
+    // Final star color: bright cyan-white
+    vec3 starColor = vec3(0.7, 0.9, 1.0);
+    vec3 color = skyColor + starField * starColor;
+
+    // Slight vignette to draw focus to center
+    float vignette = smoothstep(1.4, 0.2, length(uv));
+    color *= vignette;
+
+    gl_FragColor = vec4(color, 1.0);
+  }
 `;
 // --- End GLSL Shader Code ---
 
@@ -294,7 +351,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(0xaaaaaa);
+    scene.background = new THREE.Color(0x000000);
     
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     cameraRef.current = camera;
@@ -370,12 +427,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       metalness: 0.1 
     });
     
-    // Define standard ceiling material (new)
-    const standardCeilingMaterial = new THREE.MeshStandardMaterial({ 
-      color: 0xcccccc, 
-      roughness: 0.8, 
-      metalness: 0.1,
-      side: THREE.DoubleSide
+    // --- NEW: Animated starry night ceiling material using ShaderMaterial ---
+    const ceilingMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0.0 },
+      },
+      vertexShader: ceilingVertexShader,
+      fragmentShader: ceilingFragmentShader,
+      side: THREE.DoubleSide,
+      transparent: false,
     });
     
     // --- NEW: Create Outer Walls (50x16) ---
@@ -540,17 +600,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
     
     // 1. Create Modular Floor and Ceiling
-    const ceilingMaterial = new THREE.ShaderMaterial({
-      uniforms: {
-        time: { value: 0.0 },
-        opacity: { value: 1.0 }
-      },
-      vertexShader: ceilingVertexShader,
-      fragmentShader: ceilingFragmentShader,
-      side: THREE.DoubleSide,
-      transparent: true,
-    });
-    
     // Define the area to cut out (30x30 room centered in the 50x50 space)
     const HOLE_SIZE = 30; // 30x30 room
     const HOLE_HALF_SIZE = HOLE_SIZE / 2;
@@ -581,12 +630,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           floorSegments.push(floorSegment);
         }
         
-        // Ceiling Segment (Use standard material for the main ceiling)
-        const ceiling = new THREE.Mesh(segmentGeometry, standardCeilingMaterial);
+        // Ceiling Segment: use starry shader across the whole 50x50
+        const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
         ceiling.rotation.x = Math.PI / 2;
         ceiling.position.x = segmentCenterX;
         ceiling.position.z = segmentCenterZ;
-        ceiling.position.y = WALL_HEIGHT + 0.01; // Positioned slightly above the new wall height (16.01)
+        ceiling.position.y = WALL_HEIGHT + 0.01; // Slightly above the new wall height (16.01)
         scene.add(ceiling);
       }
     }
@@ -965,7 +1014,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         delta = (time - prevTime) / 1000;
       const elapsedTime = (time - startTime) / 1000;
       
-      // Update ceiling shader time uniform
+      // Update starry ceiling shader time uniform
       if (ceilingMaterial.uniforms) {
         ceilingMaterial.uniforms.time.value = elapsedTime;
       }
@@ -1144,12 +1193,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           obj.geometry.dispose();
           if (Array.isArray(obj.material)) {
             obj.material.forEach(m => {
-              if (m.map) m.map.dispose();
+              if ((m as any).map) (m as any).map.dispose();
               m.dispose();
             });
           } else {
-            if (obj.material.map) obj.material.map.dispose();
-            obj.material.dispose();
+            const mat = obj.material as any;
+            if (mat.map) mat.map.dispose();
+            mat.dispose();
           }
         }
       });
