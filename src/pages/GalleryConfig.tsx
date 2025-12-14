@@ -39,6 +39,7 @@ const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
 type OuterFloor = 'ground' | 'first';
 type OuterWall = 'north' | 'south' | 'east' | 'west';
 
+// Inner 30x30 walls (cross) – on ground floor
 const INNER_WALL_KEYS = [
   'north-inner-wall-outer-0',
   'north-inner-wall-inner-0',
@@ -56,13 +57,6 @@ const INNER_WALL_KEYS = [
   'west-inner-wall-inner-0',
   'west-inner-wall-outer-1',
   'west-inner-wall-inner-1',
-] as const;
-
-const CENTER_WALL_KEYS = [
-  'north-center-wall-0',
-  'south-center-wall-0',
-  'east-center-wall-0',
-  'west-center-wall-0',
 ] as const;
 
 const PANEL_LABELS: Record<string, string> = {
@@ -86,11 +80,6 @@ const PANEL_LABELS: Record<string, string> = {
   'west-inner-wall-inner-0': 'Inner West – North Segment (Inner Face)',
   'west-inner-wall-outer-1': 'Inner West – South Segment (Outer Face)',
   'west-inner-wall-inner-1': 'Inner West – South Segment (Inner Face)',
-  // Center ring
-  'north-center-wall-0': 'Center Ring – North Wall',
-  'south-center-wall-0': 'Center Ring – South Wall',
-  'east-center-wall-0': 'Center Ring – East Wall',
-  'west-center-wall-0': 'Center Ring – West Wall',
 };
 
 const outerLabel = (wall: OuterWall, index: number, floor: OuterFloor) => {
@@ -136,7 +125,6 @@ const GalleryConfig = () => {
   const [poorContrast, setPoorContrast] = useState(false);
   const [outerFloor, setOuterFloor] = useState<OuterFloor>('ground');
 
-  // Derived: isAuthorized
   const isAuthorized =
     isConnected && !!walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
 
@@ -163,7 +151,7 @@ const GalleryConfig = () => {
     setPoorContrast(ratio < 3);
   }, [currentConfig.wall_color, currentConfig.text_color]);
 
-  // Lock helpers – stable hook order
+  // Lock helpers
   const getLockStatus = useCallback(
     (panelKey: string) => {
       const lock = panelLocks.find((l) => l.panel_id === panelKey);
@@ -199,7 +187,7 @@ const GalleryConfig = () => {
     [panelLocks, walletAddress],
   );
 
-  // Redirect / authorization check
+  // Redirect / auth check
   useEffect(() => {
     if (!isConnected || !walletAddress) {
       toast.warning('Please connect your wallet to access configuration.');
@@ -290,7 +278,7 @@ const GalleryConfig = () => {
     }
   }, [isAuthorized, selectedPanelKey, fetchPanelConfig]);
 
-  // Blueprint helpers (no hooks here)
+  // Blueprint helpers
   const getOuterPanelKey = (wall: OuterWall, index: number) =>
     `${wall}-wall-${index}`;
 
@@ -538,6 +526,21 @@ const GalleryConfig = () => {
       availableTokens.length === 0 &&
       lockDurationDays > 0);
 
+  // Helpers to render an inner button with proper coloring
+  const innerButtonClasses = (key: string) => {
+    const lockStatus = getLockStatus(key);
+    const isSelected = key === selectedPanelKey;
+    const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
+    return [
+      'rounded-sm border text-[9px] flex items-center justify-center transition-colors px-1 py-0.5',
+      isSelected
+        ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+        : lockedByOther
+        ? 'bg-red-900/40 border-red-500/60 text-red-100'
+        : 'bg-slate-800/80 border-slate-600/80 text-slate-100 hover:bg-slate-700',
+    ].join(' ');
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8">
@@ -580,7 +583,8 @@ const GalleryConfig = () => {
                 <div>
                   <Label className="text-sm font-medium">Gallery Blueprint</Label>
                   <p className="text-xs text-muted-foreground">
-                    Click a panel in the sketch to select it. Use the floor toggle for outer walls.
+                    Click a panel in the sketch to select it. Inner 30×30 walls are shown on Ground
+                    floor.
                   </p>
                 </div>
                 <div className="inline-flex items-center rounded-full bg-secondary p-1 text-xs">
@@ -610,8 +614,10 @@ const GalleryConfig = () => {
               </div>
 
               <div className="relative mx-auto aspect-[4/3] max-w-2xl border border-dashed border-muted rounded-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+                {/* 30x30 core */}
                 <div className="absolute inset-[28%] border border-cyan-400/40 rounded-md" />
 
+                {/* Outer 50x50 walls */}
                 {/* North */}
                 <div className="absolute top-2 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
@@ -639,7 +645,6 @@ const GalleryConfig = () => {
                     );
                   })}
                 </div>
-
                 {/* South */}
                 <div className="absolute bottom-2 left-[15%] right-[15%] flex justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
@@ -667,7 +672,6 @@ const GalleryConfig = () => {
                     );
                   })}
                 </div>
-
                 {/* West */}
                 <div className="absolute top-[22%] bottom-[22%] left-2 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
@@ -695,7 +699,6 @@ const GalleryConfig = () => {
                     );
                   })}
                 </div>
-
                 {/* East */}
                 <div className="absolute top-[22%] bottom-[22%] right-2 flex flex-col justify-between gap-1">
                   {OUTER_INDICES.map((idx) => {
@@ -723,67 +726,150 @@ const GalleryConfig = () => {
                     );
                   })}
                 </div>
-              </div>
 
-              {/* Inner / center lists */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                <div>
-                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Inner Cross Walls
-                  </Label>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {INNER_WALL_KEYS.map((key) => {
-                      const lockStatus = getLockStatus(key);
-                      const isSelected = key === selectedPanelKey;
-                      const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => handleSelectPanel(key)}
-                          className={[
-                            'w-full rounded-md border px-2 py-1.5 text-xs text-left transition-colors',
-                            isSelected
-                              ? 'bg-cyan-500 text-slate-900 border-cyan-300'
-                              : lockedByOther
-                              ? 'bg-red-900/40 border-red-500/60 text-red-100'
-                              : 'bg-slate-900 text-slate-100 border-slate-700 hover:bg-slate-800',
-                          ].join(' ')}
-                        >
-                          {PANEL_LABELS[key]}
-                        </button>
-                      );
-                    })}
-                  </div>
+                {/* Inner 30x30 cross panels (ground layout only, but always visible for config) */}
+                {/* North inner wall (inside 30x30 square, near top edge) */}
+                <div className="absolute top-[30%] left-[30%] right-[30%] flex justify-between gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('north-inner-wall-outer-0')}
+                    className={innerButtonClasses('north-inner-wall-outer-0')}
+                    title={PANEL_LABELS['north-inner-wall-outer-0']}
+                  >
+                    N‑O W
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('north-inner-wall-inner-0')}
+                    className={innerButtonClasses('north-inner-wall-inner-0')}
+                    title={PANEL_LABELS['north-inner-wall-inner-0']}
+                  >
+                    N‑I W
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('north-inner-wall-inner-1')}
+                    className={innerButtonClasses('north-inner-wall-inner-1')}
+                    title={PANEL_LABELS['north-inner-wall-inner-1']}
+                  >
+                    N‑I E
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('north-inner-wall-outer-1')}
+                    className={innerButtonClasses('north-inner-wall-outer-1')}
+                    title={PANEL_LABELS['north-inner-wall-outer-1']}
+                  >
+                    N‑O E
+                  </button>
                 </div>
-                <div>
-                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    Center Ring Walls
-                  </Label>
-                  <div className="mt-1 flex flex-col gap-1">
-                    {CENTER_WALL_KEYS.map((key) => {
-                      const lockStatus = getLockStatus(key);
-                      const isSelected = key === selectedPanelKey;
-                      const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
-                      return (
-                        <button
-                          key={key}
-                          type="button"
-                          onClick={() => handleSelectPanel(key)}
-                          className={[
-                            'w-full rounded-md border px-2 py-1.5 text-xs text-left transition-colors',
-                            isSelected
-                              ? 'bg-cyan-500 text-slate-900 border-cyan-300'
-                              : lockedByOther
-                              ? 'bg-red-900/40 border-red-500/60 text-red-100'
-                              : 'bg-slate-900 text-slate-100 border-slate-700 hover:bg-slate-800',
-                          ].join(' ')}
-                        >
-                          {PANEL_LABELS[key]}
-                        </button>
-                      );
-                    })}
-                  </div>
+
+                {/* South inner wall (inside 30x30 square, near bottom edge) */}
+                <div className="absolute bottom-[30%] left-[30%] right-[30%] flex justify-between gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('south-inner-wall-outer-0')}
+                    className={innerButtonClasses('south-inner-wall-outer-0')}
+                    title={PANEL_LABELS['south-inner-wall-outer-0']}
+                  >
+                    S‑O W
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('south-inner-wall-inner-0')}
+                    className={innerButtonClasses('south-inner-wall-inner-0')}
+                    title={PANEL_LABELS['south-inner-wall-inner-0']}
+                  >
+                    S‑I W
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('south-inner-wall-inner-1')}
+                    className={innerButtonClasses('south-inner-wall-inner-1')}
+                    title={PANEL_LABELS['south-inner-wall-inner-1']}
+                  >
+                    S‑I E
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('south-inner-wall-outer-1')}
+                    className={innerButtonClasses('south-inner-wall-outer-1')}
+                    title={PANEL_LABELS['south-inner-wall-outer-1']}
+                  >
+                    S‑O E
+                  </button>
+                </div>
+
+                {/* West inner wall (left side of 30x30 square) */}
+                <div className="absolute top-[35%] bottom-[35%] left-[30%] flex flex-col justify-between gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('west-inner-wall-outer-0')}
+                    className={innerButtonClasses('west-inner-wall-outer-0')}
+                    title={PANEL_LABELS['west-inner-wall-outer-0']}
+                  >
+                    W‑O N
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('west-inner-wall-inner-0')}
+                    className={innerButtonClasses('west-inner-wall-inner-0')}
+                    title={PANEL_LABELS['west-inner-wall-inner-0']}
+                  >
+                    W‑I N
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('west-inner-wall-inner-1')}
+                    className={innerButtonClasses('west-inner-wall-inner-1')}
+                    title={PANEL_LABELS['west-inner-wall-inner-1']}
+                  >
+                    W‑I S
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('west-inner-wall-outer-1')}
+                    className={innerButtonClasses('west-inner-wall-outer-1')}
+                    title={PANEL_LABELS['west-inner-wall-outer-1']}
+                  >
+                    W‑O S
+                  </button>
+                </div>
+
+                {/* East inner wall (right side of 30x30 square) */}
+                <div className="absolute top-[35%] bottom-[35%] right-[30%] flex flex-col justify-between gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('east-inner-wall-outer-0')}
+                    className={innerButtonClasses('east-inner-wall-outer-0')}
+                    title={PANEL_LABELS['east-inner-wall-outer-0']}
+                  >
+                    E‑O N
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('east-inner-wall-inner-0')}
+                    className={innerButtonClasses('east-inner-wall-inner-0')}
+                    title={PANEL_LABELS['east-inner-wall-inner-0']}
+                  >
+                    E‑I N
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('east-inner-wall-inner-1')}
+                    className={innerButtonClasses('east-inner-wall-inner-1')}
+                    title={PANEL_LABELS['east-inner-wall-inner-1']}
+                  >
+                    E‑I S
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectPanel('east-inner-wall-outer-1')}
+                    className={innerButtonClasses('east-inner-wall-outer-1')}
+                    title={PANEL_LABELS['east-inner-wall-outer-1']}
+                  >
+                    E‑O S
+                  </button>
                 </div>
               </div>
 
