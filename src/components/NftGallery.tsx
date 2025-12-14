@@ -164,7 +164,7 @@ const isGifContent = (contentType: string, url: string) =>
 const disposeTextureSafely = (mesh: THREE.Mesh) => {
   if (mesh.material instanceof THREE.MeshBasicMaterial) {
     if (mesh.material.map && typeof mesh.material.map.dispose === 'function') {
-      mesh.material.map.dispose();
+      (mesh.material.map as any).dispose?.();
       mesh.material.map = null;
     }
     mesh.material.dispose();
@@ -243,7 +243,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.gifStopFunction = stop;
           return texture;
         } catch (error) {
-          console.error('Failed to load animated GIF, falling back to static image load:', error);
         }
       }
 
@@ -295,10 +294,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const metadata: NftMetadata | null = await getCachedNftMetadata(source.contractAddress, source.tokenId);
 
       if (!metadata) {
-        console.warn(
-          `Skipping panel ${panel.wallName} (${source.contractAddress}/${source.tokenId}) due to metadata fetch failure.`,
-        );
-
         disposeTextureSafely(panel.mesh);
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -769,7 +764,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           orb.position.set(x, 1.8, z);
           scene.add(orb);
         } else {
-          // Variant 1: stacked glass prisms
           const prismGeom = new THREE.BoxGeometry(0.35, 0.6, 0.35);
           for (let i = 0; i < 3; i++) {
             const prism = new THREE.Mesh(prismGeom, decoGlass);
@@ -835,15 +829,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const sculptureA = makeSculptureVariant(0);
     const sculptureB = makeSculptureVariant(1);
 
-    // Outer wall corners (unique combos)
+    // Outer wall corners
     const inset = 2.5;
-    planterA(-halfRoomSize + inset, -halfRoomSize + inset); // NW
-    sculptureA(halfRoomSize - inset, -halfRoomSize + inset); // NE
-    planterB(-halfRoomSize + inset, halfRoomSize - inset); // SW
-    sculptureB(halfRoomSize - inset, halfRoomSize - inset); // SE
+    planterA(-halfRoomSize + inset, -halfRoomSize + inset);
+    sculptureA(halfRoomSize - inset, -halfRoomSize + inset);
+    planterB(-halfRoomSize + inset, halfRoomSize - inset);
+    sculptureB(halfRoomSize - inset, halfRoomSize - inset);
 
-    // Objects between outer wall panels at ground level, against walls
-    const panelCenters = [-20, -10, 0, 10, 20];
     const midPositions = [-15, -5, 5, 15];
 
     // North wall: z = -halfRoomSize
@@ -886,7 +878,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Existing inner cross-wall decor for variety
+    // Cross-wall decor
     crossWallSegments.forEach((segmentCenter) => {
       sculptureA(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
       addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
@@ -895,7 +887,52 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       planterC(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
       addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
     });
-    // --- End decorative props ---
+
+    // --- Couch & coffee table setups in 10x10 corners of the 30x30 platform ---
+    const addCouchSetup = (x: number, z: number, rotationY: number) => {
+      const couchBaseGeom = new THREE.BoxGeometry(4, 0.4, 1.4);
+      const couchBackGeom = new THREE.BoxGeometry(4, 0.8, 0.2);
+      const couchSideGeom = new THREE.BoxGeometry(1.4, 0.4, 1.4);
+
+      const seat = new THREE.Mesh(couchBaseGeom, decoMetal);
+      seat.position.set(x, PLATFORM_Y + 0.2, z);
+      seat.rotation.y = rotationY;
+      scene.add(seat);
+
+      const back = new THREE.Mesh(couchBackGeom, decoGlass);
+      back.position.set(x, PLATFORM_Y + 0.8, z - 0.7 * Math.cos(rotationY));
+      back.rotation.y = rotationY;
+      scene.add(back);
+
+      const side = new THREE.Mesh(couchSideGeom, decoMetal);
+      const sideOffsetX = 2 * Math.cos(rotationY + Math.PI / 2);
+      const sideOffsetZ = 2 * Math.sin(rotationY + Math.PI / 2);
+      side.position.set(x + sideOffsetX, PLATFORM_Y + 0.2, z + sideOffsetZ);
+      side.rotation.y = rotationY;
+      scene.add(side);
+
+      const tableTopGeom = new THREE.BoxGeometry(1.8, 0.12, 1.0);
+      const tableLegGeom = new THREE.CylinderGeometry(0.08, 0.08, 0.4, 16);
+
+      const tableX = x + 1.3 * Math.cos(rotationY + Math.PI / 2);
+      const tableZ = z + 1.3 * Math.sin(rotationY + Math.PI / 2);
+
+      const tableTop = new THREE.Mesh(tableTopGeom, decoGlass);
+      tableTop.position.set(tableX, PLATFORM_Y + 0.3, tableZ);
+      tableTop.rotation.y = rotationY;
+      scene.add(tableTop);
+
+      const leg = new THREE.Mesh(tableLegGeom, decoAccent);
+      leg.position.set(tableX, PLATFORM_Y + 0.1, tableZ);
+      scene.add(leg);
+    };
+
+    // Place 4 setups roughly at corners of the platform (inside its 30x30 area)
+    addCouchSetup(-10, -10, Math.PI / 4);
+    addCouchSetup(10, -10, -Math.PI / 4);
+    addCouchSetup(-10, 10, (3 * Math.PI) / 4);
+    addCouchSetup(10, 10, -3 * Math.PI / 4);
+    // --- End couch setups ---
 
     // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
@@ -990,7 +1027,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
     const ARROW_PANEL_OFFSET = 3.2;
 
-    // Dynamic panel configs (2 vertical tiers on outer walls, 1 tier on inner walls)
     const dynamicPanelConfigs: {
       wallName: keyof PanelConfig;
       position: [number, number, number];
@@ -1000,7 +1036,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
     const MAX_SEGMENT_INDEX = 4;
 
-    // Outer walls: two vertical tiers share the same wallName so they stay in sync.
     for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
       for (const wallNameBase of WALL_NAMES) {
         const wallKey = `${wallNameBase}-${i}` as keyof PanelConfig;
@@ -1058,7 +1093,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     }
 
-    // Inner cross walls (single tier at LOWER_PANEL_Y)
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
 
