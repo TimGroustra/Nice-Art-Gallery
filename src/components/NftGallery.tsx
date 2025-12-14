@@ -1,7 +1,13 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
 import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
-import { initializeGalleryConfig, GALLERY_PANEL_CONFIG, getCurrentNftSource, updatePanelIndex, PanelConfig } from '@/config/galleryConfig';
+import {
+  initializeGalleryConfig,
+  GALLERY_PANEL_CONFIG,
+  getCurrentNftSource,
+  updatePanelIndex,
+  PanelConfig,
+} from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
@@ -113,7 +119,6 @@ const ceilingFragmentShader = `
     gl_FragColor = vec4(color, 1.0);
   }
 `;
-// --- End GLSL Shader Code ---
 
 // --- GLSL Shader Code for Rainbow Under-Platform Plane ---
 const rainbowVertexShader = `
@@ -128,7 +133,6 @@ const rainbowFragmentShader = `
   varying vec2 vUv;
   uniform float time;
 
-  // Simple HSV to RGB
   vec3 hsv2rgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
     vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
@@ -142,7 +146,6 @@ const rainbowFragmentShader = `
 
     vec3 color = hsv2rgb(vec3(hue, sat, val));
 
-    // Soft vignette to keep focus near center
     vec2 uv = vUv * 2.0 - 1.0;
     float vignette = smoothstep(1.4, 0.2, length(uv));
     color *= vignette;
@@ -150,16 +153,13 @@ const rainbowFragmentShader = `
     gl_FragColor = vec4(color, 1.0);
   }
 `;
-// --- End Rainbow Shader ---
 
-// Helper function to determine if content is video or GIF
-const isVideoContent = (contentType: string, url: string) => {
-  return !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
-};
+// Helpers for media
+const isVideoContent = (contentType: string, url: string) =>
+  !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
 
-const isGifContent = (contentType: string, url: string) => {
-  return !!(contentType === "image/gif" || url.match(/\.gif(\?|$)/i));
-};
+const isGifContent = (contentType: string, url: string) =>
+  !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
 const disposeTextureSafely = (mesh: THREE.Mesh) => {
   if (mesh.material instanceof THREE.MeshBasicMaterial) {
@@ -190,7 +190,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const fadeStartTimeRef = useRef(0);
   const FADE_DURATION = 0.5;
 
-  // Keep refs to shaders that need animation
   const ceilingMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
   const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
 
@@ -253,9 +252,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         loader.setCrossOrigin('anonymous');
         loader.load(
           url,
-          (texture) => {
-            resolve(texture);
-          },
+          (texture) => resolve(texture),
           undefined,
           (error) => {
             console.error('Error loading texture:', url, error);
@@ -421,12 +418,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       manageVideoPlayback(false);
     });
 
+    // Room constants
     const ROOM_SEGMENT_SIZE = 10;
     const NUM_SEGMENTS = 5;
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
     const WALL_HEIGHT = 16;
     const LOWER_WALL_HEIGHT = 8;
-    const PANEL_Y_POSITION = 4.0;
+    const LOWER_PANEL_Y = 4.0; // center of lower 8m
+    const UPPER_PANEL_Y = 12.0; // center of upper 8m (8..16)
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
     const halfRoomSize = ROOM_SIZE / 2;
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
@@ -635,12 +634,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           floorSegments.push(floorSegment);
         }
 
-        const ceiling = new THREE.Mesh(segmentGeometry, ceilingMaterial);
-        ceiling.rotation.x = Math.PI / 2;
-        ceiling.position.x = segmentCenterX;
-        ceiling.position.z = segmentCenterZ;
-        ceiling.position.y = WALL_HEIGHT + 0.01;
-        scene.add(ceiling);
+        const ceilingSeg = new THREE.Mesh(segmentGeometry, ceilingMaterial);
+        ceilingSeg.rotation.x = Math.PI / 2;
+        ceilingSeg.position.x = segmentCenterX;
+        ceilingSeg.position.z = segmentCenterZ;
+        ceilingSeg.position.y = WALL_HEIGHT + 0.01;
+        scene.add(ceilingSeg);
       }
     }
 
@@ -669,7 +668,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     platform.position.set(0, PLATFORM_Y, 0);
     scene.add(platform);
 
-    // Under-platform rainbow plane (faces down into ground floor void)
+    // Under-platform rainbow plane
     const shaderPlaneGeometry = new THREE.PlaneGeometry(HOLE_SIZE, HOLE_SIZE);
     const shaderPlane = new THREE.Mesh(shaderPlaneGeometry, rainbowMaterial);
     const SHADER_PLANE_Y = LOWER_WALL_HEIGHT;
@@ -677,6 +676,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
+    // Teleport buttons (unchanged)
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
     const TELEPORT_BUTTON_HOVER_COLOR = 0x00ffff;
     const TELEPORT_BUTTON_RADIUS = 1.0;
@@ -744,8 +744,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
 
+    // Panel and arrows
     const panelGeometry = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
-    const panelMaterial = new THREE.MeshBasicMaterial({
+    const basePanelMaterial = new THREE.MeshBasicMaterial({
       color: 0x333333,
       side: THREE.DoubleSide,
       transparent: true,
@@ -768,6 +769,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
     const ARROW_PANEL_OFFSET = 3.2;
 
+    // Dynamic panel configs (2 vertical tiers on outer walls, 1 tier on inner walls)
     const dynamicPanelConfigs: {
       wallName: keyof PanelConfig;
       position: [number, number, number];
@@ -777,107 +779,113 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
     const MAX_SEGMENT_INDEX = 4;
 
+    // Outer walls: two vertical tiers share the same wallName so they stay in sync.
     for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
       for (const wallNameBase of WALL_NAMES) {
-        const panelKey = `${wallNameBase}-${i}` as keyof PanelConfig;
-        let x = 0,
-          z = 0;
-        let rotation: [number, number, number] = [0, 0, 0];
-        let depthSign = 0;
-        let wallAxis: 'x' | 'z' = 'z';
-        const centerIndex = i - 2;
-        const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
+        const wallKey = `${wallNameBase}-${i}` as keyof PanelConfig;
+        const yLevels = [LOWER_PANEL_Y, UPPER_PANEL_Y];
 
-        if (wallNameBase === 'north-wall') {
-          x = segmentCenter;
-          z = -INNER_WALL_BOUNDARY;
-          rotation = [0, 0, 0];
-          depthSign = 1;
-          wallAxis = 'z';
-        } else if (wallNameBase === 'south-wall') {
-          x = segmentCenter;
-          z = INNER_WALL_BOUNDARY;
-          rotation = [0, Math.PI, 0];
-          depthSign = -1;
-          wallAxis = 'z';
-        } else if (wallNameBase === 'east-wall') {
-          x = INNER_WALL_BOUNDARY;
-          z = segmentCenter;
-          rotation = [0, -Math.PI / 2, 0];
-          depthSign = -1;
-          wallAxis = 'x';
-        } else if (wallNameBase === 'west-wall') {
-          x = -INNER_WALL_BOUNDARY;
-          z = segmentCenter;
-          rotation = [0, Math.PI / 2, 0];
-          depthSign = 1;
-          wallAxis = 'x';
+        for (const panelY of yLevels) {
+          let x = 0;
+          let z = 0;
+          let rotation: [number, number, number] = [0, 0, 0];
+          let depthSign = 0;
+          let wallAxis: 'x' | 'z' = 'z';
+          const centerIndex = i - 2;
+          const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
+
+          if (wallNameBase === 'north-wall') {
+            x = segmentCenter;
+            z = -INNER_WALL_BOUNDARY;
+            rotation = [0, 0, 0];
+            depthSign = 1;
+            wallAxis = 'z';
+          } else if (wallNameBase === 'south-wall') {
+            x = segmentCenter;
+            z = INNER_WALL_BOUNDARY;
+            rotation = [0, Math.PI, 0];
+            depthSign = -1;
+            wallAxis = 'z';
+          } else if (wallNameBase === 'east-wall') {
+            x = INNER_WALL_BOUNDARY;
+            z = segmentCenter;
+            rotation = [0, -Math.PI / 2, 0];
+            depthSign = -1;
+            wallAxis = 'x';
+          } else if (wallNameBase === 'west-wall') {
+            x = -INNER_WALL_BOUNDARY;
+            z = segmentCenter;
+            rotation = [0, Math.PI / 2, 0];
+            depthSign = 1;
+            wallAxis = 'x';
+          }
+
+          let finalX = x;
+          let finalZ = z;
+          if (wallAxis === 'x') {
+            finalX += depthSign * ARROW_DEPTH_OFFSET;
+          } else {
+            finalZ += depthSign * ARROW_DEPTH_OFFSET;
+          }
+
+          dynamicPanelConfigs.push({
+            wallName: wallKey,
+            position: [finalX, panelY, finalZ],
+            rotation,
+          });
         }
-
-        let finalX = x;
-        let finalZ = z;
-        if (wallAxis === 'x') {
-          finalX += depthSign * ARROW_DEPTH_OFFSET;
-        } else {
-          finalZ += depthSign * ARROW_DEPTH_OFFSET;
-        }
-
-        dynamicPanelConfigs.push({
-          wallName: panelKey,
-          position: [finalX, PANEL_Y_POSITION, finalZ],
-          rotation: rotation,
-        });
       }
     }
 
+    // Inner cross walls (single tier at LOWER_PANEL_Y)
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
 
       dynamicPanelConfigs.push({
         wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
-        position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        position: [segmentCenter, LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
         rotation: [0, Math.PI, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `north-inner-wall-inner-${index}` as keyof PanelConfig,
-        position: [segmentCenter, PANEL_Y_POSITION, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+        position: [segmentCenter, LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
         rotation: [0, 0, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `south-inner-wall-outer-${index}` as keyof PanelConfig,
-        position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
+        position: [segmentCenter, LOWER_PANEL_Y, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET],
         rotation: [0, 0, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
-        position: [segmentCenter, PANEL_Y_POSITION, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        position: [segmentCenter, LOWER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
         rotation: [0, Math.PI, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `east-inner-wall-outer-${index}` as keyof PanelConfig,
-        position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        position: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, LOWER_PANEL_Y, segmentCenter],
         rotation: [0, Math.PI / 2, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `east-inner-wall-inner-${index}` as keyof PanelConfig,
-        position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        position: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, LOWER_PANEL_Y, segmentCenter],
         rotation: [0, -Math.PI / 2, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `west-inner-wall-outer-${index}` as keyof PanelConfig,
-        position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        position: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, LOWER_PANEL_Y, segmentCenter],
         rotation: [0, -Math.PI / 2, 0],
       });
 
       dynamicPanelConfigs.push({
         wallName: `west-inner-wall-inner-${index}` as keyof PanelConfig,
-        position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, PANEL_Y_POSITION, segmentCenter],
+        position: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, LOWER_PANEL_Y, segmentCenter],
         rotation: [0, Math.PI / 2, 0],
       });
     });
@@ -885,7 +893,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panelsRef.current = [];
 
     dynamicPanelConfigs.forEach((config) => {
-      const mesh = new THREE.Mesh(panelGeometry, panelMaterial.clone());
+      const mesh = new THREE.Mesh(panelGeometry, basePanelMaterial.clone());
       mesh.position.set(config.position[0], config.position[1], config.position[2]);
       mesh.rotation.set(config.rotation[0], config.rotation[1], config.rotation[2]);
       scene.add(mesh);
@@ -915,7 +923,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       const panel: Panel = {
         mesh,
-        wallName: config.wallName as keyof PanelConfig,
+        wallName: config.wallName,
         metadataUrl: '',
         isVideo: false,
         isGif: false,
@@ -928,6 +936,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panelsRef.current.push(panel);
     });
 
+    // Movement and interaction
     let moveForward = false,
       moveBackward = false,
       moveLeft = false,
@@ -989,9 +998,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         );
         if (panel) {
           const dir = currentTargetedArrow === panel.nextArrow ? 'next' : 'prev';
+
+          // Update index once per wallName, then refresh all panels with same wallName
           if (updatePanelIndex(panel.wallName, dir)) {
-            const newSource = getCurrentNftSource(panel.wallName);
-            updatePanelContent(panel, newSource);
+            const sameWallPanels = panelsRef.current.filter((p) => p.wallName === panel.wallName);
+            const source = getCurrentNftSource(panel.wallName);
+            sameWallPanels.forEach((pnl) => {
+              updatePanelContent(pnl, source);
+            });
           }
         }
       } else if (currentTargetedPanel) {
