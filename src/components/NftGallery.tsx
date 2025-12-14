@@ -424,8 +424,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ROOM_SIZE = ROOM_SEGMENT_SIZE * NUM_SEGMENTS;
     const WALL_HEIGHT = 16;
     const LOWER_WALL_HEIGHT = 8;
-    const LOWER_PANEL_Y = 5.0;   // moved up from 4.0 to raise lower tier
-    const UPPER_PANEL_Y = 12.0;  // center of upper 8m (unchanged)
+    const LOWER_PANEL_Y = 5.0;   // lifted up
+    const UPPER_PANEL_Y = 12.0;
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
     const halfRoomSize = ROOM_SIZE / 2;
     const segmentGeometry = new THREE.PlaneGeometry(ROOM_SEGMENT_SIZE, ROOM_SEGMENT_SIZE);
@@ -675,6 +675,150 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.rotation.x = -Math.PI / 2;
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
+
+    // --- Decorative props for futuristic gallery (ground floor wall joins) ---
+    const decoMetal = new THREE.MeshStandardMaterial({
+      color: 0x111827,
+      roughness: 0.2,
+      metalness: 0.9,
+    });
+    const decoAccent = new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      emissive: new THREE.Color(0x00ffff),
+      emissiveIntensity: 0.8,
+      roughness: 0.1,
+      metalness: 0.4,
+    });
+    const decoGlass = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.35,
+      roughness: 0.1,
+      metalness: 0.5,
+    });
+
+    const addSideTable = (x: number, z: number, rotationY = 0) => {
+      const topGeom = new THREE.CylinderGeometry(1.0, 1.0, 0.15, 24);
+      const legGeom = new THREE.CylinderGeometry(0.1, 0.1, 0.8, 16);
+
+      const top = new THREE.Mesh(topGeom, decoMetal);
+      top.position.set(x, 0.9, z);
+      top.rotation.y = rotationY;
+      scene.add(top);
+
+      const leg = new THREE.Mesh(legGeom, decoAccent);
+      leg.position.set(x, 0.5, z);
+      scene.add(leg);
+    };
+
+    const addCabinet = (x: number, z: number, rotationY = 0) => {
+      const bodyGeom = new THREE.BoxGeometry(2.4, 1.4, 0.7);
+      const doorGeom = new THREE.BoxGeometry(1.1, 1.1, 0.02);
+
+      const body = new THREE.Mesh(bodyGeom, decoMetal);
+      body.position.set(x, 0.7, z);
+      body.rotation.y = rotationY;
+      scene.add(body);
+
+      const doorLeft = new THREE.Mesh(doorGeom, decoGlass);
+      const doorRight = new THREE.Mesh(doorGeom, decoGlass);
+
+      const offset = 0.6;
+      // place doors slightly in front on local Z
+      doorLeft.position.set(x - Math.cos(rotationY) * offset, 0.75, z - Math.sin(rotationY) * offset);
+      doorRight.position.set(x + Math.cos(rotationY) * offset, 0.75, z + Math.sin(rotationY) * offset);
+      doorLeft.rotation.y = rotationY;
+      doorRight.rotation.y = rotationY;
+      scene.add(doorLeft);
+      scene.add(doorRight);
+    };
+
+    const addPlanter = (x: number, z: number) => {
+      const potGeom = new THREE.CylinderGeometry(0.45, 0.6, 0.5, 16);
+      const trunkGeom = new THREE.CylinderGeometry(0.07, 0.12, 0.9, 8);
+      const crownGeom = new THREE.SphereGeometry(0.6, 18, 18);
+
+      const potMat = new THREE.MeshStandardMaterial({
+        color: 0x020617,
+        roughness: 0.2,
+        metalness: 0.7,
+      });
+      const trunkMat = new THREE.MeshStandardMaterial({
+        color: 0x6b7280,
+        roughness: 0.6,
+      });
+      const leafMat = new THREE.MeshStandardMaterial({
+        color: 0x22c55e,
+        emissive: new THREE.Color(0x22c55e),
+        emissiveIntensity: 0.3,
+      });
+
+      const pot = new THREE.Mesh(potGeom, potMat);
+      pot.position.set(x, 0.25, z);
+      scene.add(pot);
+
+      const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+      trunk.position.set(x, 0.85, z);
+      scene.add(trunk);
+
+      const crown = new THREE.Mesh(crownGeom, leafMat);
+      crown.position.set(x, 1.5, z);
+      scene.add(crown);
+    };
+
+    const addSculpture = (x: number, z: number) => {
+      // Base
+      const baseGeom = new THREE.CylinderGeometry(0.6, 0.7, 0.3, 20);
+      const base = new THREE.Mesh(baseGeom, decoMetal);
+      base.position.set(x, 0.15, z);
+      scene.add(base);
+
+      // Twisting column
+      const columnGeom = new THREE.CylinderGeometry(0.15, 0.15, 1.4, 16);
+      const column = new THREE.Mesh(columnGeom, decoAccent);
+      column.position.set(x, 0.9, z);
+      column.rotation.y = Math.PI / 4;
+      scene.add(column);
+
+      // Floating orb
+      const orbGeom = new THREE.SphereGeometry(0.35, 24, 24);
+      const orb = new THREE.Mesh(orbGeom, new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: new THREE.Color(0x60a5fa),
+        emissiveIntensity: 1.2,
+        roughness: 0.05,
+        metalness: 0.9,
+      }));
+      orb.position.set(x, 1.8, z);
+      scene.add(orb);
+    };
+
+    // Place props at outer wall corners (slightly inset)
+    const inset = 2.5;
+    const ySafe = 0; // positions are at ground-level via y in each helper
+
+    // North‑west and north‑east corners
+    addPlanter(-halfRoomSize + inset, -halfRoomSize + inset);
+    addSideTable(halfRoomSize - inset, -halfRoomSize + inset, 0);
+
+    // South‑west and south‑east corners
+    addCabinet(-halfRoomSize + inset, halfRoomSize - inset, Math.PI);
+    addPlanter(halfRoomSize - inset, halfRoomSize - inset);
+
+    // Cross-wall intersections at z = ±CROSS_WALL_BOUNDARY
+    crossWallSegments.forEach((segmentCenter) => {
+      // Near north inner wall join
+      addSculpture(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
+      // Near south inner wall join
+      addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
+    });
+
+    // East/west cross intersections
+    crossWallSegments.forEach((segmentCenter) => {
+      addPlanter(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
+      addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
+    });
+    // --- End decorative props ---
 
     // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
@@ -1049,7 +1193,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         if (elapsed < FADE_DURATION) {
           opacity = Math.min(1, elapsed / FADE_DURATION);
         } else if (elapsed < FADE_DURATION * 2) {
-          opacity = Math.max(0, 1 - (elapsed - FADE_DURATION) / FADE_DURATION);
+          opacity = Math.max(0, 1 - (elapsed - FADE_DURATION) / FA_DURATION);
         } else {
           isTeleportingRef.current = false;
           opacity = 0;
