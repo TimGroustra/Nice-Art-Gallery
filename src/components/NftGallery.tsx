@@ -817,15 +817,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Cross-wall decor
-    crossWallSegments.forEach((segmentCenter) => {
-      sculptureA(segmentCenter, -CROSS_WALL_BOUNDARY - 1.8);
-      addSideTable(segmentCenter, CROSS_WALL_BOUNDARY + 1.8);
-    });
-    crossWallSegments.forEach((segmentCenter) => {
-      planterC(-CROSS_WALL_BOUNDARY - 1.8, segmentCenter);
-      addCabinet(CROSS_WALL_BOUNDARY + 1.8, segmentCenter, Math.PI / 2);
-    });
+    // Cross-wall decor was removed as requested.
 
     // Teleport buttons
     const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
