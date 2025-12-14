@@ -44,7 +44,9 @@ function buildUrls(collection: string, tokenId: string | number) {
   const tok = String(tokenId);
   return MARKETPLACES.map((m) => ({
     ...m,
-    url: m.template.replace("{collection}", encodeURIComponent(coll)).replace("{tokenId}", encodeURIComponent(tok)),
+    url: m.template
+      .replace("{collection}", encodeURIComponent(coll))
+      .replace("{tokenId}", encodeURIComponent(tok)),
   }));
 }
 
@@ -69,7 +71,12 @@ function openCenteredPopup(url: string, title = "Marketplace", w = 1100, h = 800
  * - open: whether to show modal
  * - onClose: callback
  */
-export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
+export function MarketBrowserRefined({
+  collection,
+  tokenId,
+  open,
+  onClose,
+}: {
   collection: string;
   tokenId: string | number;
   open: boolean;
@@ -80,7 +87,12 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
   const [probeState, setProbeState] = useState<Record<string, ProbeStatus>>({});
   const mounted = useRef(true);
 
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   // Effect to trigger server-side probing when the modal opens
   useEffect(() => {
@@ -91,48 +103,52 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
 
     // Set initial states based on probe requirement or whitelist
     const initialStates: Record<string, ProbeStatus> = {};
-    markets.forEach(m => {
-        if (m.probeRequired) {
-            initialStates[m.id] = "checking";
+    markets.forEach((m) => {
+      if (m.probeRequired) {
+        initialStates[m.id] = "checking";
+      } else {
+        // For markets that don't require a probe
+        if (m.id === "panth") {
+          const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
+          initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
         } else {
-            // For markets that don't require a probe
-            if (m.id === "panth") {
-                const isWhitelisted = PANTH_ART_WHITELIST.has(collection);
-                initialStates[m.id] = isWhitelisted ? "available" : "unavailable";
-            } else {
-                // For other non-probed markets (like Rarible), assume available.
-                initialStates[m.id] = "available";
-            }
+          // For other non-probed markets (like Rarible), assume available.
+          initialStates[m.id] = "available";
         }
+      }
     });
     setProbeState(initialStates);
 
     // Trigger server-side probes only for markets that require it
-    markets.filter(m => m.probeRequired).forEach(market => {
-      probeMarketplaceServerSide(market.id, collection, tokenId).then((res) => {
-        if (mounted.current) {
-          setProbeState(prev => ({ ...prev, [market.id]: res.status }));
-          if (res.status === "error") {
-            console.error(`Probe error for ${market.name}:`, res.reason);
+    markets
+      .filter((m) => m.probeRequired)
+      .forEach((market) => {
+        probeMarketplaceServerSide(market.id, collection, tokenId).then((res) => {
+          if (mounted.current) {
+            setProbeState((prev) => ({ ...prev, [market.id]: res.status }));
+            if (res.status === "error") {
+              console.error(`Probe error for ${market.name}:`, res.reason);
+            }
           }
-        }
+        });
       });
-    });
   }, [open, collection, tokenId, markets]);
 
   // When user selects a marketplace button -> open page immediately if available/error/blocked
   function handleSelect(marketId: string) {
     const market = markets.find((m) => m.id === marketId);
     if (!market) return;
-    
+
     const state = probeState[marketId];
-    
+
     // If we are still checking, do nothing (only applies to probeRequired markets)
     if (state === "checking") return;
 
     // If unavailable or error, show error and stop
     if (state === "unavailable" || state === "error") {
-      showError(`${market.name} reported this token is unavailable or an error occurred during check.`);
+      showError(
+        `${market.name} reported this token is unavailable or an error occurred during check.`,
+      );
       return;
     }
 
@@ -151,24 +167,43 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
     <div
       role="dialog"
       aria-modal
-      style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1400, background: "rgba(0,0,0,0.6)" }}
+      style={{
+        position: "fixed",
+        inset: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1400,
+        background: "rgba(0,0,0,0.6)",
+      }}
       onClick={() => onClose()}
     >
-      <div 
-        onClick={(e) => e.stopPropagation()} 
-        style={{ 
-          width: "min(500px, 94vw)", 
-          maxWidth: "500px", 
-          height: "auto", 
-          background: "#0b1220", 
-          borderRadius: 12, 
-          overflow: "hidden" 
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(500px, 94vw)",
+          maxWidth: "500px",
+          height: "auto",
+          background: "#0b1220",
+          borderRadius: 12,
+          overflow: "hidden",
         }}
       >
         {/* LEFT: marketplaces chooser */}
-        <div style={{ padding: 18, display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ color: "#fff", fontSize: 18, fontWeight: 700 }}>View NFT in Marketplace</div>
-          <div style={{ color: "#9aa4b2", fontSize: 13 }}>Choose a marketplace to open this token.</div>
+        <div
+          style={{
+            padding: 18,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <div style={{ color: "#fff", fontSize: 18, fontWeight: 700 }}>
+            View NFT in Marketplace
+          </div>
+          <div style={{ color: "#9aa4b2", fontSize: 13 }}>
+            Choose a marketplace to open this token.
+          </div>
 
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 10 }}>
             {markets.map((m) => {
@@ -176,7 +211,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
               // Disable if unavailable OR error
               const disabled = state === "unavailable" || state === "error";
               const checking = state === "checking" || state === undefined;
-              
+
               let statusText = "Tap to open";
               let statusColor = "#9aa4b2";
 
@@ -190,8 +225,8 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                 statusText = "Available";
                 statusColor = "#9fffba";
               } else if (state === "error") {
-                statusText = "Error"; 
-                statusColor = "#ff7a7a"; 
+                statusText = "Error";
+                statusColor = "#ff7a7a";
               }
 
               return (
@@ -199,7 +234,7 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                   key={m.id}
                   onClick={() => handleSelect(m.id)}
                   // Disable if checking OR disabled (unavailable/error)
-                  disabled={checking || disabled} 
+                  disabled={checking || disabled}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -211,19 +246,55 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
                     color: disabled ? "#6e7a86" : "#e6eef8",
                     border: "1px solid rgba(255,255,255,0.03)",
                     cursor: checking || disabled ? "not-allowed" : "pointer",
-                    textAlign: "left"
+                    textAlign: "left",
                   }}
                 >
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                    }}
+                  >
                     <div style={{ fontSize: 15, fontWeight: 700 }}>{m.name}</div>
-                    <div style={{ fontSize: 12, color: disabled ? "#6e7a86" : "#9aa4b2", marginTop: 4, wordBreak: 'break-all' }}>{m.url}</div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: disabled ? "#6e7a86" : "#9aa4b2",
+                        marginTop: 4,
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {m.url}
+                    </div>
                   </div>
 
-                  <div style={{ minWidth: 120, display: "flex", justifyContent: "flex-end", alignItems: "center" }}>
+                  <div
+                    style={{
+                      minWidth: 120,
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      alignItems: "center",
+                    }}
+                  >
                     {checking ? (
                       <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                        <svg width="18" height="18" viewBox="0 0 50 50" style={{ animation: "spin 1s linear infinite" }}>
-                          <circle cx="25" cy="25" r="20" fill="none" stroke="#9fb7ff" strokeWidth="5" strokeLinecap="round" strokeDasharray="31.4 31.4"></circle>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 50 50"
+                          style={{ animation: "spin 1s linear infinite" }}
+                        >
+                          <circle
+                            cx="25"
+                            cy="25"
+                            r="20"
+                            fill="none"
+                            stroke="#9fb7ff"
+                            strokeWidth="5"
+                            strokeLinecap="round"
+                            strokeDasharray="31.4 31.4"
+                          ></circle>
                         </svg>
                         <span style={{ fontSize: 13, color: statusColor }}>{statusText}</span>
                       </div>
@@ -237,10 +308,16 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
           </div>
 
           <div style={{ marginTop: "auto", display: "flex", gap: 8 }}>
-            <button onClick={() => { navigator.clipboard?.writeText(markets[0].url); }} style={{ padding: "10px 12px", borderRadius: 8, background: "#0b6cff", color: "#fff", border: "none" }}>
-              Copy ElectroSwap link
-            </button>
-            <button onClick={() => onClose()} style={{ padding: "10px 12px", borderRadius: 8, background: "#18202a", color: "#cbd6e3", border: "1px solid rgba(255,255,255,0.03)" }}>
+            <button
+              onClick={() => onClose()}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 8,
+                background: "#18202a",
+                color: "#cbd6e3",
+                border: "1px solid rgba(255,255,255,0.03)",
+              }}
+            >
               Cancel
             </button>
           </div>
@@ -248,7 +325,9 @@ export function MarketBrowserRefined({ collection, tokenId, open, onClose }: {
       </div>
 
       {/* small CSS keyframes injected inline so spinner works without external CSS */}
-      <style>{`@keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`}</style>
+      <style>
+        {`@keyframes spin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }`}
+      </style>
     </div>
   );
 }
