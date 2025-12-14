@@ -587,7 +587,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     ceilingLoader.setCrossOrigin('anonymous');
 
     ceilingLoader.load(
-      '/textures/starry_night_sky_background_1409-square.jpg',
+      '/textures/starry_night_sky_background_1409.jpg',
       (nebulaTexture) => {
         nebulaTexture.wrapS = THREE.ClampToEdgeWrapping;
         nebulaTexture.wrapT = THREE.ClampToEdgeWrapping;
