@@ -581,34 +581,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     shaderPlane.position.set(0, SHADER_PLANE_Y, 0);
     scene.add(shaderPlane);
 
-    // === Single starry ceiling covering full 50x50 using your provided image ===
+    // Main upper ceiling with same rainbow shader effect
     const ceilingGeometry = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-    const ceilingLoader = new THREE.TextureLoader();
-    ceilingLoader.setCrossOrigin('anonymous');
-
-    ceilingLoader.load(
-      '/textures/starry_night_sky_background_1409-2.jpg',
-      (nebulaTexture) => {
-        nebulaTexture.wrapS = THREE.ClampToEdgeWrapping;
-        nebulaTexture.wrapT = THREE.ClampToEdgeWrapping;
-        nebulaTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-        nebulaTexture.needsUpdate = true;
-
-        const ceilingMaterial = new THREE.MeshBasicMaterial({
-          map: nebulaTexture,
-          side: THREE.BackSide,
-        });
-
-        const nebulaCeiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
-        nebulaCeiling.rotation.x = Math.PI / 2;
-        nebulaCeiling.position.set(0, WALL_HEIGHT + 0.01, 0);
-        scene.add(nebulaCeiling);
-      },
-      undefined,
-      (err) => {
-        console.error('Failed to load starry ceiling texture:', err);
-      },
-    );
+    const rainbowCeiling = new THREE.Mesh(ceilingGeometry, rainbowMaterial);
+    rainbowCeiling.rotation.x = Math.PI / 2;
+    rainbowCeiling.position.set(0, WALL_HEIGHT + 0.01, 0);
+    scene.add(rainbowCeiling);
 
     // --- Decorative props (futuristic, but no couches/tables) ---
     const decoMetal = new THREE.MeshStandardMaterial({
