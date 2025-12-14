@@ -205,6 +205,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
 
       if (panel.gifStopFunction) {
+        panel.gifStopFunction();
         panel.gifStopFunction = null;
       }
 
@@ -422,8 +423,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Raised ground-floor panel height for OUTER walls
     const LOWER_PANEL_Y = 5.0;
-    // Restored lower panel height for INNER 30x30 / center walls
-    const INNER_LOWER_PANEL_Y = 3.0;
+    // Centered lower panel height for INNER 30x30 / center walls
+    const INNER_LOWER_PANEL_Y = 4.0;
 
     const UPPER_PANEL_Y = 12.0;
     const BOUNDARY = ROOM_SIZE / 2 - 0.5;
@@ -1003,7 +1004,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const GROUND_BUTTON_Y = 0.1 + TELEPORT_BUTTON_HEIGHT / 2;
-    const FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2;
+    the FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2;
 
     const groundButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
     groundButton.position.set(0, GROUND_BUTTON_Y, 0);
@@ -1087,7 +1088,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       for (const wallNameBase of WALL_NAMES) {
         const wallKey = `${wallNameBase}-${i}` as keyof PanelConfig;
 
-        // OUTER walls use raised LOWER_PANEL_Y, inner walls will use INNER_LOWER_PANEL_Y below
         const yLevelsOuter = [LOWER_PANEL_Y, UPPER_PANEL_Y];
 
         for (const panelY of yLevelsOuter) {
@@ -1145,7 +1145,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
 
-      // INNER / 30x30 walls use the restored lower height INNER_LOWER_PANEL_Y
       dynamicPanelConfigs.push({
         wallName: `north-inner-wall-outer-${index}` as keyof PanelConfig,
         position: [segmentCenter, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
@@ -1242,8 +1241,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // Movement, raycasting, rendering, cleanup remain unchanged...
-    // (Existing code below is identical to previous version)
-
     let moveForward = false,
       moveBackward = false,
       moveLeft = false,
