@@ -882,9 +882,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     }
     
     // Inner 30x30 cross walls (at X/Z = +/- 5)
-    const CROSS_WALL_BOUNDARY = 5;
-    const crossWallSegments = [-10, 10];
-    
+    // We reuse CROSS_WALL_BOUNDARY and crossWallSegments defined earlier in the geometry setup section.
     crossWallSegments.forEach((segmentCenter, i) => {
       const index = i;
       
