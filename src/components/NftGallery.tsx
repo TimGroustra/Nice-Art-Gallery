@@ -7,7 +7,6 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import TeleportPad from '@/components/TeleportPad';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -36,6 +35,7 @@ interface NftGalleryProps {
 // Global state for UI interaction
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
+let currentTargetedButton: THREE.Mesh | null = null; // New global state for button
 
 // --- GLSL Shader Code for Pulsing Rainbow Ceiling ---
 const ceilingVertexShader = `
@@ -110,6 +110,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   
+  // Teleport state management
+  const isTeleportingRef = useRef(false);
+  const fadeStartTimeRef = useRef(0);
+  const FADE_DURATION = 0.5; // seconds
+
   // Refactored loadTexture to handle Video, GIF, and Image - moved inside component
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
@@ -282,14 +287,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
     });
-  }, []);
-
-  const handleTeleport = useCallback((targetPosition: [number, number, number]) => {
-    if (cameraRef.current) {
-      cameraRef.current.position.set(...targetPosition);
-      // Set Y position to standing height
-      cameraRef.current.position.y = targetPosition[1];
-    }
   }, []);
 
   useEffect(() => {
@@ -693,10 +690,68 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Create a platform that covers the inner 30x30 area walls with same thickness as walls
     const platformGeometry = new THREE.BoxGeometry(30, WALL_THICKNESS, 30); // Make it thick like walls
     const platform = new THREE.Mesh(platformGeometry, concreteMaterial.clone()); // Use concrete material
-    platform.position.set(0, 8.1 - (WALL_THICKNESS / 2), 0); // Positioned at the top of the lower walls, adjusted for thickness
+    const PLATFORM_Y = 8.1 - (WALL_THICKNESS / 2); // 7.85
+    platform.position.set(0, PLATFORM_Y, 0); // Positioned at the top of the lower walls, adjusted for thickness
     scene.add(platform);
     
-    // --- END POOL AND FOUNTAIN ---
+    // --- Teleport Button Setup ---
+    const TELEPORT_BUTTON_COLOR = 0x1a3f7c; // Dark blue base
+    const TELEPORT_BUTTON_HOVER_COLOR = 0x00ffff; // Bright cyan hover
+    const TELEPORT_BUTTON_RADIUS = 1.0;
+    const TELEPORT_BUTTON_HEIGHT = 0.2;
+    const PLAYER_HEIGHT = 1.6;
+    
+    const buttonGeometry = new THREE.CylinderGeometry(TELEPORT_BUTTON_RADIUS, TELEPORT_BUTTON_RADIUS, TELEPORT_BUTTON_HEIGHT, 32);
+    const buttonMaterial = new THREE.MeshBasicMaterial({ 
+        color: TELEPORT_BUTTON_COLOR, 
+        emissive: TELEPORT_BUTTON_COLOR, 
+        emissiveIntensity: 0.5 
+    });
+    
+    // Ground Floor Button (Teleports to 1st floor)
+    const GROUND_BUTTON_Y = 0.1 + TELEPORT_BUTTON_HEIGHT / 2; // 0.2
+    // Target Y: Platform center (7.85) + Player height (1.6) + half wall thickness (0.25) = 9.7
+    const FIRST_FLOOR_TARGET_Y = PLATFORM_Y + PLAYER_HEIGHT + WALL_THICKNESS / 2; 
+    
+    const groundButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
+    groundButton.position.set(0, GROUND_BUTTON_Y, 0);
+    groundButton.userData = { isTeleportButton: true, targetY: FIRST_FLOOR_TARGET_Y };
+    scene.add(groundButton);
+    
+    // First Floor Button (Teleports to Ground floor)
+    // Button Y: Platform center (7.85) + half wall thickness (0.25) + half button height (0.1) = 8.2
+    const FIRST_FLOOR_BUTTON_Y = PLATFORM_Y + WALL_THICKNESS / 2 + TELEPORT_BUTTON_HEIGHT / 2; 
+    const GROUND_FLOOR_TARGET_Y = PLAYER_HEIGHT; // 1.6
+    
+    const firstFloorButton = new THREE.Mesh(buttonGeometry, buttonMaterial.clone());
+    firstFloorButton.position.set(0, FIRST_FLOOR_BUTTON_Y, 0);
+    firstFloorButton.userData = { isTeleportButton: true, targetY: GROUND_FLOOR_TARGET_Y };
+    scene.add(firstFloorButton);
+    
+    const teleportButtons = [groundButton, firstFloorButton];
+    
+    // --- Teleport Fade Overlay Setup ---
+    const fadeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false });
+    const fadeGeometry = new THREE.PlaneGeometry(100, 100);
+    const fadeScreen = new THREE.Mesh(fadeGeometry, fadeMaterial);
+    fadeScreen.renderOrder = 999; // Ensure it renders last
+    scene.add(fadeScreen);
+    
+    const performTeleport = (targetY: number) => {
+        if (isTeleportingRef.current) return;
+        isTeleportingRef.current = true;
+        fadeStartTimeRef.current = performance.now();
+        
+        // Unlock controls during teleport to prevent movement during fade
+        controls.unlock(); 
+        
+        // The actual teleport happens mid-fade
+        setTimeout(() => {
+            camera.position.y = targetY;
+            // Re-lock controls after teleport
+            controls.lock(); 
+        }, FADE_DURATION * 1000); // Wait for full fade in (0.5s) before teleporting and starting fade out
+    };
     
     // 4. Lighting Setup
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
@@ -930,7 +985,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
-    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
+    
+    // Include teleport buttons in interactive meshes
+    const interactiveMeshes = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]).concat(teleportButtons);
     
     const onDocumentMouseDown = () => {
       if (!controls.isLocked) return;
@@ -950,6 +1007,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           setMarketBrowserState({ open: true, collection: source.contractAddress, tokenId: source.tokenId });
           controls.unlock();
         }
+      } else if (currentTargetedButton) {
+        // New teleport logic
+        performTeleport(currentTargetedButton.userData.targetY);
       }
     };
     
@@ -970,6 +1030,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         ceilingMaterial.uniforms.time.value = elapsedTime;
       }
       
+      // --- Teleport Fade Animation ---
+      if (isTeleportingRef.current) {
+          const elapsed = (time - fadeStartTimeRef.current) / 1000;
+          let opacity = 0;
+          
+          if (elapsed < FADE_DURATION) {
+              // Fade in (0 to 1)
+              opacity = Math.min(1, elapsed / FADE_DURATION);
+          } else if (elapsed < FADE_DURATION * 2) {
+              // Fade out (1 to 0)
+              opacity = Math.max(0, 1 - (elapsed - FADE_DURATION) / FADE_DURATION);
+          } else {
+              // Animation finished
+              isTeleportingRef.current = false;
+              opacity = 0;
+          }
+          
+          fadeMaterial.opacity = opacity;
+          
+          // Keep fade screen in front of camera
+          fadeScreen.position.copy(camera.position);
+          fadeScreen.position.add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(0.1));
+          fadeScreen.quaternion.copy(camera.quaternion);
+      }
+      // --- End Teleport Fade Animation ---
+      
       if (controls.isLocked) {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
@@ -987,29 +1073,42 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // --- Collision Detection (Only outer 50x50 boundary enforced) ---
         camera.position.x = Math.max(-boundary, Math.min(boundary, camera.position.x));
         camera.position.z = Math.max(-boundary, Math.min(boundary, camera.position.z));
-        camera.position.y = 1.6;
+        camera.position.y = camera.position.y; // Y position is handled by teleport
         
         raycaster.setFromCamera(center, camera);
-        const intersects = raycaster.intersectObjects(panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]));
+        const intersects = raycaster.intersectObjects(interactiveMeshes);
         
         panelsRef.current.forEach(p => {
           (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
           (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
         });
         
+        teleportButtons.forEach(b => {
+            (b.material as THREE.MeshBasicMaterial).color.setHex(TELEPORT_BUTTON_COLOR);
+            (b.material as THREE.MeshBasicMaterial).emissive.setHex(TELEPORT_BUTTON_COLOR);
+        });
+        
         currentTargetedPanel = null;
         currentTargetedArrow = null;
+        currentTargetedButton = null;
         
         if (intersects.length > 0 && intersects[0].distance < 5) {
           const intersectedMesh = intersects[0].object as THREE.Mesh;
-          const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
           
-          if (panel) {
-            if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
-            else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
-              currentTargetedArrow = intersectedMesh;
-              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
-            }
+          if (intersectedMesh.userData.isTeleportButton) {
+              currentTargetedButton = intersectedMesh;
+              (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(TELEPORT_BUTTON_HOVER_COLOR);
+              (intersectedMesh.material as THREE.MeshBasicMaterial).emissive.setHex(TELEPORT_BUTTON_HOVER_COLOR);
+          } else {
+              const panel = panelsRef.current.find(p => p.mesh === intersectedMesh || p.prevArrow === intersectedMesh || p.nextArrow === intersectedMesh);
+              
+              if (panel) {
+                if (intersectedMesh === panel.mesh) currentTargetedPanel = panel;
+                else if (intersectedMesh === panel.prevArrow || intersectedMesh === panel.nextArrow) {
+                  currentTargetedArrow = intersectedMesh;
+                  (intersectedMesh.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
+                }
+              }
           }
         }
       }
@@ -1117,8 +1216,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       delete (window as any).galleryControls;
       currentTargetedPanel = null;
       currentTargetedArrow = null;
+      currentTargetedButton = null;
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, handleTeleport]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
@@ -1130,24 +1230,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           open={marketBrowserState.open} 
           onClose={() => setMarketBrowserState({ open: false })} 
         />
-      )}
-      {sceneRef.current && cameraRef.current && (
-        <>
-          <TeleportPad 
-            position={[0, 0.1, 0]} 
-            targetPosition={[0, 8.1, 0]} 
-            onTeleport={handleTeleport}
-            scene={sceneRef.current}
-            camera={cameraRef.current}
-          />
-          <TeleportPad 
-            position={[0, 8.1, 0]} 
-            targetPosition={[0, 0.1, 0]} 
-            onTeleport={handleTeleport}
-            scene={sceneRef.current}
-            camera={cameraRef.current}
-          />
-        </>
       )}
     </>
   );
