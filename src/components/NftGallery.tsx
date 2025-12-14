@@ -359,6 +359,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Increase wall thickness by using BoxGeometry instead of PlaneGeometry
     const WALL_THICKNESS = 0.5; // Increased from 0 to 0.5 units thick
     
+    // Define the boundary for the outer walls where panels are placed (50 / 2 = 25)
+    const INNER_WALL_BOUNDARY = ROOM_SIZE / 2; 
+
     // Define wall segment geometry once
     const wallSegmentGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
     const wallMaterial = new THREE.MeshStandardMaterial({ 
