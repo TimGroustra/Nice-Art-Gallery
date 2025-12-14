@@ -1,18 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
 import { Loader2, Wallet, AlertTriangle, Gem } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useAccount, useDisconnect } from 'wagmi'; // Import Wagmi hooks
-import { useAvailableGems } from '@/hooks/use-available-gems'; // Import new hook
+import { useAccount, useDisconnect } from 'wagmi';
+import { useAvailableGems } from '@/hooks/use-available-gems';
 
 interface GalleryConfig {
   panel_key: string;
@@ -28,36 +27,110 @@ interface PanelLock {
   panel_id: string;
   locked_by_address: string;
   locked_until: string; // ISO string
-  locking_gem_token_id: string | null; // New field
+  locking_gem_token_id: string | null;
 }
 
 const REQUIRED_GEM_BALANCE = 5;
-const DEFAULT_WALL_COLOR = '#36454F'; // Charcoal Grey
-const DEFAULT_TEXT_COLOR = '#40E0D0'; // Turquoise
+const DEFAULT_WALL_COLOR = '#36454F';
+const DEFAULT_TEXT_COLOR = '#40E0D0';
+
+// Outer wall segments: indices 0..4 from galleryConfig.ts
+const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
+
+// Helper to create human-readable labels for outer wall segments
+const outerLabel = (wall: 'north' | 'south' | 'east' | 'west', index: number, floor: 'ground' | 'first') => {
+  const base =
+    wall === 'north'
+      ? 'North Outer'
+      : wall === 'south'
+      ? 'South Outer'
+      : wall === 'east'
+      ? 'East Outer'
+      : 'West Outer';
+  const seg = `Segment ${index + 1}`;
+  const floorLabel = floor === 'ground' ? 'Ground' : '1st Floor';
+  return `${base} – ${seg} (${floorLabel})`;
+};
+
+// Inner/cross walls: from galleryConfig.ts
+const INNER_WALL_KEYS = [
+  'north-inner-wall-outer-0',
+  'north-inner-wall-inner-0',
+  'north-inner-wall-outer-1',
+  'north-inner-wall-inner-1',
+  'south-inner-wall-outer-0',
+  'south-inner-wall-inner-0',
+  'south-inner-wall-outer-1',
+  'south-inner-wall-inner-1',
+  'east-inner-wall-outer-0',
+  'east-inner-wall-inner-0',
+  'east-inner-wall-outer-1',
+  'east-inner-wall-inner-1',
+  'west-inner-wall-outer-0',
+  'west-inner-wall-inner-0',
+  'west-inner-wall-outer-1',
+  'west-inner-wall-inner-1',
+] as const;
+
+const CENTER_WALL_KEYS = [
+  'north-center-wall-0',
+  'south-center-wall-0',
+  'east-center-wall-0',
+  'west-center-wall-0',
+] as const;
+
+// Friendly labels for non‑outer panels
+const PANEL_LABELS: Record<string, string> = {
+  // Inner cross walls – north side of cross
+  'north-inner-wall-outer-0': 'Inner North – West Segment (Outer Face)',
+  'north-inner-wall-inner-0': 'Inner North – West Segment (Inner Face)',
+  'north-inner-wall-outer-1': 'Inner North – East Segment (Outer Face)',
+  'north-inner-wall-inner-1': 'Inner North – East Segment (Inner Face)',
+  // Inner cross walls – south side of cross
+  'south-inner-wall-outer-0': 'Inner South – West Segment (Outer Face)',
+  'south-inner-wall-inner-0': 'Inner South – West Segment (Inner Face)',
+  'south-inner-wall-outer-1': 'Inner South – East Segment (Outer Face)',
+  'south-inner-wall-inner-1': 'Inner South – East Segment (Inner Face)',
+  // Inner cross walls – east side of cross
+  'east-inner-wall-outer-0': 'Inner East – North Segment (Outer Face)',
+  'east-inner-wall-inner-0': 'Inner East – North Segment (Inner Face)',
+  'east-inner-wall-outer-1': 'Inner East – South Segment (Outer Face)',
+  'east-inner-wall-inner-1': 'Inner East – South Segment (Inner Face)',
+  // Inner cross walls – west side of cross
+  'west-inner-wall-outer-0': 'Inner West – North Segment (Outer Face)',
+  'west-inner-wall-inner-0': 'Inner West – North Segment (Inner Face)',
+  'west-inner-wall-outer-1': 'Inner West – South Segment (Outer Face)',
+  'west-inner-wall-inner-1': 'Inner West – South Segment (Inner Face)',
+  // Center ring
+  'north-center-wall-0': 'Center Ring – North Wall',
+  'south-center-wall-0': 'Center Ring – South Wall',
+  'east-center-wall-0': 'Center Ring – East Wall',
+  'west-center-wall-0': 'Center Ring – West Wall',
+};
 
 // Helper function to format wallet address
 const formatWalletAddress = (address: string | undefined | null) => {
-    if (!address) return 'N/A';
-    const len = address.length;
-    if (len <= 10) return address;
-    return `${address.substring(0, 6)}...${address.substring(len - 4)}`;
+  if (!address) return 'N/A';
+  const len = address.length;
+  if (len <= 10) return address;
+  return `${address.substring(0, 6)}...${address.substring(len - 4)}`;
 };
 
+// Blueprint floor type
+type OuterFloor = 'ground' | 'first';
 
 const GalleryConfig = () => {
   const navigate = useNavigate();
-  
-  // Use Wagmi hooks
+
   const { address: walletAddress, isConnected } = useAccount();
   const { disconnect } = useDisconnect();
-  
-  // Use new hook for gem token management
-  const { 
-    availableTokens, 
-    ownedTokens, 
-    isLoading: isGemsLoading, 
-    error: gemsError, 
-    refetch: refetchGems 
+
+  const {
+    availableTokens,
+    ownedTokens,
+    isLoading: isGemsLoading,
+    error: gemsError,
+    refetch: refetchGems,
   } = useAvailableGems(walletAddress || null);
 
   const [panelKeys, setPanelKeys] = useState<string[]>([]);
@@ -67,114 +140,128 @@ const GalleryConfig = () => {
   const [panelLocks, setPanelLocks] = useState<PanelLock[]>([]);
   const [lockDurationDays, setLockDurationDays] = useState(1);
   const [poorContrast, setPoorContrast] = useState(false);
+  const [outerFloor, setOuterFloor] = useState<OuterFloor>('ground');
 
-  // Helper function to calculate color contrast
+  // --- Contrast helper ---
   const getContrastRatio = (hex1: string, hex2: string): number => {
     const getLuminance = (hex: string): number => {
-        let rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        if (!rgb) return 0;
-        
-        const sRGB = [parseInt(rgb[1], 16), parseInt(rgb[2], 16), parseInt(rgb[3], 16)].map(val => {
-            val /= 255.0;
-            return val <= 0.03928 ? val / 12.92 : Math.pow((val + 0.055) / 1.055, 2.4);
-        });
+      const rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      if (!rgb) return 0;
 
-        return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
+      const sRGB = [parseInt(rgb[1], 16), parseInt(rgb[2], 16), parseInt(rgb[3], 16)].map(
+        (val) => {
+          let v = val / 255.0;
+          return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+        },
+      );
+
+      return 0.2126 * sRGB[0] + 0.7152 * sRGB[1] + 0.0722 * sRGB[2];
     };
 
     const lum1 = getLuminance(hex1);
     const lum2 = getLuminance(hex2);
-
     const lighter = Math.max(lum1, lum2);
     const darker = Math.min(lum1, lum2);
-
     return (lighter + 0.05) / (darker + 0.05);
   };
 
   useEffect(() => {
-    // Use defaults if config values are null
     const wallColor = currentConfig.wall_color || DEFAULT_WALL_COLOR;
     const textColor = currentConfig.text_color || DEFAULT_TEXT_COLOR;
     const ratio = getContrastRatio(wallColor, textColor);
-    
-    // WCAG AA requires 4.5, but we can warn at a lower threshold like 3.0
-    if (ratio < 3.0) {
-        setPoorContrast(true);
-    } else {
-        setPoorContrast(false);
-    }
+    setPoorContrast(ratio < 3.0);
   }, [currentConfig.wall_color, currentConfig.text_color]);
 
-  // Helper function to check lock status
-  const getLockStatus = useCallback((panelKey: string) => {
-    const lock = panelLocks.find(l => l.panel_id === panelKey);
-    if (!lock) return { isLocked: false, isLockedByMe: false, lockedUntil: null, lockingGemTokenId: null };
-
-    const lockedUntilDate = new Date(lock.locked_until);
-    const now = new Date();
-    
-    if (lockedUntilDate > now) {
-        const isLockedByMe = lock.locked_by_address.toLowerCase() === walletAddress?.toLowerCase();
-        return { 
-            isLocked: true, 
-            isLockedByMe, 
-            lockedUntil: lockedUntilDate,
-            lockingGemTokenId: lock.locking_gem_token_id
+  // --- Lock helpers ---
+  const getLockStatus = useCallback(
+    (panelKey: string) => {
+      const lock = panelLocks.find((l) => l.panel_id === panelKey);
+      if (!lock) {
+        return {
+          isLocked: false,
+          isLockedByMe: false,
+          lockedUntil: null as Date | null,
+          lockingGemTokenId: null as string | null,
         };
-    }
-    // Lock expired, treat as unlocked
-    return { isLocked: false, isLockedByMe: false, lockedUntil: null, lockingGemTokenId: null };
-  }, [panelLocks, walletAddress]);
+      }
 
+      const lockedUntilDate = new Date(lock.locked_until);
+      const now = new Date();
+      if (lockedUntilDate > now) {
+        const isLockedByMe =
+          walletAddress &&
+          lock.locked_by_address &&
+          lock.locked_by_address.toLowerCase() === walletAddress.toLowerCase();
+        return {
+          isLocked: true,
+          isLockedByMe,
+          lockedUntil: lockedUntilDate,
+          lockingGemTokenId: lock.locking_gem_token_id,
+        };
+      }
+      return {
+        isLocked: false,
+        isLockedByMe: false,
+        lockedUntil: null,
+        lockingGemTokenId: null,
+      };
+    },
+    [panelLocks, walletAddress],
+  );
 
-  // 1. Authentication and Authorization Check
+  // --- Auth / authorization ---
   useEffect(() => {
     if (!isConnected || !walletAddress) {
-      toast.warning("Please connect your wallet to access configuration.");
+      toast.warning('Please connect your wallet to access configuration.');
       navigate('/login');
       return;
     }
-    
-    // Authorization check now uses ownedTokens.length
-    if (!isGemsLoading && ownedTokens.length > 0) {
-      if (ownedTokens.length < REQUIRED_GEM_BALANCE) {
-        toast.error(`Access denied. You need at least ${REQUIRED_GEM_BALANCE} ElectroGems to configure the gallery.`);
-      }
+
+    if (!isGemsLoading && ownedTokens.length > 0 && ownedTokens.length < REQUIRED_GEM_BALANCE) {
+      toast.error(
+        `Access denied. You need at least ${REQUIRED_GEM_BALANCE} ElectroGems to configure the gallery.`,
+      );
     }
   }, [isConnected, walletAddress, isGemsLoading, ownedTokens.length, navigate]);
 
-  const isAuthorized = isConnected && walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
-  
-  // 2. Fetch Panel Keys and Locks (only if authorized)
+  const isAuthorized =
+    isConnected && walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
+
+  // --- Fetch panel keys + locks when authorized ---
   useEffect(() => {
     if (!isAuthorized) return;
 
     const fetchPanelData = async () => {
-      // Fetch all panel keys
-      const { data: keysData, error: keysError } = await supabase.from('gallery_config').select('panel_key');
+      const { data: keysData, error: keysError } = await supabase
+        .from('gallery_config')
+        .select('panel_key');
       if (keysError) {
         toast.error('Failed to fetch panel keys');
         console.error(keysError);
-        return;
+      } else {
+        // Use all known keys (including those not yet in DB) for the blueprint;
+        // but we still keep DB keys so you can see which are configured.
+        const dbKeys = keysData.map((item) => item.panel_key);
+        setPanelKeys(dbKeys.sort());
       }
-      setPanelKeys(keysData.map((item) => item.panel_key).sort());
-      
-      // Fetch all active locks, including the new gem token ID
+
       const { data: locksData, error: locksError } = await supabase
         .from('panel_locks')
         .select('panel_id, locked_by_address, locked_until, locking_gem_token_id');
-        
+
       if (locksError) {
         console.error('Failed to fetch panel locks:', locksError);
-        // Continue even if locks fail to fetch
       } else {
-        setPanelLocks(locksData.map(lock => ({
+        setPanelLocks(
+          locksData.map((lock) => ({
             ...lock,
             panel_id: lock.panel_id,
             locking_gem_token_id: lock.locking_gem_token_id,
-        })));
+          })),
+        );
       }
     };
+
     fetchPanelData();
   }, [isAuthorized]);
 
@@ -184,16 +271,31 @@ const GalleryConfig = () => {
       return;
     }
     setIsLoading(true);
-    const { data, error } = await supabase.from('gallery_config').select('*').eq('panel_key', panelKey).single();
-    if (error && error.code !== 'PGRST116') { // PGRST116 means 'no rows found'
+    const { data, error } = await supabase
+      .from('gallery_config')
+      .select('*')
+      .eq('panel_key', panelKey)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
       toast.error(`Failed to fetch config for ${panelKey}`);
       console.error(error);
-      setCurrentConfig({ panel_key: panelKey, show_collection: true, wall_color: DEFAULT_WALL_COLOR, text_color: DEFAULT_TEXT_COLOR }); // Set key so user can create a new one
+      setCurrentConfig({
+        panel_key: panelKey,
+        show_collection: true,
+        wall_color: DEFAULT_WALL_COLOR,
+        text_color: DEFAULT_TEXT_COLOR,
+      });
     } else if (data) {
       setCurrentConfig(data);
     } else {
-      // No existing config found, initialize with defaults
-      setCurrentConfig({ panel_key: panelKey, show_collection: true, default_token_id: 1, wall_color: DEFAULT_WALL_COLOR, text_color: DEFAULT_TEXT_COLOR });
+      setCurrentConfig({
+        panel_key: panelKey,
+        show_collection: true,
+        default_token_id: 1,
+        wall_color: DEFAULT_WALL_COLOR,
+        text_color: DEFAULT_TEXT_COLOR,
+      });
     }
     setIsLoading(false);
   }, []);
@@ -204,42 +306,47 @@ const GalleryConfig = () => {
     }
   }, [selectedPanelKey, fetchPanelConfig, isAuthorized]);
 
+  // --- Save handler (unchanged logic, but driven by selectedPanelKey) ---
   const handleSave = async () => {
     if (!isAuthorized) {
       toast.error('You are not authorized to save configurations.');
       return;
     }
     if (!selectedPanelKey) {
-      toast.error('Please select a panel to configure.');
+      toast.error('Please select a panel to configure from the blueprint.');
       return;
     }
     setIsLoading(true);
-    
+
     const lockStatus = getLockStatus(selectedPanelKey);
-    
+
     if (lockStatus.isLocked && !lockStatus.isLockedByMe) {
-        toast.error(`Panel is currently locked by another user until ${lockStatus.lockedUntil?.toLocaleTimeString()}.`);
-        setIsLoading(false);
-        return;
+      toast.error(
+        `Panel is currently locked by another user until ${lockStatus.lockedUntil?.toLocaleTimeString()}.`,
+      );
+      setIsLoading(false);
+      return;
     }
 
-    // --- Calculate Lock Duration ---
     let days = Number(lockDurationDays);
-    days = Math.max(0, Math.min(30, days)); // Allow 0, Max 30 days
-    
-    // 1. Save Gallery Config (Always save config changes)
+    days = Math.max(0, Math.min(30, days));
+
     const contractAddress = currentConfig.contract_address?.trim() || null;
     const dataToUpsert = {
       panel_key: selectedPanelKey,
       collection_name: currentConfig.collection_name || null,
       contract_address: contractAddress,
-      default_token_id: currentConfig.default_token_id ? Number(currentConfig.default_token_id) : 1,
+      default_token_id: currentConfig.default_token_id
+        ? Number(currentConfig.default_token_id)
+        : 1,
       show_collection: currentConfig.show_collection ?? true,
       wall_color: currentConfig.wall_color || DEFAULT_WALL_COLOR,
       text_color: currentConfig.text_color || DEFAULT_TEXT_COLOR,
     };
 
-    const { error: configError } = await supabase.from('gallery_config').upsert(dataToUpsert, { onConflict: 'panel_key' });
+    const { error: configError } = await supabase
+      .from('gallery_config')
+      .upsert(dataToUpsert, { onConflict: 'panel_key' });
 
     if (configError) {
       toast.error('Failed to save configuration.');
@@ -247,103 +354,101 @@ const GalleryConfig = () => {
       setIsLoading(false);
       return;
     }
-    
-    // --- Handle Unlocking (days === 0) ---
+
     if (days === 0) {
-        if (lockStatus.isLockedByMe) {
-            // Delete the lock entry
-            const { error: deleteError } = await supabase.from('panel_locks').delete().eq('panel_id', selectedPanelKey);
-            
-            if (deleteError) {
-                toast.error('Configuration saved, but failed to unlock panel.');
-                console.error(deleteError);
-            } else {
-                toast.success(`Configuration saved and panel unlocked. ElectroGem #${lockStatus.lockingGemTokenId || 'N/A'} is now available.`);
-                // Optimistically update local state and refetch available gems
-                setPanelLocks(prev => prev.filter(l => l.panel_id !== selectedPanelKey));
-                refetchGems();
-            }
+      if (lockStatus.isLockedByMe) {
+        const { error: deleteError } = await supabase
+          .from('panel_locks')
+          .delete()
+          .eq('panel_id', selectedPanelKey);
+
+        if (deleteError) {
+          toast.error('Configuration saved, but failed to unlock panel.');
+          console.error(deleteError);
         } else {
-            // Panel was already unlocked or locked by someone else (expired/other user)
-            toast.success('Configuration saved. Panel remains unlocked.');
+          toast.success(
+            `Configuration saved and panel unlocked. ElectroGem #${
+              lockStatus.lockingGemTokenId || 'N/A'
+            } is now available.`,
+          );
+          setPanelLocks((prev) => prev.filter((l) => l.panel_id !== selectedPanelKey));
+          refetchGems();
         }
+      } else {
+        toast.success('Configuration saved. Panel remains unlocked.');
+      }
+      setIsLoading(false);
+      return;
+    }
+
+    // Locking/extending
+    let lockingGemTokenId: string | null = null;
+
+    if (lockStatus.isLockedByMe) {
+      lockingGemTokenId = lockStatus.lockingGemTokenId || null;
+      if (!lockingGemTokenId && availableTokens.length > 0) {
+        lockingGemTokenId = availableTokens[0];
+      }
+    } else {
+      if (availableTokens.length === 0) {
+        toast.error(
+          'No available ElectroGem tokens to lock this panel. You must own an unused gem.',
+        );
         setIsLoading(false);
         return;
+      }
+      lockingGemTokenId = availableTokens[0];
     }
-    
-    // --- Handle Locking/Extending (days > 0) ---
-    
-    // --- Gem Token Selection ---
-    let lockingGemTokenId: string | null = null;
-    
-    if (lockStatus.isLockedByMe) {
-        // Case 1: User owns an active lock (extending/editing).
-        lockingGemTokenId = lockStatus.lockingGemTokenId;
-        
-        // If the existing lock is missing a gem ID (e.g., legacy data), try to assign the first available one.
-        if (!lockingGemTokenId && availableTokens.length > 0) {
-            lockingGemTokenId = availableTokens[0];
-        }
-        
-    } else {
-        // Case 2: Panel is unlocked or locked by someone else (expired/other user). Requires a new available gem.
-        if (availableTokens.length === 0) {
-            toast.error("No available ElectroGem tokens to lock this panel. You must own an unused gem.");
-            setIsLoading(false);
-            return;
-        }
-        // Use the first available gem for the new lock
-        lockingGemTokenId = availableTokens[0];
-    }
-    
-    // If we are trying to create a NEW lock (Case 2) and still don't have a gem ID, something is wrong.
+
     if (!lockingGemTokenId && !lockStatus.isLockedByMe) {
-        if (availableTokens.length === 0) {
-             toast.error("No available ElectroGem tokens to lock this panel. You must own an unused gem.");
-             setIsLoading(false);
-             return;
-        }
+      if (availableTokens.length === 0) {
+        toast.error(
+          'No available ElectroGem tokens to lock this panel. You must own an unused gem.',
+        );
+        setIsLoading(false);
+        return;
+      }
     }
-    // --- End Gem Token Selection ---
 
     const calculatedLockDurationMs = days * 24 * 60 * 60 * 1000;
     const lockedUntil = new Date(Date.now() + calculatedLockDurationMs).toISOString();
-    
+
     const lockData = {
-        panel_id: selectedPanelKey, // Use panel_key as panel_id
-        contract_address: contractAddress || '0x', // Required by schema, use placeholder if null
-        token_id: String(dataToUpsert.default_token_id), // Required by schema
-        locked_by_address: walletAddress!,
-        locked_until: lockedUntil,
-        locking_gem_token_id: lockingGemTokenId, // Use the selected/reused gem ID
+      panel_id: selectedPanelKey,
+      contract_address: contractAddress || '0x',
+      token_id: String(dataToUpsert.default_token_id),
+      locked_by_address: walletAddress!,
+      locked_until: lockedUntil,
+      locking_gem_token_id: lockingGemTokenId,
     };
-    
-    // 2. Update Panel Lock
-    const { error: lockError } = await supabase.from('panel_locks').upsert(lockData, { onConflict: 'panel_id' });
+
+    const { error: lockError } = await supabase
+      .from('panel_locks')
+      .upsert(lockData, { onConflict: 'panel_id' });
 
     if (lockError) {
-        toast.warning('Configuration saved, but failed to update panel lock.');
-        console.error(lockError);
+      toast.warning('Configuration saved, but failed to update panel lock.');
+      console.error(lockError);
     } else {
-        // Determine the message based on whether a gem ID was used
-        const gemMessage = lockingGemTokenId ? ` using Gem #${lockingGemTokenId}` : '';
-        toast.success(`Configuration saved and panel locked for ${days} day${days > 1 ? 's' : ''}${gemMessage}.`);
-        
-        // Optimistically update local state and refetch available gems
-        setPanelLocks(prev => {
-            const existingIndex = prev.findIndex(l => l.panel_id === selectedPanelKey);
-            const newLock: PanelLock = { 
-                panel_id: selectedPanelKey, 
-                locked_by_address: walletAddress!, 
-                locked_until: lockedUntil,
-                locking_gem_token_id: lockingGemTokenId,
-            };
-            if (existingIndex !== -1) {
-                return [...prev.slice(0, existingIndex), newLock, ...prev.slice(existingIndex + 1)];
-            }
-            return [...prev, newLock];
-        });
-        refetchGems(); // Crucial to update the list of available gems
+      const gemMessage = lockingGemTokenId ? ` using Gem #${lockingGemTokenId}` : '';
+      toast.success(
+        `Configuration saved and panel locked for ${days} day${days > 1 ? 's' : ''}${gemMessage}.`,
+      );
+
+      setPanelLocks((prev) => {
+        const existingIndex = prev.findIndex((l) => l.panel_id === selectedPanelKey);
+        const newLock: PanelLock = {
+          panel_id: selectedPanelKey,
+          locked_by_address: walletAddress!,
+          locked_until,
+          locking_gem_token_id: lockingGemTokenId,
+        };
+        if (existingIndex !== -1) {
+          return [...prev.slice(0, existingIndex), newLock, ...prev.slice(existingIndex + 1)];
+        }
+        return [...prev, newLock];
+      });
+      refetchGems();
     }
 
     setIsLoading(false);
@@ -358,12 +463,15 @@ const GalleryConfig = () => {
     setCurrentConfig((prev) => ({ ...prev, show_collection: checked }));
   };
 
+  // --- Unauthorized view ---
   const renderUnauthorizedState = () => (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle>Access Required</CardTitle>
-          <CardDescription>Gallery configuration requires a connected wallet with sufficient ElectroGem balance.</CardDescription>
+          <CardDescription>
+            Gallery configuration requires a connected wallet with sufficient ElectroGem balance.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {isGemsLoading && (
@@ -384,7 +492,8 @@ const GalleryConfig = () => {
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Insufficient Balance</AlertTitle>
               <AlertDescription>
-                You currently hold {ownedTokens.length} ElectroGems. You need at least {REQUIRED_GEM_BALANCE} to access configuration.
+                You currently hold {ownedTokens.length} ElectroGems. You need at least{' '}
+                {REQUIRED_GEM_BALANCE} to access configuration.
               </AlertDescription>
             </Alert>
           )}
@@ -406,28 +515,75 @@ const GalleryConfig = () => {
     return renderUnauthorizedState();
   }
 
-  const selectedPanelLockStatus = getLockStatus(selectedPanelKey);
-  const isPanelLockedByOther = selectedPanelLockStatus.isLocked && !selectedPanelLockStatus.isLockedByMe;
-  const gemUsedForLock = selectedPanelLockStatus.lockingGemTokenId;
+  const selectedPanelLockStatus = selectedPanelKey ? getLockStatus(selectedPanelKey) : null;
+  const isPanelLockedByOther =
+    selectedPanelLockStatus?.isLocked && !selectedPanelLockStatus.isLockedByMe;
+  const gemUsedForLock = selectedPanelLockStatus?.lockingGemTokenId || null;
   const nextAvailableGem = availableTokens[0];
-  
-  const saveButtonText = lockDurationDays === 0 
-    ? 'Save Configuration & Unlock Panel' 
-    : `Save Configuration & Lock Panel for ${lockDurationDays} Day${lockDurationDays > 1 ? 's' : ''}`;
+
+  const saveButtonText =
+    lockDurationDays === 0
+      ? 'Save Configuration & Unlock Panel'
+      : `Save Configuration & Lock Panel for ${lockDurationDays} Day${
+          lockDurationDays > 1 ? 's' : ''
+        }`;
+
+  // --- Blueprint helpers ---
+
+  // Map from wall + floor + index to panel key
+  const getOuterPanelKey = (wall: 'north' | 'south' | 'east' | 'west', index: number) => {
+    const base = `${wall}-wall-${index}`;
+    // In your 3D layout each base key has two vertical panels; here we treat both heights
+    // as the same logical config key (we keep the base) so config applies to that slot.
+    return base;
+  };
+
+  const isOuterSelected = (wall: 'north' | 'south' | 'east' | 'west', index: number) =>
+    selectedPanelKey === getOuterPanelKey(wall, index);
+
+  const getFriendlyLabel = (panelKey: string): string => {
+    if (PANEL_LABELS[panelKey]) return PANEL_LABELS[panelKey];
+
+    // Fallback for outer walls:
+    const match = panelKey.match(/^(north|south|east|west)-wall-(\d+)$/);
+    if (match) {
+      const [, wall, idxStr] = match;
+      const idx = parseInt(idxStr, 10);
+      return outerLabel(wall as 'north' | 'south' | 'east' | 'west', idx, outerFloor);
+    }
+    return panelKey;
+  };
+
+  const outerWalls = useMemo(
+    () => ['north', 'south', 'east', 'west'] as const,
+    [],
+  );
+
+  const handleSelectPanel = (panelKey: string) => {
+    if (panelKey === selectedPanelKey) return;
+    setSelectedPanelKey(panelKey);
+  };
+
+  const isSaveDisabled =
+    isLoading ||
+    isPanelLockedByOther ||
+    (!selectedPanelLockStatus?.isLockedByMe &&
+      availableTokens.length === 0 &&
+      lockDurationDays > 0);
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Configuration Card (Left Column) */}
-        <Card>
-          <CardHeader>
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-8">
+        {/* LEFT: Configuration + Blueprint */}
+        <Card className="space-y-0 overflow-hidden">
+          <CardHeader className="border-b pb-4">
             <CardTitle>Gallery Configuration</CardTitle>
             <CardDescription>
-              Editing panel configuration for wallet: {formatWalletAddress(walletAddress)}
+              Select a wall panel from the blueprint and edit its NFT source and appearance.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+
+          <CardContent className="space-y-6 pt-4">
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground flex items-center gap-2">
                 <Gem className="h-4 w-4 text-primary" />
@@ -437,81 +593,282 @@ const GalleryConfig = () => {
                 Disconnect Wallet
               </Button>
             </div>
-            
-            {availableTokens.length === 0 && !isPanelLockedByOther && !selectedPanelLockStatus.isLockedByMe && lockDurationDays > 0 && (
+
+            {availableTokens.length === 0 &&
+              !isPanelLockedByOther &&
+              !selectedPanelLockStatus?.isLockedByMe &&
+              lockDurationDays > 0 && (
                 <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>No Gems Available</AlertTitle>
-                    <AlertDescription>
-                        You must have at least one ElectroGem token that is not currently locking another panel to save a new configuration.
-                    </AlertDescription>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No Gems Available</AlertTitle>
+                  <AlertDescription>
+                    You must have at least one ElectroGem token that is not currently locking
+                    another panel to save a new configuration.
+                  </AlertDescription>
                 </Alert>
-            )}
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="panel-select">Panel Key</Label>
-              <Select onValueChange={setSelectedPanelKey} value={selectedPanelKey}>
-                <SelectTrigger id="panel-select">
-                  <SelectValue placeholder="Select a panel..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {panelKeys.map((key) => {
+            {/* Blueprint Section */}
+            <div className="rounded-lg border bg-background p-4 space-y-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <Label className="text-sm font-medium">Gallery Blueprint</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Click a panel in the sketch to select it. Use the floor toggle for outer walls.
+                  </p>
+                </div>
+                {/* Floor toggle for outer walls */}
+                <div className="inline-flex items-center rounded-full bg-secondary p-1 text-xs">
+                  <button
+                    type="button"
+                    className={`px-3 py-1 rounded-full ${
+                      outerFloor === 'ground'
+                        ? 'bg-background text-foreground shadow'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setOuterFloor('ground')}
+                  >
+                    Ground
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-1 rounded-full ${
+                      outerFloor === 'first'
+                        ? 'bg-background text-foreground shadow'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setOuterFloor('first')}
+                  >
+                    1st Floor
+                  </button>
+                </div>
+              </div>
+
+              {/* Outer walls layout */}
+              <div className="relative mx-auto aspect-[4/3] max-w-2xl border border-dashed border-muted rounded-md bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+                {/* Simple central square indicating the inner maze */}
+                <div className="absolute inset-[28%] border border-cyan-400/40 rounded-md" />
+
+                {/* Outer wall strips: we fake positions with absolute flex rows */}
+                {/* North row */}
+                <div className="absolute top-2 left-[15%] right-[15%] flex justify-between gap-1">
+                  {OUTER_INDICES.map((idx) => {
+                    const key = getOuterPanelKey('north', idx);
                     const lockStatus = getLockStatus(key);
-                    const isUnavailable = lockStatus.isLocked && !lockStatus.isLockedByMe;
-                    
-                    let lockText = '';
-                    if (lockStatus.isLocked) {
-                        const until = lockStatus.lockedUntil!.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                        lockText = lockStatus.isLockedByMe 
-                            ? ` (Locked by you with Gem #${lockStatus.lockingGemTokenId || 'N/A'})` 
-                            : ` (Locked until ${until})`;
-                    }
-
+                    const isSelected = isOuterSelected('north', idx);
+                    const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
                     return (
-                        <SelectItem 
-                            key={key} 
-                            value={key} 
-                            disabled={isUnavailable}
-                            className={isUnavailable ? 'text-muted-foreground/50' : ''}
-                        >
-                            {key} {lockText}
-                        </SelectItem>
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectPanel(key)}
+                        className={[
+                          'h-6 flex-1 rounded-sm border text-[10px] flex items-center justify-center transition-colors',
+                          isSelected
+                            ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+                            : lockedByOther
+                            ? 'bg-red-900/40 border-red-500/60 text-red-100'
+                            : 'bg-slate-800/80 border-slate-600/80 text-slate-100 hover:bg-slate-700',
+                        ].join(' ')}
+                        title={outerLabel('north', idx, outerFloor)}
+                      >
+                        N{idx + 1}
+                      </button>
                     );
                   })}
-                </SelectContent>
-              </Select>
+                </div>
+
+                {/* South row */}
+                <div className="absolute bottom-2 left-[15%] right-[15%] flex justify-between gap-1">
+                  {OUTER_INDICES.map((idx) => {
+                    const key = getOuterPanelKey('south', idx);
+                    const lockStatus = getLockStatus(key);
+                    const isSelected = isOuterSelected('south', idx);
+                    const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectPanel(key)}
+                        className={[
+                          'h-6 flex-1 rounded-sm border text-[10px] flex items-center justify-center transition-colors',
+                          isSelected
+                            ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+                            : lockedByOther
+                            ? 'bg-red-900/40 border-red-500/60 text-red-100'
+                            : 'bg-slate-800/80 border-slate-600/80 text-slate-100 hover:bg-slate-700',
+                        ].join(' ')}
+                        title={outerLabel('south', idx, outerFloor)}
+                      >
+                        S{idx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* West column */}
+                <div className="absolute top-[22%] bottom-[22%] left-2 flex flex-col justify-between gap-1">
+                  {OUTER_INDICES.map((idx) => {
+                    const key = getOuterPanelKey('west', idx);
+                    const lockStatus = getLockStatus(key);
+                    const isSelected = isOuterSelected('west', idx);
+                    const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectPanel(key)}
+                        className={[
+                          'w-6 flex-1 rounded-sm border text-[10px] flex items-center justify-center transition-colors',
+                          isSelected
+                            ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+                            : lockedByOther
+                            ? 'bg-red-900/40 border-red-500/60 text-red-100'
+                            : 'bg-slate-800/80 border-slate-600/80 text-slate-100 hover:bg-slate-700',
+                        ].join(' ')}
+                        title={outerLabel('west', idx, outerFloor)}
+                      >
+                        W{idx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* East column */}
+                <div className="absolute top-[22%] bottom-[22%] right-2 flex flex-col justify-between gap-1">
+                  {OUTER_INDICES.map((idx) => {
+                    const key = getOuterPanelKey('east', idx);
+                    const lockStatus = getLockStatus(key);
+                    const isSelected = isOuterSelected('east', idx);
+                    const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => handleSelectPanel(key)}
+                        className={[
+                          'w-6 flex-1 rounded-sm border text-[10px] flex items-center justify-center transition-colors',
+                          isSelected
+                            ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+                            : lockedByOther
+                            ? 'bg-red-900/40 border-red-500/60 text-red-100'
+                            : 'bg-slate-800/80 border-slate-600/80 text-slate-100 hover:bg-slate-700',
+                        ].join(' ')}
+                        title={outerLabel('east', idx, outerFloor)}
+                      >
+                        E{idx + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Inner / Center panel quick list selectors */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Inner Cross Walls
+                  </Label>
+                  <div className="mt-1 flex flex-col gap-1">
+                    {INNER_WALL_KEYS.map((key) => {
+                      const lockStatus = getLockStatus(key);
+                      const isSelected = key === selectedPanelKey;
+                      const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handleSelectPanel(key)}
+                          className={[
+                            'w-full rounded-md border px-2 py-1.5 text-xs text-left transition-colors',
+                            isSelected
+                              ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+                              : lockedByOther
+                              ? 'bg-red-900/40 border-red-500/60 text-red-100'
+                              : 'bg-slate-900 text-slate-100 border-slate-700 hover:bg-slate-800',
+                          ].join(' ')}
+                        >
+                          {PANEL_LABELS[key]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Center Ring Walls
+                  </Label>
+                  <div className="mt-1 flex flex-col gap-1">
+                    {CENTER_WALL_KEYS.map((key) => {
+                      const lockStatus = getLockStatus(key);
+                      const isSelected = key === selectedPanelKey;
+                      const lockedByOther = lockStatus.isLocked && !lockStatus.isLockedByMe;
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => handleSelectPanel(key)}
+                          className={[
+                            'w-full rounded-md border px-2 py-1.5 text-xs text-left transition-colors',
+                            isSelected
+                              ? 'bg-cyan-500 text-slate-900 border-cyan-300'
+                              : lockedByOther
+                              ? 'bg-red-900/40 border-red-500/60 text-red-100'
+                              : 'bg-slate-900 text-slate-100 border-slate-700 hover:bg-slate-800',
+                          ].join(' ')}
+                        >
+                          {PANEL_LABELS[key]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Currently selected panel label */}
+              <div className="pt-2 border-t border-border mt-3 text-xs text-muted-foreground">
+                Selected panel:{' '}
+                {selectedPanelKey ? (
+                  <span className="font-medium text-foreground">
+                    {getFriendlyLabel(selectedPanelKey)}
+                  </span>
+                ) : (
+                  <span>None selected. Click a panel above.</span>
+                )}
+              </div>
             </div>
+
+            {/* Lock status message */}
+            {selectedPanelKey && selectedPanelLockStatus && (
+              <Alert variant="default" className="bg-secondary">
+                <Gem className="h-4 w-4" />
+                <AlertTitle>Lock Status</AlertTitle>
+                <AlertDescription>
+                  {selectedPanelLockStatus.isLockedByMe && gemUsedForLock
+                    ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}. Set duration to 0 to unlock.`
+                    : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && nextAvailableGem
+                    ? `This panel is locked by you (legacy lock). Saving will assign available Gem #${nextAvailableGem} and extend the lock. Set duration to 0 to unlock.`
+                    : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && !nextAvailableGem
+                    ? `This panel is locked by you (legacy lock). Saving will extend the lock without assigning a new Gem ID. Set duration to 0 to unlock.`
+                    : !selectedPanelLockStatus.isLocked && nextAvailableGem
+                    ? `Saving will lock this panel using your available ElectroGem Token ID #${nextAvailableGem}.`
+                    : 'Select a panel to view lock details.'}
+                </AlertDescription>
+              </Alert>
+            )}
 
             {selectedPanelKey && (
               <>
                 {isPanelLockedByOther && (
-                    <Alert variant="destructive">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Panel Locked</AlertTitle>
-                        <AlertDescription>
-                            This panel is currently locked by another user until {selectedPanelLockStatus.lockedUntil?.toLocaleString()}. You cannot edit it now.
-                        </AlertDescription>
-                    </Alert>
-                )}
-                
-                {/* Gem Status Display */}
-                {selectedPanelKey && (
-                    <Alert variant="default" className="bg-secondary">
-                        <Gem className="h-4 w-4" />
-                        <AlertTitle>Lock Status</AlertTitle>
-                        <AlertDescription>
-                            {selectedPanelLockStatus.isLockedByMe && gemUsedForLock
-                                ? `This panel is currently locked by you using ElectroGem Token ID #${gemUsedForLock}. Set duration to 0 to unlock.`
-                                : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && nextAvailableGem
-                                ? `This panel is locked by you (legacy lock). Saving will assign available Gem #${nextAvailableGem} and extend the lock. Set duration to 0 to unlock.`
-                                : selectedPanelLockStatus.isLockedByMe && !gemUsedForLock && !nextAvailableGem
-                                ? `This panel is locked by you (legacy lock). Saving will extend the lock without assigning a new Gem ID. Set duration to 0 to unlock.`
-                                : !selectedPanelLockStatus.isLocked && nextAvailableGem
-                                ? `Saving will lock this panel using your available ElectroGem Token ID #${nextAvailableGem}.`
-                                : 'Select a panel to view lock details.'
-                            }
-                        </AlertDescription>
-                    </Alert>
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Panel Locked</AlertTitle>
+                    <AlertDescription>
+                      This panel is currently locked by another user until{' '}
+                      {selectedPanelLockStatus?.lockedUntil?.toLocaleString()}. You cannot edit it
+                      now.
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <div className="space-y-2">
@@ -548,45 +905,48 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="wall_color">Wall Color</Label>
-                        <Input
-                            id="wall_color"
-                            name="wall_color"
-                            type="color"
-                            value={currentConfig.wall_color || DEFAULT_WALL_COLOR}
-                            onChange={handleInputChange}
-                            disabled={isLoading || isPanelLockedByOther}
-                            className="p-1 h-10 w-full"
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="text_color">Text Color</Label>
-                        <Input
-                            id="text_color"
-                            name="text_color"
-                            type="color"
-                            value={currentConfig.text_color || DEFAULT_TEXT_COLOR}
-                            onChange={handleInputChange}
-                            disabled={isLoading || isPanelLockedByOther}
-                            className="p-1 h-10 w-full"
-                        />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wall_color">Wall Color</Label>
+                    <Input
+                      id="wall_color"
+                      name="wall_color"
+                      type="color"
+                      value={currentConfig.wall_color || DEFAULT_WALL_COLOR}
+                      onChange={handleInputChange}
+                      disabled={isLoading || isPanelLockedByOther}
+                      className="p-1 h-10 w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="text_color">Text Color</Label>
+                    <Input
+                      id="text_color"
+                      name="text_color"
+                      type="color"
+                      value={currentConfig.text_color || DEFAULT_TEXT_COLOR}
+                      onChange={handleInputChange}
+                      disabled={isLoading || isPanelLockedByOther}
+                      className="p-1 h-10 w-full"
+                    />
+                  </div>
                 </div>
                 {poorContrast && (
-                    <Alert variant="destructive">
-                        <AlertTriangle className="h-4 w-4" />
-                        <AlertTitle>Low Contrast Warning</AlertTitle>
-                        <AlertDescription>
-                            The selected text and wall colors may be difficult to read. Consider choosing a different combination.
-                        </AlertDescription>
-                    </Alert>
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertTitle>Low Contrast Warning</AlertTitle>
+                    <AlertDescription>
+                      The selected text and wall colors may be difficult to read. Consider choosing a
+                      different combination.
+                    </AlertDescription>
+                  </Alert>
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="lock_duration">Lock Duration (Days, 0 to Unlock, Max 30)</Label>
+                  <Label htmlFor="lock_duration">
+                    Lock Duration (Days, 0 to Unlock, Max 30)
+                  </Label>
                   <Input
                     id="lock_duration"
                     name="lock_duration"
@@ -596,7 +956,6 @@ const GalleryConfig = () => {
                     value={lockDurationDays}
                     onChange={(e) => {
                       const value = Number(e.target.value);
-                      // Only update if it's a valid number >= 0
                       if (!isNaN(value) && value >= 0) {
                         setLockDurationDays(value);
                       }
@@ -605,12 +964,15 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
-                    <Label htmlFor="show_collection" className="text-base">Show Entire Collection</Label>
+                    <Label htmlFor="show_collection" className="text-base">
+                      Show Entire Collection
+                    </Label>
                     <p className="text-sm text-muted-foreground">
-                      If enabled, users can browse all tokens. If disabled, only the default token will be shown.
+                      If enabled, users can browse all tokens. If disabled, only the default token
+                      will be shown.
                     </p>
                   </div>
                   <Switch
@@ -620,22 +982,21 @@ const GalleryConfig = () => {
                     disabled={isLoading || isPanelLockedByOther}
                   />
                 </div>
-                <Button 
-                    onClick={handleSave} 
-                    disabled={isLoading || isPanelLockedByOther || (!selectedPanelLockStatus.isLockedByMe && availableTokens.length === 0 && lockDurationDays > 0)}
-                >
+                <Button onClick={handleSave} disabled={isSaveDisabled}>
                   {isLoading ? 'Saving...' : saveButtonText}
                 </Button>
               </>
             )}
           </CardContent>
         </Card>
-        
-        {/* Preview Pane (Right Column) */}
+
+        {/* RIGHT: Preview */}
         <div className="lg:sticky lg:top-8 lg:h-[calc(100vh-4rem)]">
           <NftPreviewPane
             contractAddress={currentConfig.contract_address || null}
-            tokenId={currentConfig.default_token_id ? Number(currentConfig.default_token_id) : null}
+            tokenId={
+              currentConfig.default_token_id ? Number(currentConfig.default_token_id) : null
+            }
           />
         </div>
       </div>
