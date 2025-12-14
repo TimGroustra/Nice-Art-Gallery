@@ -76,20 +76,22 @@ const ceilingFragmentShader = `
   void main() {
     vec2 uv = vUv * 2.0 - 1.0;
 
+    // Base vertical gradient sky
     float height = uv.y * 0.6 + 0.5;
     vec3 topColor = vec3(0.02, 0.03, 0.08);
     vec3 bottomColor = vec3(0.01, 0.01, 0.04);
     vec3 skyColor = mix(bottomColor, topColor, height);
 
+    // Soft moving clouds
     float t = time * 0.03;
     float n1 = noise(uv * 3.0 + vec2(t, 0.0));
     float n2 = noise(uv * 6.0 - vec2(0.0, t * 0.7));
     float clouds = smoothstep(0.4, 0.9, n1 + n2 * 0.5);
-
     vec3 cloudColor = vec3(0.06, 0.08, 0.18);
     skyColor = mix(skyColor, cloudColor, clouds * 0.7);
 
-    float starDensity = 120.0;
+    // Main star field (bigger, twinkling stars)
+    float starDensity = 80.0;        // was 120.0
     float starField = 0.0;
 
     vec2 starUv = vUv * starDensity;
@@ -99,20 +101,31 @@ const ceilingFragmentShader = `
 
     float rnd = rand(id * 37.0);
 
-    float threshold = 0.985;
+    // Stricter threshold so there are fewer grid stars
+    float threshold = 0.992;         // was 0.985
     if (rnd > threshold) {
       float d = length(fracUv - 0.5);
       float star = smoothstep(0.45, 0.0, d);
-      float twinkle = 0.5 + 0.5 * sin(time * (1.0 + rnd * 5.0) + rnd * 10.0);
+
+      // Gentle twinkle
+      float twinkle = 0.55 + 0.45 * sin(time * (1.0 + rnd * 5.0) + rnd * 10.0);
       starField += star * twinkle;
     }
 
-    float scattered = pow(rand(vUv * 100.0 + time * 0.05), 50.0);
-    starField += scattered * 0.8;
+    // Remove or heavily reduce the scattered micro-noise dots that looked like "..........."
+    // Old version:
+    // float scattered = pow(rand(vUv * 100.0 + time * 0.05), 50.0);
+    // starField += scattered * 0.8;
+    //
+    // New version: very subtle scatter, almost imperceptible
+    float scatterSeed = rand(vUv * 60.0 + time * 0.02);
+    float scattered = pow(scatterSeed, 80.0); // much rarer, dimmer specks
+    starField += scattered * 0.2;
 
     vec3 starColor = vec3(0.7, 0.9, 1.0);
     vec3 color = skyColor + starField * starColor;
 
+    // Vignette
     float vignette = smoothstep(1.4, 0.2, length(uv));
     color *= vignette;
 
@@ -1079,7 +1092,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       dynamicPanelConfigs.push({
         wallName: `south-inner-wall-inner-${index}` as keyof PanelConfig,
-        position: [segmentCenter, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
+        position: [segmentCenter, INNER_LOER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET],
         rotation: [0, Math.PI, 0],
       });
 
