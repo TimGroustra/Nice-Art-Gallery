@@ -496,7 +496,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       texture.needsUpdate = true;
 
       return new THREE.MeshStandardMaterial({
-        map: texture,
         color: 0x888888,
         roughness: 0.9,
         metalness: 0.0,
@@ -732,20 +731,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'] as const;
     const MAX_SEGMENT_INDEX = 4;
 
-    // OUTER WALL PANELS: both tiers share the SAME wall key (no -ground/-first suffix),
-    // matching galleryConfig keys like 'north-wall-0'
+    // OUTER WALL PANELS: Now using full keys including -ground/-first suffix
     for (let i = 0; i <= MAX_SEGMENT_INDEX; i++) {
       for (const wallNameBase of WALL_NAMES) {
         const centerIndex = i - 2;
         const segmentCenter = centerIndex * ROOM_SEGMENT_SIZE;
 
-        const tiers: { y: number }[] = [
-          { y: LOWER_PANEL_Y }, // ground tier
-          { y: UPPER_PANEL_Y }, // first floor tier
+        const tiers: { y: number; suffix: '-ground' | '-first' }[] = [
+          { y: LOWER_PANEL_Y, suffix: '-ground' }, // ground tier
+          { y: UPPER_PANEL_Y, suffix: '-first' }, // first floor tier
         ];
 
         for (const tier of tiers) {
-          const wallKey = `${wallNameBase}-${i}` as keyof PanelConfig;
+          const wallKey = `${wallNameBase}-${i}${tier.suffix}` as keyof PanelConfig;
 
           let x = 0;
           let z = 0;

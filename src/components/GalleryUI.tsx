@@ -8,39 +8,7 @@ interface GalleryUIProps {
 }
 
 const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick }) => {
-  const [isVideoMuted, setIsVideoMuted] = useState(true);
-  // Removed isMusicMuted state as the button is being removed
-  const [hasVideo, setHasVideo] = useState(false);
-
-  // Polling/Interval to check video state
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const galleryControls = (window as any).galleryControls;
-      // Removed musicControls check
-
-      // Video state check
-      if (galleryControls) {
-        const videoPresent = galleryControls.hasVideo();
-        setHasVideo(videoPresent);
-        if (videoPresent) {
-          setIsVideoMuted(galleryControls.isMuted());
-        }
-      }
-    }, 200); // Check state every 200ms
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const handleVideoMuteToggle = () => {
-    const galleryControls = (window as any).galleryControls;
-    if (galleryControls && galleryControls.toggleMute) {
-      galleryControls.toggleMute();
-      // State update happens via the polling interval, but we can optimistically update it too
-      setIsVideoMuted(prev => !prev);
-    }
-  };
-  
-  // Removed handleMusicMuteToggle
+  // Removed state and effects related to video mute button as requested.
 
   return (
     <>
@@ -54,24 +22,11 @@ const GalleryUI: React.FC<GalleryUIProps> = ({ instructionsVisible, onLockClick 
             className="bg-black/50 text-white p-3 rounded-md cursor-pointer pointer-events-auto"
             onClick={onLockClick}
           >
-            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor. Press M to toggle music.
+            Click to enter gallery — WASD to move, mouse to look. Press Esc to release cursor.
           </div>
         )}
         
-        {/* Music Toggle Button REMOVED */}
-
-        {/* Video Mute Toggle Button (Only visible if video is present) */}
-        {!instructionsVisible && hasVideo && (
-          <Button 
-            variant="secondary" 
-            size="icon" 
-            className="pointer-events-auto bg-black/50 hover:bg-black/70 text-white border border-gray-700"
-            onClick={handleVideoMuteToggle}
-            title={isVideoMuted ? "Unmute Video" : "Mute Video"}
-          >
-            {isVideoMuted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-          </Button>
-        )}
+        {/* Video Mute Toggle Button REMOVED */}
       </div>
       
       {/* Crosshair (only visible when controls are locked) */}

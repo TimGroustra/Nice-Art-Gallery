@@ -38,12 +38,18 @@ const createBlankPanel = (): NftCollection => ({
   text_color: DEFAULT_TEXT_COLOR,
 });
 
-// Generate 20 panel configurations for the outer 50x50 walls
+// Generate 40 panel configurations for the outer 50x50 walls (Ground and First Floor)
 for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
   for (let j = 0; j < WALL_NAMES.length; j++) {
     const wallNameBase = WALL_NAMES[j];
-    const panelKey = `${wallNameBase}-${i}`;
-    galleryConfig[panelKey] = createBlankPanel();
+    
+    // Ground floor panel key
+    const panelKeyGround = `${wallNameBase}-${i}-ground`;
+    galleryConfig[panelKeyGround] = createBlankPanel();
+    
+    // First floor panel key
+    const panelKeyFirst = `${wallNameBase}-${i}-first`;
+    galleryConfig[panelKeyFirst] = createBlankPanel();
   }
 }
 
