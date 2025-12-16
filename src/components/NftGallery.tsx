@@ -13,8 +13,6 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import { AvatarController } from '@/modules/avatar/AvatarController';
-import { AvatarProfile } from '@/modules/avatar/AvatarTypes';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -38,7 +36,6 @@ interface Panel {
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
-  avatarProfile: AvatarProfile; // New prop for avatar data
 }
 
 // Global state for UI interaction
@@ -99,9 +96,10 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarProfile }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
+  const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
@@ -123,7 +121,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
   const FADE_DURATION = 0.5;
 
   const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
-  const avatarControllerRef = useRef<AvatarController | null>(null); // Avatar Controller Ref
 
   // Movement state
   const moveForwardRef = useRef(false);
@@ -311,24 +308,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
     });
   }, []);
 
-  // --- AVATAR EFFECT ---
-  useEffect(() => {
-    if (sceneRef.current && avatarControllerRef.current) {
-      // Update avatar whenever the profile changes
-      avatarControllerRef.current.update(sceneRef.current, avatarProfile);
-    }
-  }, [avatarProfile]);
-  // ---------------------
-
   useEffect(() => {
     if (!mountRef.current) return;
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
     scene.background = new THREE.Color(0x000000);
-
-    // Initialize Avatar Controller
-    avatarControllerRef.current = new AvatarController();
 
     const camera = new THREE.PerspectiveCamera(
       75,
@@ -1048,10 +1033,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
           const src = getCurrentNftSource(panel.wallName);
           await updatePanelContent(panel, src);
         }
-        // Initial avatar render
-        if (sceneRef.current && avatarControllerRef.current) {
-          avatarControllerRef.current.update(sceneRef.current, avatarProfile);
-        }
       } catch (e) {
         console.error('Failed to initialize gallery panels:', e);
       }
@@ -1093,21 +1074,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
         const pos = camera.position;
         pos.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.x));
         pos.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.z));
-        
-        // Update avatar position to follow camera (but stay on the ground)
-        if (avatarControllerRef.current && avatarControllerRef.current.avatar) {
-          avatarControllerRef.current.avatar.position.set(pos.x, 0, pos.z);
-          
-          // Make avatar face the direction the camera is looking
-          const cameraDirection = new THREE.Vector3();
-          camera.getWorldDirection(cameraDirection);
-          cameraDirection.y = 0; // Ignore vertical rotation
-          cameraDirection.normalize();
-          
-          // Calculate rotation angle (yaw)
-          const angle = Math.atan2(cameraDirection.x, cameraDirection.z);
-          avatarControllerRef.current.avatar.rotation.y = angle;
-        }
       }
 
       // Update shader time
@@ -1148,15 +1114,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
           objectsToTest.push(p.mesh, p.prevArrow, p.nextArrow);
         });
         objectsToTest.push(...teleportButtonsRef.current);
-        
-        // Exclude the avatar mesh from raycasting
-        if (avatarControllerRef.current?.avatar) {
-            avatarControllerRef.current.avatar.traverse((child) => {
-                if (child instanceof THREE.Mesh) {
-                    objectsToTest.push(child);
-                }
-            });
-        }
 
         const intersects = raycaster.intersectObjects(objectsToTest, false);
 
@@ -1182,43 +1139,29 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
 
         if (intersects.length > 0) {
           const hit = intersects[0].object as THREE.Mesh;
-          
-          // Check if the hit object is part of the avatar
-          let isAvatarPart = false;
-          if (avatarControllerRef.current?.avatar) {
-              avatarControllerRef.current.avatar.traverse((child) => {
-                  if (child === hit) {
-                      isAvatarPart = true;
-                  }
-              });
-          }
-          if (isAvatarPart) {
-              // Ignore hits on the avatar
-          } else {
-              const panelHit = panelsRef.current.find(
-                (p) => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit,
-              );
+          const panelHit = panelsRef.current.find(
+            (p) => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit,
+          );
 
-              if (hit.userData?.isTeleportButton) {
-                currentTargetedButton = hit;
-                if (hit.material instanceof THREE.MeshStandardMaterial) {
-                  (hit.material as THREE.MeshStandardMaterial).color.setHex(
-                    TELEPORT_BUTTON_HOVER_COLOR,
-                  );
-                  (hit.material as THREE.MeshStandardMaterial).emissive.setHex(
-                    TELEPORT_BUTTON_HOVER_COLOR,
-                  );
-                }
-              } else if (panelHit) {
-                if (hit === panelHit.prevArrow || hit === panelHit.nextArrow) {
-                  currentTargetedArrow = hit;
-                  if (hit.material instanceof THREE.MeshBasicMaterial) {
-                    (hit.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
-                  }
-                } else if (hit === panelHit.mesh) {
-                  currentTargetedPanel = panelHit;
-                }
+          if (hit.userData?.isTeleportButton) {
+            currentTargetedButton = hit;
+            if (hit.material instanceof THREE.MeshStandardMaterial) {
+              (hit.material as THREE.MeshStandardMaterial).color.setHex(
+                TELEPORT_BUTTON_HOVER_COLOR,
+              );
+              (hit.material as THREE.MeshStandardMaterial).emissive.setHex(
+                TELEPORT_BUTTON_HOVER_COLOR,
+              );
+            }
+          } else if (panelHit) {
+            if (hit === panelHit.prevArrow || hit === panelHit.nextArrow) {
+              currentTargetedArrow = hit;
+              if (hit.material instanceof THREE.MeshBasicMaterial) {
+                (hit.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
               }
+            } else if (hit === panelHit.mesh) {
+              currentTargetedPanel = panelHit;
+            }
           }
         }
       }
@@ -1262,11 +1205,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
           panel.gifStopFunction = null;
         }
       });
-      
-      // Clear avatar resources
-      if (sceneRef.current && avatarControllerRef.current) {
-        avatarControllerRef.current.clear(sceneRef.current);
-      }
 
       scene.traverse((obj) => {
         if ((obj as any).geometry) {
@@ -1287,7 +1225,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, avatarP
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, avatarProfile]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
