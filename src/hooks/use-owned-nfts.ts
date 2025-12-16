@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
-import { OwnedNFT } from "@/avatar/editorTypes";
 import { useAccount } from "wagmi";
+
+export interface OwnedNFT {
+  chainId: number;
+  contract: string;
+  tokenId: string;
+  image: string; // Added image field for UI display
+}
 
 // Mock data for owned NFTs (simulating fetch)
 const MOCK_OWNED_NFTS: OwnedNFT[] = [

@@ -1,7 +1,7 @@
 // multiplayer/AvatarReplicator.ts
 import * as THREE from "three";
 import { buildAvatar } from "../AvatarBuilder";
-import { AvatarState } from "../AvatarState";
+import { AvatarProfile } from "../AvatarState";
 
 const avatarCache = new Map<string, THREE.Object3D>();
 const avatarHashCache = new Map<string, string>();
@@ -11,7 +11,7 @@ const avatarHashCache = new Map<string, string>();
  */
 export async function getOrCreateRemoteAvatar(
   wallet: string,
-  avatarState: AvatarState,
+  avatarState: AvatarProfile,
   avatarHash: string
 ): Promise<THREE.Object3D> {
   // 1. Check if avatar exists and hash matches

@@ -1,14 +1,14 @@
 import { useState } from "react";
-import { AvatarState } from "@/avatar/AvatarState";
+import { AvatarProfile } from "@/avatar/AvatarState";
 
 /**
  * Custom hook for managing avatar state with history (undo).
  */
-export function useAvatarStateEditor(initialState: AvatarState) {
-  const [state, setState] = useState<AvatarState>(initialState);
-  const [history, setHistory] = useState<AvatarState[]>([]);
+export function useAvatarStateEditor(initialState: AvatarProfile) {
+  const [state, setState] = useState<AvatarProfile>(initialState);
+  const [history, setHistory] = useState<AvatarProfile[]>([]);
 
-  function update(next: AvatarState) {
+  function update(next: AvatarProfile) {
     // Only push to history if the state actually changes (deep comparison is complex, shallow copy check is enough for now)
     if (JSON.stringify(state) !== JSON.stringify(next)) {
         setHistory(h => [...h, state]);

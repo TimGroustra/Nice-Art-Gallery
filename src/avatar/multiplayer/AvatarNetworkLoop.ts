@@ -1,14 +1,14 @@
 // multiplayer/AvatarNetworkLoop.ts
 import * as THREE from "three";
 import { hashAvatarState } from "./NetworkSerializer";
-import { AvatarState } from "../AvatarState";
+import { AvatarProfile } from "../AvatarState";
 
 /**
  * Placeholder function to simulate sending avatar updates over a network socket.
  */
 export function updateNetworkAvatar(
   socket: any, // Placeholder for actual socket connection
-  state: AvatarState,
+  state: AvatarProfile,
   position: THREE.Vector3,
   rotation: number
 ) {

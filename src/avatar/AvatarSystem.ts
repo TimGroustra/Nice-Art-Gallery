@@ -22,7 +22,6 @@ export * from './EffectSystem';
 export * from './AvatarLOD';
 export * from './AvatarAssembler';
 export * from './AvatarBuilder';
-export * from './editorTypes';
 export * from './OwnershipValidator';
 
 // Phase 4 Exports

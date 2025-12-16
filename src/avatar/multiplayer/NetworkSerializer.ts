@@ -1,15 +1,19 @@
 // multiplayer/NetworkSerializer.ts
 import { keccak256, toUtf8Bytes } from "ethers";
-import { AvatarState } from "../AvatarState";
+import { AvatarProfile } from "../AvatarState";
 
-export function hashAvatarState(state: AvatarState): string {
+export function hashAvatarState(state: AvatarProfile): string {
   // We only hash the parts that affect the visual output
   const serializableState = {
-    morphs: state.morphs,
+    species: state.species,
+    bodySeed: state.bodySeed,
+    paletteSeed: state.paletteSeed,
+    hair: state.hair,
+    face: state.face,
     wearables: state.wearables,
     props: state.props,
-    companions: state.companions,
-    effects: state.effects,
+    pet: state.pet,
+    aura: state.aura,
   };
   return keccak256(toUtf8Bytes(JSON.stringify(serializableState)));
 }

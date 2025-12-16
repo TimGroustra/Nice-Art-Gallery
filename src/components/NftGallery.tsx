@@ -110,7 +110,7 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const { address: walletAddress, isConnected } = useAccount();
-  const { avatarState, isLoading: isAvatarLoading } = useAvatarSystem();
+  const { avatarProfile, isLoading: isAvatarLoading } = useAvatarSystem();
 
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false);
@@ -160,7 +160,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         // Dispose logic omitted for brevity, handled in cleanup
       }
       
-      const newAvatar = await buildAvatar(avatarState);
+      const newAvatar = await buildAvatar(avatarProfile);
       localAvatarRef.current = newAvatar;
       
       // Position the avatar slightly behind the camera for visibility/testing
@@ -182,7 +182,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         localAvatarRef.current = null;
       }
     };
-  }, [avatarState, isAvatarLoading, walletAddress]);
+  }, [avatarProfile, isAvatarLoading, walletAddress]);
   
   // 2. Simulated Remote Avatar Spawning (for testing ZoneManager/Culler)
   useEffect(() => {
@@ -190,15 +190,21 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       
       // Simulate a remote user's state (e.g., a default state)
       const remoteWallet = "0xRemoteUserAddress";
-      const remoteState = { ...avatarState, wearables: { torso: null, head: null }, effects: { aura: { chainId: 111111, contract: '0x1234...AABB', tokenId: '1', image: '/placeholder.svg' } } };
-      const remoteHash = hashAvatarState(remoteState);
+      // Use a simplified profile for the remote user
+      const remoteProfile = { 
+          species: "human", 
+          wearables: { torso: undefined, head: undefined }, 
+          props: { floating: [] },
+          aura: { chainId: 111111, contract: '0x1234...AABB', tokenId: '1', image: '/placeholder.svg' } 
+      };
+      const remoteHash = hashAvatarState(remoteProfile);
       
       const remotePos = new THREE.Vector3(15, 1.6, 15);
       
       spawnAvatarInGallery(
           sceneRef.current, 
           remoteWallet, 
-          remoteState, 
+          remoteProfile, 
           remoteHash, 
           remotePos, 
           0
@@ -210,7 +216,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           removeRemoteAvatar(remoteWallet);
           remoteAvatarsRef.current.delete(remoteWallet);
       }
-  }, [walletAddress, avatarState]);
+  }, [walletAddress, avatarProfile]);
 
 
   // --- Gallery Content Logic (Unchanged) ---
@@ -1175,7 +1181,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             scheduleAvatarUpdates(localAvatarRef.current, delta);
             
             // --- Multiplayer Sync (Placeholder) ---
-            // updateNetworkAvatar(socket, avatarState, localAvatarRef.current.position, localAvatarRef.current.rotation.y);
+            // updateNetworkAvatar(socket, avatarProfile, localAvatarRef.current.position, localAvatarRef.current.rotation.y);
         }
         
         // --- Remote Avatar Management ---
@@ -1338,7 +1344,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, avatarState, walletAddress, isAvatarLoading]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, avatarProfile, walletAddress, isAvatarLoading]);
 
   return (
     <>

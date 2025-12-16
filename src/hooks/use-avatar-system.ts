@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AvatarState, INITIAL_AVATAR_STATE, NFTRef } from '@/avatar/AvatarState';
+import { AvatarProfile, INITIAL_AVATAR_PROFILE, NFTRef } from '@/avatar/AvatarState';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAccount } from 'wagmi';
@@ -7,15 +7,14 @@ import { validateOwnership } from '@/avatar/OwnershipValidator';
 import { useAvatarStateEditor } from './use-avatar-state-editor';
 
 interface AvatarSystemResult {
-  avatarState: AvatarState;
+  avatarProfile: AvatarProfile;
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
   saveAvatar: () => Promise<void>;
-  updateSlot: (category: keyof AvatarState, slot: string, nft: NFTRef | null) => void;
+  updateProfile: (newProfile: AvatarProfile) => void;
   undo: () => void;
   canUndo: boolean;
-  // The state setter is now exposed via the updateSlot/saveAvatar methods
 }
 
 export function useAvatarSystem(): AvatarSystemResult {
@@ -26,20 +25,20 @@ export function useAvatarSystem(): AvatarSystemResult {
   
   // Use the editor state hook internally
   const { 
-      state: avatarState, 
+      state: avatarProfile, 
       update: updateState, 
       undo, 
       canUndo 
-  } = useAvatarStateEditor(INITIAL_AVATAR_STATE);
+  } = useAvatarStateEditor(INITIAL_AVATAR_PROFILE);
 
-  const saveAvatarToDB = useCallback(async (state: AvatarState, address: string) => {
+  const saveAvatarToDB = useCallback(async (state: AvatarProfile, address: string) => {
     setIsSaving(true);
     
     const { error: saveError } = await supabase
       .from('avatars')
       .upsert({
         wallet_address: address,
-        avatar_state: state,
+        avatar_state: state, // Note: DB column is still 'avatar_state'
       }, { onConflict: 'wallet_address' });
 
     setIsSaving(false);
@@ -50,7 +49,6 @@ export function useAvatarSystem(): AvatarSystemResult {
       return;
     }
     
-    // Update the local state after successful save (already done by updateState, but ensures consistency)
     updateState(state);
     toast.success("Avatar configuration saved!");
   }, [updateState]);
@@ -65,22 +63,23 @@ export function useAvatarSystem(): AvatarSystemResult {
       .eq('wallet_address', address)
       .single();
 
-    let loadedState = INITIAL_AVATAR_STATE;
+    let loadedProfile = INITIAL_AVATAR_PROFILE;
 
     if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "No rows found"
       console.error("Failed to fetch avatar state:", fetchError);
       setError("Failed to load avatar configuration.");
     } else if (data) {
-      loadedState = data.avatar_state as AvatarState;
+      // Cast the loaded data to the new profile type
+      loadedProfile = data.avatar_state as AvatarProfile;
     }
     
     // Validate ownership upon loading
-    const validatedState = await validateOwnership(loadedState, address);
-    updateState(validatedState);
+    const validatedProfile = await validateOwnership(loadedProfile, address);
+    updateState(validatedProfile);
     
-    if (validatedState !== loadedState) {
+    if (validatedProfile !== loadedProfile) {
         // If validation changed the state, save the corrected state back
-        await saveAvatarToDB(validatedState, address);
+        await saveAvatarToDB(validatedProfile, address);
     }
     
     setIsLoading(false);
@@ -90,39 +89,26 @@ export function useAvatarSystem(): AvatarSystemResult {
     if (walletAddress && isConnected) {
       fetchAvatar(walletAddress);
     } else {
-      updateState(INITIAL_AVATAR_STATE);
+      updateState(INITIAL_AVATAR_PROFILE);
       setIsLoading(false);
     }
   }, [walletAddress, isConnected, fetchAvatar, updateState]);
   
-  const updateSlot = useCallback((category: keyof AvatarState, slot: string, nft: NFTRef | null) => {
-      const newState = JSON.parse(JSON.stringify(avatarState)) as AvatarState;
-      
-      if (category === 'morphs' || category === 'companions' || category === 'effects') {
-          (newState[category] as any)[slot] = nft;
-      } else if (category === 'wearables' || category === 'props') {
-          (newState[category] as any)[slot] = nft;
-      }
-      
-      updateState(newState);
-      toast.info(`Item assigned to ${slot}. Remember to save!`);
-  }, [avatarState, updateState]);
-  
   const handleSave = useCallback(async () => {
       if (walletAddress) {
-          await saveAvatarToDB(avatarState, walletAddress);
+          await saveAvatarToDB(avatarProfile, walletAddress);
       } else {
           toast.error("Wallet not connected. Cannot save.");
       }
-  }, [avatarState, walletAddress, saveAvatarToDB]);
+  }, [avatarProfile, walletAddress, saveAvatarToDB]);
 
   return {
-    avatarState,
+    avatarProfile,
     isLoading,
     isSaving,
     error,
     saveAvatar: handleSave,
-    updateSlot,
+    updateProfile: updateState, // Expose the full update function
     undo,
     canUndo,
   };

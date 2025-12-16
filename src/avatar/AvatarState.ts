@@ -5,44 +5,45 @@ export interface NFTRef {
   tokenId: string;
 }
 
-export interface AvatarState {
-  morphs: {
-    species?: NFTRef;
-    bodySeed?: NFTRef;
-    hair?: NFTRef;
-    face?: NFTRef;
-    palette?: NFTRef;
+export interface AvatarProfile {
+  species: "human" | "panda" | "creature";
+
+  bodySeed?: NFTRef;
+  paletteSeed?: NFTRef;
+
+  hair?: {
+    style: "short" | "medium" | "long" | "bun" | "spikes" | "bald";
+    source?: NFTRef;
   };
 
-  wearables: Record<string, NFTRef | null>;
-  props: Record<string, NFTRef | null>;
-  companions: {
-    pet?: NFTRef;
+  face?: {
+    expression: "neutral" | "smile" | "smirk" | "serious" | "playful";
+    source?: NFTRef;
   };
 
-  effects: Record<string, NFTRef | null>;
+  wearables: {
+    head?: NFTRef;
+    torso?: NFTRef;
+    wristLeft?: NFTRef;
+    wristRight?: NFTRef;
+    feet?: NFTRef;
+  };
+
+  props: {
+    handLeft?: NFTRef;
+    handRight?: NFTRef;
+    floating?: NFTRef[];
+  };
+
+  pet?: NFTRef;
+  aura?: NFTRef;
 }
 
 // Initial state for a new user
-export const INITIAL_AVATAR_STATE: AvatarState = {
-  morphs: {},
-  wearables: {
-    head: null,
-    face: null,
-    torso: null,
-    wrist: null,
-    waist: null,
-    feet: null,
-  },
+export const INITIAL_AVATAR_PROFILE: AvatarProfile = {
+  species: "human",
+  wearables: {},
   props: {
-    handheld: null,
-    floating: null,
-  },
-  companions: {
-    pet: null,
-  },
-  effects: {
-    aura: null,
-    trail: null,
+    floating: [],
   },
 };

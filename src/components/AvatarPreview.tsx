@@ -1,23 +1,26 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
-import { AvatarState } from '@/avatar/AvatarState';
+import { AvatarProfile } from '@/avatar/AvatarState';
 import { buildAvatar } from '@/avatar/AvatarBuilder';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 interface AvatarPreviewProps {
-  state: AvatarState;
+  profile: AvatarProfile;
 }
 
-const AvatarPreview: React.FC<AvatarPreviewProps> = ({ state }) => {
+const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const avatarGroupRef = useRef<THREE.Group | null>(null);
   const animationFrameRef = useRef<number>();
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
 
-  const renderAvatar = async (newState: AvatarState) => {
+  const renderAvatar = async (newProfile: AvatarProfile) => {
     setLoading(true);
     setError(null);
     
@@ -36,11 +39,10 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ state }) => {
     }
 
     try {
-      const newAvatar = await buildAvatar(newState);
+      const newAvatar = await buildAvatar(newProfile);
       avatarGroupRef.current = newAvatar;
       
-      // Assuming the scene is already set up in the effect hook
-      const scene = mountRef.current?.userData.scene as THREE.Scene;
+      const scene = sceneRef.current;
       if (scene) {
         scene.add(newAvatar);
         // Center the avatar
@@ -56,8 +58,8 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ state }) => {
   };
 
   useEffect(() => {
-    renderAvatar(state);
-  }, [state]);
+    renderAvatar(profile);
+  }, [profile]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -66,17 +68,19 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ state }) => {
     const height = mountRef.current.clientHeight;
 
     const scene = new THREE.Scene();
+    sceneRef.current = scene;
     scene.background = new THREE.Color(0x1a1a1a);
-    mountRef.current.userData.scene = scene;
 
     const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 100);
     camera.position.set(0, 1.6, 3);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
+    rendererRef.current = renderer;
     renderer.setSize(width, height);
     mountRef.current.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    controlsRef.current = controls;
     controls.enableDamping = true;
     controls.target.set(0, 1.0, 0); // Look at the center of the avatar
     
@@ -86,7 +90,7 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ state }) => {
     directionalLight.position.set(5, 10, 7.5);
     scene.add(directionalLight);
 
-    const animate = (time: number) => {
+    const animate = () => {
       controls.update();
       renderer.render(scene, camera);
       animationFrameRef.current = requestAnimationFrame(animate);

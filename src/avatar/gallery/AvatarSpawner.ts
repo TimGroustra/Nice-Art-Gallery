@@ -1,7 +1,7 @@
 // gallery/AvatarSpawner.ts
 import * as THREE from "three";
 import { getOrCreateRemoteAvatar } from "../multiplayer/AvatarReplicator";
-import { AvatarState } from "../AvatarState";
+import { AvatarProfile } from "../AvatarState";
 
 /**
  * Spawns or updates a remote avatar in the Three.js scene.
@@ -9,7 +9,7 @@ import { AvatarState } from "../AvatarState";
 export async function spawnAvatarInGallery(
   scene: THREE.Scene,
   wallet: string,
-  avatarState: AvatarState,
+  avatarState: AvatarProfile,
   avatarHash: string,
   position: THREE.Vector3,
   rotation: number
