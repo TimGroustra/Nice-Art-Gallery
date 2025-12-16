@@ -30,11 +30,13 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
   
   const body = await loadGLTF(bodyPath);
   
-  // Validate the loaded body skeleton
-  try {
-      validateSkeleton(body);
-  } catch (e) {
-      console.error("Avatar validation failed:", e);
+  // Validate the loaded body skeleton, but skip if it's the fallback cube
+  if (!body.userData.isFallback) {
+      try {
+          validateSkeleton(body);
+      } catch (e) {
+          console.error("Avatar validation failed:", e);
+      }
   }
   
   group.add(body);

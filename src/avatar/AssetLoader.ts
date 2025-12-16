@@ -30,13 +30,17 @@ export async function loadGLTF(path: string): Promise<THREE.Group> {
     return scene.clone();
 
   } catch (error) {
-    console.error(`Failed to load GLTF model: ${path}`, error);
+    console.error(`[GLTF Loader] Failed to load GLTF model: ${path}`, error);
+    
     // Fallback: return a simple placeholder cube
     const geometry = new THREE.BoxGeometry(1, 1, 1);
     const material = new THREE.MeshStandardMaterial({ color: 0xff00ff });
     const mesh = new THREE.Mesh(geometry, material);
     const group = new THREE.Group();
     group.add(mesh);
+    
+    // Tag the fallback group so we can skip skeleton validation
+    group.userData.isFallback = true; 
     return group;
   }
 }
