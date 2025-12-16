@@ -587,15 +587,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
     };
 
-    const concreteMaterial = createConcreteMaterial();
-
-    const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0a0a0a,
-      roughness: 0.2,
-      metalness: 0.1,
-      side: THREE.DoubleSide,
-    });
-
     const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
       const electricBlue = '#00FFFF';
       const shinyBlack = '#0a0a0a';
@@ -642,6 +633,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       };
     };
 
+    // --- Material Declarations ---
     const concreteMaterial = createConcreteMaterial();
 
     const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
@@ -650,6 +642,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       metalness: 0.1,
       side: THREE.DoubleSide,
     });
+    // --- End Material Declarations ---
 
     const HOLE_SIZE = 30;
 
