@@ -10,6 +10,7 @@ import { attachWearable } from "./WearableSystem";
 import { spawnProp } from "./PropSystem";
 import { createAura } from "./EffectSystem";
 import { AttachmentSlot } from "./AttachmentMap";
+import { resolveNFTMedia } from "./NFTMediaResolver";
 
 /**
  * Builds a complete Three.js avatar model based on the provided state.
@@ -82,13 +83,15 @@ export async function assembleAvatar(state: AvatarState): Promise<THREE.Group> {
           // Props attached to the body's bone structure (e.g., handheld) are handled by WearableSystem.
           // Props attached to 'world' (e.g., floating) are spawned relative to the group.
           if (slot === 'floating') {
-              propPromises.push(spawnProp(meshKey, resolved.imageUrl, group));
+              const prop = await spawnProp(meshKey, resolved.imageUrl, group);
+              prop.userData.type = "prop"; // Tag for ZoneManager
+              propPromises.push(Promise.resolve(prop));
           } else {
               // For handheld props, we attach them to the bone via WearableSystem logic
               const attachmentSlot = slot as AttachmentSlot;
-              propPromises.push(
-                  attachWearable(body, attachmentSlot, meshKey, resolved.imageUrl)
-              );
+              const wearable = await attachWearable(body, attachmentSlot, meshKey, resolved.imageUrl);
+              wearable.userData.type = "prop"; // Tag for ZoneManager
+              propPromises.push(Promise.resolve(wearable));
           }
       } else {
           console.warn(`Prop mesh not found for slot: ${slot}`);
@@ -114,6 +117,7 @@ export async function assembleAvatar(state: AvatarState): Promise<THREE.Group> {
           });
           
           group.add(petMesh);
+          petMesh.userData.type = "pet"; // Tag for ZoneManager
           
           // Store pet instance data for external update loop (PetSystem)
           (group.userData as any).petInstance = {
@@ -130,6 +134,7 @@ export async function assembleAvatar(state: AvatarState): Promise<THREE.Group> {
   if (state.effects.aura) {
       const aura = createAura(primarySeed);
       group.add(aura);
+      aura.userData.type = "effect"; // Tag for ZoneManager
   }
 
   return group;

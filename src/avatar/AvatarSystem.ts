@@ -24,3 +24,15 @@ export * from './AvatarAssembler';
 export * from './AvatarBuilder';
 export * from './editorTypes';
 export * from './OwnershipValidator';
+
+// Phase 4 Exports
+export * from './multiplayer/AvatarNetworkState';
+export * from './multiplayer/AvatarReplicator';
+export * from './multiplayer/NetworkSerializer';
+export * from './multiplayer/AvatarNetworkLoop';
+export * from './gallery/AvatarSpawner';
+export * from './gallery/ZoneManager';
+export * from './gallery/ZoneRules';
+export * from './performance/AvatarCuller';
+export * from './performance/TextureBudget';
+export * from './performance/UpdateScheduler';
