@@ -60,7 +60,12 @@ const Index = () => {
       <BackgroundMusic ref={musicRef} />
 
       {/* Gallery Config Button */}
-      <div className="fixed top-4 right-4 z-20">
+      <div className="fixed top-4 right-4 z-20 space-x-2">
+        <Button asChild variant="secondary">
+          <Link to="/avatar-editor" target="_blank" rel="noopener noreferrer">
+            Avatar Editor
+          </Link>
+        </Button>
         <Button asChild>
           <Link to="/gallery-config" target="_blank" rel="noopener noreferrer">
             Gallery Configuration
