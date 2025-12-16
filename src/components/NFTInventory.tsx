@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { ScrollArea } => '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { NFTRef } from '@/avatar/AvatarState';
 import { Button } from '@/components/ui/button';
 import { Image, Gem } from 'lucide-react';
