@@ -48,36 +48,36 @@ const AvatarEditorUI: React.FC = () => {
       saveAvatar();
   }, [saveAvatar]);
 
+  const showOverlay = !isConnected || isLoading;
+  
+  // Determine overlay content
+  let overlayContent = null;
   if (!isConnected || !walletAddress) {
-    return (
-        <div className="flex items-center justify-center h-96">
-            <p className="text-muted-foreground">Please connect your wallet to access the Avatar Editor.</p>
-        </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-3">Loading Avatar Configuration...</span>
-      </div>
-    );
+      overlayContent = (
+          <p className="text-muted-foreground">Please connect your wallet to access the Avatar Editor.</p>
+      );
+  } else if (isLoading) {
+      overlayContent = (
+          <>
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <span className="ml-3">Loading Avatar Configuration...</span>
+          </>
+      );
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 relative min-h-[calc(100vh-6rem)]">
       <h1 className="text-3xl font-bold">Avatar Editor</h1>
       
       <div className="flex justify-between items-center border-b pb-4">
         <div className="text-sm text-muted-foreground">
-            Wallet: {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
+            Wallet: {walletAddress ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}` : 'N/A'}
         </div>
         <div className="space-x-2">
-            <Button onClick={undo} disabled={!canUndo || isSaving} variant="outline">
+            <Button onClick={undo} disabled={!canUndo || isSaving || isLoading} variant="outline">
                 <Undo2 className="h-4 w-4 mr-2" /> Undo
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
+            <Button onClick={handleSave} disabled={isSaving || isLoading}>
                 {isSaving ? 'Saving...' : 'Save Avatar'}
             </Button>
         </div>
@@ -101,6 +101,15 @@ const AvatarEditorUI: React.FC = () => {
           onApply={handleAssignment}
           onClose={() => setSelectedNFT(null)}
         />
+      )}
+      
+      {/* Loading/Connection Overlay */}
+      {showOverlay && (
+          <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm z-50 rounded-lg">
+              <div className="flex items-center text-lg">
+                  {overlayContent}
+              </div>
+          </div>
       )}
     </div>
   );
