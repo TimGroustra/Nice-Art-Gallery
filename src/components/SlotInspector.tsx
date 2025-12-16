@@ -2,17 +2,21 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { X, Image } from 'lucide-react';
-import { NFTRef, AvatarProfile } from '@/avatar/AvatarState';
+import { NFTRef, AvatarProfile, StyledNFTRef } from '@/avatar/AvatarState';
 import { Separator } from '@/components/ui/separator';
 
 interface SlotRowProps {
   label: string;
-  nft: NFTRef | undefined;
+  nft: NFTRef | StyledNFTRef | undefined;
   onClear: () => void;
 }
 
-const formatNFTRef = (nft: NFTRef) => {
-    return `Token #${nft.tokenId} (${nft.contract.substring(0, 6)}...)`;
+const formatNFTRef = (nft: NFTRef | StyledNFTRef) => {
+    const base = `Token #${nft.tokenId} (${nft.contract.substring(0, 6)}...)`;
+    if ('styleKey' in nft && nft.styleKey && nft.styleKey !== 'seed' && nft.styleKey !== 'effect') {
+        return `${base} [Style: ${nft.styleKey}]`;
+    }
+    return base;
 }
 
 function SlotRow({ label, nft, onClear }: SlotRowProps) {

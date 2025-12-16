@@ -5,6 +5,11 @@ export interface NFTRef {
   tokenId: string;
 }
 
+// Define a structure for items that require both an NFT source and a mesh style
+interface StyledNFTRef extends NFTRef {
+    styleKey: string; // e.g., 'tshirt', 'sword', 'cat'
+}
+
 export interface AvatarProfile {
   species: "human" | "panda" | "creature";
 
@@ -22,20 +27,20 @@ export interface AvatarProfile {
   };
 
   wearables: {
-    head?: NFTRef;
-    torso?: NFTRef;
-    wristLeft?: NFTRef;
-    wristRight?: NFTRef;
-    feet?: NFTRef;
+    head?: StyledNFTRef;
+    torso?: StyledNFTRef;
+    wristLeft?: StyledNFTRef;
+    wristRight?: StyledNFTRef;
+    feet?: StyledNFTRef;
   };
 
   props: {
-    handLeft?: NFTRef;
-    handRight?: NFTRef;
-    floating?: NFTRef[];
+    handLeft?: StyledNFTRef;
+    handRight?: StyledNFTRef;
+    floating?: StyledNFTRef[];
   };
 
-  pet?: NFTRef;
+  pet?: StyledNFTRef;
   aura?: NFTRef;
 }
 

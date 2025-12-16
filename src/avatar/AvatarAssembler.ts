@@ -1,6 +1,6 @@
 // AvatarAssembler.ts
 import * as THREE from "three";
-import { AvatarProfile, NFTRef } from "./AvatarState";
+import { AvatarProfile, NFTRef, StyledNFTRef } from "./AvatarState";
 import { MeshLibrary, BodySpecies } from "./MeshLibrary";
 import { resolveNFT } from "./NFTResolver";
 import { loadGLTF } from "./AssetLoader";
@@ -12,6 +12,14 @@ import { createAura } from "./EffectSystem";
 import { AttachmentSlot } from "./AttachmentMap";
 import { resolveNFTMedia } from "./NFTMediaResolver";
 import { applyFaceExpression, applyHairVariation } from "./MorphSystem";
+
+/**
+ * Helper to get mesh path from MeshLibrary using a styleKey and category.
+ */
+function getMeshPath(category: keyof typeof MeshLibrary, styleKey: string): string | undefined {
+    const categoryMap = MeshLibrary[category] as Record<string, string>;
+    return categoryMap[styleKey];
+}
 
 /**
  * Builds a complete Three.js avatar model based on the provided state.
@@ -60,7 +68,7 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
   // --- 3. Apply Hair/Face (Morphs/Wearables) ---
   if (state.hair?.source) {
       const resolved = await resolveNFT(state.hair.source);
-      const hairPath = (MeshLibrary.hair as any)[state.hair.style || 'short'];
+      const hairPath = getMeshPath('hair', state.hair.style || 'short');
       if (hairPath) {
           const hairMesh = await attachWearable(body, 'hair', hairPath, resolved.imageUrl);
           applyHairVariation(hairMesh, resolved.seed);
@@ -85,17 +93,11 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
       feet: 'feet',
   };
   
-  for (const [slot, nft] of Object.entries(state.wearables)) {
-      if (!nft) continue;
+  for (const [slot, styledNft] of Object.entries(state.wearables)) {
+      if (!styledNft) continue;
       
-      const resolved = await resolveNFT(nft);
-      // We need a mesh path based on the slot type. Since the user's MeshLibrary is generic, 
-      // we'll use a placeholder mapping based on the slot name for now.
-      let meshKey: string | undefined;
-      if (slot === 'torso') meshKey = MeshLibrary.wearables.tshirt;
-      if (slot === 'head') meshKey = MeshLibrary.wearables.hat;
-      if (slot === 'wristLeft' || slot === 'wristRight') meshKey = MeshLibrary.wearables.watch;
-      if (slot === 'feet') meshKey = MeshLibrary.wearables.shoes;
+      const resolved = await resolveNFT(styledNft);
+      const meshKey = getMeshPath('wearables', styledNft.styleKey);
       
       if (meshKey) {
           const attachmentSlot = wearableSlots[slot as keyof AvatarProfile['wearables']];
@@ -103,7 +105,7 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
               attachWearable(body, attachmentSlot, meshKey, resolved.imageUrl)
           );
       } else {
-          console.warn(`Wearable mesh not found for slot: ${slot}`);
+          console.warn(`Wearable mesh not found for slot: ${slot} with styleKey: ${styledNft.styleKey}`);
       }
   }
   await Promise.all(wearablePromises);
@@ -114,30 +116,42 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
   const propPromises: Promise<THREE.Object3D>[] = [];
   
   if (state.props.handRight) {
-      const resolved = await resolveNFT(state.props.handRight);
-      // Assuming handRight prop is a sword
-      const wearable = await attachWearable(body, 'hand.right', MeshLibrary.props.sword, resolved.imageUrl);
-      wearable.userData.type = "prop";
-      propPromises.push(Promise.resolve(wearable));
+      const styledNft = state.props.handRight;
+      const resolved = await resolveNFT(styledNft);
+      const meshKey = getMeshPath('props', styledNft.styleKey);
+      
+      if (meshKey) {
+          const wearable = await attachWearable(body, 'hand.right', meshKey, resolved.imageUrl);
+          wearable.userData.type = "prop";
+          propPromises.push(Promise.resolve(wearable));
+      }
   }
   
   if (state.props.handLeft) {
-      const resolved = await resolveNFT(state.props.handLeft);
-      // Assuming handLeft prop is a jar
-      const wearable = await attachWearable(body, 'hand.left', MeshLibrary.props.jar, resolved.imageUrl);
-      wearable.userData.type = "prop";
-      propPromises.push(Promise.resolve(wearable));
+      const styledNft = state.props.handLeft;
+      const resolved = await resolveNFT(styledNft);
+      const meshKey = getMeshPath('props', styledNft.styleKey);
+      
+      if (meshKey) {
+          const wearable = await attachWearable(body, 'hand.left', meshKey, resolved.imageUrl);
+          wearable.userData.type = "prop";
+          propPromises.push(Promise.resolve(wearable));
+      }
   }
   
   // Floating props
   if (state.props.floating && state.props.floating.length > 0) {
-      for (const nft of state.props.floating) {
-          const resolved = await resolveNFT(nft);
-          const prop = await spawnProp(MeshLibrary.props.gem, resolved.imageUrl, group);
-          prop.userData.type = "prop";
-          // Simple offset for floating items
-          prop.position.set(0, 1.5, 1.5); 
-          propPromises.push(Promise.resolve(prop));
+      for (const styledNft of state.props.floating) {
+          const resolved = await resolveNFT(styledNft);
+          const meshKey = getMeshPath('props', styledNft.styleKey);
+          
+          if (meshKey) {
+              const prop = await spawnProp(meshKey, resolved.imageUrl, group);
+              prop.userData.type = "prop";
+              // Simple offset for floating items
+              prop.position.set(0, 1.5, 1.5); 
+              propPromises.push(Promise.resolve(prop));
+          }
       }
   }
   await Promise.all(propPromises);
@@ -145,28 +159,33 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
   // --- 6. Handle Companions (Pets) ---
   if (state.pet) {
       try {
-          const resolved = await resolveNFT(state.pet);
-          const petMesh = await loadGLTF(MeshLibrary.pets.cat); // Default pet mesh
+          const styledNft = state.pet;
+          const resolved = await resolveNFT(styledNft);
+          const petPath = getMeshPath('pets', styledNft.styleKey);
           
-          // Apply texture to pet mesh
-          petMesh.traverse(async (child) => {
-              if (child instanceof THREE.Mesh && child.material) {
-                  (child.material as THREE.Material).clone();
-                  const media = await resolveNFTMedia(resolved.imageUrl);
-                  if (media.type === "texture") {
-                      ((child.material as THREE.MeshStandardMaterial).map = media.texture);
+          if (petPath) {
+              const petMesh = await loadGLTF(petPath);
+              
+              // Apply texture to pet mesh
+              petMesh.traverse(async (child) => {
+                  if (child instanceof THREE.Mesh && child.material) {
+                      (child.material as THREE.Material).clone();
+                      const media = await resolveNFTMedia(resolved.imageUrl);
+                      if (media.type === "texture") {
+                          ((child.material as THREE.MeshStandardMaterial).map = media.texture);
+                      }
                   }
-              }
-          });
-          
-          group.add(petMesh);
-          petMesh.userData.type = "pet"; // Tag for ZoneManager
-          
-          // Store pet instance data for external update loop (PetSystem)
-          (group.userData as any).petInstance = {
-              model: petMesh,
-              followDistance: 2.0,
-          };
+              });
+              
+              group.add(petMesh);
+              petMesh.userData.type = "pet"; // Tag for ZoneManager
+              
+              // Store pet instance data for external update loop (PetSystem)
+              (group.userData as any).petInstance = {
+                  model: petMesh,
+                  followDistance: 2.0,
+              };
+          }
           
       } catch (e) {
           console.error("Failed to render pet:", e);
