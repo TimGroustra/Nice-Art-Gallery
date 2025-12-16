@@ -29,9 +29,12 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
   }
   
   const body = await loadGLTF(bodyPath);
+  group.add(body);
   
-  // Validate the loaded body skeleton, but skip if it's the fallback cube
-  if (!body.userData.isFallback) {
+  const isFallback = !!body.userData.isFallback;
+
+  if (!isFallback) {
+      // Validate the loaded body skeleton
       try {
           validateSkeleton(body);
       } catch (e) {
@@ -39,14 +42,19 @@ export async function assembleAvatar(state: AvatarProfile): Promise<THREE.Group>
       }
   }
   
-  group.add(body);
-  
   // --- 2. Apply Morphs (Seed-driven variations) ---
   let primarySeed = 0;
   if (state.bodySeed) {
       const { seed } = await resolveNFT(state.bodySeed);
       primarySeed = seed;
-      applyBodyMorphs(body, primarySeed);
+      if (!isFallback) {
+          applyBodyMorphs(body, primarySeed);
+      }
+  }
+  
+  if (isFallback) {
+      console.warn("Skipping morphs, wearables, props, and effects due to failed base body load.");
+      return group;
   }
   
   // --- 3. Apply Hair/Face (Morphs/Wearables) ---
