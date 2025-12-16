@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
 import { AvatarState } from '@/avatar/AvatarState';
-import { buildAvatar } from '@/avatar/AvatarRenderer';
+import { buildAvatar } from '@/avatar/AvatarBuilder';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
