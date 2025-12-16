@@ -7,7 +7,6 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import GalleryConfig from "./pages/GalleryConfig";
 import Login from "./pages/Login";
-import AvatarEditor from "./pages/AvatarEditor";
 import { WagmiProvider } from 'wagmi';
 import { wagmiConfig } from '@/integrations/wagmi/config';
 
@@ -24,7 +23,6 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/gallery-config" element={<GalleryConfig />} />
-            <Route path="/avatar-editor" element={<AvatarEditor />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

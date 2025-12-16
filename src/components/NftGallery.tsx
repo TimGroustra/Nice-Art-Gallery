@@ -13,16 +13,6 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import { useAvatarSystem } from '@/hooks/use-avatar-system';
-import { buildAvatar } from '@/avatar/AvatarBuilder';
-import { useAccount } from 'wagmi';
-import { cullAvatar } from '@/avatar/performance/AvatarCuller';
-import { enforceTextureBudget } from '@/avatar/performance/TextureBudget';
-import { scheduleAvatarUpdates } from '@/avatar/performance/UpdateScheduler';
-import { applyZoneRules, GalleryZone } from '@/avatar/gallery/ZoneManager';
-import { spawnAvatarInGallery } from '@/avatar/gallery/AvatarSpawner';
-import { removeRemoteAvatar } from '@/avatar/multiplayer/AvatarReplicator';
-import { hashAvatarState } from '@/avatar/multiplayer/NetworkSerializer';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -69,8 +59,7 @@ const rainbowFragmentShader = `
   vec3 hsv2rgb(vec3 c) {
     vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
     vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-    vec3 color = c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-    return color;
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
   }
 
   void main() {
@@ -109,10 +98,8 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const { address: walletAddress, isConnected } = useAccount();
-  const { avatarProfile, isLoading: isAvatarLoading } = useAvatarSystem();
-
   const panelsRef = useRef<Panel[]>([]);
+  const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
@@ -128,8 +115,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
-  const localAvatarRef = useRef<THREE.Group | null>(null);
-  const remoteAvatarsRef = useRef<Map<string, THREE.Object3D>>(new Map()); // Simulated remote avatars
 
   const isTeleportingRef = useRef(false);
   const fadeStartTimeRef = useRef(0);
@@ -145,81 +130,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const velocityRef = useRef(new THREE.Vector3());
   const directionRef = useRef(new THREE.Vector3());
   const prevTimeRef = useRef(performance.now());
-
-  // --- Avatar Logic ---
-
-  // 1. Local Avatar Spawning/Updating
-  useEffect(() => {
-    if (!sceneRef.current || isAvatarLoading || !walletAddress) return;
-
-    const scene = sceneRef.current;
-
-    const updateLocalAvatar = async () => {
-      if (localAvatarRef.current) {
-        scene.remove(localAvatarRef.current);
-        // Dispose logic omitted for brevity, handled in cleanup
-      }
-      
-      const newAvatar = await buildAvatar(avatarProfile);
-      localAvatarRef.current = newAvatar;
-      
-      // Position the avatar slightly behind the camera for visibility/testing
-      const initialPos = new THREE.Vector3(0, 0, 0);
-      if (cameraRef.current) {
-          initialPos.copy(cameraRef.current.position);
-          initialPos.z += 1; // Place behind the camera
-      }
-      newAvatar.position.copy(initialPos);
-      
-      scene.add(newAvatar);
-    };
-
-    updateLocalAvatar();
-
-    return () => {
-      if (localAvatarRef.current) {
-        scene.remove(localAvatarRef.current);
-        localAvatarRef.current = null;
-      }
-    };
-  }, [avatarProfile, isAvatarLoading, walletAddress]);
-  
-  // 2. Simulated Remote Avatar Spawning (for testing ZoneManager/Culler)
-  useEffect(() => {
-      if (!sceneRef.current || !walletAddress) return;
-      
-      // Simulate a remote user's state (e.g., a default state)
-      const remoteWallet = "0xRemoteUserAddress";
-      // Use a simplified profile for the remote user
-      const remoteProfile = { 
-          species: "human", 
-          wearables: { torso: undefined, head: undefined }, 
-          props: { floating: [] },
-          aura: { chainId: 111111, contract: '0x1234...AABB', tokenId: '1', image: '/placeholder.svg' } 
-      };
-      const remoteHash = hashAvatarState(remoteProfile);
-      
-      const remotePos = new THREE.Vector3(15, 1.6, 15);
-      
-      spawnAvatarInGallery(
-          sceneRef.current, 
-          remoteWallet, 
-          remoteProfile, 
-          remoteHash, 
-          remotePos, 
-          0
-      ).then(avatar => {
-          remoteAvatarsRef.current.set(remoteWallet, avatar);
-      });
-      
-      return () => {
-          removeRemoteAvatar(remoteWallet);
-          remoteAvatarsRef.current.delete(remoteWallet);
-      }
-  }, [walletAddress, avatarProfile]);
-
-
-  // --- Gallery Content Logic (Unchanged) ---
 
   const loadTexture = useCallback(
     async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
@@ -593,6 +503,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
     };
 
+    const concreteMaterial = createConcreteMaterial();
+
+    const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0a0a0a,
+      roughness: 0.2,
+      metalness: 0.1,
+      side: THREE.DoubleSide,
+    });
+
     const createCustomFloorTexture = (callback: (texture: THREE.CanvasTexture) => void) => {
       const electricBlue = '#00FFFF';
       const shinyBlack = '#0a0a0a';
@@ -638,17 +557,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         console.error('Failed to load floor texture SVG:', err);
       };
     };
-
-    // --- Material Declarations ---
-    const concreteMaterial = createConcreteMaterial();
-
-    const placeholderFloorMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0a0a0a,
-      roughness: 0.2,
-      metalness: 0.1,
-      side: THREE.DoubleSide,
-    });
-    // --- End Material Declarations ---
 
     const HOLE_SIZE = 30;
 
@@ -1166,33 +1074,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const pos = camera.position;
         pos.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.x));
         pos.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.z));
-        
-        // Update local avatar position to match camera (minus height offset)
-        if (localAvatarRef.current) {
-            localAvatarRef.current.position.set(pos.x, 0, pos.z);
-            // Simple rotation based on camera direction (Y-axis rotation)
-            localAvatarRef.current.rotation.y = camera.rotation.y;
-            
-            // --- Performance & Zone Management for Local Avatar ---
-            // Determine current zone (simplified: 'social' if on ground floor, 'quiet' if on first floor platform)
-            const currentZone: GalleryZone = pos.y < PLATFORM_Y ? 'social' : 'quiet';
-            applyZoneRules(localAvatarRef.current, currentZone);
-            enforceTextureBudget(localAvatarRef.current);
-            scheduleAvatarUpdates(localAvatarRef.current, delta);
-            
-            // --- Multiplayer Sync (Placeholder) ---
-            // updateNetworkAvatar(socket, avatarProfile, localAvatarRef.current.position, localAvatarRef.current.rotation.y);
-        }
-        
-        // --- Remote Avatar Management ---
-        remoteAvatarsRef.current.forEach(remoteAvatar => {
-            cullAvatar(remoteAvatar, pos);
-            enforceTextureBudget(remoteAvatar);
-            scheduleAvatarUpdates(remoteAvatar, delta);
-            // Zone rules applied here too, based on remote avatar's position
-            const remoteZone: GalleryZone = remoteAvatar.position.y < PLATFORM_Y ? 'social' : 'quiet';
-            applyZoneRules(remoteAvatar, remoteZone);
-        });
       }
 
       // Update shader time
@@ -1344,7 +1225,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, avatarProfile, walletAddress, isAvatarLoading]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
 
   return (
     <>
