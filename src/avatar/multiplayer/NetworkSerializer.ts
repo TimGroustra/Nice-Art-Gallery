@@ -15,5 +15,6 @@ export function hashAvatarState(state: AvatarProfile): string {
     pet: state.pet,
     aura: state.aura,
   };
+  
   return keccak256(toUtf8Bytes(JSON.stringify(serializableState)));
 }

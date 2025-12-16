@@ -24,15 +24,14 @@ export async function getOrCreateRemoteAvatar(
   
   // Cleanup old avatar if present
   if (avatarCache.has(wallet)) {
-      const oldAvatar = avatarCache.get(wallet)!;
-      oldAvatar.parent?.remove(oldAvatar);
-      // Note: Full disposal of old geometry/materials should happen here in a real app, 
-      // but for simplicity, we rely on the garbage collector for now.
+    const oldAvatar = avatarCache.get(wallet)!;
+    oldAvatar.parent?.remove(oldAvatar);
+    // Note: Full disposal of old geometry/materials should happen here in a real app,
+    // but for simplicity, we rely on the garbage collector for now.
   }
-
+  
   avatarCache.set(wallet, newAvatar);
   avatarHashCache.set(wallet, avatarHash);
-  
   return newAvatar;
 }
 
@@ -40,10 +39,10 @@ export async function getOrCreateRemoteAvatar(
  * Removes a remote avatar from the cache and scene.
  */
 export function removeRemoteAvatar(wallet: string) {
-    if (avatarCache.has(wallet)) {
-        const avatar = avatarCache.get(wallet)!;
-        avatar.parent?.remove(avatar);
-        avatarCache.delete(wallet);
-        avatarHashCache.delete(wallet);
-    }
+  if (avatarCache.has(wallet)) {
+    const avatar = avatarCache.get(wallet)!;
+    avatar.parent?.remove(avatar);
+    avatarCache.delete(wallet);
+    avatarHashCache.delete(wallet);
+  }
 }

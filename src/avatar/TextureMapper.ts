@@ -14,7 +14,7 @@ export async function applyNFTTexture(
     console.warn("Material is not MeshStandardMaterial, skipping texture application.");
     return;
   }
-  
+
   try {
     const texture = await new THREE.TextureLoader().loadAsync(imageUrl);
     texture.flipY = false; // GLTF standard often requires flipY=false

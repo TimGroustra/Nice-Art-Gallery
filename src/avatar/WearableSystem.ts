@@ -13,8 +13,7 @@ function findAttachmentTarget(
   slot: AttachmentSlot
 ): THREE.Object3D | null {
   const boneName = AttachmentMap[slot];
-  if (boneName === "world") return body.parent; // Return parent group for world attachments
-
+  if (boneName === "world") return (body as any).parent; // Return parent group for world attachments
   return findObjectByName(body, boneName);
 }
 
@@ -29,7 +28,7 @@ export async function attachWearable(
 ) {
   const wearable = await loadGLTF(meshPath);
   const target = findAttachmentTarget(body, slot);
-
+  
   if (target) {
     // Reset position/rotation relative to the bone/target
     wearable.position.set(0, 0, 0);
@@ -39,7 +38,7 @@ export async function attachWearable(
     console.warn(`Attachment target not found for slot: ${slot}. Attaching to root.`);
     body.add(wearable);
   }
-
+  
   wearable.traverse(async obj => {
     if ((obj as THREE.Mesh).isMesh && (obj as THREE.Mesh).material) {
       // Clone material to ensure unique texture application
@@ -47,11 +46,11 @@ export async function attachWearable(
       
       const media = await resolveNFTMedia(nftImage);
       if (media.type === "texture" || media.type === "video") {
-        ((obj as THREE.Mesh).material as THREE.MeshStandardMaterial).map = media.texture;
-        ((obj as THREE.Mesh).material as THREE.MeshStandardMaterial).needsUpdate = true;
+        (((obj as THREE.Mesh).material as THREE.MeshStandardMaterial).map = media.texture);
+        (((obj as THREE.Mesh).material as THREE.MeshStandardMaterial).needsUpdate = true);
       }
     }
   });
-
+  
   return wearable;
 }

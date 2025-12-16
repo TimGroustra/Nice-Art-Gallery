@@ -7,10 +7,9 @@ export function applyLOD(
 ) {
   // Simple visibility toggle based on distance
   const visible = distance < 30;
-  
   avatar.traverse(obj => {
     if ((obj as THREE.Mesh).isMesh) {
-      obj.visible = visible;
+      (obj as THREE.Mesh).visible = visible;
     }
   });
 }

@@ -11,12 +11,14 @@ interface SlotRowProps {
   onClear: () => void;
 }
 
-const formatNFTRef = (nft: NFTRef | StyledNFTRef) => {
-    const base = `Token #${nft.tokenId} (${nft.contract.substring(0, 6)}...)`;
-    if ('styleKey' in nft && nft.styleKey && nft.styleKey !== 'seed' && nft.styleKey !== 'effect') {
-        return `${base} [Style: ${nft.styleKey}]`;
-    }
-    return base;
+const formatNFTRef = (nft: NFTRef | StyledNFTRef | undefined) => {
+  if (!nft) return 'Empty';
+  
+  const base = `Token #${nft.tokenId} (${nft.contract.substring(0, 6)}...)`;
+  if ('styleKey' in nft && nft.styleKey && nft.styleKey !== 'seed' && nft.styleKey !== 'effect') {
+    return `${base} [Style: ${nft.styleKey}]`;
+  }
+  return base;
 }
 
 function SlotRow({ label, nft, onClear }: SlotRowProps) {
@@ -27,7 +29,7 @@ function SlotRow({ label, nft, onClear }: SlotRowProps) {
         <div>
           <span className="font-medium text-sm capitalize">{label.replace(/([A-Z])/g, ' $1')}</span>
           <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-            {nft ? formatNFTRef(nft) : 'Empty'}
+            {formatNFTRef(nft)}
           </p>
         </div>
       </div>
@@ -46,55 +48,71 @@ interface SlotInspectorProps {
 }
 
 export function SlotInspector({ profile, onChange }: SlotInspectorProps) {
-  
   const handleClearWearable = (slot: keyof AvatarProfile['wearables']) => {
     onChange({
       ...profile,
-      wearables: { ...profile.wearables, [slot]: undefined }
+      wearables: {
+        ...profile.wearables,
+        [slot]: undefined
+      }
     });
   };
-  
+
   const handleClearProp = (slot: keyof AvatarProfile['props'], index?: number) => {
     if (slot === 'floating' && profile.props.floating && index !== undefined) {
-        const newFloating = profile.props.floating.filter((_, i) => i !== index);
-        onChange({
-            ...profile,
-            props: { ...profile.props, floating: newFloating }
-        });
+      const newFloating = profile.props.floating.filter((_, i) => i !== index);
+      onChange({
+        ...profile,
+        props: {
+          ...profile.props,
+          floating: newFloating
+        }
+      });
     } else {
-        onChange({
-            ...profile,
-            props: { ...profile.props, [slot]: undefined }
-        });
+      onChange({
+        ...profile,
+        props: {
+          ...profile.props,
+          [slot]: undefined
+        }
+      });
     }
   };
-  
+
   const handleClearCompanion = () => {
-      onChange({ ...profile, pet: undefined });
+    onChange({
+      ...profile,
+      pet: undefined
+    });
   };
-  
+
   const handleClearEffect = () => {
-      onChange({ ...profile, aura: undefined });
+    onChange({
+      ...profile,
+      aura: undefined
+    });
   };
-  
+
   const handleClearMorph = (slot: 'bodySeed' | 'paletteSeed') => {
-      onChange({ ...profile, [slot]: undefined });
+    onChange({
+      ...profile,
+      [slot]: undefined
+    });
   };
 
   return (
     <div className="space-y-4 overflow-y-auto">
-      
       <Card>
         <CardHeader>
           <CardTitle>Wearables</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
           {Object.entries(profile.wearables).map(([slot, nft]) => (
-            <SlotRow
-              key={slot}
-              label={slot}
-              nft={nft}
-              onClear={() => handleClearWearable(slot as keyof AvatarProfile['wearables'])}
+            <SlotRow 
+              key={slot} 
+              label={slot} 
+              nft={nft} 
+              onClear={() => handleClearWearable(slot as keyof AvatarProfile['wearables'])} 
             />
           ))}
         </CardContent>
@@ -105,27 +123,27 @@ export function SlotInspector({ profile, onChange }: SlotInspectorProps) {
           <CardTitle>Props</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <SlotRow
-            label="Hand Right"
-            nft={profile.props.handRight}
-            onClear={() => handleClearProp('handRight')}
+          <SlotRow 
+            label="Hand Right" 
+            nft={profile.props.handRight} 
+            onClear={() => handleClearProp('handRight')} 
           />
-          <SlotRow
-            label="Hand Left"
-            nft={profile.props.handLeft}
-            onClear={() => handleClearProp('handLeft')}
+          <SlotRow 
+            label="Hand Left" 
+            nft={profile.props.handLeft} 
+            onClear={() => handleClearProp('handLeft')} 
           />
           <Separator className="my-2" />
           {profile.props.floating?.map((nft, index) => (
-              <SlotRow
-                key={`floating-${index}`}
-                label={`Floating Item ${index + 1}`}
-                nft={nft}
-                onClear={() => handleClearProp('floating', index)}
-              />
+            <SlotRow 
+              key={`floating-${index}`} 
+              label={`Floating Item ${index + 1}`} 
+              nft={nft} 
+              onClear={() => handleClearProp('floating', index)} 
+            />
           ))}
           {(!profile.props.floating || profile.props.floating.length === 0) && (
-              <p className="text-xs text-muted-foreground p-2">No floating items assigned.</p>
+            <p className="text-xs text-muted-foreground p-2">No floating items assigned.</p>
           )}
         </CardContent>
       </Card>
@@ -135,15 +153,15 @@ export function SlotInspector({ profile, onChange }: SlotInspectorProps) {
           <CardTitle>Companions & Effects</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <SlotRow
-            label="Pet"
-            nft={profile.pet}
-            onClear={handleClearCompanion}
+          <SlotRow 
+            label="Pet" 
+            nft={profile.pet} 
+            onClear={handleClearCompanion} 
           />
-          <SlotRow
-            label="Aura Effect"
-            nft={profile.aura}
-            onClear={handleClearEffect}
+          <SlotRow 
+            label="Aura Effect" 
+            nft={profile.aura} 
+            onClear={handleClearEffect} 
           />
         </CardContent>
       </Card>
@@ -153,15 +171,15 @@ export function SlotInspector({ profile, onChange }: SlotInspectorProps) {
           <CardTitle>Morph Seeds</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2">
-          <SlotRow
-            label="Body Seed"
-            nft={profile.bodySeed}
-            onClear={() => handleClearMorph('bodySeed')}
+          <SlotRow 
+            label="Body Seed" 
+            nft={profile.bodySeed} 
+            onClear={() => handleClearMorph('bodySeed')} 
           />
-          <SlotRow
-            label="Palette Seed"
-            nft={profile.paletteSeed}
-            onClear={() => handleClearMorph('paletteSeed')}
+          <SlotRow 
+            label="Palette Seed" 
+            nft={profile.paletteSeed} 
+            onClear={() => handleClearMorph('paletteSeed')} 
           />
         </CardContent>
       </Card>

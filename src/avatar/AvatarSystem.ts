@@ -1,5 +1,4 @@
 // AvatarSystem.ts
-
 export * from './AvatarCapabilities';
 export * from './AvatarState';
 export * from './AttachmentSystem';

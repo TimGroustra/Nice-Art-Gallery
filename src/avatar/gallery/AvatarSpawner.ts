@@ -18,7 +18,7 @@ export async function spawnAvatarInGallery(
   
   // Ensure avatar is in the scene
   if (!avatar.parent) {
-      scene.add(avatar);
+    scene.add(avatar);
   }
   
   // Update position and rotation

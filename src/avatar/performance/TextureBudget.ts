@@ -9,13 +9,11 @@ export function enforceTextureBudget(
   maxAnimated = 2
 ) {
   let animatedCount = 0;
-
   avatar.traverse(obj => {
     const mat = (obj as THREE.Mesh).material;
     if (!mat || !("map" in mat)) return;
-
-    const map = (mat as THREE.MeshStandardMaterial).map;
     
+    const map = (mat as THREE.MeshStandardMaterial).map;
     if (map instanceof THREE.VideoTexture) {
       animatedCount++;
       if (animatedCount > maxAnimated) {
@@ -26,7 +24,7 @@ export function enforceTextureBudget(
         
         // Stop the video element to save resources
         if ((map.image as HTMLVideoElement).pause) {
-            (map.image as HTMLVideoElement).pause();
+          (map.image as HTMLVideoElement).pause();
         }
       }
     }

@@ -8,14 +8,13 @@ import { SkeletonBones } from "./SkeletonMap";
  */
 export function validateSkeleton(root: THREE.Object3D) {
   const foundBones = new Set<string>();
-
   root.traverse(obj => {
     // Check if the object is a bone (or a node intended to be a bone)
     if ((obj as THREE.Bone).isBone || obj.type === 'Bone') {
       foundBones.add(obj.name);
     }
   });
-
+  
   for (const bone of SkeletonBones) {
     if (!foundBones.has(bone)) {
       console.error(`[AssetValidator] Missing required bone: ${bone}`);

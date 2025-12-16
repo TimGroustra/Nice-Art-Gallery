@@ -1,7 +1,8 @@
 // AssetLoader.ts
 import * as THREE from "three";
-import { GLTFLoader } from "three-stdlib"; // Using three-stdlib for GLTFLoader
+import { GLTFLoader } from "three-stdlib";
 
+// Using three-stdlib for GLTFLoader
 const gltfLoader = new GLTFLoader();
 const gltfCache = new Map<string, THREE.Group>();
 
@@ -19,16 +20,13 @@ export async function loadGLTF(path: string): Promise<THREE.Group> {
   try {
     const gltf = await gltfLoader.loadAsync(path);
     const scene = gltf.scene;
-    
     scene.traverse(obj => {
-      obj.frustumCulled = true;
+      (obj as any).frustumCulled = true;
     });
-
+    
     // Cache the original model
     gltfCache.set(path, scene);
-    
     return scene.clone();
-
   } catch (error) {
     console.error(`[GLTF Loader] Failed to load GLTF model: ${path}`, error);
     
@@ -40,7 +38,7 @@ export async function loadGLTF(path: string): Promise<THREE.Group> {
     group.add(mesh);
     
     // Tag the fallback group so we can skip skeleton validation
-    group.userData.isFallback = true; 
+    (group as any).userData.isFallback = true;
     return group;
   }
 }

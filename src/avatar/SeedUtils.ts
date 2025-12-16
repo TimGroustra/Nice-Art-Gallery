@@ -7,6 +7,7 @@ export function nftSeed(nft: NFTRef): number {
   const hash = keccak256(
     toUtf8Bytes(`${nft.chainId}:${nft.contract}:${nft.tokenId}`)
   );
+  
   // Take the first 8 hex characters (4 bytes) and convert to integer
   return parseInt(hash.slice(2, 10), 16);
 }

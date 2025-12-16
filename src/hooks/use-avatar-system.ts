@@ -24,25 +24,21 @@ export function useAvatarSystem(): AvatarSystemResult {
   const [error, setError] = useState<string | null>(null);
   
   // Use the editor state hook internally
-  const { 
-      state: avatarProfile, 
-      update: updateState, 
-      undo, 
-      canUndo 
-  } = useAvatarStateEditor(INITIAL_AVATAR_PROFILE);
+  const { state: avatarProfile, update: updateState, undo, canUndo } = useAvatarStateEditor(INITIAL_AVATAR_PROFILE);
 
   const saveAvatarToDB = useCallback(async (state: AvatarProfile, address: string) => {
     setIsSaving(true);
-    
     const { error: saveError } = await supabase
       .from('avatars')
       .upsert({
         wallet_address: address,
         avatar_state: state, // Note: DB column is still 'avatar_state'
-      }, { onConflict: 'wallet_address' });
+      }, {
+        onConflict: 'wallet_address'
+      });
 
     setIsSaving(false);
-
+    
     if (saveError) {
       console.error("Failed to save avatar state:", saveError);
       toast.error("Failed to save avatar configuration.");
@@ -64,7 +60,7 @@ export function useAvatarSystem(): AvatarSystemResult {
       .single();
 
     let loadedProfile = INITIAL_AVATAR_PROFILE;
-
+    
     if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 is "No rows found"
       console.error("Failed to fetch avatar state:", fetchError);
       setError("Failed to load avatar configuration.");
@@ -72,19 +68,19 @@ export function useAvatarSystem(): AvatarSystemResult {
       // Cast the loaded data to the new profile type
       loadedProfile = data.avatar_state as AvatarProfile;
     }
-    
+
     // Validate ownership upon loading
     const validatedProfile = await validateOwnership(loadedProfile, address);
     updateState(validatedProfile);
     
     if (validatedProfile !== loadedProfile) {
-        // If validation changed the state, save the corrected state back
-        await saveAvatarToDB(validatedProfile, address);
+      // If validation changed the state, save the corrected state back
+      await saveAvatarToDB(validatedProfile, address);
     }
     
     setIsLoading(false);
   }, [saveAvatarToDB, updateState]);
-  
+
   useEffect(() => {
     if (walletAddress && isConnected) {
       fetchAvatar(walletAddress);
@@ -93,13 +89,13 @@ export function useAvatarSystem(): AvatarSystemResult {
       setIsLoading(false);
     }
   }, [walletAddress, isConnected, fetchAvatar, updateState]);
-  
+
   const handleSave = useCallback(async () => {
-      if (walletAddress) {
-          await saveAvatarToDB(avatarProfile, walletAddress);
-      } else {
-          toast.error("Wallet not connected. Cannot save.");
-      }
+    if (walletAddress) {
+      await saveAvatarToDB(avatarProfile, walletAddress);
+    } else {
+      toast.error("Wallet not connected. Cannot save.");
+    }
   }, [avatarProfile, walletAddress, saveAvatarToDB]);
 
   return {

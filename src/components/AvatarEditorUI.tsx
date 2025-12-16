@@ -14,18 +14,8 @@ import { toast } from 'sonner';
 
 const AvatarEditorUI: React.FC = () => {
   const { address: walletAddress, isConnected } = useAccount();
-  const { 
-      avatarProfile, 
-      isLoading, 
-      isSaving, 
-      saveAvatar, 
-      updateProfile, 
-      undo, 
-      canUndo 
-  } = useAvatarSystem();
-  
+  const { avatarProfile, isLoading, isSaving, saveAvatar, updateProfile, undo, canUndo } = useAvatarSystem();
   const ownedNFTs = useOwnedNFTs();
-  
   const [selectedNFT, setSelectedNFT] = useState<OwnedNFT | null>(null);
 
   const handleNFTSelect = useCallback((nft: OwnedNFT) => {
@@ -37,52 +27,49 @@ const AvatarEditorUI: React.FC = () => {
       toast.error("Wallet not connected.");
       return;
     }
-    
     const newProfile = applyFn(avatarProfile);
     updateProfile(newProfile);
-    
     setSelectedNFT(null);
   }, [avatarProfile, walletAddress, updateProfile]);
-  
+
   const handleSave = useCallback(() => {
-      saveAvatar();
+    saveAvatar();
   }, [saveAvatar]);
 
   const showOverlay = !isConnected || isLoading;
-  
+
   // Determine overlay content
   let overlayContent = null;
   if (!isConnected || !walletAddress) {
-      overlayContent = (
-          <p className="text-muted-foreground">Please connect your wallet to access the Avatar Editor.</p>
-      );
+    overlayContent = (
+      <p className="text-muted-foreground">Please connect your wallet to access the Avatar Editor.</p>
+    );
   } else if (isLoading) {
-      overlayContent = (
-          <>
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-3">Loading Avatar Configuration...</span>
-          </>
-      );
+    overlayContent = (
+      <>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-3">Loading Avatar Configuration...</span>
+      </>
+    );
   }
 
   return (
     <div className="p-4 space-y-6 relative min-h-[calc(100vh-6rem)]">
       <h1 className="text-3xl font-bold">Avatar Editor</h1>
-      
       <div className="flex justify-between items-center border-b pb-4">
         <div className="text-sm text-muted-foreground">
-            Wallet: {walletAddress ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}` : 'N/A'}
+          Wallet: {walletAddress ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}` : 'N/A'}
         </div>
         <div className="space-x-2">
-            <Button onClick={undo} disabled={!canUndo || isSaving || isLoading} variant="outline">
-                <Undo2 className="h-4 w-4 mr-2" /> Undo
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving || isLoading}>
-                {isSaving ? 'Saving...' : 'Save Avatar'}
-            </Button>
+          <Button onClick={undo} disabled={!canUndo || isSaving || isLoading} variant="outline">
+            <Undo2 className="h-4 w-4 mr-2" />
+            Undo
+          </Button>
+          <Button onClick={handleSave} disabled={isSaving || isLoading}>
+            {isSaving ? 'Saving...' : 'Save Avatar'}
+          </Button>
         </div>
       </div>
-      
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-10rem)]">
         {/* Inventory */}
         <NFTInventory ownedNFTs={ownedNFTs} onSelect={handleNFTSelect} />
@@ -96,20 +83,20 @@ const AvatarEditorUI: React.FC = () => {
       
       {/* Assignment Modal */}
       {selectedNFT && (
-        <NFTUseModal
-          nft={selectedNFT}
-          onApply={handleAssignment}
-          onClose={() => setSelectedNFT(null)}
+        <NFTUseModal 
+          nft={selectedNFT} 
+          onApply={handleAssignment} 
+          onClose={() => setSelectedNFT(null)} 
         />
       )}
       
       {/* Loading/Connection Overlay */}
       {showOverlay && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm z-50 rounded-lg">
-              <div className="flex items-center text-lg">
-                  {overlayContent}
-              </div>
+        <div className="absolute inset-0 flex items-center justify-center bg-background/90 backdrop-blur-sm z-50 rounded-lg">
+          <div className="flex items-center text-lg">
+            {overlayContent}
           </div>
+        </div>
       )}
     </div>
   );

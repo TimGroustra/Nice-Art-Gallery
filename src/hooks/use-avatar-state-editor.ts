@@ -11,7 +11,7 @@ export function useAvatarStateEditor(initialState: AvatarProfile) {
   function update(next: AvatarProfile) {
     // Only push to history if the state actually changes (deep comparison is complex, shallow copy check is enough for now)
     if (JSON.stringify(state) !== JSON.stringify(next)) {
-        setHistory(h => [...h, state]);
+      setHistory(h => [...h, state]);
     }
     setState(next);
   }
@@ -24,8 +24,13 @@ export function useAvatarStateEditor(initialState: AvatarProfile) {
       return h.slice(0, -1);
     });
   }
-  
+
   const canUndo = history.length > 0;
 
-  return { state, update, undo, canUndo };
+  return {
+    state,
+    update,
+    undo,
+    canUndo
+  };
 }

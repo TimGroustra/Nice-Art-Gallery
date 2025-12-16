@@ -10,14 +10,14 @@ export interface OwnedNFT {
 
 // Mock data for owned NFTs (simulating fetch)
 const MOCK_OWNED_NFTS: OwnedNFT[] = [
-    { chainId: 111111, contract: '0x1234...AABB', tokenId: '1', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x5678...CCDD', tokenId: '42', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x9012...EEFF', tokenId: '101', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x1234...AABB', tokenId: '2', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x5678...CCDD', tokenId: '43', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x1234...AABB', tokenId: '3', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x5678...CCDD', tokenId: '44', image: '/placeholder.svg' },
-    { chainId: 111111, contract: '0x9012...EEFF', tokenId: '102', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x1234...AABB', tokenId: '1', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x5678...CCDD', tokenId: '42', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x9012...EEFF', tokenId: '101', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x1234...AABB', tokenId: '2', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x5678...CCDD', tokenId: '43', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x1234...AABB', tokenId: '3', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x5678...CCDD', tokenId: '44', image: '/placeholder.svg' },
+  { chainId: 111111, contract: '0x9012...EEFF', tokenId: '102', image: '/placeholder.svg' },
 ];
 
 /**
@@ -30,8 +30,8 @@ export function useOwnedNFTs(): OwnedNFT[] {
 
   useEffect(() => {
     if (!wallet) {
-        setNFTs([]);
-        return;
+      setNFTs([]);
+      return;
     }
 
     // Placeholder for actual API call:
@@ -39,10 +39,9 @@ export function useOwnedNFTs(): OwnedNFT[] {
     //   .then(r => r.json())
     //   .then(setNFTs)
     //   .catch(() => setNFTs([]));
-    
+
     // Using mock data for immediate functionality
     setNFTs(MOCK_OWNED_NFTS);
-
   }, [wallet]);
 
   return nfts;

@@ -14,7 +14,7 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  
   // Three.js references initialized once
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -26,7 +26,7 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
   /** INIT — runs ONCE to set up the scene, camera, renderer, and controls. */
   useEffect(() => {
     if (!mountRef.current) return;
-
+    
     const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
 
@@ -51,7 +51,7 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
     controlsRef.current = controls;
     controls.enableDamping = true;
     controls.target.set(0, 1.0, 0); // Look at the center of the avatar
-    
+
     // 5. Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.5));
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -78,7 +78,6 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
       camera.updateProjectionMatrix();
       renderer.setSize(newWidth, newHeight);
     };
-
     window.addEventListener('resize', onResize);
 
     // Cleanup
@@ -87,32 +86,39 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      controls.dispose();
-      renderer.dispose();
-      mountRef.current?.removeChild(renderer.domElement);
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+      }
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+      }
+      if (mountRef.current && rendererRef.current?.domElement) {
+        mountRef.current.removeChild(rendererRef.current.domElement);
+      }
     };
   }, []); // Empty dependency array: runs ONCE
 
   /** AVATAR UPDATE — runs ONLY when profile changes */
   useEffect(() => {
     if (!sceneRef.current) return;
-
+    
     let cancelled = false;
     setLoading(true);
     setError(null);
     
     console.log("Avatar rebuilt triggered by profile change.");
-
+    
     (async () => {
       // Cleanup previous avatar
       if (avatarGroupRef.current) {
         sceneRef.current!.remove(avatarGroupRef.current);
+        
         // Dispose logic (simplified, full disposal is complex but necessary in production)
         avatarGroupRef.current.traverse((obj) => {
           if ((obj as any).geometry) (obj as any).geometry.dispose();
           if ((obj as any).material) {
             const mat = (obj as any).material;
-            if (Array.isArray(mat)) mat.forEach(m => m.dispose());
+            if (Array.isArray(mat)) mat.forEach((m: THREE.Material) => m.dispose());
             else (mat as THREE.Material).dispose();
           }
         });
@@ -122,19 +128,17 @@ const AvatarPreview: React.FC<AvatarPreviewProps> = ({ profile }) => {
       try {
         const newAvatar = await buildAvatar(profile);
         if (cancelled) return;
-
         avatarGroupRef.current = newAvatar;
         sceneRef.current!.add(newAvatar);
         
         // Center the avatar
-        newAvatar.position.y = 0; 
-        
+        newAvatar.position.y = 0;
       } catch (e) {
         console.error("Error building avatar:", e);
         setError("Failed to render avatar model.");
       } finally {
         if (!cancelled) {
-            setLoading(false);
+          setLoading(false);
         }
       }
     })();

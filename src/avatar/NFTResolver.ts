@@ -1,5 +1,5 @@
 // NFTResolver.ts
-import { JsonRpcProvider, Contract, ethers } from "ethers";
+import { JsonRpcProvider, Contract } from "ethers";
 import { NFTRef } from "./AvatarState";
 import { nftSeed } from "./SeedUtils";
 import { safeCall } from "@/utils/ethersSafe";
@@ -25,9 +25,8 @@ export interface ResolvedNFT {
  */
 async function fetchNFTImage(nft: NFTRef): Promise<string> {
   const { contract: contractAddress, tokenId } = nft;
-  
   const contract = new Contract(contractAddress, [...ERC165, ...ERC721, ...ERC1155], provider);
-  
+
   // 1. Check for ERC-165 support (best effort)
   const supportRes = await safeCall(contract, "supportsInterface", ["0xd9b67a26"]);
   const is1155 = supportRes.ok && !!supportRes.value;
@@ -51,7 +50,7 @@ async function fetchNFTImage(nft: NFTRef): Promise<string> {
   }
 
   const metadataUrl = normalizeUrl(rawUri);
-  
+
   // 3. Fetch or parse metadata to find the image/animation URL
   try {
     // Handle data:application/json;base64,...
@@ -60,15 +59,15 @@ async function fetchNFTImage(nft: NFTRef): Promise<string> {
       const jsonStr = atob(b64);
       const meta = JSON.parse(jsonStr);
       return normalizeUrl(meta.image || meta.image_url || meta.animation_url || metadataUrl);
-    } 
-    
+    }
+
     // Try to fetch JSON metadata
     const res = await fetch(metadataUrl);
     if (!res.ok) {
       // If fetch fails or returns non-200, assume URI is direct media link
       return metadataUrl;
-    } 
-    
+    }
+
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("application/json") || metadataUrl.endsWith(".json")) {
       const meta = await res.json();
@@ -78,14 +77,12 @@ async function fetchNFTImage(nft: NFTRef): Promise<string> {
       // Fallback: treat as direct media
       return metadataUrl;
     }
-
   } catch (e) {
     console.error(`[NFT Resolver] Error processing metadata from ${metadataUrl}.`, e);
     // Final fallback: assume the URI is a direct media link
     return metadataUrl;
   }
 }
-
 
 export async function resolveNFT(nft: NFTRef): Promise<ResolvedNFT> {
   const imageUrl = await fetchNFTImage(nft);

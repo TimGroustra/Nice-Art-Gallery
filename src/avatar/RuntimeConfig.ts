@@ -5,7 +5,6 @@ export const RuntimeLimits = {
   maxPets: 1,
   maxFloating: 3,
   maxAnimatedTextures: 4,
-
   maxTextureSize: 2048,
   maxDrawCallsPerAvatar: 60
 };

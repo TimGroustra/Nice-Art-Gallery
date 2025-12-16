@@ -12,10 +12,9 @@ export function cullAvatar(
 ) {
   const distance = avatar.position.distanceTo(cameraPos);
   const visible = distance < CULL_DISTANCE;
-
   avatar.traverse(obj => {
     if ((obj as THREE.Mesh).isMesh) {
-      obj.visible = visible;
+      (obj as THREE.Mesh).visible = visible;
     }
   });
 }

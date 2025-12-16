@@ -8,7 +8,6 @@ export function applyBodyMorphs(
 ) {
   const height = seededRange(seed, 0.95, 1.05, 1);
   const build = seededRange(seed, 0.9, 1.1, 2);
-
   body.scale.set(build, height, build);
 }
 

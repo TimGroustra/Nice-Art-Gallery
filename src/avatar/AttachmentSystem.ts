@@ -26,11 +26,10 @@ export function canAttach(
     const currentCount = Object.values(
       (avatar as any)[category] || {}
     ).filter(Boolean).length;
-    
     return currentCount < max;
   }
-  
-  // For non-numeric capabilities (like species array), this function is less relevant, 
+
+  // For non-numeric capabilities (like species array), this function is less relevant,
   // but we return true if the slot exists.
   return true;
 }

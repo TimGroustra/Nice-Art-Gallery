@@ -3,8 +3,7 @@ import * as THREE from "three";
 
 export interface PetInstance {
   model: THREE.Group;
-  followDistance: number;
-  // Add velocity/state for more complex movement if needed later
+  followDistance: number; // Add velocity/state for more complex movement if needed later
 }
 
 /**

@@ -15,7 +15,6 @@ export function updateNetworkAvatar(
   const avatarHash = hashAvatarState(state);
   
   // In a real implementation, we would only send if the hash or position/rotation changed significantly.
-  
   // socket.emit("avatar:update", {
   //   position: position.toArray(),
   //   rotation,

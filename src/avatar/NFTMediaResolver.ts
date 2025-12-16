@@ -1,7 +1,7 @@
 // NFTMediaResolver.ts
 import * as THREE from "three";
 
-export type NFTMedia =
+export type NFTMedia = 
   | { type: "texture"; texture: THREE.Texture }
   | { type: "video"; texture: THREE.VideoTexture };
 
@@ -19,7 +19,7 @@ export async function resolveNFTMedia(
     
     // Attempt to play immediately (may be blocked, but texture creation is synchronous)
     video.play().catch(e => console.warn("Video autoplay blocked for NFT media:", e));
-
+    
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
     return { type: "video", texture };
