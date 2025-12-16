@@ -6,13 +6,13 @@ export function createAvatarMesh(profile: AvatarProfile): THREE.Group {
   avatar.name = "avatar";
 
   const skinMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color(profile.skinTone),
+    color: profile.skinTone, // Use hex string directly
     roughness: 0.8,
     metalness: 0.1
   });
   
   const hairMat = new THREE.MeshStandardMaterial({ 
-    color: new THREE.Color(profile.hairColor),
+    color: profile.hairColor, // Use hex string directly
     roughness: 0.5,
     metalness: 0.2
   });
