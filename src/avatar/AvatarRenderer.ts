@@ -1,42 +1,55 @@
 // AvatarRenderer.ts
 import * as THREE from "three";
 import { AvatarState, NFTRef } from "./AvatarState";
-import { MeshLibrary } from "./MeshLibrary";
+import { MeshLibrary, BodySpecies } from "./MeshLibrary";
 import { resolveNFT } from "./NFTResolver";
 import { applyNFTTexture } from "./TextureMapper";
-import { loadGLTF, findObjectByName } from "@/utils/gltfLoader";
+import { loadGLTF, findObjectByName } from "@/utils/gltfLoader"; // Keeping old loader for now, will replace with new AssetLoader
 import { seededRandom } from "./SeedUtils";
+import { AttachmentMap, AttachmentSlot } from "./AttachmentMap";
+import { validateSkeleton } from "./AssetValidator";
+import { loadGLTF as loadGLTFAsset } from "./AssetLoader"; // Use the new AssetLoader
 
-// --- Bone/Attachment Mapping (Simplified for skeleton) ---
-// In a real system, these names must match the GLTF armature bones.
-const ATTACHMENT_POINTS: Record<string, string> = {
-  head: "Head",
-  face: "Head",
-  torso: "Spine",
-  wrist: "LeftHand", // Assuming one wrist slot maps to LeftHand for simplicity
-  waist: "Hips",
-  feet: "LeftFoot",
-  handheld: "RightHand",
-  floating: "Head", // Floating props attach to head bone but are offset
-  pet: "Root", // Pets are added to the root group, not attached to a bone
+// --- Helper to map AvatarState slots to AttachmentMap keys ---
+const SLOT_TO_ATTACHMENT_MAP: Record<string, AttachmentSlot> = {
+    head: 'head',
+    face: 'face',
+    torso: 'torso',
+    wrist: 'wrist.left', // Simplified mapping for now
+    waist: 'torso', // Mapping waist to torso bone for simplicity
+    feet: 'feet',
+    handheld: 'hand.right',
+    floating: 'floating',
+    pet: 'pet',
 };
 
+
 /**
- * Attaches a wearable mesh to a specific bone in the body model.
+ * Attaches a wearable mesh to a specific bone in the body model or the world group.
  */
 function attachToBone(
   body: THREE.Group,
   wearable: THREE.Group,
   slot: string
 ) {
-  const boneName = ATTACHMENT_POINTS[slot];
-  if (!boneName) {
-    console.warn(`No attachment point defined for slot: ${slot}`);
+  const attachmentSlot = SLOT_TO_ATTACHMENT_MAP[slot];
+  if (!attachmentSlot) {
+    console.warn(`No attachment slot mapping defined for slot: ${slot}`);
     body.add(wearable); // Fallback: add to root
     return;
   }
+  
+  const boneNameOrWorld = AttachmentMap[attachmentSlot];
 
-  const bone = findObjectByName(body, boneName);
+  if (boneNameOrWorld === "world") {
+      // Attach to the root group (which is the parent of the body)
+      body.parent?.add(wearable);
+      // Position relative to the body's root position (0, 0, 0)
+      wearable.position.set(0, 0, 0);
+      return;
+  }
+
+  const bone = findObjectByName(body, boneNameOrWorld);
   
   if (bone) {
     bone.add(wearable);
@@ -45,12 +58,12 @@ function attachToBone(
     wearable.rotation.set(0, 0, 0);
     
     // Apply specific offsets for certain slots if necessary (e.g., floating props)
-    if (slot === 'floating') {
+    if (attachmentSlot === 'floating') {
         wearable.position.y += 1.5;
     }
     
   } else {
-    console.warn(`Bone '${boneName}' not found in body model. Attaching to root.`);
+    console.warn(`Bone '${boneNameOrWorld}' not found in body model. Attaching to root.`);
     body.add(wearable);
   }
 }
@@ -62,15 +75,24 @@ export async function buildAvatar(state: AvatarState): Promise<THREE.Group> {
   const group = new THREE.Group();
   
   // 1. Load body (Morphs)
-  const speciesKey = state.morphs.species ? "human" : "human"; // Simplified species selection for now
-  const bodyPath = (MeshLibrary.body as any)[speciesKey];
+  const speciesKey: BodySpecies = (state.morphs.species ? "human" : "human") as BodySpecies; // Simplified species selection for now
+  const bodyPath = MeshLibrary.bodies[speciesKey];
   
   if (!bodyPath) {
       console.error(`Body mesh not found for species: ${speciesKey}`);
       return group;
   }
   
-  const body = await loadGLTF(bodyPath);
+  const body = await loadGLTFAsset(bodyPath);
+  
+  // Validate the loaded body skeleton
+  try {
+      validateSkeleton(body);
+  } catch (e) {
+      console.error("Avatar validation failed:", e);
+      // Optionally return a placeholder or throw
+  }
+  
   group.add(body);
   
   // 2. Apply Wearables and Props
@@ -89,13 +111,14 @@ export async function buildAvatar(state: AvatarState): Promise<THREE.Group> {
     try {
       const resolved = await resolveNFT(nft);
       
+      // Use the slot name to look up the mesh in the appropriate category
       const meshKey = (MeshLibrary as any)[category][slot];
       if (!meshKey) {
           console.warn(`Mesh not found for ${category}/${slot}`);
           continue;
       }
       
-      const itemMesh = await loadGLTF(meshKey);
+      const itemMesh = await loadGLTFAsset(meshKey);
       
       // Find the primary mesh part to apply texture to (assuming the first mesh child)
       itemMesh.traverse((child) => {
@@ -118,7 +141,7 @@ export async function buildAvatar(state: AvatarState): Promise<THREE.Group> {
       try {
           const resolved = await resolveNFT(state.companions.pet);
           // For simplicity, we assume all pets use the 'cat' mesh for now
-          const petMesh = await loadGLTF(MeshLibrary.pets.cat); 
+          const petMesh = await loadGLTFAsset(MeshLibrary.pets.cat); 
           
           petMesh.traverse((child) => {
               if (child instanceof THREE.Mesh && child.material) {
