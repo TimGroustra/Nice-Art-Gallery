@@ -1,26 +1,16 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { NFTRef } from '@/avatar/AvatarState';
 import { Button } from '@/components/ui/button';
-import { Image, Gem } from 'lucide-react';
+import { Image } from 'lucide-react';
+import { OwnedNFT } from '@/avatar/editorTypes';
 
 interface NFTInventoryProps {
-  ownedNFTs: NFTRef[];
-  onSelect: (nft: NFTRef) => void;
+  ownedNFTs: OwnedNFT[];
+  onSelect: (nft: OwnedNFT) => void;
 }
 
-// Mock data for owned NFTs since we don't have a hook to fetch them yet
-const MOCK_OWNED_NFTS: NFTRef[] = [
-    { chainId: 111111, contract: '0x1234...AABB', tokenId: '1' },
-    { chainId: 111111, contract: '0x5678...CCDD', tokenId: '42' },
-    { chainId: 111111, contract: '0x9012...EEFF', tokenId: '101' },
-    { chainId: 111111, contract: '0x1234...AABB', tokenId: '2' },
-    { chainId: 111111, contract: '0x5678...CCDD', tokenId: '43' },
-];
-
 const NFTInventory: React.FC<NFTInventoryProps> = ({ ownedNFTs, onSelect }) => {
-  const nfts = ownedNFTs.length > 0 ? ownedNFTs : MOCK_OWNED_NFTS;
   
   return (
     <Card className="h-full flex flex-col">
@@ -30,29 +20,28 @@ const NFTInventory: React.FC<NFTInventoryProps> = ({ ownedNFTs, onSelect }) => {
       </CardHeader>
       <CardContent className="flex-1 p-0">
         <ScrollArea className="h-full max-h-[600px]">
-          <div className="p-4 space-y-3">
-            {nfts.map((nft, index) => (
+          <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {ownedNFTs.map((nft, index) => (
               <div 
                 key={`${nft.contract}:${nft.tokenId}:${index}`} 
-                className="flex items-center justify-between p-3 border rounded-lg bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer"
+                className="flex flex-col items-center p-2 border rounded-lg bg-secondary hover:bg-secondary/80 transition-colors cursor-pointer group"
                 onClick={() => onSelect(nft)}
               >
-                <div className="flex items-center space-x-3">
-                  <Image className="h-6 w-6 text-primary" />
-                  <div>
-                    <p className="font-medium text-sm">Token #{nft.tokenId}</p>
-                    <p className="text-xs text-muted-foreground truncate max-w-[150px]">
-                      {nft.contract.substring(0, 6)}...{nft.contract.substring(nft.contract.length - 4)}
-                    </p>
-                  </div>
+                <div className="w-full aspect-square bg-gray-800 rounded-md flex items-center justify-center mb-2">
+                    {/* Placeholder for NFT image */}
+                    <Image className="h-8 w-8 text-primary/50" />
                 </div>
-                <Button variant="secondary" size="sm">
+                <p className="font-medium text-xs">#{nft.tokenId}</p>
+                <p className="text-[10px] text-muted-foreground truncate w-full text-center">
+                  {nft.contract.substring(0, 6)}...
+                </p>
+                <Button variant="secondary" size="sm" className="mt-2 h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
                     Assign
                 </Button>
               </div>
             ))}
-            {nfts.length === 0 && (
-                <div className="text-center text-muted-foreground py-10">
+            {ownedNFTs.length === 0 && (
+                <div className="col-span-full text-center text-muted-foreground py-10">
                     No NFTs found in your wallet.
                 </div>
             )}
