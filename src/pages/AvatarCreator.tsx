@@ -40,6 +40,10 @@ const AvatarCreator: React.FC = () => {
   // Avatar body parts (simple primitives)
   const torsoRef = useRef<THREE.Mesh | null>(null);
   const headRef = useRef<THREE.Mesh | null>(null);
+  const leftShoulderRef = useRef<THREE.Mesh | null>(null);
+  const rightShoulderRef = useRef<THREE.Mesh | null>(null);
+  const leftHipRef = useRef<THREE.Mesh | null>(null);
+  const rightHipRef = useRef<THREE.Mesh | null>(null);
   const leftArmRef = useRef<THREE.Mesh | null>(null);
   const rightArmRef = useRef<THREE.Mesh | null>(null);
   const leftLegRef = useRef<THREE.Mesh | null>(null);
@@ -98,29 +102,51 @@ const AvatarCreator: React.FC = () => {
     scene.add(head);
     headRef.current = head;
 
-    // Arms
+    // Shoulders (small spheres)
+    const shoulderGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+    const leftShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
+    leftShoulder.position.set(-0.6, 1, 0);
+    scene.add(leftShoulder);
+    leftShoulderRef.current = leftShoulder;
+
+    const rightShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
+    rightShoulder.position.set(0.6, 1, 0);
+    scene.add(rightShoulder);
+    rightShoulderRef.current = rightShoulder;
+
+    // Hips (small spheres)
+    const hipGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+    const leftHip = new THREE.Mesh(hipGeometry, bodyMaterial);
+    leftHip.position.set(-0.4, -1, 0);
+    scene.add(leftHip);
+    leftHipRef.current = leftHip;
+
+    const rightHip = new THREE.Mesh(hipGeometry, bodyMaterial);
+    rightHip.position.set(0.4, -1, 0);
+    scene.add(rightHip);
+    rightHipRef.current = rightHip;
+
+    // Arms (vertical cylinders connected to shoulders)
     const armGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.5, 32);
     const leftArm = new THREE.Mesh(armGeometry, bodyMaterial);
-    leftArm.position.set(-0.75, 0.5, 0);
-    leftArm.rotation.z = Math.PI / 2;
+    leftArm.position.set(-0.6, 0.25, 0); // Initial position below shoulder
     scene.add(leftArm);
     leftArmRef.current = leftArm;
 
     const rightArm = new THREE.Mesh(armGeometry, bodyMaterial);
-    rightArm.position.set(0.75, 0.5, 0);
-    rightArm.rotation.z = -Math.PI / 2;
+    rightArm.position.set(0.6, 0.25, 0); // Initial position below shoulder
     scene.add(rightArm);
     rightArmRef.current = rightArm;
 
-    // Legs
+    // Legs (vertical cylinders connected to hips)
     const legGeometry = new THREE.CylinderGeometry(0.3, 0.3, 2, 32);
     const leftLeg = new THREE.Mesh(legGeometry, bodyMaterial);
-    leftLeg.position.set(-0.3, -1.5, 0);
+    leftLeg.position.set(-0.4, -2, 0); // Initial position below hip
     scene.add(leftLeg);
     leftLegRef.current = leftLeg;
 
     const rightLeg = new THREE.Mesh(legGeometry, bodyMaterial);
-    rightLeg.position.set(0.3, -1.5, 0);
+    rightLeg.position.set(0.4, -2, 0); // Initial position below hip
     scene.add(rightLeg);
     rightLegRef.current = rightLeg;
 
@@ -151,30 +177,72 @@ const AvatarCreator: React.FC = () => {
     };
   }, []);
 
-  // Update avatar proportions when sliders change
+  // Update avatar proportions and connections when sliders change
   useEffect(() => {
+    const torsoHalfHeight = scales.torsoHeight;
+    const torsoHalfWidth = scales.torsoWidth / 2;
+
     // Torso
     if (torsoRef.current) {
       torsoRef.current.scale.set(scales.torsoWidth, scales.torsoHeight, 1);
     }
-    // Head
+
+    // Head (connected to top of torso)
     if (headRef.current) {
       headRef.current.scale.set(scales.headSize, scales.headSize, scales.headSize);
-      headRef.current.position.y = 1 + (scales.torsoHeight / 2) * scales.torsoHeight;
+      headRef.current.position.y = torsoHalfHeight + (0.5 * scales.headSize);
     }
-    // Arms
-    if (leftArmRef.current && rightArmRef.current) {
+
+    // Shoulders (connected to top sides of torso, scaled slightly with torso width)
+    const shoulderY = torsoHalfHeight;
+    const shoulderXOffset = torsoHalfWidth + 0.1; // Slight offset for natural look
+    const shoulderScale = 0.3 + (scales.torsoWidth * 0.1); // Scale slightly with torso width
+
+    if (leftShoulderRef.current) {
+      leftShoulderRef.current.scale.set(shoulderScale, shoulderScale, shoulderScale);
+      leftShoulderRef.current.position.set(-shoulderXOffset, shoulderY, 0);
+    }
+    if (rightShoulderRef.current) {
+      rightShoulderRef.current.scale.set(shoulderScale, shoulderScale, shoulderScale);
+      rightShoulderRef.current.position.set(shoulderXOffset, shoulderY, 0);
+    }
+
+    // Hips (connected to bottom sides of torso, scaled slightly with torso width)
+    const hipY = -torsoHalfHeight;
+    const hipXOffset = torsoHalfWidth * 0.8; // Slightly inward for natural stance
+    const hipScale = 0.3 + (scales.torsoWidth * 0.1);
+
+    if (leftHipRef.current) {
+      leftHipRef.current.scale.set(hipScale, hipScale, hipScale);
+      leftHipRef.current.position.set(-hipXOffset, hipY, 0);
+    }
+    if (rightHipRef.current) {
+      rightHipRef.current.scale.set(hipScale, hipScale, hipScale);
+      rightHipRef.current.position.set(hipXOffset, hipY, 0);
+    }
+
+    // Arms (vertical, connected below shoulders)
+    const armY = shoulderY - (scales.armLength / 2);
+    if (leftArmRef.current) {
       leftArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
-      rightArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
-      leftArmRef.current.position.y = (scales.torsoHeight / 2) * scales.torsoHeight - scales.armLength / 2;
-      rightArmRef.current.position.y = (scales.torsoHeight / 2) * scales.torsoHeight - scales.armLength / 2;
+      leftArmRef.current.position.set(leftShoulderRef.current?.position.x || -shoulderXOffset, armY, 0);
+      leftArmRef.current.rotation.set(0, 0, 0); // Vertical orientation
     }
-    // Legs
-    if (leftLegRef.current && rightLegRef.current) {
+    if (rightArmRef.current) {
+      rightArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
+      rightArmRef.current.position.set(rightShoulderRef.current?.position.x || shoulderXOffset, armY, 0);
+      rightArmRef.current.rotation.set(0, 0, 0); // Vertical orientation
+    }
+
+    // Legs (vertical, connected below hips)
+    const legY = hipY - (scales.legLength / 2);
+    if (leftLegRef.current) {
       leftLegRef.current.scale.set(scales.legWidth, scales.legLength, scales.legWidth);
+      leftLegRef.current.position.set(leftHipRef.current?.position.x || -hipXOffset, legY, 0);
+    }
+    if (rightLegRef.current) {
       rightLegRef.current.scale.set(scales.legWidth, scales.legLength, scales.legWidth);
-      leftLegRef.current.position.y = -(scales.torsoHeight / 2) * scales.torsoHeight - scales.legLength / 2;
-      rightLegRef.current.position.y = -(scales.torsoHeight / 2) * scales.torsoHeight - scales.legLength / 2;
+      rightLegRef.current.position.set(rightHipRef.current?.position.x || hipXOffset, legY, 0);
     }
   }, [scales]);
 
