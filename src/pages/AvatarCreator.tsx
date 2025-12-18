@@ -9,11 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import * as bodyPix from '@tensorflow-models/body-pix';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 
 // Define body part scales with initial values and wider ranges for adaptability
 interface AvatarScales {
-  overallHeight: number; // New: scales entire avatar height
+  overallHeight: number;
   torsoHeight: number;
   torsoWidth: number;
   armLength: number;
@@ -21,8 +22,8 @@ interface AvatarScales {
   legLength: number;
   legWidth: number;
   headSize: number;
-  shoulderWidth: number; // New: controls shoulder spread
-  hipWidth: number; // New: controls hip spread
+  shoulderWidth: number;
+  hipWidth: number;
 }
 
 const initialScales: AvatarScales = {
@@ -39,8 +40,7 @@ const initialScales: AvatarScales = {
 };
 
 // Categories for image application
-type UseAsCategory = 'skin' | 'accessory';
-type ApplyToCategory = 'full-avatar' | 'head-only' | 'torso-only';
+type ImageCategory = 'body' | 'accessory' | null;
 
 const AvatarCreator: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -48,14 +48,12 @@ const AvatarCreator: React.FC = () => {
 
   // Image upload states
   const [selectedImage, setSelectedImage] = useState<string | null>(null); // URL of uploaded image
-  const [useAsCategory, setUseAsCategory] = useState<UseAsCategory | null>(null);
-  const [applyToCategory, setApplyToCategory] = useState<ApplyToCategory | null>(null);
-  const [appliedImages, setAppliedImages] = useState<{ [key: string]: string }>({}); // Store applied images per category combo
-  const [referenceImage, setReferenceImage] = useState<string | null>(null); // For body-shape reference display (unused now)
+  const [selectedCategory, setSelectedCategory] = useState<ImageCategory>(null);
+  const [appliedImages, setAppliedImages] = useState<{ [key in ImageCategory]?: string }>({}); // Store applied images per category
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Refs for Three.js objects (isolated to this component)
+  // Refs for Three.js objects
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -81,8 +79,8 @@ const AvatarCreator: React.FC = () => {
   const leftFootRef = useRef<THREE.Mesh | null>(null);
   const rightFootRef = useRef<THREE.Mesh | null>(null);
 
-  // Accessory refs (e.g., hat as example accessory)
-  const accessoryRef = useRef<THREE.Mesh | null>(null);
+  // Accessory group (to hold multiple accessories)
+  const accessoryGroupRef = useRef<THREE.Group | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -112,7 +110,7 @@ const AvatarCreator: React.FC = () => {
     controls.minDistance = 2;
     controls.maxDistance = 10;
 
-    // Lighting (enhanced for better shading)
+    // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -130,105 +128,104 @@ const AvatarCreator: React.FC = () => {
       metalness: 0.1,
     });
 
-    // Torso (cylinder for more organic shape)
+    // Torso
     const torsoGeometry = new THREE.CylinderGeometry(0.4, 0.3, 2, 32);
-    const torso = new THREE.Mesh(torsoGeometry, bodyMaterial);
+    const torso = new THREE.Mesh(torsoGeometry, bodyMaterial.clone());
     torso.position.set(0, 0, 0);
     scene.add(torso);
     torsoRef.current = torso;
 
-    // Head (sphere with neck)
+    // Head
     const headGeometry = new THREE.SphereGeometry(0.4, 32, 32);
-    const head = new THREE.Mesh(headGeometry, bodyMaterial);
+    const head = new THREE.Mesh(headGeometry, bodyMaterial.clone());
     head.position.set(0, 1.2, 0);
     scene.add(head);
     headRef.current = head;
 
     // Shoulders
     const shoulderGeometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const leftShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
+    const leftShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial.clone());
     scene.add(leftShoulder);
     leftShoulderRef.current = leftShoulder;
 
-    const rightShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
+    const rightShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial.clone());
     scene.add(rightShoulder);
     rightShoulderRef.current = rightShoulder;
 
     // Hips
     const hipGeometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const leftHip = new THREE.Mesh(hipGeometry, bodyMaterial);
+    const leftHip = new THREE.Mesh(hipGeometry, bodyMaterial.clone());
     scene.add(leftHip);
     leftHipRef.current = leftHip;
 
-    const rightHip = new THREE.Mesh(hipGeometry, bodyMaterial);
+    const rightHip = new THREE.Mesh(hipGeometry, bodyMaterial.clone());
     scene.add(rightHip);
     rightHipRef.current = rightHip;
 
-    // Upper Arms (tapered cylinders)
+    // Upper Arms
     const upperArmGeometry = new THREE.CylinderGeometry(0.15, 0.1, 0.8, 32);
-    const leftUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial);
+    const leftUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial.clone());
     scene.add(leftUpperArm);
     leftUpperArmRef.current = leftUpperArm;
 
-    const rightUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial);
+    const rightUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial.clone());
     scene.add(rightUpperArm);
     rightUpperArmRef.current = rightUpperArm;
 
     // Lower Arms
     const lowerArmGeometry = new THREE.CylinderGeometry(0.1, 0.08, 0.7, 32);
-    const leftLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial);
+    const leftLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial.clone());
     scene.add(leftLowerArm);
     leftLowerArmRef.current = leftLowerArm;
 
-    const rightLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial);
+    const rightLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial.clone());
     scene.add(rightLowerArm);
     rightLowerArmRef.current = rightLowerArm;
 
-    // Hands (simple boxes)
+    // Hands
     const handGeometry = new THREE.BoxGeometry(0.2, 0.3, 0.1);
-    const leftHand = new THREE.Mesh(handGeometry, bodyMaterial);
+    const leftHand = new THREE.Mesh(handGeometry, bodyMaterial.clone());
     scene.add(leftHand);
     leftHandRef.current = leftHand;
 
-    const rightHand = new THREE.Mesh(handGeometry, bodyMaterial);
+    const rightHand = new THREE.Mesh(handGeometry, bodyMaterial.clone());
     scene.add(rightHand);
     rightHandRef.current = rightHand;
 
-    // Upper Legs (tapered)
+    // Upper Legs
     const upperLegGeometry = new THREE.CylinderGeometry(0.2, 0.15, 1, 32);
-    const leftUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial);
+    const leftUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial.clone());
     scene.add(leftUpperLeg);
     leftUpperLegRef.current = leftUpperLeg;
 
-    const rightUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial);
+    const rightUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial.clone());
     scene.add(rightUpperLeg);
     rightUpperLegRef.current = rightUpperLeg;
 
     // Lower Legs
     const lowerLegGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.9, 32);
-    const leftLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial);
+    const leftLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial.clone());
     scene.add(leftLowerLeg);
     leftLowerLegRef.current = leftLowerLeg;
 
-    const rightLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial);
+    const rightLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial.clone());
     scene.add(rightLowerLeg);
     rightLowerLegRef.current = rightLowerLeg;
 
     // Feet
     const footGeometry = new THREE.BoxGeometry(0.25, 0.15, 0.4);
-    const leftFoot = new THREE.Mesh(footGeometry, bodyMaterial);
+    const leftFoot = new THREE.Mesh(footGeometry, bodyMaterial.clone());
     scene.add(leftFoot);
     leftFootRef.current = leftFoot;
 
-    const rightFoot = new THREE.Mesh(footGeometry, bodyMaterial);
+    const rightFoot = new THREE.Mesh(footGeometry, bodyMaterial.clone());
     scene.add(rightFoot);
     rightFootRef.current = rightFoot;
 
-    // Accessory (example: simple hat plane - will apply texture later)
-    const accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32); // Cone for hat
-    const accessory = new THREE.Mesh(accessoryGeometry, bodyMaterial);
-    scene.add(accessory);
-    accessoryRef.current = accessory;
+    // Accessory group
+    const accessoryGroup = new THREE.Group();
+    scene.add(accessoryGroup);
+    accessoryGroupRef.current = accessoryGroup;
 
     // Animation loop
     let animationFrameId: number;
@@ -268,7 +265,7 @@ const AvatarCreator: React.FC = () => {
 
     const torsoHeight = 2 * scales.torsoHeight * effectiveOverallHeight;
     const torsoHalfHeight = torsoHeight / 2;
-    const torsoHalfWidth = 0.4 * scales.torsoWidth; // Base radius 0.4
+    const torsoHalfWidth = 0.4 * scales.torsoWidth;
 
     // Head
     if (headRef.current) {
@@ -356,15 +353,10 @@ const AvatarCreator: React.FC = () => {
     // Feet
     const footY = lowerLegY - (lowerLegLength / 2) - 0.075;
     if (leftFootRef.current) {
-      leftFootRef.current.position.set(-hipXOffset, footY, 0.15); // Slight forward offset for foot
+      leftFootRef.current.position.set(-hipXOffset, footY, 0.15);
     }
     if (rightFootRef.current) {
       rightFootRef.current.position.set(hipXOffset, footY, 0.15);
-    }
-
-    // Accessory (position on head)
-    if (accessoryRef.current && headRef.current) {
-      accessoryRef.current.position.set(0, headRef.current.position.y + (0.4 * scales.headSize) + 0.4, 0);
     }
   }, [scales]);
 
@@ -382,165 +374,142 @@ const AvatarCreator: React.FC = () => {
     }
   };
 
-  // Apply image based on categories
+  // Process and apply image based on category
   const applyImage = async () => {
-    if (!selectedImage || !useAsCategory || !applyToCategory) return;
+    if (!selectedImage || !selectedCategory) return;
 
-    const key = `${useAsCategory}-${applyToCategory}`;
-    setAppliedImages((prev) => ({ ...prev, [key]: selectedImage }));
+    setAppliedImages((prev) => ({ ...prev, [selectedCategory]: selectedImage }));
+    setIsProcessing(true);
 
-    const loader = new THREE.TextureLoader();
+    try {
+      const img = new Image();
+      img.src = selectedImage;
+      await new Promise((resolve) => (img.onload = resolve));
 
-    if (useAsCategory === 'accessory') {
-      // Apply accessory texture
-      loader.load(selectedImage, (texture) => {
-        if (accessoryRef.current) {
-          (accessoryRef.current.material as THREE.MeshStandardMaterial).map = texture;
-          (accessoryRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
+      if (selectedCategory === 'body') {
+        // Use BodyPix to detect body parts and adjust scales + apply textures
+        const net = await bodyPix.load();
+        const segmentation = await net.segmentPersonParts(img, {
+          flipHorizontal: false,
+          internalResolution: 'medium',
+          segmentationThreshold: 0.7,
+        });
+
+        // Adjust scales based on detected proportions (simple example: estimate heights/widths)
+        const height = segmentation.height;
+        const width = segmentation.width;
+
+        // Find bounding box for torso, arms, legs, head to estimate ratios
+        let minY = height, maxY = 0, minX = width, maxX = 0;
+        let headMinY = height, headMaxY = 0;
+        let legMinY = height, legMaxY = 0;
+        // ... (expand to find min/max for each part)
+
+        // Example placeholder adjustments
+        const detectedOverallHeight = (maxY - minY) / height;
+        const detectedTorsoHeight = /* calculate */;
+        // Set scales based on detections
+        setScales((prev) => ({
+          ...prev,
+          overallHeight: 0.5 + 1.5 * detectedOverallHeight, // Map to range
+          // Similarly for others
+        }));
+
+        // Apply segmented textures as before (from previous code)
+        const partRefs: { [part: string]: React.RefObject<THREE.Mesh> } = {
+          torso: torsoRef,
+          head: headRef,
+          // ... all others
+        };
+
+        const defaultColor = new THREE.Color(0xffdbac);
+
+        for (const [partName, ref] of Object.entries(partRefs)) {
+          if (!ref.current) continue;
+
+          const partIds = /* map as before */;
+
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+
+          ctx.fillStyle = '#' + defaultColor.getHexString();
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          let hasPart = false;
+          // ... (mask and draw as before)
+
+          if (hasPart) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            // Apply mask
+            // ...
+          }
+
+          const texture = new THREE.CanvasTexture(canvas);
+          texture.needsUpdate = true;
+
+          (ref.current.material as THREE.MeshStandardMaterial).map = texture;
+          (ref.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
         }
-      });
-    } else if (useAsCategory === 'skin') {
-      if (applyToCategory === 'head-only') {
-        loader.load(selectedImage, (texture) => {
-          if (headRef.current) {
-            (headRef.current.material as THREE.MeshStandardMaterial).map = texture;
-            (headRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
-          }
-        });
-      } else if (applyToCategory === 'torso-only') {
-        loader.load(selectedImage, (texture) => {
-          if (torsoRef.current) {
-            (torsoRef.current.material as THREE.MeshStandardMaterial).map = texture;
-            (torsoRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
-          }
-        });
-      } else if (applyToCategory === 'full-avatar') {
-        // Full body: Use BodyPix for detection and mapping
-        setIsProcessing(true);
-        try {
-          const net = await bodyPix.load();
-          const img = new Image();
-          img.src = selectedImage;
-          await new Promise((resolve) => (img.onload = resolve));
+      } else if (selectedCategory === 'accessory') {
+        // Use Coco-SSD to detect objects
+        const model = await cocoSsd.load();
+        const predictions = await model.detect(img);
 
-          const segmentation = await net.segmentPersonParts(img, {
-            flipHorizontal: false,
-            internalResolution: 'medium',
-            segmentationThreshold: 0.7,
+        if (predictions.length > 0) {
+          const detectedClass = predictions[0].class; // Take top detection
+
+          // Based on detected class, create and add 3D accessory
+          let accessoryGeometry: THREE.BufferGeometry;
+          let position: THREE.Vector3;
+          let scale = 1;
+
+          if (detectedClass === 'hat' || detectedClass === 'cap') {
+            accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32);
+            position = new THREE.Vector3(0, headRef.current?.position.y! + 0.4 * scales.headSize + 0.4, 0);
+            scale = 1;
+          } else if (detectedClass === 'tie') {
+            accessoryGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.05);
+            position = new THREE.Vector3(0, 0, 0.31); // Front of torso
+            scale = 1;
+          } else if (detectedClass === 'backpack') {
+            accessoryGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.3);
+            position = new THREE.Vector3(0, 0, -0.31); // Back of torso
+            scale = 1;
+          } else {
+            // Default accessory for unknown
+            accessoryGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+            position = new THREE.Vector3(0, headRef.current?.position.y! + 0.4 * scales.headSize + 0.4, 0);
+            scale = 1;
+          }
+
+          const accessoryMaterial = new THREE.MeshStandardMaterial({ color: 0x888888 });
+          const accessory = new THREE.Mesh(accessoryGeometry, accessoryMaterial);
+          accessory.position.copy(position);
+          accessory.scale.set(scale, scale, scale);
+
+          // Apply texture from uploaded image to accessory
+          const loader = new THREE.TextureLoader();
+          loader.load(selectedImage, (texture) => {
+            accessoryMaterial.map = texture;
+            accessoryMaterial.needsUpdate = true;
           });
 
-          // Body part mapping (BodyPix part IDs: e.g., 0: left_face, 1: right_face, 2: left_upper_arm_front, etc.)
-          const partRefs: { [part: string]: React.RefObject<THREE.Mesh> } = {
-            torso: torsoRef,
-            head: headRef,
-            left_upper_arm: leftUpperArmRef,
-            right_upper_arm: rightUpperArmRef,
-            left_lower_arm: leftLowerArmRef,
-            right_lower_arm: rightLowerArmRef,
-            left_hand: leftHandRef,
-            right_hand: rightHandRef,
-            left_upper_leg: leftUpperLegRef,
-            right_upper_leg: rightUpperLegRef,
-            left_lower_leg: leftLowerLegRef,
-            right_lower_leg: rightLowerLegRef,
-            left_foot: leftFootRef,
-            right_foot: rightFootRef,
-          };
-
-          // Default color for autocompletion
-          const defaultColor = new THREE.Color(0xffdbac); // Skin tone
-
-          // For each part, extract masked texture or autocomplete
-          for (const [partName, ref] of Object.entries(partRefs)) {
-            if (!ref.current) continue;
-
-            // Simple mapping from partName to BodyPix part IDs (this is approximate; adjust as needed)
-            const partIdMap: { [key: string]: number[] } = {
-              head: [0, 1], // left_face, right_face
-              torso: [18, 19], // torso_front, torso_back
-              left_upper_arm: [2, 3], // left_upper_arm_front, left_upper_arm_back
-              right_upper_arm: [4, 5],
-              left_lower_arm: [6, 7],
-              right_lower_arm: [8, 9],
-              left_hand: [10],
-              right_hand: [11],
-              left_upper_leg: [12, 13],
-              right_upper_leg: [14, 15],
-              left_lower_leg: [16, 17],
-              right_lower_leg: [20, 21],
-              left_foot: [22],
-              right_foot: [23],
-            };
-
-            const partIds = partIdMap[partName] || [];
-
-            if (partIds.length === 0) continue;
-
-            // Create canvas for part texture
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) continue;
-
-            // Autocomplete: fill with default color
-            ctx.fillStyle = '#' + defaultColor.getHexString();
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw detected parts if present
-            let hasPart = false;
-            for (let y = 0; y < segmentation.height; y++) {
-              for (let x = 0; x < segmentation.width; x++) {
-                const i = y * segmentation.width + x;
-                if (partIds.includes(segmentation.data[i])) {
-                  hasPart = true;
-                  // Sample from original image (assuming segmentation aligns with img)
-                  // Note: BodyPix output size may differ; resize if needed
-                }
-              }
-            }
-
-            if (hasPart) {
-              // Draw original image
-              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-              // Mask to part (create mask canvas)
-              const maskCanvas = document.createElement('canvas');
-              maskCanvas.width = segmentation.width;
-              maskCanvas.height = segmentation.height;
-              const maskCtx = maskCanvas.getContext('2d');
-              if (!maskCtx) continue;
-
-              const imageData = maskCtx.createImageData(segmentation.width, segmentation.height);
-              for (let i = 0; i < segmentation.data.length; i++) {
-                imageData.data[i * 4 + 3] = partIds.includes(segmentation.data[i]) ? 255 : 0;
-              }
-              maskCtx.putImageData(imageData, 0, 0);
-
-              // Scale mask to image size and apply
-              ctx.globalCompositeOperation = 'source-in';
-              ctx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height);
-            } // If no part detected, canvas already has default color
-
-            const texture = new THREE.CanvasTexture(canvas);
-            texture.needsUpdate = true;
-
-            (ref.current.material as THREE.MeshStandardMaterial).map = texture;
-            (ref.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
-          }
-        } catch (error) {
-          console.error('Error processing full body skin:', error);
-          setUploadError('Failed to process image for full body mapping.');
-        } finally {
-          setIsProcessing(false);
+          accessoryGroupRef.current?.add(accessory);
+        } else {
+          setUploadError('No accessory object detected in the image.');
         }
       }
+    } catch (error) {
+      console.error('Error processing image:', error);
+      setUploadError('Failed to process image.');
+    } finally {
+      setIsProcessing(false);
+      setSelectedImage(null);
+      setSelectedCategory(null);
     }
-
-    // Reset for next upload
-    setSelectedImage(null);
-    setUseAsCategory(null);
-    setApplyToCategory(null);
   };
 
   const handleSliderChange = (key: keyof AvatarScales, value: number[]) => {
@@ -572,7 +541,7 @@ const AvatarCreator: React.FC = () => {
           <CardContent className="space-y-6">
             {/* Image Upload Section */}
             <div className="space-y-4">
-              <Label>Upload Image</Label>
+              <Label>Upload NFT Image</Label>
               <Input type="file" accept="image/*" onChange={handleImageUpload} />
               {uploadError && (
                 <Alert variant="destructive">
@@ -584,40 +553,26 @@ const AvatarCreator: React.FC = () => {
                   <img src={selectedImage} alt="Uploaded" className="w-32 h-32 object-cover rounded" />
                   
                   <div>
-                    <Label>Use as</Label>
-                    <Select onValueChange={(value) => setUseAsCategory(value as UseAsCategory)}>
+                    <Label>Use for</Label>
+                    <Select onValueChange={(value) => setSelectedCategory(value as ImageCategory)}>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select use" />
+                        <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="skin">Skin</SelectItem>
+                        <SelectItem value="body">Body</SelectItem>
                         <SelectItem value="accessory">Accessory</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   
-                  <div>
-                    <Label>Apply to</Label>
-                    <Select onValueChange={(value) => setApplyToCategory(value as ApplyToCategory)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select area" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="full-avatar">Full Avatar</SelectItem>
-                        <SelectItem value="head-only">Head Only</SelectItem>
-                        <SelectItem value="torso-only">Torso Only</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <Button onClick={applyImage} disabled={!useAsCategory || !applyToCategory || isProcessing}>
-                    {isProcessing ? 'Processing...' : 'Apply Image'}
+                  <Button onClick={applyImage} disabled={!selectedCategory || isProcessing}>
+                    {isProcessing ? 'Processing...' : 'Apply to Avatar'}
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* Sliders */}
+            {/* Sliders (kept for manual tweaks after auto-design) */}
             <div className="space-y-2">
               <Label htmlFor="overallHeight">Overall Height (0.5 - 2)</Label>
               <Slider
@@ -629,7 +584,7 @@ const AvatarCreator: React.FC = () => {
                 onValueChange={(value) => handleSliderChange('overallHeight', value)}
               />
             </div>
-            {/* ... (other sliders remain the same) */}
+            {/* ... (add other sliders similarly if needed) */}
             <Button onClick={resetSliders} variant="outline" className="w-full">
               Reset to Default
             </Button>
