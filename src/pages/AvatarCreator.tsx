@@ -30,8 +30,8 @@ const AvatarCreator: React.FC = () => {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
-  // Avatar oval mesh
-  const ovalRef = useRef<THREE.Mesh | null>(null);
+  // Avatar body mesh
+  const bodyRef = useRef<THREE.Mesh | null>(null);
 
   // Accessory group
   const accessoryGroupRef = useRef<THREE.Group | null>(null);
@@ -74,18 +74,6 @@ const AvatarCreator: React.FC = () => {
     const pointLight = new THREE.PointLight(0xffffff, 0.8);
     pointLight.position.set(-5, 5, 5);
     scene.add(pointLight);
-
-    // Initial transparent oval egg shape
-    const ovalGeometry = new THREE.SphereGeometry(1, 32, 32); // Base sphere, will scale to oval
-    const ovalMaterial = new THREE.MeshStandardMaterial({
-      transparent: true,
-      opacity: 0, // Start fully transparent
-      side: THREE.DoubleSide,
-    });
-    const oval = new THREE.Mesh(ovalGeometry, ovalMaterial);
-    oval.position.set(0, 0, 0);
-    scene.add(oval);
-    ovalRef.current = oval;
 
     // Accessory group
     const accessoryGroup = new THREE.Group();
@@ -146,30 +134,13 @@ const AvatarCreator: React.FC = () => {
       await new Promise((resolve) => (img.onload = resolve));
 
       if (selectedCategory === 'body') {
-        // Use BodyPix to segment person and compute proportions
+        // Use BodyPix to segment person
         const net = await bodyPix.load();
         const segmentation = await net.segmentPerson(img, {
           flipHorizontal: false,
           internalResolution: 'medium',
           segmentationThreshold: 0.7,
         });
-
-        // Compute bounding box from segmentation to estimate proportions
-        let minX = img.width, minY = img.height, maxX = 0, maxY = 0;
-        for (let y = 0; y < img.height; y++) {
-          for (let x = 0; x < img.width; x++) {
-            const idx = (y * img.width + x) * 4; // Assuming RGBA
-            if (segmentation.data[idx / 4] !== -1) { // Person pixel
-              minX = Math.min(minX, x);
-              maxX = Math.max(maxX, x);
-              minY = Math.min(minY, y);
-              maxY = Math.max(maxY, y);
-            }
-          }
-        }
-
-        const detectedWidth = (maxX - minX) / img.width;
-        const detectedHeight = (maxY - minY) / img.height;
 
         // Create masked texture (person only, background transparent)
         const canvas = document.createElement('canvas');
@@ -193,27 +164,55 @@ const AvatarCreator: React.FC = () => {
         const texture = new THREE.CanvasTexture(canvas);
         texture.needsUpdate = true;
 
-        // Remove previous oval if exists
-        if (ovalRef.current && sceneRef.current) {
-          sceneRef.current.remove(ovalRef.current);
-          ovalRef.current.geometry.dispose();
-          (ovalRef.current.material as THREE.Material).dispose();
+        // Generate 3D body shape using lathe from silhouette
+        const points: THREE.Vector2[] = [];
+        const height = img.height;
+        const width = img.width;
+
+        // Sample at intervals for smoothness
+        const numSamples = 64;
+        const step = Math.floor(height / numSamples);
+
+        for (let y = 0; y < height; y += step) {
+          let minX = width;
+          let maxX = 0;
+          for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            if (imageData.data[idx + 3] > 0) { // Opaque pixel
+              minX = Math.min(minX, x);
+              maxX = Math.max(maxX, x);
+            }
+          }
+          const halfWidth = (maxX - minX) / 2 || 0.01; // Avoid zero
+          const normalizedY = (y / height) * 2 - 1; // -1 to 1 range
+          points.push(new THREE.Vector2(halfWidth / width, normalizedY)); // x: normalized half-width, y: normalized height
         }
 
-        // Create new oval mesh scaled by detected proportions
-        const aspectRatio = detectedWidth / detectedHeight || 1;
-        const ovalGeometry = new THREE.SphereGeometry(1, 32, 32);
-        const ovalMaterial = new THREE.MeshStandardMaterial({
+        // Sort points by y (from bottom to top)
+        points.sort((a, b) => a.y - b.y);
+
+        // Create lathe geometry (revolve around y-axis)
+        const latheGeometry = new THREE.LatheGeometry(points, 32); // 32 segments for smoothness
+
+        const bodyMaterial = new THREE.MeshStandardMaterial({
           map: texture,
           transparent: true,
           side: THREE.DoubleSide,
-          alphaTest: 0.1, // Avoid artifacts
+          alphaTest: 0.1,
         });
-        const oval = new THREE.Mesh(ovalGeometry, ovalMaterial);
-        oval.scale.set(aspectRatio, 1, aspectRatio); // Stretch to oval based on proportions
-        oval.position.set(0, 0, 0);
-        sceneRef.current?.add(oval);
-        ovalRef.current = oval;
+
+        // Remove previous body if exists
+        if (bodyRef.current && sceneRef.current) {
+          sceneRef.current.remove(bodyRef.current);
+          bodyRef.current.geometry.dispose();
+          (bodyRef.current.material as THREE.Material).dispose();
+        }
+
+        const body = new THREE.Mesh(latheGeometry, bodyMaterial);
+        body.position.set(0, 0, 0);
+        body.scale.set(2, 2, 2); // Adjust scale as needed
+        sceneRef.current?.add(body);
+        bodyRef.current = body;
 
       } else if (selectedCategory === 'accessory') {
         // Use Coco-SSD to detect objects
@@ -230,7 +229,7 @@ const AvatarCreator: React.FC = () => {
 
           if (detectedClass === 'hat' || detectedClass === 'cap') {
             accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32);
-            position = new THREE.Vector3(0, 1.2, 0); // Approximate top of oval
+            position = new THREE.Vector3(0, 1.2, 0); // Approximate top of body
             scale = 1;
           } else if (detectedClass === 'tie') {
             accessoryGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.05);
