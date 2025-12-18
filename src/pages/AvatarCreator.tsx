@@ -79,7 +79,7 @@ const AvatarCreator: React.FC = () => {
   const leftFootRef = useRef<THREE.Mesh | null>(null);
   const rightFootRef = useRef<THREE.Mesh | null>(null);
 
-  // Accessory group (to hold multiple accessories)
+  // Accessory group
   const accessoryGroupRef = useRef<THREE.Group | null>(null);
 
   useEffect(() => {
@@ -407,7 +407,7 @@ const AvatarCreator: React.FC = () => {
 
         // Example placeholder adjustments
         const detectedOverallHeight = (maxY - minY) / height;
-        const detectedTorsoHeight = /* calculate */;
+        const detectedTorsoHeight = 1; // TODO: calculate
         // Set scales based on detections
         setScales((prev) => ({
           ...prev,
@@ -427,7 +427,25 @@ const AvatarCreator: React.FC = () => {
         for (const [partName, ref] of Object.entries(partRefs)) {
           if (!ref.current) continue;
 
-          const partIds = /* map as before */;
+          // Simple mapping from partName to BodyPix part IDs (this is approximate; adjust as needed)
+          const partIdMap: { [key: string]: number[] } = {
+            head: [0, 1], // left_face, right_face
+            torso: [18, 19], // torso_front, torso_back
+            left_upper_arm: [2, 3], // left_upper_arm_front, left_upper_arm_back
+            right_upper_arm: [4, 5],
+            left_lower_arm: [6, 7],
+            right_lower_arm: [8, 9],
+            left_hand: [10],
+            right_hand: [11],
+            left_upper_leg: [12, 13],
+            right_upper_leg: [14, 15],
+            left_lower_leg: [16, 17],
+            right_lower_leg: [20, 21],
+            left_foot: [22],
+            right_foot: [23],
+          };
+
+          const partIds = partIdMap[partName] || [];
 
           const canvas = document.createElement('canvas');
           canvas.width = img.width;
