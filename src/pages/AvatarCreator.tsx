@@ -1,8 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
-import { Slider } from '@/components/ui/slider';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,39 +10,11 @@ import * as bodyPix from '@tensorflow-models/body-pix';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 
-// Define body part scales with initial values and wider ranges for adaptability
-interface AvatarScales {
-  overallHeight: number;
-  torsoHeight: number;
-  torsoWidth: number;
-  armLength: number;
-  armWidth: number;
-  legLength: number;
-  legWidth: number;
-  headSize: number;
-  shoulderWidth: number;
-  hipWidth: number;
-}
-
-const initialScales: AvatarScales = {
-  overallHeight: 1,
-  torsoHeight: 1,
-  torsoWidth: 1,
-  armLength: 1,
-  armWidth: 1,
-  legLength: 1,
-  legWidth: 1,
-  headSize: 1,
-  shoulderWidth: 1,
-  hipWidth: 1,
-};
-
 // Categories for image application
 type ImageCategory = 'body' | 'accessory' | null;
 
 const AvatarCreator: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
-  const [scales, setScales] = useState<AvatarScales>(initialScales);
 
   // Image upload states
   const [selectedImage, setSelectedImage] = useState<string | null>(null); // URL of uploaded image
@@ -59,25 +29,8 @@ const AvatarCreator: React.FC = () => {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
-  // Avatar body parts
-  const torsoRef = useRef<THREE.Mesh | null>(null);
-  const headRef = useRef<THREE.Mesh | null>(null);
-  const leftShoulderRef = useRef<THREE.Mesh | null>(null);
-  const rightShoulderRef = useRef<THREE.Mesh | null>(null);
-  const leftHipRef = useRef<THREE.Mesh | null>(null);
-  const rightHipRef = useRef<THREE.Mesh | null>(null);
-  const leftUpperArmRef = useRef<THREE.Mesh | null>(null);
-  const rightUpperArmRef = useRef<THREE.Mesh | null>(null);
-  const leftLowerArmRef = useRef<THREE.Mesh | null>(null);
-  const rightLowerArmRef = useRef<THREE.Mesh | null>(null);
-  const leftHandRef = useRef<THREE.Mesh | null>(null);
-  const rightHandRef = useRef<THREE.Mesh | null>(null);
-  const leftUpperLegRef = useRef<THREE.Mesh | null>(null);
-  const rightUpperLegRef = useRef<THREE.Mesh | null>(null);
-  const leftLowerLegRef = useRef<THREE.Mesh | null>(null);
-  const rightLowerLegRef = useRef<THREE.Mesh | null>(null);
-  const leftFootRef = useRef<THREE.Mesh | null>(null);
-  const rightFootRef = useRef<THREE.Mesh | null>(null);
+  // Avatar oval mesh
+  const ovalRef = useRef<THREE.Mesh | null>(null);
 
   // Accessory group
   const accessoryGroupRef = useRef<THREE.Group | null>(null);
@@ -96,7 +49,7 @@ const AvatarCreator: React.FC = () => {
     camera.position.set(0, 1, 5);
 
     // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     rendererRef.current = renderer;
     renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
     mountRef.current.appendChild(renderer.domElement);
@@ -121,106 +74,17 @@ const AvatarCreator: React.FC = () => {
     pointLight.position.set(-5, 5, 5);
     scene.add(pointLight);
 
-    // Materials (skin with subtle texture)
-    const bodyMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffdbac, // Skin tone
-      roughness: 0.5,
-      metalness: 0.1,
+    // Initial transparent oval egg shape
+    const ovalGeometry = new THREE.SphereGeometry(1, 32, 32); // Base sphere, will scale to oval
+    const ovalMaterial = new THREE.MeshStandardMaterial({
+      transparent: true,
+      opacity: 0, // Start fully transparent
+      side: THREE.DoubleSide,
     });
-
-    // Torso
-    const torsoGeometry = new THREE.CylinderGeometry(0.4, 0.3, 2, 32);
-    const torso = new THREE.Mesh(torsoGeometry, bodyMaterial.clone());
-    torso.position.set(0, 0, 0);
-    scene.add(torso);
-    torsoRef.current = torso;
-
-    // Head
-    const headGeometry = new THREE.SphereGeometry(0.4, 32, 32);
-    const head = new THREE.Mesh(headGeometry, bodyMaterial.clone());
-    head.position.set(0, 1.2, 0);
-    scene.add(head);
-    headRef.current = head;
-
-    // Shoulders
-    const shoulderGeometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const leftShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial.clone());
-    scene.add(leftShoulder);
-    leftShoulderRef.current = leftShoulder;
-
-    const rightShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial.clone());
-    scene.add(rightShoulder);
-    rightShoulderRef.current = rightShoulder;
-
-    // Hips
-    const hipGeometry = new THREE.SphereGeometry(0.25, 32, 32);
-    const leftHip = new THREE.Mesh(hipGeometry, bodyMaterial.clone());
-    scene.add(leftHip);
-    leftHipRef.current = leftHip;
-
-    const rightHip = new THREE.Mesh(hipGeometry, bodyMaterial.clone());
-    scene.add(rightHip);
-    rightHipRef.current = rightHip;
-
-    // Upper Arms
-    const upperArmGeometry = new THREE.CylinderGeometry(0.15, 0.1, 0.8, 32);
-    const leftUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial.clone());
-    scene.add(leftUpperArm);
-    leftUpperArmRef.current = leftUpperArm;
-
-    const rightUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial.clone());
-    scene.add(rightUpperArm);
-    rightUpperArmRef.current = rightUpperArm;
-
-    // Lower Arms
-    const lowerArmGeometry = new THREE.CylinderGeometry(0.1, 0.08, 0.7, 32);
-    const leftLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial.clone());
-    scene.add(leftLowerArm);
-    leftLowerArmRef.current = leftLowerArm;
-
-    const rightLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial.clone());
-    scene.add(rightLowerArm);
-    rightLowerArmRef.current = rightLowerArm;
-
-    // Hands
-    const handGeometry = new THREE.BoxGeometry(0.2, 0.3, 0.1);
-    const leftHand = new THREE.Mesh(handGeometry, bodyMaterial.clone());
-    scene.add(leftHand);
-    leftHandRef.current = leftHand;
-
-    const rightHand = new THREE.Mesh(handGeometry, bodyMaterial.clone());
-    scene.add(rightHand);
-    rightHandRef.current = rightHand;
-
-    // Upper Legs
-    const upperLegGeometry = new THREE.CylinderGeometry(0.2, 0.15, 1, 32);
-    const leftUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial.clone());
-    scene.add(leftUpperLeg);
-    leftUpperLegRef.current = leftUpperLeg;
-
-    const rightUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial.clone());
-    scene.add(rightUpperLeg);
-    rightUpperLegRef.current = rightUpperLeg;
-
-    // Lower Legs
-    const lowerLegGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.9, 32);
-    const leftLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial.clone());
-    scene.add(leftLowerLeg);
-    leftLowerLegRef.current = leftLowerLeg;
-
-    const rightLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial.clone());
-    scene.add(rightLowerLeg);
-    rightLowerLegRef.current = rightLowerLeg;
-
-    // Feet
-    const footGeometry = new THREE.BoxGeometry(0.25, 0.15, 0.4);
-    const leftFoot = new THREE.Mesh(footGeometry, bodyMaterial.clone());
-    scene.add(leftFoot);
-    leftFootRef.current = leftFoot;
-
-    const rightFoot = new THREE.Mesh(footGeometry, bodyMaterial.clone());
-    scene.add(rightFoot);
-    rightFootRef.current = rightFoot;
+    const oval = new THREE.Mesh(ovalGeometry, ovalMaterial);
+    oval.position.set(0, 0, 0);
+    scene.add(oval);
+    ovalRef.current = oval;
 
     // Accessory group
     const accessoryGroup = new THREE.Group();
@@ -254,112 +118,6 @@ const AvatarCreator: React.FC = () => {
     };
   }, []);
 
-  // Update avatar proportions and connections when sliders change
-  useEffect(() => {
-    const effectiveOverallHeight = scales.overallHeight;
-
-    // Torso
-    if (torsoRef.current) {
-      torsoRef.current.scale.set(scales.torsoWidth, scales.torsoHeight * effectiveOverallHeight, 1);
-    }
-
-    const torsoHeight = 2 * scales.torsoHeight * effectiveOverallHeight;
-    const torsoHalfHeight = torsoHeight / 2;
-    const torsoHalfWidth = 0.4 * scales.torsoWidth;
-
-    // Head
-    if (headRef.current) {
-      headRef.current.scale.set(scales.headSize, scales.headSize, scales.headSize);
-      headRef.current.position.y = torsoHalfHeight + (0.4 * scales.headSize);
-    }
-
-    // Shoulders
-    const shoulderY = torsoHalfHeight - 0.1;
-    const shoulderXOffset = torsoHalfWidth + (0.25 * scales.shoulderWidth);
-    if (leftShoulderRef.current) {
-      leftShoulderRef.current.position.set(-shoulderXOffset, shoulderY, 0);
-    }
-    if (rightShoulderRef.current) {
-      rightShoulderRef.current.position.set(shoulderXOffset, shoulderY, 0);
-    }
-
-    // Hips
-    const hipY = -torsoHalfHeight + 0.1;
-    const hipXOffset = torsoHalfWidth * 0.8 * scales.hipWidth;
-    if (leftHipRef.current) {
-      leftHipRef.current.position.set(-hipXOffset, hipY, 0);
-    }
-    if (rightHipRef.current) {
-      rightHipRef.current.position.set(hipXOffset, hipY, 0);
-    }
-
-    // Upper Arms
-    const upperArmLength = 0.8 * scales.armLength * effectiveOverallHeight;
-    const upperArmY = shoulderY - (upperArmLength / 2);
-    if (leftUpperArmRef.current) {
-      leftUpperArmRef.current.scale.set(scales.armWidth, scales.armLength * effectiveOverallHeight, scales.armWidth);
-      leftUpperArmRef.current.position.set(-shoulderXOffset, upperArmY, 0);
-    }
-    if (rightUpperArmRef.current) {
-      rightUpperArmRef.current.scale.set(scales.armWidth, scales.armLength * effectiveOverallHeight, scales.armWidth);
-      rightUpperArmRef.current.position.set(shoulderXOffset, upperArmY, 0);
-    }
-
-    // Lower Arms
-    const lowerArmLength = 0.7 * scales.armLength * effectiveOverallHeight;
-    const lowerArmY = upperArmY - (upperArmLength / 2) - (lowerArmLength / 2);
-    if (leftLowerArmRef.current) {
-      leftLowerArmRef.current.scale.set(scales.armWidth * 0.9, scales.armLength * effectiveOverallHeight * 0.9, scales.armWidth * 0.9);
-      leftLowerArmRef.current.position.set(-shoulderXOffset, lowerArmY, 0);
-    }
-    if (rightLowerArmRef.current) {
-      rightLowerArmRef.current.scale.set(scales.armWidth * 0.9, scales.armLength * effectiveOverallHeight * 0.9, scales.armWidth * 0.9);
-      rightLowerArmRef.current.position.set(shoulderXOffset, lowerArmY, 0);
-    }
-
-    // Hands
-    const handY = lowerArmY - (lowerArmLength / 2) - 0.15;
-    if (leftHandRef.current) {
-      leftHandRef.current.position.set(-shoulderXOffset, handY, 0);
-    }
-    if (rightHandRef.current) {
-      rightHandRef.current.position.set(shoulderXOffset, handY, 0);
-    }
-
-    // Upper Legs
-    const upperLegLength = scales.legLength * effectiveOverallHeight;
-    const upperLegY = hipY - (upperLegLength / 2);
-    if (leftUpperLegRef.current) {
-      leftUpperLegRef.current.scale.set(scales.legWidth, scales.legLength * effectiveOverallHeight, scales.legWidth);
-      leftUpperLegRef.current.position.set(-hipXOffset, upperLegY, 0);
-    }
-    if (rightUpperLegRef.current) {
-      rightUpperLegRef.current.scale.set(scales.legWidth, scales.legLength * effectiveOverallHeight, scales.legWidth);
-      rightUpperLegRef.current.position.set(hipXOffset, upperLegY, 0);
-    }
-
-    // Lower Legs
-    const lowerLegLength = 0.9 * scales.legLength * effectiveOverallHeight;
-    const lowerLegY = upperLegY - (upperLegLength / 2) - (lowerLegLength / 2);
-    if (leftLowerLegRef.current) {
-      leftLowerLegRef.current.scale.set(scales.legWidth * 0.8, scales.legLength * effectiveOverallHeight * 0.9, scales.legWidth * 0.8);
-      leftLowerLegRef.current.position.set(-hipXOffset, lowerLegY, 0);
-    }
-    if (rightLowerLegRef.current) {
-      rightLowerLegRef.current.scale.set(scales.legWidth * 0.8, scales.legLength * effectiveOverallHeight * 0.9, scales.legWidth * 0.8);
-      rightLowerLegRef.current.position.set(hipXOffset, lowerLegY, 0);
-    }
-
-    // Feet
-    const footY = lowerLegY - (lowerLegLength / 2) - 0.075;
-    if (leftFootRef.current) {
-      leftFootRef.current.position.set(-hipXOffset, footY, 0.15);
-    }
-    if (rightFootRef.current) {
-      rightFootRef.current.position.set(hipXOffset, footY, 0.15);
-    }
-  }, [scales]);
-
   // Handle image upload
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -387,90 +145,75 @@ const AvatarCreator: React.FC = () => {
       await new Promise((resolve) => (img.onload = resolve));
 
       if (selectedCategory === 'body') {
-        // Use BodyPix to detect body parts and adjust scales + apply textures
+        // Use BodyPix to segment person and compute proportions
         const net = await bodyPix.load();
-        const segmentation = await net.segmentPersonParts(img, {
+        const segmentation = await net.segmentPerson(img, {
           flipHorizontal: false,
           internalResolution: 'medium',
           segmentationThreshold: 0.7,
         });
 
-        // Adjust scales based on detected proportions (simple example: estimate heights/widths)
-        const height = segmentation.height;
-        const width = segmentation.width;
-
-        // Find bounding box for torso, arms, legs, head to estimate ratios
-        let minY = height, maxY = 0, minX = width, maxX = 0;
-        let headMinY = height, headMaxY = 0;
-        let legMinY = height, legMaxY = 0;
-        // ... (expand to find min/max for each part)
-
-        // Example placeholder adjustments
-        const detectedOverallHeight = (maxY - minY) / height;
-        const detectedTorsoHeight = 1; // TODO: calculate
-        // Set scales based on detections
-        setScales((prev) => ({
-          ...prev,
-          overallHeight: 0.5 + 1.5 * detectedOverallHeight, // Map to range
-          // Similarly for others
-        }));
-
-        // Apply segmented textures as before (from previous code)
-        const partRefs: { [part: string]: React.RefObject<THREE.Mesh> } = {
-          torso: torsoRef,
-          head: headRef,
-          // ... all others
-        };
-
-        const defaultColor = new THREE.Color(0xffdbac);
-
-        for (const [partName, ref] of Object.entries(partRefs)) {
-          if (!ref.current) continue;
-
-          // Simple mapping from partName to BodyPix part IDs (this is approximate; adjust as needed)
-          const partIdMap: { [key: string]: number[] } = {
-            head: [0, 1], // left_face, right_face
-            torso: [18, 19], // torso_front, torso_back
-            left_upper_arm: [2, 3], // left_upper_arm_front, left_upper_arm_back
-            right_upper_arm: [4, 5],
-            left_lower_arm: [6, 7],
-            right_lower_arm: [8, 9],
-            left_hand: [10],
-            right_hand: [11],
-            left_upper_leg: [12, 13],
-            right_upper_leg: [14, 15],
-            left_lower_leg: [16, 17],
-            right_lower_leg: [20, 21],
-            left_foot: [22],
-            right_foot: [23],
-          };
-
-          const partIds = partIdMap[partName] || [];
-
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) continue;
-
-          ctx.fillStyle = '#' + defaultColor.getHexString();
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-          let hasPart = false;
-          // ... (mask and draw as before)
-
-          if (hasPart) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-            // Apply mask
-            // ...
+        // Compute bounding box from segmentation to estimate proportions
+        let minX = img.width, minY = img.height, maxX = 0, maxY = 0;
+        for (let y = 0; y < img.height; y++) {
+          for (let x = 0; x < img.width; x++) {
+            const idx = (y * img.width + x) * 4; // Assuming RGBA
+            if (segmentation.data[idx / 4] !== -1) { // Person pixel
+              minX = Math.min(minX, x);
+              maxX = Math.max(maxX, x);
+              minY = Math.min(minY, y);
+              maxY = Math.max(maxY, y);
+            }
           }
-
-          const texture = new THREE.CanvasTexture(canvas);
-          texture.needsUpdate = true;
-
-          (ref.current.material as THREE.MeshStandardMaterial).map = texture;
-          (ref.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
         }
+
+        const detectedWidth = (maxX - minX) / img.width;
+        const detectedHeight = (maxY - minY) / img.height;
+
+        // Create masked texture (person only, background transparent)
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Failed to get canvas context');
+
+        // Draw image
+        ctx.drawImage(img, 0, 0);
+
+        // Apply mask: set non-person pixels to transparent
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        for (let i = 0; i < segmentation.data.length; i++) {
+          if (segmentation.data[i] === -1) { // Background
+            imageData.data[i * 4 + 3] = 0; // Set alpha to 0
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+
+        // Remove previous oval if exists
+        if (ovalRef.current && sceneRef.current) {
+          sceneRef.current.remove(ovalRef.current);
+          ovalRef.current.geometry.dispose();
+          (ovalRef.current.material as THREE.Material).dispose();
+        }
+
+        // Create new oval mesh scaled by detected proportions
+        const aspectRatio = detectedWidth / detectedHeight || 1;
+        const ovalGeometry = new THREE.SphereGeometry(1, 32, 32);
+        const ovalMaterial = new THREE.MeshStandardMaterial({
+          map: texture,
+          transparent: true,
+          side: THREE.DoubleSide,
+          alphaTest: 0.1, // Avoid artifacts
+        });
+        const oval = new THREE.Mesh(ovalGeometry, ovalMaterial);
+        oval.scale.set(aspectRatio, 1, aspectRatio); // Stretch to oval based on proportions
+        oval.position.set(0, 0, 0);
+        sceneRef.current?.add(oval);
+        ovalRef.current = oval;
+
       } else if (selectedCategory === 'accessory') {
         // Use Coco-SSD to detect objects
         const model = await cocoSsd.load();
@@ -486,20 +229,20 @@ const AvatarCreator: React.FC = () => {
 
           if (detectedClass === 'hat' || detectedClass === 'cap') {
             accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32);
-            position = new THREE.Vector3(0, headRef.current?.position.y! + 0.4 * scales.headSize + 0.4, 0);
+            position = new THREE.Vector3(0, 1.2, 0); // Approximate top of oval
             scale = 1;
           } else if (detectedClass === 'tie') {
             accessoryGeometry = new THREE.BoxGeometry(0.2, 0.8, 0.05);
-            position = new THREE.Vector3(0, 0, 0.31); // Front of torso
+            position = new THREE.Vector3(0, 0, 0.31); // Front
             scale = 1;
           } else if (detectedClass === 'backpack') {
             accessoryGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.3);
-            position = new THREE.Vector3(0, 0, -0.31); // Back of torso
+            position = new THREE.Vector3(0, 0, -0.31); // Back
             scale = 1;
           } else {
             // Default accessory for unknown
             accessoryGeometry = new THREE.SphereGeometry(0.3, 32, 32);
-            position = new THREE.Vector3(0, headRef.current?.position.y! + 0.4 * scales.headSize + 0.4, 0);
+            position = new THREE.Vector3(0, 1.2, 0);
             scale = 1;
           }
 
@@ -528,14 +271,6 @@ const AvatarCreator: React.FC = () => {
       setSelectedImage(null);
       setSelectedCategory(null);
     }
-  };
-
-  const handleSliderChange = (key: keyof AvatarScales, value: number[]) => {
-    setScales((prev) => ({ ...prev, [key]: value[0] }));
-  };
-
-  const resetSliders = () => {
-    setScales(initialScales);
   };
 
   return (
@@ -589,23 +324,6 @@ const AvatarCreator: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {/* Sliders (kept for manual tweaks after auto-design) */}
-            <div className="space-y-2">
-              <Label htmlFor="overallHeight">Overall Height (0.5 - 2)</Label>
-              <Slider
-                id="overallHeight"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.overallHeight]}
-                onValueChange={(value) => handleSliderChange('overallHeight', value)}
-              />
-            </div>
-            {/* ... (add other sliders similarly if needed) */}
-            <Button onClick={resetSliders} variant="outline" className="w-full">
-              Reset to Default
-            </Button>
           </CardContent>
         </Card>
       </div>
