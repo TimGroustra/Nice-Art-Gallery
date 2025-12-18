@@ -13,6 +13,19 @@ import * as bodyPix from '@tensorflow-models/body-pix';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 
+// --- Minimal types to satisfy the compiler when direct imports fail ---
+interface Keypoint {
+  score: number;
+  part: string;
+  position: { x: number; y: number };
+}
+
+interface Pose {
+  score: number;
+  keypoints: Keypoint[];
+}
+// --------------------------------------------------------------------
+
 // --- Types and Constants ---
 
 type ImageCategory = 'body' | 'accessory' | null;
@@ -115,7 +128,7 @@ const AvatarCreator: React.FC = () => {
   const bodyMeshMapRef = useRef<Partial<Record<PartKey, THREE.Mesh[]>>>({});
 
   // Function to initialize the 3D avatar structure based on pose
-  const initializeAvatar = useCallback((img: HTMLImageElement, pose: bodyPix.Pose) => {
+  const initializeAvatar = useCallback((img: HTMLImageElement, pose: Pose) => {
     if (!avatarGroupRef.current) return;
 
     // Clear previous body
@@ -133,7 +146,7 @@ const AvatarCreator: React.FC = () => {
     const keypoints = pose.keypoints.reduce((map, kp) => {
       map[kp.part] = kp;
       return map;
-    }, {} as { [part: string]: bodyPix.Keypoint });
+    }, {} as { [part: string]: Keypoint });
 
     // Helper to get position, falling back to average if missing
     const getPos = (part: string, fallback?: THREE.Vector2) => {
@@ -246,26 +259,33 @@ const AvatarCreator: React.FC = () => {
       });
       
       // 1. Get segmentation (which includes pose)
-      const parts = await net.segmentPersonParts(img, {
+      const rawParts = await net.segmentPersonParts(img, {
         flipHorizontal: false,
         internalResolution: 'medium',
         segmentationThreshold: 0.7,
       });
       
-      const pose = parts.pose; // Extract pose from segmentation result
+      // Ensure we handle the result as a single PartSegmentation object
+      const parts = Array.isArray(rawParts) ? rawParts[0] : rawParts;
+      
+      // Cast to bodyPix.PartSegmentation to access the pose property
+      const partSegmentation = parts as bodyPix.PartSegmentation;
+      
+      const pose = partSegmentation.pose; // Extract pose from segmentation result
 
       if (!pose || pose.score < 0.5) {
         throw new Error('No person detected or low confidence. Please use an image with a clear, full-body view.');
       }
 
       // 2. Initialize 3D avatar based on pose
-      initializeAvatar(img, pose);
+      initializeAvatar(img, pose as Pose); // Cast pose to local Pose type
 
       // 3. Extract segmented parts for preview
       const extractedParts: SegmentedPart[] = [];
       for (const key in PART_MAPPINGS) {
         const partConfig = PART_MAPPINGS[key as PartKey];
-        const imageUrl = extractSegmentedPart(img, parts, partConfig.ids);
+        // Pass the correctly typed segmentation object
+        const imageUrl = extractSegmentedPart(img, partSegmentation, partConfig.ids);
         extractedParts.push({
           name: partConfig.name,
           key: key as PartKey,
