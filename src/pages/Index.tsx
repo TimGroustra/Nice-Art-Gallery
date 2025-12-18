@@ -1,25 +1,82 @@
-import React, { useState, useEffect } from 'react';
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
-import { initializeGalleryConfig } from '@/config/galleryConfig';
+import BackgroundMusic from "@/components/BackgroundMusic";
+import React, { useState, useCallback, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 
-const Index: React.FC = () => {
+// Define the type for the music controls exposed via ref
+interface BackgroundMusicHandles {
+  play: () => void;
+  pause: () => void;
+  toggleMute: () => void;
+  isMuted: () => boolean;
+}
+
+const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
+  const musicRef = useRef<BackgroundMusicHandles>(null);
 
+  // Expose music controls globally for GalleryUI to access
   useEffect(() => {
-    initializeGalleryConfig();
+    (window as any).musicControls = {
+      toggleMute: () => musicRef.current?.toggleMute(),
+      isMuted: () => musicRef.current?.isMuted() ?? true,
+    };
+    return () => {
+      delete (window as any).musicControls;
+    };
   }, []);
 
-  const handleLockClick = () => {
-    setInstructionsVisible(false);
-  };
+  const handleLockClick = useCallback(() => {
+    const galleryControls = (window as any).galleryControls;
+    if (galleryControls && galleryControls.lockControls) {
+      galleryControls.lockControls();
+    }
+    // Attempt to start music playback upon user interaction (locking controls)
+    musicRef.current?.play();
+  }, []);
+  
+  // Add keyboard listener for 'M' key to toggle music mute
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const galleryControls = (window as any).galleryControls;
+      const musicControls = (window as any).musicControls;
+      
+      // Only allow keyboard shortcuts when controls are locked (user is in the gallery)
+      if (galleryControls?.isLocked?.() && musicControls && event.code === 'KeyM') {
+        musicControls.toggleMute();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   return (
-    <div className="w-full h-screen relative">
-      <NftGallery setInstructionsVisible={setInstructionsVisible} />
+    <div className="relative w-screen h-screen overflow-hidden">
+      <BackgroundMusic ref={musicRef} />
+
+      {/* Gallery Config Button */}
+      <div className="fixed top-4 right-4 z-20">
+        <Button asChild>
+          <Link to="/gallery-config" target="_blank" rel="noopener noreferrer">
+            Gallery Configuration
+          </Link>
+        </Button>
+      </div>
+      
+      {/* 3D Canvas */}
+      <NftGallery 
+        setInstructionsVisible={setInstructionsVisible}
+      />
+      
+      {/* 2D Overlay UI */}
       <GalleryUI 
         instructionsVisible={instructionsVisible} 
-        onLockClick={handleLockClick} 
+        onLockClick={handleLockClick}
       />
     </div>
   );
