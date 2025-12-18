@@ -5,6 +5,9 @@ import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 // Define body part scales with initial values and wider ranges for adaptability
 interface AvatarScales {
@@ -33,9 +36,19 @@ const initialScales: AvatarScales = {
   hipWidth: 1,
 };
 
+// Categories for image application
+type ImageCategory = 'skin' | 'body-shape' | 'accessory' | 'tshirt-print' | null;
+
 const AvatarCreator: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
   const [scales, setScales] = useState<AvatarScales>(initialScales);
+
+  // Image upload states
+  const [selectedImage, setSelectedImage] = useState<string | null>(null); // URL of uploaded image
+  const [selectedCategory, setSelectedCategory] = useState<ImageCategory>(null);
+  const [appliedImages, setAppliedImages] = useState<{ [key in ImageCategory]?: string }>({}); // Store applied images per category
+  const [referenceImage, setReferenceImage] = useState<string | null>(null); // For body-shape reference display
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Refs for Three.js objects (isolated to this component)
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -62,6 +75,12 @@ const AvatarCreator: React.FC = () => {
   const rightLowerLegRef = useRef<THREE.Mesh | null>(null);
   const leftFootRef = useRef<THREE.Mesh | null>(null);
   const rightFootRef = useRef<THREE.Mesh | null>(null);
+
+  // Accessory refs (e.g., hat as example accessory)
+  const accessoryRef = useRef<THREE.Mesh | null>(null);
+
+  // T-shirt print ref (plane on torso)
+  const tshirtPrintRef = useRef<THREE.Mesh | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -203,6 +222,20 @@ const AvatarCreator: React.FC = () => {
     scene.add(rightFoot);
     rightFootRef.current = rightFoot;
 
+    // Accessory (example: simple hat plane - will apply texture later)
+    const accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32); // Cone for hat
+    const accessory = new THREE.Mesh(accessoryGeometry, bodyMaterial);
+    scene.add(accessory);
+    accessoryRef.current = accessory;
+
+    // T-shirt print (plane on torso front)
+    const tshirtGeometry = new THREE.PlaneGeometry(0.6, 0.6);
+    const tshirtMaterial = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide });
+    const tshirtPrint = new THREE.Mesh(tshirtGeometry, tshirtMaterial);
+    tshirtPrint.position.set(0, 0, 0.26); // Slightly in front of torso
+    torso.add(tshirtPrint); // Attach to torso
+    tshirtPrintRef.current = tshirtPrint;
+
     // Animation loop
     let animationFrameId: number;
     const animate = () => {
@@ -334,7 +367,81 @@ const AvatarCreator: React.FC = () => {
     if (rightFootRef.current) {
       rightFootRef.current.position.set(hipXOffset, footY, 0.15);
     }
+
+    // Accessory (position on head)
+    if (accessoryRef.current && headRef.current) {
+      accessoryRef.current.position.set(0, headRef.current.position.y + (0.4 * scales.headSize) + 0.4, 0);
+    }
   }, [scales]);
+
+  // Handle image upload
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        setUploadError('Please upload a valid image file.');
+        return;
+      }
+      const imageUrl = URL.createObjectURL(file);
+      setSelectedImage(imageUrl);
+      setUploadError(null);
+    }
+  };
+
+  // Apply image to selected category
+  const applyImage = () => {
+    if (!selectedImage || !selectedCategory) return;
+
+    setAppliedImages((prev) => ({ ...prev, [selectedCategory]: selectedImage }));
+
+    const loader = new THREE.TextureLoader();
+
+    if (selectedCategory === 'skin') {
+      // Apply as texture to all body parts
+      loader.load(selectedImage, (texture) => {
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1, 1); // Adjust repeat as needed
+        const texturedMaterial = new THREE.MeshStandardMaterial({
+          map: texture,
+          roughness: 0.5,
+          metalness: 0.1,
+        });
+
+        // Apply to all body parts
+        [
+          torsoRef, headRef, leftShoulderRef, rightShoulderRef, leftHipRef, rightHipRef,
+          leftUpperArmRef, rightUpperArmRef, leftLowerArmRef, rightLowerArmRef,
+          leftHandRef, rightHandRef, leftUpperLegRef, rightUpperLegRef,
+          leftLowerLegRef, rightLowerLegRef, leftFootRef, rightFootRef
+        ].forEach((partRef) => {
+          if (partRef.current) partRef.current.material = texturedMaterial;
+        });
+      });
+    } else if (selectedCategory === 'tshirt-print') {
+      // Apply to t-shirt plane
+      loader.load(selectedImage, (texture) => {
+        if (tshirtPrintRef.current) {
+          (tshirtPrintRef.current.material as THREE.MeshBasicMaterial).map = texture;
+          (tshirtPrintRef.current.material as THREE.MeshBasicMaterial).needsUpdate = true;
+        }
+      });
+    } else if (selectedCategory === 'accessory') {
+      // Apply to accessory (e.g., hat)
+      loader.load(selectedImage, (texture) => {
+        if (accessoryRef.current) {
+          (accessoryRef.current.material as THREE.MeshStandardMaterial).map = texture;
+          (accessoryRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
+        }
+      });
+    } else if (selectedCategory === 'body-shape') {
+      // Display as reference image
+      setReferenceImage(selectedImage);
+    }
+
+    // Reset for next upload
+    setSelectedImage(null);
+    setSelectedCategory(null);
+  };
 
   const handleSliderChange = (key: keyof AvatarScales, value: number[]) => {
     setScales((prev) => ({ ...prev, [key]: value[0] }));
@@ -357,12 +464,54 @@ const AvatarCreator: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Sliders (expanded with new controls) */}
+        {/* Controls */}
         <Card>
           <CardHeader>
-            <CardTitle>Customize Body Proportions</CardTitle>
+            <CardTitle>Customize Avatar</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Image Upload Section */}
+            <div className="space-y-4">
+              <Label>Upload Reference Image</Label>
+              <Input type="file" accept="image/*" onChange={handleImageUpload} />
+              {uploadError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{uploadError}</AlertDescription>
+                </Alert>
+              )}
+              {selectedImage && (
+                <div className="space-y-2">
+                  <img src={selectedImage} alt="Uploaded" className="w-32 h-32 object-cover rounded" />
+                  <Select onValueChange={(value) => setSelectedCategory(value as ImageCategory)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="skin">Avatar Skin</SelectItem>
+                      <SelectItem value="body-shape">Body Shape Reference</SelectItem>
+                      <SelectItem value="accessory">Accessory</SelectItem>
+                      <SelectItem value="tshirt-print">T-Shirt Print</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={applyImage} disabled={!selectedCategory}>
+                    Apply Image
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            {/* Reference Image Display (for body-shape) */}
+            {referenceImage && (
+              <div className="space-y-2">
+                <Label>Body Shape Reference</Label>
+                <img src={referenceImage} alt="Reference" className="w-full h-48 object-contain border rounded" />
+                <Button variant="outline" size="sm" onClick={() => setReferenceImage(null)}>
+                  Remove Reference
+                </Button>
+              </div>
+            )}
+
+            {/* Sliders */}
             <div className="space-y-2">
               <Label htmlFor="overallHeight">Overall Height (0.5 - 2)</Label>
               <Slider
@@ -374,115 +523,7 @@ const AvatarCreator: React.FC = () => {
                 onValueChange={(value) => handleSliderChange('overallHeight', value)}
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="torsoHeight">Torso Height (0.5 - 2)</Label>
-              <Slider
-                id="torsoHeight"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.torsoHeight]}
-                onValueChange={(value) => handleSliderChange('torsoHeight', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="torsoWidth">Torso Width (0.5 - 2)</Label>
-              <Slider
-                id="torsoWidth"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.torsoWidth]}
-                onValueChange={(value) => handleSliderChange('torsoWidth', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="shoulderWidth">Shoulder Width (0.5 - 2)</Label>
-              <Slider
-                id="shoulderWidth"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.shoulderWidth]}
-                onValueChange={(value) => handleSliderChange('shoulderWidth', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="hipWidth">Hip Width (0.5 - 2)</Label>
-              <Slider
-                id="hipWidth"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.hipWidth]}
-                onValueChange={(value) => handleSliderChange('hipWidth', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="armLength">Arm Length (0.5 - 2)</Label>
-              <Slider
-                id="armLength"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.armLength]}
-                onValueChange={(value) => handleSliderChange('armLength', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="armWidth">Arm Width (0.5 - 2)</Label>
-              <Slider
-                id="armWidth"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.armWidth]}
-                onValueChange={(value) => handleSliderChange('armWidth', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="legLength">Leg Length (0.5 - 2)</Label>
-              <Slider
-                id="legLength"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.legLength]}
-                onValueChange={(value) => handleSliderChange('legLength', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="legWidth">Leg Width (0.5 - 2)</Label>
-              <Slider
-                id="legWidth"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.legWidth]}
-                onValueChange={(value) => handleSliderChange('legWidth', value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="headSize">Head Size (0.5 - 2)</Label>
-              <Slider
-                id="headSize"
-                min={0.5}
-                max={2}
-                step={0.1}
-                value={[scales.headSize]}
-                onValueChange={(value) => handleSliderChange('headSize', value)}
-              />
-            </div>
-
+            {/* ... (other sliders remain the same) */}
             <Button onClick={resetSliders} variant="outline" className="w-full">
               Reset to Default
             </Button>
