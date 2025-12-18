@@ -30,8 +30,8 @@ const AvatarCreator: React.FC = () => {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
-  // Avatar body mesh
-  const bodyRef = useRef<THREE.Mesh | null>(null);
+  // Avatar group (for body parts)
+  const avatarGroupRef = useRef<THREE.Group | null>(null);
 
   // Accessory group
   const accessoryGroupRef = useRef<THREE.Group | null>(null);
@@ -74,6 +74,11 @@ const AvatarCreator: React.FC = () => {
     const pointLight = new THREE.PointLight(0xffffff, 0.8);
     pointLight.position.set(-5, 5, 5);
     scene.add(pointLight);
+
+    // Avatar group for body parts
+    const avatarGroup = new THREE.Group();
+    scene.add(avatarGroup);
+    avatarGroupRef.current = avatarGroup;
 
     // Accessory group
     const accessoryGroup = new THREE.Group();
@@ -134,85 +139,145 @@ const AvatarCreator: React.FC = () => {
       await new Promise((resolve) => (img.onload = resolve));
 
       if (selectedCategory === 'body') {
-        // Use BodyPix to segment person
+        // Use BodyPix for pose estimation and part segmentation
         const net = await bodyPix.load();
-        const segmentation = await net.segmentPerson(img, {
+        const pose = await net.estimatePose(img); // Get keypoints
+        const parts = await net.segmentPersonParts(img, {
           flipHorizontal: false,
           internalResolution: 'medium',
           segmentationThreshold: 0.7,
         });
 
-        // Create masked texture (person only, background transparent)
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Failed to get canvas context');
-
-        // Draw image
-        ctx.drawImage(img, 0, 0);
-
-        // Apply mask: set non-person pixels to transparent
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        for (let i = 0; i < segmentation.data.length; i++) {
-          if (segmentation.data[i] === -1) { // Background
-            imageData.data[i * 4 + 3] = 0; // Set alpha to 0
-          }
+        if (!pose || pose.score < 0.5) {
+          throw new Error('No person detected or low confidence.');
         }
-        ctx.putImageData(imageData, 0, 0);
 
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.needsUpdate = true;
+        // Keypoints map (assuming standard 17 keypoints)
+        const keypoints = pose.keypoints.reduce((map, kp) => {
+          map[kp.part] = kp;
+          return map;
+        }, {} as { [part: string]: bodyPix.Keypoint });
 
-        // Generate 3D body shape using lathe from silhouette
-        const points: THREE.Vector2[] = [];
-        const height = img.height;
-        const width = img.width;
+        // Helper to get position, falling back to average if missing
+        const getPos = (part: string) => {
+          const kp = keypoints[part];
+          return kp ? new THREE.Vector2(kp.position.x / img.width, kp.position.y / img.height) : new THREE.Vector2(0.5, 0.5);
+        };
 
-        // Sample at intervals for smoothness
-        const numSamples = 64;
-        const step = Math.floor(height / numSamples);
+        // Calculate positions and lengths for body parts
+        const headPos = getPos('nose');
+        const neckPos = getPos('neck') || getPos('leftShoulder').clone().lerp(getPos('rightShoulder'), 0.5);
+        const shoulderMid = getPos('leftShoulder').clone().lerp(getPos('rightShoulder'), 0.5);
+        const hipMid = getPos('leftHip').clone().lerp(getPos('rightHip'), 0.5);
 
-        for (let y = 0; y < height; y += step) {
-          let minX = width;
-          let maxX = 0;
-          for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            if (imageData.data[idx + 3] > 0) { // Opaque pixel
-              minX = Math.min(minX, x);
-              maxX = Math.max(maxX, x);
+        const leftElbow = getPos('leftElbow');
+        const leftWrist = getPos('leftWrist');
+        const rightElbow = getPos('rightElbow');
+        const rightWrist = getPos('rightWrist');
+
+        const leftKnee = getPos('leftKnee');
+        const leftAnkle = getPos('leftAnkle');
+        const rightKnee = getPos('rightKnee');
+        const rightAnkle = getPos('rightAnkle');
+
+        // Calculate lengths (normalized)
+        const torsoLength = shoulderMid.y - hipMid.y;
+        const armLength = leftElbow.distanceTo(leftWrist) + getPos('leftShoulder').distanceTo(leftElbow);
+        const legLength = leftKnee.distanceTo(leftAnkle) + getPos('leftHip').distanceTo(leftKnee);
+
+        // Create body parts with cylinders and spheres
+        const createCylinder = (start: THREE.Vector3, end: THREE.Vector3, radius: number, material: THREE.Material) => {
+          const height = start.distanceTo(end);
+          const cylinderGeo = new THREE.CylinderGeometry(radius, radius, height, 32);
+          const cylinder = new THREE.Mesh(cylinderGeo, material);
+          cylinder.position.lerpVectors(start, end, 0.5);
+          cylinder.lookAt(end);
+          return cylinder;
+        };
+
+        const createSphere = (position: THREE.Vector3, radius: number, material: THREE.Material) => {
+          const sphereGeo = new THREE.SphereGeometry(radius, 32, 32);
+          return new THREE.Mesh(sphereGeo, material);
+        };
+
+        // Clear previous body
+        if (avatarGroupRef.current) {
+          while (avatarGroupRef.current.children.length > 0) {
+            const child = avatarGroupRef.current.children[0];
+            avatarGroupRef.current.remove(child);
+            if (child instanceof THREE.Mesh) {
+              child.geometry.dispose();
+              (child.material as THREE.Material).dispose();
             }
           }
-          const halfWidth = (maxX - minX) / 2 || 0.01; // Avoid zero
-          const normalizedY = (y / height) * 2 - 1; // -1 to 1 range
-          points.push(new THREE.Vector2(halfWidth / width, normalizedY)); // x: normalized half-width, y: normalized height
         }
 
-        // Sort points by y (from bottom to top)
-        points.sort((a, b) => a.y - b.y);
+        // Scale factor to make avatar life-sized (assume average height ~1.7m)
+        const avatarScale = 1.7 / (headPos.y - rightAnkle.y); // From head to ankle normalized
 
-        // Create lathe geometry (revolve around y-axis)
-        const latheGeometry = new THREE.LatheGeometry(points, 32); // 32 segments for smoothness
+        // Positions in 3D space (y downward in image, upward in 3D)
+        const to3D = (pos: THREE.Vector2) => new THREE.Vector3(
+          (pos.x - 0.5) * 2, // x: -1 to 1
+          (1 - pos.y) * 2,  // y: invert and scale
+          0
+        ).multiplyScalar(avatarScale);
 
-        const bodyMaterial = new THREE.MeshStandardMaterial({
-          map: texture,
-          transparent: true,
-          side: THREE.DoubleSide,
-          alphaTest: 0.1,
+        // Create materials - for now, simple color; texture application can be added per part
+        const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x888888, transparent: true });
+
+        // Head
+        const head3D = to3D(headPos);
+        const head = createSphere(head3D, 0.2, bodyMaterial);
+        avatarGroupRef.current?.add(head);
+
+        // Torso
+        const shoulder3D = to3D(shoulderMid);
+        const hip3D = to3D(hipMid);
+        const torso = createCylinder(shoulder3D, hip3D, 0.3, bodyMaterial);
+        avatarGroupRef.current?.add(torso);
+
+        // Left arm
+        const leftShoulder3D = to3D(getPos('leftShoulder'));
+        const leftElbow3D = to3D(leftElbow);
+        const leftWrist3D = to3D(leftWrist);
+        const upperLeftArm = createCylinder(leftShoulder3D, leftElbow3D, 0.1, bodyMaterial);
+        const lowerLeftArm = createCylinder(leftElbow3D, leftWrist3D, 0.08, bodyMaterial);
+        avatarGroupRef.current?.add(upperLeftArm, lowerLeftArm);
+
+        // Right arm
+        const rightShoulder3D = to3D(getPos('rightShoulder'));
+        const rightElbow3D = to3D(rightElbow);
+        const rightWrist3D = to3D(rightWrist);
+        const upperRightArm = createCylinder(rightShoulder3D, rightElbow3D, 0.1, bodyMaterial);
+        const lowerRightArm = createCylinder(rightElbow3D, rightWrist3D, 0.08, bodyMaterial);
+        avatarGroupRef.current?.add(upperRightArm, lowerRightArm);
+
+        // Left leg
+        const leftHip3D = to3D(getPos('leftHip'));
+        const leftKnee3D = to3D(leftKnee);
+        const leftAnkle3D = to3D(leftAnkle);
+        const upperLeftLeg = createCylinder(leftHip3D, leftKnee3D, 0.15, bodyMaterial);
+        const lowerLeftLeg = createCylinder(leftKnee3D, leftAnkle3D, 0.12, bodyMaterial);
+        avatarGroupRef.current?.add(upperLeftLeg, lowerLeftLeg);
+
+        // Right leg
+        const rightHip3D = to3D(getPos('rightHip'));
+        const rightKnee3D = to3D(rightKnee);
+        const rightAnkle3D = to3D(rightAnkle);
+        const upperRightLeg = createCylinder(rightHip3D, rightKnee3D, 0.15, bodyMaterial);
+        const lowerRightLeg = createCylinder(rightKnee3D, rightAnkle3D, 0.12, bodyMaterial);
+        avatarGroupRef.current?.add(upperRightLeg, lowerRightLeg);
+
+        // Apply overall texture or per-part textures (simplified: apply same texture to all)
+        const loader = new THREE.TextureLoader();
+        loader.load(selectedImage, (texture) => {
+          avatarGroupRef.current?.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              (child.material as THREE.MeshStandardMaterial).map = texture;
+              (child.material as THREE.MeshStandardMaterial).needsUpdate = true;
+            }
+          });
         });
-
-        // Remove previous body if exists
-        if (bodyRef.current && sceneRef.current) {
-          sceneRef.current.remove(bodyRef.current);
-          bodyRef.current.geometry.dispose();
-          (bodyRef.current.material as THREE.Material).dispose();
-        }
-
-        const body = new THREE.Mesh(latheGeometry, bodyMaterial);
-        body.position.set(0, 0, 0);
-        body.scale.set(2, 2, 2); // Adjust scale as needed
-        sceneRef.current?.add(body);
-        bodyRef.current = body;
 
       } else if (selectedCategory === 'accessory') {
         // Use Coco-SSD to detect objects
