@@ -56,6 +56,26 @@ const PART_MAPPINGS: Record<PartKey, { name: string; ids: number[] }> = {
   rightLeg: { name: 'Right Leg', ids: [12, 13] }, // right_upper_leg, right_lower_leg
 };
 
+// --- Pose Helper ---
+const getDefaultPose = (imgWidth: number, imgHeight: number): Pose => ({
+    score: 1.0,
+    keypoints: [
+        { part: 'nose', score: 1, position: { x: imgWidth * 0.5, y: imgHeight * 0.1 } },
+        { part: 'leftShoulder', score: 1, position: { x: imgWidth * 0.6, y: imgHeight * 0.3 } },
+        { part: 'rightShoulder', score: 1, position: { x: imgWidth * 0.4, y: imgHeight * 0.3 } },
+        { part: 'leftHip', score: 1, position: { x: imgWidth * 0.56, y: imgHeight * 0.6 } },
+        { part: 'rightHip', score: 1, position: { x: imgWidth * 0.44, y: imgHeight * 0.6 } },
+        { part: 'leftElbow', score: 1, position: { x: imgWidth * 0.65, y: imgHeight * 0.45 } },
+        { part: 'leftWrist', score: 1, position: { x: imgWidth * 0.7, y: imgHeight * 0.6 } },
+        { part: 'rightElbow', score: 1, position: { x: imgWidth * 0.35, y: imgHeight * 0.45 } },
+        { part: 'rightWrist', score: 1, position: { x: imgWidth * 0.3, y: imgHeight * 0.6 } },
+        { part: 'leftKnee', score: 1, position: { x: imgWidth * 0.56, y: imgHeight * 0.8 } },
+        { part: 'leftAnkle', score: 1, position: { x: imgWidth * 0.56, y: imgHeight * 0.95 } },
+        { part: 'rightKnee', score: 1, position: { x: imgWidth * 0.44, y: imgHeight * 0.8 } },
+        { part: 'rightAnkle', score: 1, position: { x: imgWidth * 0.44, y: imgHeight * 0.95 } },
+    ]
+});
+
 // --- 3D Helpers ---
 
 const createCylinder = (start: THREE.Vector3, end: THREE.Vector3, radius: number, material: THREE.Material) => {
@@ -342,30 +362,47 @@ const AvatarCreator: React.FC = () => {
       });
       
       const parts = Array.isArray(rawParts) ? rawParts[0] : rawParts;
-      const partSegmentation = parts as bodyPix.PartSegmentation;
-      const pose = partSegmentation.pose;
+      let pose = parts.pose;
+      
+      let extractedParts: SegmentedPart[] = [];
+      let avatarPose: Pose;
 
       if (!pose || pose.score < 0.5) {
-        throw new Error('No person detected or low confidence. Please use an image with a clear, full-body view.');
-      }
-
-      // 1. Initialize 3D avatar based on pose
-      initializeAvatar(img, pose as Pose);
-
-      // 2. Extract segmented parts for preview
-      const extractedParts: SegmentedPart[] = [];
-      for (const key in PART_MAPPINGS) {
-        const partConfig = PART_MAPPINGS[key as PartKey];
-        const imageUrl = extractSegmentedPart(img, partSegmentation, partConfig.ids);
+        // FALLBACK: Segmentation failed (e.g., pixel art, cropped image).
+        // Use default pose and treat the entire image as a single texture source.
+        avatarPose = getDefaultPose(img.width, img.height);
+        
+        // Create a single fallback segment. We use 'face' as a dummy key, 
+        // but rely on the name to identify it as the full image fallback.
         extractedParts.push({
-          name: partConfig.name,
-          key: key as PartKey,
-          imageUrl,
+            name: 'Full Image (Fallback)',
+            key: 'face', 
+            imageUrl: img.src, // Use the original image URL
         });
+        
+        toast.warning("Segmentation failed. Using default pose. Apply 'Full Image' to a part manually.");
+
+      } else {
+        // SUCCESS: Segmentation worked.
+        avatarPose = pose as Pose;
+        
+        // Extract segmented parts for preview
+        for (const key in PART_MAPPINGS) {
+          const partConfig = PART_MAPPINGS[key as PartKey];
+          const imageUrl = extractSegmentedPart(img, parts as bodyPix.PartSegmentation, partConfig.ids);
+          extractedParts.push({
+            name: partConfig.name,
+            key: key as PartKey,
+            imageUrl,
+          });
+        }
+        toast.success("Image processed! Select parts below to apply textures.");
       }
-      setSegmentedParts(extractedParts);
       
-      toast.success("Image processed! Select parts below to apply textures.");
+      // 1. Initialize 3D avatar based on pose (detected or default)
+      initializeAvatar(img, avatarPose);
+      
+      setSegmentedParts(extractedParts);
 
     } catch (error) {
       console.error('Error processing image:', error);
@@ -373,19 +410,24 @@ const AvatarCreator: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [initializeAvatar]);
+  }, [initializeAvatar, selectedImage]);
 
   // Handle applying a segmented part texture to the 3D model
   const handleApplyPart = useCallback((partKey: PartKey) => {
     const part = segmentedParts.find(p => p.key === partKey);
     if (!part) return;
 
-    applyTextureToMeshes(partKey, part.imageUrl);
+    // Determine the texture URL and the friendly name for the toast
+    const isFallback = part.name === 'Full Image (Fallback)';
+    const textureUrl = isFallback ? selectedImage! : part.imageUrl;
+    const partName = isFallback ? PART_MAPPINGS[partKey].name : part.name;
+
+    applyTextureToMeshes(partKey, textureUrl);
     
-    setAppliedParts(prev => ({ ...prev, [partKey]: part.imageUrl }));
-    toast.success(`${part.name} texture applied successfully.`);
+    setAppliedParts(prev => ({ ...prev, [partKey]: textureUrl }));
+    toast.success(`${partName} texture applied successfully.`);
     
-  }, [segmentedParts, applyTextureToMeshes]);
+  }, [segmentedParts, applyTextureToMeshes, selectedImage]);
   
   // Helper to apply accessory to model
   const applyAccessoryToModel = useCallback((imageUrl: string, detectedClass: string) => {
@@ -533,30 +575,11 @@ const AvatarCreator: React.FC = () => {
         const state = data.avatar_state as AvatarState;
         
         // We need a dummy image and pose to initialize the 3D structure
-        // Since we don't have the original image, we use a placeholder and a default pose.
         const dummyImg = new Image();
         dummyImg.width = 500;
         dummyImg.height = 1000;
         
-        // Simple default pose (standing straight)
-        const defaultPose: Pose = {
-            score: 1.0,
-            keypoints: [
-                { part: 'nose', score: 1, position: { x: 250, y: 100 } },
-                { part: 'leftShoulder', score: 1, position: { x: 300, y: 300 } },
-                { part: 'rightShoulder', score: 1, position: { x: 200, y: 300 } },
-                { part: 'leftHip', score: 1, position: { x: 280, y: 600 } },
-                { part: 'rightHip', score: 1, position: { x: 220, y: 600 } },
-                { part: 'leftElbow', score: 1, position: { x: 350, y: 450 } },
-                { part: 'leftWrist', score: 1, position: { x: 400, y: 600 } },
-                { part: 'rightElbow', score: 1, position: { x: 150, y: 450 } },
-                { part: 'rightWrist', score: 1, position: { x: 100, y: 600 } },
-                { part: 'leftKnee', score: 1, position: { x: 280, y: 800 } },
-                { part: 'leftAnkle', score: 1, position: { x: 280, y: 950 } },
-                { part: 'rightKnee', score: 1, position: { x: 220, y: 800 } },
-                { part: 'rightAnkle', score: 1, position: { x: 220, y: 950 } },
-            ]
-        };
+        const defaultPose = getDefaultPose(dummyImg.width, dummyImg.height);
         
         initializeAvatar(dummyImg, defaultPose, state);
         toast.success("Avatar loaded successfully!");
@@ -796,7 +819,12 @@ const AvatarCreator: React.FC = () => {
             {selectedCategory === 'body' && segmentedParts.length > 0 && !isProcessing && (
               <div className="space-y-4 border-t pt-4">
                 <h3 className="text-lg font-semibold">Segmented Parts Ready</h3>
-                <p className="text-sm text-muted-foreground">Select a part to apply its texture to the 3D model.</p>
+                <p className="text-sm text-muted-foreground">
+                    {segmentedParts[0].name === 'Full Image (Fallback)' 
+                        ? "Segmentation failed. Click 'Full Image' and select a part below to apply the entire image as a texture."
+                        : "Select a part to apply its texture to the 3D model."
+                    }
+                </p>
                 
                 <div className="grid grid-cols-3 gap-4">
                   {segmentedParts.map((part) => (
