@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import * as bodyPix from '@tensorflow-models/body-pix';
+import '@tensorflow/tfjs';
 
 // Define body part scales with initial values and wider ranges for adaptability
 interface AvatarScales {
@@ -37,7 +39,8 @@ const initialScales: AvatarScales = {
 };
 
 // Categories for image application
-type ImageCategory = 'skin' | 'body-shape' | 'accessory' | 'tshirt-print' | null;
+type UseAsCategory = 'skin' | 'accessory';
+type ApplyToCategory = 'full-avatar' | 'head-only' | 'torso-only';
 
 const AvatarCreator: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -45,10 +48,12 @@ const AvatarCreator: React.FC = () => {
 
   // Image upload states
   const [selectedImage, setSelectedImage] = useState<string | null>(null); // URL of uploaded image
-  const [selectedCategory, setSelectedCategory] = useState<ImageCategory>(null);
-  const [appliedImages, setAppliedImages] = useState<{ [key in ImageCategory]?: string }>({}); // Store applied images per category
-  const [referenceImage, setReferenceImage] = useState<string | null>(null); // For body-shape reference display
+  const [useAsCategory, setUseAsCategory] = useState<UseAsCategory | null>(null);
+  const [applyToCategory, setApplyToCategory] = useState<ApplyToCategory | null>(null);
+  const [appliedImages, setAppliedImages] = useState<{ [key: string]: string }>({}); // Store applied images per category combo
+  const [referenceImage, setReferenceImage] = useState<string | null>(null); // For body-shape reference display (unused now)
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Refs for Three.js objects (isolated to this component)
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -78,9 +83,6 @@ const AvatarCreator: React.FC = () => {
 
   // Accessory refs (e.g., hat as example accessory)
   const accessoryRef = useRef<THREE.Mesh | null>(null);
-
-  // T-shirt print ref (plane on torso)
-  const tshirtPrintRef = useRef<THREE.Mesh | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -227,14 +229,6 @@ const AvatarCreator: React.FC = () => {
     const accessory = new THREE.Mesh(accessoryGeometry, bodyMaterial);
     scene.add(accessory);
     accessoryRef.current = accessory;
-
-    // T-shirt print (plane on torso front)
-    const tshirtGeometry = new THREE.PlaneGeometry(0.6, 0.6);
-    const tshirtMaterial = new THREE.MeshBasicMaterial({ transparent: true, side: THREE.DoubleSide });
-    const tshirtPrint = new THREE.Mesh(tshirtGeometry, tshirtMaterial);
-    tshirtPrint.position.set(0, 0, 0.26); // Slightly in front of torso
-    torso.add(tshirtPrint); // Attach to torso
-    tshirtPrintRef.current = tshirtPrint;
 
     // Animation loop
     let animationFrameId: number;
@@ -388,59 +382,165 @@ const AvatarCreator: React.FC = () => {
     }
   };
 
-  // Apply image to selected category
-  const applyImage = () => {
-    if (!selectedImage || !selectedCategory) return;
+  // Apply image based on categories
+  const applyImage = async () => {
+    if (!selectedImage || !useAsCategory || !applyToCategory) return;
 
-    setAppliedImages((prev) => ({ ...prev, [selectedCategory]: selectedImage }));
+    const key = `${useAsCategory}-${applyToCategory}`;
+    setAppliedImages((prev) => ({ ...prev, [key]: selectedImage }));
 
     const loader = new THREE.TextureLoader();
 
-    if (selectedCategory === 'skin') {
-      // Apply as texture to all body parts
-      loader.load(selectedImage, (texture) => {
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-        texture.repeat.set(1, 1); // Adjust repeat as needed
-        const texturedMaterial = new THREE.MeshStandardMaterial({
-          map: texture,
-          roughness: 0.5,
-          metalness: 0.1,
-        });
-
-        // Apply to all body parts
-        [
-          torsoRef, headRef, leftShoulderRef, rightShoulderRef, leftHipRef, rightHipRef,
-          leftUpperArmRef, rightUpperArmRef, leftLowerArmRef, rightLowerArmRef,
-          leftHandRef, rightHandRef, leftUpperLegRef, rightUpperLegRef,
-          leftLowerLegRef, rightLowerLegRef, leftFootRef, rightFootRef
-        ].forEach((partRef) => {
-          if (partRef.current) partRef.current.material = texturedMaterial;
-        });
-      });
-    } else if (selectedCategory === 'tshirt-print') {
-      // Apply to t-shirt plane
-      loader.load(selectedImage, (texture) => {
-        if (tshirtPrintRef.current) {
-          (tshirtPrintRef.current.material as THREE.MeshBasicMaterial).map = texture;
-          (tshirtPrintRef.current.material as THREE.MeshBasicMaterial).needsUpdate = true;
-        }
-      });
-    } else if (selectedCategory === 'accessory') {
-      // Apply to accessory (e.g., hat)
+    if (useAsCategory === 'accessory') {
+      // Apply accessory texture
       loader.load(selectedImage, (texture) => {
         if (accessoryRef.current) {
           (accessoryRef.current.material as THREE.MeshStandardMaterial).map = texture;
           (accessoryRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
         }
       });
-    } else if (selectedCategory === 'body-shape') {
-      // Display as reference image
-      setReferenceImage(selectedImage);
+    } else if (useAsCategory === 'skin') {
+      if (applyToCategory === 'head-only') {
+        loader.load(selectedImage, (texture) => {
+          if (headRef.current) {
+            (headRef.current.material as THREE.MeshStandardMaterial).map = texture;
+            (headRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
+          }
+        });
+      } else if (applyToCategory === 'torso-only') {
+        loader.load(selectedImage, (texture) => {
+          if (torsoRef.current) {
+            (torsoRef.current.material as THREE.MeshStandardMaterial).map = texture;
+            (torsoRef.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
+          }
+        });
+      } else if (applyToCategory === 'full-avatar') {
+        // Full body: Use BodyPix for detection and mapping
+        setIsProcessing(true);
+        try {
+          const net = await bodyPix.load();
+          const img = new Image();
+          img.src = selectedImage;
+          await new Promise((resolve) => (img.onload = resolve));
+
+          const segmentation = await net.segmentPersonParts(img, {
+            flipHorizontal: false,
+            internalResolution: 'medium',
+            segmentationThreshold: 0.7,
+          });
+
+          // Body part mapping (BodyPix part IDs: e.g., 0: left_face, 1: right_face, 2: left_upper_arm_front, etc.)
+          const partRefs: { [part: string]: React.RefObject<THREE.Mesh> } = {
+            torso: torsoRef,
+            head: headRef,
+            left_upper_arm: leftUpperArmRef,
+            right_upper_arm: rightUpperArmRef,
+            left_lower_arm: leftLowerArmRef,
+            right_lower_arm: rightLowerArmRef,
+            left_hand: leftHandRef,
+            right_hand: rightHandRef,
+            left_upper_leg: leftUpperLegRef,
+            right_upper_leg: rightUpperLegRef,
+            left_lower_leg: leftLowerLegRef,
+            right_lower_leg: rightLowerLegRef,
+            left_foot: leftFootRef,
+            right_foot: rightFootRef,
+          };
+
+          // Default color for autocompletion
+          const defaultColor = new THREE.Color(0xffdbac); // Skin tone
+
+          // For each part, extract masked texture or autocomplete
+          for (const [partName, ref] of Object.entries(partRefs)) {
+            if (!ref.current) continue;
+
+            // Simple mapping from partName to BodyPix part IDs (this is approximate; adjust as needed)
+            const partIdMap: { [key: string]: number[] } = {
+              head: [0, 1], // left_face, right_face
+              torso: [18, 19], // torso_front, torso_back
+              left_upper_arm: [2, 3], // left_upper_arm_front, left_upper_arm_back
+              right_upper_arm: [4, 5],
+              left_lower_arm: [6, 7],
+              right_lower_arm: [8, 9],
+              left_hand: [10],
+              right_hand: [11],
+              left_upper_leg: [12, 13],
+              right_upper_leg: [14, 15],
+              left_lower_leg: [16, 17],
+              right_lower_leg: [20, 21],
+              left_foot: [22],
+              right_foot: [23],
+            };
+
+            const partIds = partIdMap[partName] || [];
+
+            if (partIds.length === 0) continue;
+
+            // Create canvas for part texture
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) continue;
+
+            // Autocomplete: fill with default color
+            ctx.fillStyle = '#' + defaultColor.getHexString();
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw detected parts if present
+            let hasPart = false;
+            for (let y = 0; y < segmentation.height; y++) {
+              for (let x = 0; x < segmentation.width; x++) {
+                const i = y * segmentation.width + x;
+                if (partIds.includes(segmentation.data[i])) {
+                  hasPart = true;
+                  // Sample from original image (assuming segmentation aligns with img)
+                  // Note: BodyPix output size may differ; resize if needed
+                }
+              }
+            }
+
+            if (hasPart) {
+              // Draw original image
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+              // Mask to part (create mask canvas)
+              const maskCanvas = document.createElement('canvas');
+              maskCanvas.width = segmentation.width;
+              maskCanvas.height = segmentation.height;
+              const maskCtx = maskCanvas.getContext('2d');
+              if (!maskCtx) continue;
+
+              const imageData = maskCtx.createImageData(segmentation.width, segmentation.height);
+              for (let i = 0; i < segmentation.data.length; i++) {
+                imageData.data[i * 4 + 3] = partIds.includes(segmentation.data[i]) ? 255 : 0;
+              }
+              maskCtx.putImageData(imageData, 0, 0);
+
+              // Scale mask to image size and apply
+              ctx.globalCompositeOperation = 'source-in';
+              ctx.drawImage(maskCanvas, 0, 0, canvas.width, canvas.height);
+            } // If no part detected, canvas already has default color
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.needsUpdate = true;
+
+            (ref.current.material as THREE.MeshStandardMaterial).map = texture;
+            (ref.current.material as THREE.MeshStandardMaterial).needsUpdate = true;
+          }
+        } catch (error) {
+          console.error('Error processing full body skin:', error);
+          setUploadError('Failed to process image for full body mapping.');
+        } finally {
+          setIsProcessing(false);
+        }
+      }
     }
 
     // Reset for next upload
     setSelectedImage(null);
-    setSelectedCategory(null);
+    setUseAsCategory(null);
+    setApplyToCategory(null);
   };
 
   const handleSliderChange = (key: keyof AvatarScales, value: number[]) => {
@@ -472,7 +572,7 @@ const AvatarCreator: React.FC = () => {
           <CardContent className="space-y-6">
             {/* Image Upload Section */}
             <div className="space-y-4">
-              <Label>Upload Reference Image</Label>
+              <Label>Upload Image</Label>
               <Input type="file" accept="image/*" onChange={handleImageUpload} />
               {uploadError && (
                 <Alert variant="destructive">
@@ -480,36 +580,42 @@ const AvatarCreator: React.FC = () => {
                 </Alert>
               )}
               {selectedImage && (
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <img src={selectedImage} alt="Uploaded" className="w-32 h-32 object-cover rounded" />
-                  <Select onValueChange={(value) => setSelectedCategory(value as ImageCategory)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="skin">Avatar Skin</SelectItem>
-                      <SelectItem value="body-shape">Body Shape Reference</SelectItem>
-                      <SelectItem value="accessory">Accessory</SelectItem>
-                      <SelectItem value="tshirt-print">T-Shirt Print</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button onClick={applyImage} disabled={!selectedCategory}>
-                    Apply Image
+                  
+                  <div>
+                    <Label>Use as</Label>
+                    <Select onValueChange={(value) => setUseAsCategory(value as UseAsCategory)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select use" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="skin">Skin</SelectItem>
+                        <SelectItem value="accessory">Accessory</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label>Apply to</Label>
+                    <Select onValueChange={(value) => setApplyToCategory(value as ApplyToCategory)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select area" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full-avatar">Full Avatar</SelectItem>
+                        <SelectItem value="head-only">Head Only</SelectItem>
+                        <SelectItem value="torso-only">Torso Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <Button onClick={applyImage} disabled={!useAsCategory || !applyToCategory || isProcessing}>
+                    {isProcessing ? 'Processing...' : 'Apply Image'}
                   </Button>
                 </div>
               )}
             </div>
-
-            {/* Reference Image Display (for body-shape) */}
-            {referenceImage && (
-              <div className="space-y-2">
-                <Label>Body Shape Reference</Label>
-                <img src={referenceImage} alt="Reference" className="w-full h-48 object-contain border rounded" />
-                <Button variant="outline" size="sm" onClick={() => setReferenceImage(null)}>
-                  Remove Reference
-                </Button>
-              </div>
-            )}
 
             {/* Sliders */}
             <div className="space-y-2">
