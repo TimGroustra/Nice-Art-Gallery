@@ -179,8 +179,16 @@ const AvatarCreator: React.FC = () => {
 
   // Update avatar proportions and connections when sliders change
   useEffect(() => {
-    const torsoHalfHeight = scales.torsoHeight;
-    const torsoHalfWidth = scales.torsoWidth / 2;
+    // Base geometry sizes
+    const baseTorsoHeight = 2;
+    const baseArmLength = 1.5;
+    const baseLegLength = 2;
+    const baseShoulderRadius = 0.3;
+    const baseHipRadius = 0.3;
+
+    const effectiveTorsoHeight = baseTorsoHeight * scales.torsoHeight;
+    const torsoHalfHeight = effectiveTorsoHeight / 2;
+    const torsoHalfWidth = (1 * scales.torsoWidth) / 2; // Base width 1
 
     // Torso
     if (torsoRef.current) {
@@ -193,10 +201,10 @@ const AvatarCreator: React.FC = () => {
       headRef.current.position.y = torsoHalfHeight + (0.5 * scales.headSize);
     }
 
-    // Shoulders (connected to top sides of torso, scaled slightly with torso width)
-    const shoulderY = torsoHalfHeight;
-    const shoulderXOffset = torsoHalfWidth + 0.1; // Slight offset for natural look
-    const shoulderScale = 0.3 + (scales.torsoWidth * 0.1); // Scale slightly with torso width
+    // Shoulders (positioned inline with top of torso)
+    const shoulderY = torsoHalfHeight - baseShoulderRadius; // Lower slightly to align with top
+    const shoulderXOffset = torsoHalfWidth + baseShoulderRadius; // Attach to sides
+    const shoulderScale = baseShoulderRadius + (scales.torsoWidth * 0.05); // Slight scale with width
 
     if (leftShoulderRef.current) {
       leftShoulderRef.current.scale.set(shoulderScale, shoulderScale, shoulderScale);
@@ -207,10 +215,10 @@ const AvatarCreator: React.FC = () => {
       rightShoulderRef.current.position.set(shoulderXOffset, shoulderY, 0);
     }
 
-    // Hips (connected to bottom sides of torso, scaled slightly with torso width)
-    const hipY = -torsoHalfHeight;
-    const hipXOffset = torsoHalfWidth * 0.8; // Slightly inward for natural stance
-    const hipScale = 0.3 + (scales.torsoWidth * 0.1);
+    // Hips (positioned at bottom of torso)
+    const hipY = -torsoHalfHeight + baseHipRadius; // Raise slightly to align with bottom
+    const hipXOffset = torsoHalfWidth * 0.8; // Slightly inward
+    const hipScale = baseHipRadius + (scales.torsoWidth * 0.05);
 
     if (leftHipRef.current) {
       leftHipRef.current.scale.set(hipScale, hipScale, hipScale);
@@ -221,28 +229,34 @@ const AvatarCreator: React.FC = () => {
       rightHipRef.current.position.set(hipXOffset, hipY, 0);
     }
 
-    // Arms (vertical, connected below shoulders)
-    const armY = shoulderY - (scales.armLength / 2);
+    // Arms (vertical, starting inline with top of torso, connected to shoulders)
+    const effectiveArmLength = baseArmLength * scales.armLength;
+    const armY = torsoHalfHeight - (effectiveArmLength / 2); // Start center at top of torso, hanging down
+    const armXOffset = torsoHalfWidth + (scales.armWidth / 2); // Align with torso sides
+
     if (leftArmRef.current) {
       leftArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
-      leftArmRef.current.position.set(leftShoulderRef.current?.position.x || -shoulderXOffset, armY, 0);
-      leftArmRef.current.rotation.set(0, 0, 0); // Vertical orientation
+      leftArmRef.current.position.set(-armXOffset, armY, 0);
+      leftArmRef.current.rotation.set(0, 0, 0); // Vertical
     }
     if (rightArmRef.current) {
       rightArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
-      rightArmRef.current.position.set(rightShoulderRef.current?.position.x || shoulderXOffset, armY, 0);
-      rightArmRef.current.rotation.set(0, 0, 0); // Vertical orientation
+      rightArmRef.current.position.set(armXOffset, armY, 0);
+      rightArmRef.current.rotation.set(0, 0, 0); // Vertical
     }
 
-    // Legs (vertical, connected below hips)
-    const legY = hipY - (scales.legLength / 2);
+    // Legs (vertical, starting from bottom of torso, connected to hips)
+    const effectiveLegLength = baseLegLength * scales.legLength;
+    const legY = -torsoHalfHeight - (effectiveLegLength / 2); // Start center at bottom of torso, extending down
+    const legXOffset = (torsoHalfWidth * 0.8) - (scales.legWidth * 0.1); // Slight inward alignment
+
     if (leftLegRef.current) {
       leftLegRef.current.scale.set(scales.legWidth, scales.legLength, scales.legWidth);
-      leftLegRef.current.position.set(leftHipRef.current?.position.x || -hipXOffset, legY, 0);
+      leftLegRef.current.position.set(-legXOffset, legY, 0);
     }
     if (rightLegRef.current) {
       rightLegRef.current.scale.set(scales.legWidth, scales.legLength, scales.legWidth);
-      rightLegRef.current.position.set(rightHipRef.current?.position.x || hipXOffset, legY, 0);
+      rightLegRef.current.position.set(legXOffset, legY, 0);
     }
   }, [scales]);
 
