@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as bodyPix from '@tensorflow-models/body-pix';
-import { Pose, Keypoint, PartSegmentation } from '@tensorflow-models/body-pix'; // Explicitly import types
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 
@@ -54,7 +53,7 @@ const createSphere = (position: THREE.Vector3, radius: number, material: THREE.M
 
 // --- Segmentation Utility ---
 
-function extractSegmentedPart(img: HTMLImageElement, segmentation: PartSegmentation, targetPartIds: number[]): string {
+function extractSegmentedPart(img: HTMLImageElement, segmentation: bodyPix.PartSegmentation, targetPartIds: number[]): string {
   const canvas = document.createElement('canvas');
   canvas.width = img.width;
   canvas.height = img.height;
@@ -116,7 +115,7 @@ const AvatarCreator: React.FC = () => {
   const bodyMeshMapRef = useRef<Partial<Record<PartKey, THREE.Mesh[]>>>({});
 
   // Function to initialize the 3D avatar structure based on pose
-  const initializeAvatar = useCallback((img: HTMLImageElement, pose: Pose) => {
+  const initializeAvatar = useCallback((img: HTMLImageElement, pose: bodyPix.Pose) => {
     if (!avatarGroupRef.current) return;
 
     // Clear previous body
@@ -134,7 +133,7 @@ const AvatarCreator: React.FC = () => {
     const keypoints = pose.keypoints.reduce((map, kp) => {
       map[kp.part] = kp;
       return map;
-    }, {} as { [part: string]: Keypoint });
+    }, {} as { [part: string]: bodyPix.Keypoint });
 
     // Helper to get position, falling back to average if missing
     const getPos = (part: string, fallback?: THREE.Vector2) => {
