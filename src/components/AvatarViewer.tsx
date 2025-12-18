@@ -163,8 +163,21 @@ const AvatarViewer = forwardRef<AvatarViewerHandles, {}>((props, ref) => {
 
       setLoading(false);
     } catch (err) {
-      console.error('Error loading base rig:', err);
-      setError("Failed to load base rig model. Ensure 'public/avatars/base_rig.glb' exists.");
+      console.warn('Error loading base rig GLB. Using placeholder cube.', err);
+      
+      // --- Placeholder Cube Fallback ---
+      const cubeGeometry = new THREE.BoxGeometry(0.5, 1.5, 0.5);
+      const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ffff });
+      const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+      cube.position.y = 0.75; // Center the cube on the ground plane
+      
+      const placeholderGroup = new THREE.Group();
+      placeholderGroup.add(cube);
+      
+      avatarRef.current = placeholderGroup;
+      sceneRef.current?.add(placeholderGroup);
+      
+      setError("Failed to load base rig. Displaying placeholder.");
       setLoading(false);
     }
   }, []);
@@ -173,6 +186,12 @@ const AvatarViewer = forwardRef<AvatarViewerHandles, {}>((props, ref) => {
     if (!avatarRef.current) {
       console.error("Avatar not loaded yet.");
       return;
+    }
+    
+    // If we are using the placeholder cube, swapping parts is not possible.
+    if (avatarRef.current.children.length === 1 && avatarRef.current.children[0].type === 'Mesh') {
+        console.warn("Cannot swap parts on placeholder avatar.");
+        return;
     }
 
     try {
@@ -189,13 +208,9 @@ const AvatarViewer = forwardRef<AvatarViewerHandles, {}>((props, ref) => {
       }
 
       // 3. Remove existing parts of the same type attached to this bone
-      // We assume only one head/body/accessory of a specific type is attached to a bone.
-      // For simplicity, we clear all children of the target bone.
       targetBone.children.forEach(child => {
         if (child.type === 'Mesh' || child.type === 'Group') {
             targetBone.remove(child);
-            // Dispose geometry and material if necessary (complex for GLTF, but good practice)
-            // For now, rely on garbage collection, but in a real app, proper disposal is needed.
         }
       });
       
