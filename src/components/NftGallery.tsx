@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import * as THREE from 'three';
+import { PointerLockControls } from 'three-stdlib';
 import SceneSetup from './gallery/SceneSetup';
 import PanelManager from './gallery/PanelManager';
 import Lighting from './gallery/Lighting';
