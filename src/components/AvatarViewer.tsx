@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three-stdlib';
+import { GLTFLoader, GLTF } from 'three-stdlib';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { Loader2 } from 'lucide-react';
 
 // Define the structure for the avatar parts we can swap
 export interface AvatarPart {
@@ -142,7 +143,7 @@ const AvatarViewer = forwardRef<AvatarViewerHandles, {}>((props, ref) => {
     setError(null);
     try {
       const loader = new GLTFLoader();
-      const gltf = await new Promise<THREE.GLTF>((resolve, reject) => {
+      const gltf = await new Promise<GLTF>((resolve, reject) => {
         loader.load(BASE_RIG_URL, resolve, undefined, reject);
       });
 
