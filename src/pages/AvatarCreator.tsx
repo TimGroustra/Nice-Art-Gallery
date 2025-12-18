@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// Define body part scales with initial values
+// Define body part scales with initial values and wider ranges for adaptability
 interface AvatarScales {
+  overallHeight: number; // New: scales entire avatar height
   torsoHeight: number;
   torsoWidth: number;
   armLength: number;
@@ -15,9 +16,12 @@ interface AvatarScales {
   legLength: number;
   legWidth: number;
   headSize: number;
+  shoulderWidth: number; // New: controls shoulder spread
+  hipWidth: number; // New: controls hip spread
 }
 
 const initialScales: AvatarScales = {
+  overallHeight: 1,
   torsoHeight: 1,
   torsoWidth: 1,
   armLength: 1,
@@ -25,6 +29,8 @@ const initialScales: AvatarScales = {
   legLength: 1,
   legWidth: 1,
   headSize: 1,
+  shoulderWidth: 1,
+  hipWidth: 1,
 };
 
 const AvatarCreator: React.FC = () => {
@@ -37,22 +43,30 @@ const AvatarCreator: React.FC = () => {
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
 
-  // Avatar body parts (simple primitives)
+  // Avatar body parts
   const torsoRef = useRef<THREE.Mesh | null>(null);
   const headRef = useRef<THREE.Mesh | null>(null);
   const leftShoulderRef = useRef<THREE.Mesh | null>(null);
   const rightShoulderRef = useRef<THREE.Mesh | null>(null);
   const leftHipRef = useRef<THREE.Mesh | null>(null);
   const rightHipRef = useRef<THREE.Mesh | null>(null);
-  const leftArmRef = useRef<THREE.Mesh | null>(null);
-  const rightArmRef = useRef<THREE.Mesh | null>(null);
-  const leftLegRef = useRef<THREE.Mesh | null>(null);
-  const rightLegRef = useRef<THREE.Mesh | null>(null);
+  const leftUpperArmRef = useRef<THREE.Mesh | null>(null);
+  const rightUpperArmRef = useRef<THREE.Mesh | null>(null);
+  const leftLowerArmRef = useRef<THREE.Mesh | null>(null);
+  const rightLowerArmRef = useRef<THREE.Mesh | null>(null);
+  const leftHandRef = useRef<THREE.Mesh | null>(null);
+  const rightHandRef = useRef<THREE.Mesh | null>(null);
+  const leftUpperLegRef = useRef<THREE.Mesh | null>(null);
+  const rightUpperLegRef = useRef<THREE.Mesh | null>(null);
+  const leftLowerLegRef = useRef<THREE.Mesh | null>(null);
+  const rightLowerLegRef = useRef<THREE.Mesh | null>(null);
+  const leftFootRef = useRef<THREE.Mesh | null>(null);
+  const rightFootRef = useRef<THREE.Mesh | null>(null);
 
   useEffect(() => {
     if (!mountRef.current) return;
 
-    // Scene setup (isolated)
+    // Scene setup
     const scene = new THREE.Scene();
     sceneRef.current = scene;
     scene.background = new THREE.Color(0x2a2a2a);
@@ -65,10 +79,10 @@ const AvatarCreator: React.FC = () => {
     // Renderer
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
-    renderer.setSize(window.innerWidth / 2, window.innerHeight / 2); // Smaller canvas for sidebar layout
+    renderer.setSize(window.innerWidth / 2, window.innerHeight / 2);
     mountRef.current.appendChild(renderer.domElement);
 
-    // Controls (Orbit for 360 rotation)
+    // Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controlsRef.current = controls;
     controls.enableDamping = true;
@@ -77,78 +91,117 @@ const AvatarCreator: React.FC = () => {
     controls.minDistance = 2;
     controls.maxDistance = 10;
 
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    // Lighting (enhanced for better shading)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(5, 5, 5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+    directionalLight.position.set(5, 10, 5);
+    directionalLight.castShadow = true;
     scene.add(directionalLight);
+    const pointLight = new THREE.PointLight(0xffffff, 0.8);
+    pointLight.position.set(-5, 5, 5);
+    scene.add(pointLight);
 
-    // Avatar materials
-    const bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x4a90e2 }); // Blue skin-like color
+    // Materials (skin with subtle texture)
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffdbac, // Skin tone
+      roughness: 0.5,
+      metalness: 0.1,
+    });
 
-    // Create initial avatar parts
-    // Torso
-    const torsoGeometry = new THREE.BoxGeometry(1, 2, 0.5);
+    // Torso (cylinder for more organic shape)
+    const torsoGeometry = new THREE.CylinderGeometry(0.4, 0.3, 2, 32);
     const torso = new THREE.Mesh(torsoGeometry, bodyMaterial);
     torso.position.set(0, 0, 0);
     scene.add(torso);
     torsoRef.current = torso;
 
-    // Head
-    const headGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+    // Head (sphere with neck)
+    const headGeometry = new THREE.SphereGeometry(0.4, 32, 32);
     const head = new THREE.Mesh(headGeometry, bodyMaterial);
-    head.position.set(0, 1.5, 0);
+    head.position.set(0, 1.2, 0);
     scene.add(head);
     headRef.current = head;
 
-    // Shoulders (small spheres)
-    const shoulderGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+    // Shoulders
+    const shoulderGeometry = new THREE.SphereGeometry(0.25, 32, 32);
     const leftShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
-    leftShoulder.position.set(-0.6, 1, 0);
     scene.add(leftShoulder);
     leftShoulderRef.current = leftShoulder;
 
     const rightShoulder = new THREE.Mesh(shoulderGeometry, bodyMaterial);
-    rightShoulder.position.set(0.6, 1, 0);
     scene.add(rightShoulder);
     rightShoulderRef.current = rightShoulder;
 
-    // Hips (small spheres)
-    const hipGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+    // Hips
+    const hipGeometry = new THREE.SphereGeometry(0.25, 32, 32);
     const leftHip = new THREE.Mesh(hipGeometry, bodyMaterial);
-    leftHip.position.set(-0.4, -1, 0);
     scene.add(leftHip);
     leftHipRef.current = leftHip;
 
     const rightHip = new THREE.Mesh(hipGeometry, bodyMaterial);
-    rightHip.position.set(0.4, -1, 0);
     scene.add(rightHip);
     rightHipRef.current = rightHip;
 
-    // Arms (vertical cylinders connected to shoulders)
-    const armGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1.5, 32);
-    const leftArm = new THREE.Mesh(armGeometry, bodyMaterial);
-    leftArm.position.set(-0.6, 0.25, 0); // Initial position below shoulder
-    scene.add(leftArm);
-    leftArmRef.current = leftArm;
+    // Upper Arms (tapered cylinders)
+    const upperArmGeometry = new THREE.CylinderGeometry(0.15, 0.1, 0.8, 32);
+    const leftUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial);
+    scene.add(leftUpperArm);
+    leftUpperArmRef.current = leftUpperArm;
 
-    const rightArm = new THREE.Mesh(armGeometry, bodyMaterial);
-    rightArm.position.set(0.6, 0.25, 0); // Initial position below shoulder
-    scene.add(rightArm);
-    rightArmRef.current = rightArm;
+    const rightUpperArm = new THREE.Mesh(upperArmGeometry, bodyMaterial);
+    scene.add(rightUpperArm);
+    rightUpperArmRef.current = rightUpperArm;
 
-    // Legs (vertical cylinders connected to hips)
-    const legGeometry = new THREE.CylinderGeometry(0.3, 0.3, 2, 32);
-    const leftLeg = new THREE.Mesh(legGeometry, bodyMaterial);
-    leftLeg.position.set(-0.4, -2, 0); // Initial position below hip
-    scene.add(leftLeg);
-    leftLegRef.current = leftLeg;
+    // Lower Arms
+    const lowerArmGeometry = new THREE.CylinderGeometry(0.1, 0.08, 0.7, 32);
+    const leftLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial);
+    scene.add(leftLowerArm);
+    leftLowerArmRef.current = leftLowerArm;
 
-    const rightLeg = new THREE.Mesh(legGeometry, bodyMaterial);
-    rightLeg.position.set(0.4, -2, 0); // Initial position below hip
-    scene.add(rightLeg);
-    rightLegRef.current = rightLeg;
+    const rightLowerArm = new THREE.Mesh(lowerArmGeometry, bodyMaterial);
+    scene.add(rightLowerArm);
+    rightLowerArmRef.current = rightLowerArm;
+
+    // Hands (simple boxes)
+    const handGeometry = new THREE.BoxGeometry(0.2, 0.3, 0.1);
+    const leftHand = new THREE.Mesh(handGeometry, bodyMaterial);
+    scene.add(leftHand);
+    leftHandRef.current = leftHand;
+
+    const rightHand = new THREE.Mesh(handGeometry, bodyMaterial);
+    scene.add(rightHand);
+    rightHandRef.current = rightHand;
+
+    // Upper Legs (tapered)
+    const upperLegGeometry = new THREE.CylinderGeometry(0.2, 0.15, 1, 32);
+    const leftUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial);
+    scene.add(leftUpperLeg);
+    leftUpperLegRef.current = leftUpperLeg;
+
+    const rightUpperLeg = new THREE.Mesh(upperLegGeometry, bodyMaterial);
+    scene.add(rightUpperLeg);
+    rightUpperLegRef.current = rightUpperLeg;
+
+    // Lower Legs
+    const lowerLegGeometry = new THREE.CylinderGeometry(0.15, 0.12, 0.9, 32);
+    const leftLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial);
+    scene.add(leftLowerLeg);
+    leftLowerLegRef.current = leftLowerLeg;
+
+    const rightLowerLeg = new THREE.Mesh(lowerLegGeometry, bodyMaterial);
+    scene.add(rightLowerLeg);
+    rightLowerLegRef.current = rightLowerLeg;
+
+    // Feet
+    const footGeometry = new THREE.BoxGeometry(0.25, 0.15, 0.4);
+    const leftFoot = new THREE.Mesh(footGeometry, bodyMaterial);
+    scene.add(leftFoot);
+    leftFootRef.current = leftFoot;
+
+    const rightFoot = new THREE.Mesh(footGeometry, bodyMaterial);
+    scene.add(rightFoot);
+    rightFootRef.current = rightFoot;
 
     // Animation loop
     let animationFrameId: number;
@@ -179,84 +232,107 @@ const AvatarCreator: React.FC = () => {
 
   // Update avatar proportions and connections when sliders change
   useEffect(() => {
-    // Base geometry sizes
-    const baseTorsoHeight = 2;
-    const baseArmLength = 1.5;
-    const baseLegLength = 2;
-    const baseShoulderRadius = 0.3;
-    const baseHipRadius = 0.3;
-
-    const effectiveTorsoHeight = baseTorsoHeight * scales.torsoHeight;
-    const torsoHalfHeight = effectiveTorsoHeight / 2;
-    const torsoHalfWidth = (1 * scales.torsoWidth) / 2; // Base width 1
+    const effectiveOverallHeight = scales.overallHeight;
 
     // Torso
     if (torsoRef.current) {
-      torsoRef.current.scale.set(scales.torsoWidth, scales.torsoHeight, 1);
+      torsoRef.current.scale.set(scales.torsoWidth, scales.torsoHeight * effectiveOverallHeight, 1);
     }
 
-    // Head (connected to top of torso)
+    const torsoHeight = 2 * scales.torsoHeight * effectiveOverallHeight;
+    const torsoHalfHeight = torsoHeight / 2;
+    const torsoHalfWidth = 0.4 * scales.torsoWidth; // Base radius 0.4
+
+    // Head
     if (headRef.current) {
       headRef.current.scale.set(scales.headSize, scales.headSize, scales.headSize);
-      headRef.current.position.y = torsoHalfHeight + (0.5 * scales.headSize);
+      headRef.current.position.y = torsoHalfHeight + (0.4 * scales.headSize);
     }
 
-    // Shoulders (positioned inline with top of torso)
-    const shoulderY = torsoHalfHeight - baseShoulderRadius; // Lower slightly to align with top
-    const shoulderXOffset = torsoHalfWidth + baseShoulderRadius; // Attach to sides
-    const shoulderScale = baseShoulderRadius + (scales.torsoWidth * 0.05); // Slight scale with width
-
+    // Shoulders
+    const shoulderY = torsoHalfHeight - 0.1;
+    const shoulderXOffset = torsoHalfWidth + (0.25 * scales.shoulderWidth);
     if (leftShoulderRef.current) {
-      leftShoulderRef.current.scale.set(shoulderScale, shoulderScale, shoulderScale);
       leftShoulderRef.current.position.set(-shoulderXOffset, shoulderY, 0);
     }
     if (rightShoulderRef.current) {
-      rightShoulderRef.current.scale.set(shoulderScale, shoulderScale, shoulderScale);
       rightShoulderRef.current.position.set(shoulderXOffset, shoulderY, 0);
     }
 
-    // Hips (positioned at bottom of torso)
-    const hipY = -torsoHalfHeight + baseHipRadius; // Raise slightly to align with bottom
-    const hipXOffset = torsoHalfWidth * 0.8; // Slightly inward
-    const hipScale = baseHipRadius + (scales.torsoWidth * 0.05);
-
+    // Hips
+    const hipY = -torsoHalfHeight + 0.1;
+    const hipXOffset = torsoHalfWidth * 0.8 * scales.hipWidth;
     if (leftHipRef.current) {
-      leftHipRef.current.scale.set(hipScale, hipScale, hipScale);
       leftHipRef.current.position.set(-hipXOffset, hipY, 0);
     }
     if (rightHipRef.current) {
-      rightHipRef.current.scale.set(hipScale, hipScale, hipScale);
       rightHipRef.current.position.set(hipXOffset, hipY, 0);
     }
 
-    // Arms (vertical, starting inline with top of torso, connected to shoulders)
-    const effectiveArmLength = baseArmLength * scales.armLength;
-    const armY = torsoHalfHeight - (effectiveArmLength / 2); // Start center at top of torso, hanging down
-    const armXOffset = torsoHalfWidth + (scales.armWidth / 2); // Align with torso sides
-
-    if (leftArmRef.current) {
-      leftArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
-      leftArmRef.current.position.set(-armXOffset, armY, 0);
-      leftArmRef.current.rotation.set(0, 0, 0); // Vertical
+    // Upper Arms
+    const upperArmLength = 0.8 * scales.armLength * effectiveOverallHeight;
+    const upperArmY = shoulderY - (upperArmLength / 2);
+    if (leftUpperArmRef.current) {
+      leftUpperArmRef.current.scale.set(scales.armWidth, scales.armLength * effectiveOverallHeight, scales.armWidth);
+      leftUpperArmRef.current.position.set(-shoulderXOffset, upperArmY, 0);
     }
-    if (rightArmRef.current) {
-      rightArmRef.current.scale.set(scales.armWidth, scales.armLength, scales.armWidth);
-      rightArmRef.current.position.set(armXOffset, armY, 0);
-      rightArmRef.current.rotation.set(0, 0, 0); // Vertical
+    if (rightUpperArmRef.current) {
+      rightUpperArmRef.current.scale.set(scales.armWidth, scales.armLength * effectiveOverallHeight, scales.armWidth);
+      rightUpperArmRef.current.position.set(shoulderXOffset, upperArmY, 0);
     }
 
-    // Legs (vertical, starting from bottom of torso, connected to hips)
-    const effectiveLegLength = baseLegLength * scales.legLength;
-    const legY = -torsoHalfHeight - (effectiveLegLength / 2); // Start center at bottom of torso, extending down
-    const legXOffset = (torsoHalfWidth * 0.8) - (scales.legWidth * 0.1); // Slight inward alignment
-
-    if (leftLegRef.current) {
-      leftLegRef.current.scale.set(scales.legWidth, scales.legLength, scales.legWidth);
-      leftLegRef.current.position.set(-legXOffset, legY, 0);
+    // Lower Arms
+    const lowerArmLength = 0.7 * scales.armLength * effectiveOverallHeight;
+    const lowerArmY = upperArmY - (upperArmLength / 2) - (lowerArmLength / 2);
+    if (leftLowerArmRef.current) {
+      leftLowerArmRef.current.scale.set(scales.armWidth * 0.9, scales.armLength * effectiveOverallHeight * 0.9, scales.armWidth * 0.9);
+      leftLowerArmRef.current.position.set(-shoulderXOffset, lowerArmY, 0);
     }
-    if (rightLegRef.current) {
-      rightLegRef.current.scale.set(scales.legWidth, scales.legLength, scales.legWidth);
-      rightLegRef.current.position.set(legXOffset, legY, 0);
+    if (rightLowerArmRef.current) {
+      rightLowerArmRef.current.scale.set(scales.armWidth * 0.9, scales.armLength * effectiveOverallHeight * 0.9, scales.armWidth * 0.9);
+      rightLowerArmRef.current.position.set(shoulderXOffset, lowerArmY, 0);
+    }
+
+    // Hands
+    const handY = lowerArmY - (lowerArmLength / 2) - 0.15;
+    if (leftHandRef.current) {
+      leftHandRef.current.position.set(-shoulderXOffset, handY, 0);
+    }
+    if (rightHandRef.current) {
+      rightHandRef.current.position.set(shoulderXOffset, handY, 0);
+    }
+
+    // Upper Legs
+    const upperLegLength = scales.legLength * effectiveOverallHeight;
+    const upperLegY = hipY - (upperLegLength / 2);
+    if (leftUpperLegRef.current) {
+      leftUpperLegRef.current.scale.set(scales.legWidth, scales.legLength * effectiveOverallHeight, scales.legWidth);
+      leftUpperLegRef.current.position.set(-hipXOffset, upperLegY, 0);
+    }
+    if (rightUpperLegRef.current) {
+      rightUpperLegRef.current.scale.set(scales.legWidth, scales.legLength * effectiveOverallHeight, scales.legWidth);
+      rightUpperLegRef.current.position.set(hipXOffset, upperLegY, 0);
+    }
+
+    // Lower Legs
+    const lowerLegLength = 0.9 * scales.legLength * effectiveOverallHeight;
+    const lowerLegY = upperLegY - (upperLegLength / 2) - (lowerLegLength / 2);
+    if (leftLowerLegRef.current) {
+      leftLowerLegRef.current.scale.set(scales.legWidth * 0.8, scales.legLength * effectiveOverallHeight * 0.9, scales.legWidth * 0.8);
+      leftLowerLegRef.current.position.set(-hipXOffset, lowerLegY, 0);
+    }
+    if (rightLowerLegRef.current) {
+      rightLowerLegRef.current.scale.set(scales.legWidth * 0.8, scales.legLength * effectiveOverallHeight * 0.9, scales.legWidth * 0.8);
+      rightLowerLegRef.current.position.set(hipXOffset, lowerLegY, 0);
+    }
+
+    // Feet
+    const footY = lowerLegY - (lowerLegLength / 2) - 0.075;
+    if (leftFootRef.current) {
+      leftFootRef.current.position.set(-hipXOffset, footY, 0.15); // Slight forward offset for foot
+    }
+    if (rightFootRef.current) {
+      rightFootRef.current.position.set(hipXOffset, footY, 0.15);
     }
   }, [scales]);
 
@@ -281,12 +357,24 @@ const AvatarCreator: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Sliders */}
+        {/* Sliders (expanded with new controls) */}
         <Card>
           <CardHeader>
             <CardTitle>Customize Body Proportions</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="overallHeight">Overall Height (0.5 - 2)</Label>
+              <Slider
+                id="overallHeight"
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={[scales.overallHeight]}
+                onValueChange={(value) => handleSliderChange('overallHeight', value)}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="torsoHeight">Torso Height (0.5 - 2)</Label>
               <Slider
@@ -308,6 +396,30 @@ const AvatarCreator: React.FC = () => {
                 step={0.1}
                 value={[scales.torsoWidth]}
                 onValueChange={(value) => handleSliderChange('torsoWidth', value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="shoulderWidth">Shoulder Width (0.5 - 2)</Label>
+              <Slider
+                id="shoulderWidth"
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={[scales.shoulderWidth]}
+                onValueChange={(value) => handleSliderChange('shoulderWidth', value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="hipWidth">Hip Width (0.5 - 2)</Label>
+              <Slider
+                id="hipWidth"
+                min={0.5}
+                max={2}
+                step={0.1}
+                value={[scales.hipWidth]}
+                onValueChange={(value) => handleSliderChange('hipWidth', value)}
               />
             </div>
 
