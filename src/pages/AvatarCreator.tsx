@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as bodyPix from '@tensorflow-models/body-pix';
+import { Pose, Keypoint, PartSegmentation } from '@tensorflow-models/body-pix'; // Explicitly import types
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 
@@ -53,7 +54,7 @@ const createSphere = (position: THREE.Vector3, radius: number, material: THREE.M
 
 // --- Segmentation Utility ---
 
-function extractSegmentedPart(img: HTMLImageElement, segmentation: bodyPix.PartSegmentation, targetPartIds: number[]): string {
+function extractSegmentedPart(img: HTMLImageElement, segmentation: PartSegmentation, targetPartIds: number[]): string {
   const canvas = document.createElement('canvas');
   canvas.width = img.width;
   canvas.height = img.height;
@@ -115,7 +116,7 @@ const AvatarCreator: React.FC = () => {
   const bodyMeshMapRef = useRef<Partial<Record<PartKey, THREE.Mesh[]>>>({});
 
   // Function to initialize the 3D avatar structure based on pose
-  const initializeAvatar = useCallback((img: HTMLImageElement, pose: bodyPix.Pose) => {
+  const initializeAvatar = useCallback((img: HTMLImageElement, pose: Pose) => {
     if (!avatarGroupRef.current) return;
 
     // Clear previous body
@@ -133,7 +134,7 @@ const AvatarCreator: React.FC = () => {
     const keypoints = pose.keypoints.reduce((map, kp) => {
       map[kp.part] = kp;
       return map;
-    }, {} as { [part: string]: bodyPix.Keypoint });
+    }, {} as { [part: string]: Keypoint });
 
     // Helper to get position, falling back to average if missing
     const getPos = (part: string, fallback?: THREE.Vector2) => {
@@ -245,15 +246,14 @@ const AvatarCreator: React.FC = () => {
         quantBytes: 2,
       });
       
-      // 1. Get pose and segmentation
-      const [pose, parts] = await Promise.all([
-        net.estimatePose(img),
-        net.segmentPersonParts(img, {
-          flipHorizontal: false,
-          internalResolution: 'medium',
-          segmentationThreshold: 0.7,
-        }),
-      ]);
+      // 1. Get segmentation (which includes pose)
+      const parts = await net.segmentPersonParts(img, {
+        flipHorizontal: false,
+        internalResolution: 'medium',
+        segmentationThreshold: 0.7,
+      });
+      
+      const pose = parts.pose; // Extract pose from segmentation result
 
       if (!pose || pose.score < 0.5) {
         throw new Error('No person detected or low confidence. Please use an image with a clear, full-body view.');
