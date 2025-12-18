@@ -7,11 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Label } from '@/components/ui/label';
-import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, Save, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import * as bodyPix from '@tensorflow-models/body-pix';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
+import { useAccount } from 'wagmi';
+import { supabase } from '@/integrations/supabase/client';
 
 // --- Minimal types to satisfy the compiler when direct imports fail ---
 interface Keypoint {
@@ -24,6 +26,14 @@ interface Pose {
   score: number;
   keypoints: Keypoint[];
 }
+
+interface AvatarState {
+  bodyParts: Partial<Record<PartKey, string>>; // Stores Data URLs for textures
+  accessory?: {
+    imageUrl: string;
+    detectedClass: string;
+  };
+}
 // --------------------------------------------------------------------
 
 // --- Types and Constants ---
@@ -34,7 +44,7 @@ type PartKey = 'face' | 'torso' | 'leftArm' | 'rightArm' | 'leftLeg' | 'rightLeg
 interface SegmentedPart {
   name: string;
   key: PartKey;
-  imageUrl: string; // URL of the segmented image
+  imageUrl: string; // Data URL of the segmented image
 }
 
 const PART_MAPPINGS: Record<PartKey, { name: string; ids: number[] }> = {
@@ -77,7 +87,6 @@ function extractSegmentedPart(img: HTMLImageElement, segmentation: bodyPix.PartS
   const data = imageData.data;
   const segmentationData = segmentation.data;
 
-  // Draw the original image onto a temporary canvas
   const tempCanvas = document.createElement('canvas');
   tempCanvas.width = img.width;
   tempCanvas.height = img.height;
@@ -86,19 +95,16 @@ function extractSegmentedPart(img: HTMLImageElement, segmentation: bodyPix.PartS
   tempCtx.drawImage(img, 0, 0);
   const originalData = tempCtx.getImageData(0, 0, img.width, img.height).data;
 
-  // Filter pixels based on segmentation map
   for (let i = 0; i < segmentationData.length; i++) {
     const partId = segmentationData[i];
     const pixelIndex = i * 4;
 
     if (partId !== -1 && targetPartIds.includes(partId)) {
-      // Copy pixel data
-      data[pixelIndex] = originalData[pixelIndex];     // R
-      data[pixelIndex + 1] = originalData[pixelIndex + 1]; // G
-      data[pixelIndex + 2] = originalData[pixelIndex + 2]; // B
-      data[pixelIndex + 3] = 255; // A (fully opaque)
+      data[pixelIndex] = originalData[pixelIndex];
+      data[pixelIndex + 1] = originalData[pixelIndex + 1];
+      data[pixelIndex + 2] = originalData[pixelIndex + 2];
+      data[pixelIndex + 3] = 255;
     } else {
-      // Make pixel transparent
       data[pixelIndex + 3] = 0;
     }
   }
@@ -110,14 +116,17 @@ function extractSegmentedPart(img: HTMLImageElement, segmentation: bodyPix.PartS
 // --- Component ---
 
 const AvatarCreator: React.FC = () => {
+  const { address: walletAddress, isConnected } = useAccount();
   const mountRef = useRef<HTMLDivElement>(null);
 
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<ImageCategory>(null);
   const [segmentedParts, setSegmentedParts] = useState<SegmentedPart[]>([]);
-  const [appliedPartKey, setAppliedPartKey] = useState<PartKey | null>(null);
+  const [appliedParts, setAppliedParts] = useState<Partial<Record<PartKey, string>>>({});
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAvatarLoaded, setIsAvatarLoaded] = useState(false);
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -126,9 +135,11 @@ const AvatarCreator: React.FC = () => {
   const avatarGroupRef = useRef<THREE.Group | null>(null);
   const accessoryGroupRef = useRef<THREE.Group | null>(null);
   const bodyMeshMapRef = useRef<Partial<Record<PartKey, THREE.Mesh[]>>>({});
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const clockRef = useRef(new THREE.Clock());
 
   // Function to initialize the 3D avatar structure based on pose
-  const initializeAvatar = useCallback((img: HTMLImageElement, pose: Pose) => {
+  const initializeAvatar = useCallback((img: HTMLImageElement, pose: Pose, state?: AvatarState) => {
     if (!avatarGroupRef.current) return;
 
     // Clear previous body
@@ -141,6 +152,13 @@ const AvatarCreator: React.FC = () => {
       }
     }
     bodyMeshMapRef.current = {};
+    
+    // Clear accessories
+    if (accessoryGroupRef.current) {
+        while (accessoryGroupRef.current.children.length > 0) {
+            accessoryGroupRef.current.remove(accessoryGroupRef.current.children[0]);
+        }
+    }
 
     // Keypoints map
     const keypoints = pose.keypoints.reduce((map, kp) => {
@@ -240,7 +258,67 @@ const AvatarCreator: React.FC = () => {
     // Center the avatar at the origin (0, 0, 0)
     const centerOffset = new THREE.Vector3(0, -hipMid3D.y, 0);
     avatarGroupRef.current.position.copy(centerOffset);
+    
+    // Apply textures if state is provided (for loading)
+    if (state?.bodyParts) {
+        Object.entries(state.bodyParts).forEach(([key, dataUrl]) => {
+            const partKey = key as PartKey;
+            if (dataUrl) {
+                applyTextureToMeshes(partKey, dataUrl);
+            }
+        });
+        setAppliedParts(state.bodyParts);
+    }
+    
+    // Apply accessory if state is provided
+    if (state?.accessory) {
+        applyAccessoryToModel(state.accessory.imageUrl, state.accessory.detectedClass);
+    }
 
+    setIsAvatarLoaded(true);
+    
+    // Start simple animation (e.g., rotation)
+    if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+    }
+    
+    // Simple rotation animation for demonstration
+    const rotationClip = new THREE.AnimationClip('Walk', 10, [
+        new THREE.KeyframeTrack('avatarGroup.rotation[y]', [0, 10], [0, Math.PI * 2]),
+    ]);
+    
+    const mixer = new THREE.AnimationMixer(avatarGroupRef.current);
+    mixerRef.current = mixer;
+    const action = mixer.clipAction(rotationClip);
+    action.play();
+
+  }, []);
+  
+  // Helper to apply texture to meshes
+  const applyTextureToMeshes = useCallback((partKey: PartKey, dataUrl: string) => {
+    const meshes = bodyMeshMapRef.current[partKey];
+    if (!meshes || meshes.length === 0) return;
+
+    meshes.forEach(mesh => {
+        if (mesh.material instanceof THREE.MeshStandardMaterial && mesh.material.map) {
+            mesh.material.map.dispose();
+            mesh.material.map = null;
+        }
+    });
+
+    const loader = new THREE.TextureLoader();
+    loader.load(dataUrl, (texture) => {
+        meshes.forEach(mesh => {
+            if (mesh.material instanceof THREE.MeshStandardMaterial) {
+                mesh.material.map = texture;
+                mesh.material.needsUpdate = true;
+                mesh.material.transparent = true;
+            }
+        });
+    }, undefined, (error) => {
+        console.error("Failed to load texture for part:", error);
+        setUploadError(`Failed to load texture for ${PART_MAPPINGS[partKey].name}.`);
+    });
   }, []);
 
   // Refactored image processing logic
@@ -248,8 +326,7 @@ const AvatarCreator: React.FC = () => {
     setIsProcessing(true);
     setUploadError(null);
     setSegmentedParts([]);
-    setAppliedPartKey(null);
-
+    
     try {
       const net = await bodyPix.load({
         architecture: 'MobileNetV1',
@@ -258,33 +335,27 @@ const AvatarCreator: React.FC = () => {
         quantBytes: 2,
       });
       
-      // 1. Get segmentation (which includes pose)
       const rawParts = await net.segmentPersonParts(img, {
         flipHorizontal: false,
         internalResolution: 'medium',
         segmentationThreshold: 0.7,
       });
       
-      // Ensure we handle the result as a single PartSegmentation object
       const parts = Array.isArray(rawParts) ? rawParts[0] : rawParts;
-      
-      // Cast to bodyPix.PartSegmentation to access the pose property
       const partSegmentation = parts as bodyPix.PartSegmentation;
-      
-      const pose = partSegmentation.pose; // Extract pose from segmentation result
+      const pose = partSegmentation.pose;
 
       if (!pose || pose.score < 0.5) {
         throw new Error('No person detected or low confidence. Please use an image with a clear, full-body view.');
       }
 
-      // 2. Initialize 3D avatar based on pose
-      initializeAvatar(img, pose as Pose); // Cast pose to local Pose type
+      // 1. Initialize 3D avatar based on pose
+      initializeAvatar(img, pose as Pose);
 
-      // 3. Extract segmented parts for preview
+      // 2. Extract segmented parts for preview
       const extractedParts: SegmentedPart[] = [];
       for (const key in PART_MAPPINGS) {
         const partConfig = PART_MAPPINGS[key as PartKey];
-        // Pass the correctly typed segmentation object
         const imageUrl = extractSegmentedPart(img, partSegmentation, partConfig.ids);
         extractedParts.push({
           name: partConfig.name,
@@ -309,38 +380,61 @@ const AvatarCreator: React.FC = () => {
     const part = segmentedParts.find(p => p.key === partKey);
     if (!part) return;
 
-    const meshes = bodyMeshMapRef.current[partKey];
-    if (!meshes || meshes.length === 0) {
-        setUploadError(`Could not find 3D meshes for ${part.name}.`);
-        return;
-    }
+    applyTextureToMeshes(partKey, part.imageUrl);
     
-    // Dispose old textures
-    meshes.forEach(mesh => {
-        if (mesh.material instanceof THREE.MeshStandardMaterial && mesh.material.map) {
-            mesh.material.map.dispose();
-            mesh.material.map = null;
+    setAppliedParts(prev => ({ ...prev, [partKey]: part.imageUrl }));
+    toast.success(`${part.name} texture applied successfully.`);
+    
+  }, [segmentedParts, applyTextureToMeshes]);
+  
+  // Helper to apply accessory to model
+  const applyAccessoryToModel = useCallback((imageUrl: string, detectedClass: string) => {
+    if (!accessoryGroupRef.current) return;
+    
+    // Clear previous accessories
+    while (accessoryGroupRef.current.children.length > 0) {
+        const child = accessoryGroupRef.current.children[0];
+        accessoryGroupRef.current.remove(child);
+        if (child instanceof THREE.Mesh) {
+            child.geometry.dispose();
+            (child.material as THREE.Material).dispose();
         }
+    }
+
+    let accessoryGeometry: THREE.BufferGeometry;
+    let position = new THREE.Vector3(0, 1.2, 0);
+    let scale = 1;
+
+    // Simple mapping based on detected class
+    if (detectedClass === 'hat' || detectedClass === 'cap') {
+        accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32);
+        position.set(0, 1.2, 0); 
+    } else if (detectedClass === 'backpack') {
+        accessoryGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.3);
+        position.set(0, 0.8, -0.31); 
+    } else if (detectedClass === 'glasses') {
+        accessoryGeometry = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+        position.set(0, 1.5, 0.2);
+    } else {
+        accessoryGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+        position.set(0, 1.2, 0);
+    }
+
+    const accessoryMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+    const accessory = new THREE.Mesh(accessoryGeometry, accessoryMaterial);
+    accessory.position.copy(position);
+    accessory.scale.set(scale, scale, scale);
+
+    const loader = new THREE.TextureLoader();
+    loader.load(imageUrl, (texture) => {
+        accessoryMaterial.map = texture;
+        accessoryMaterial.needsUpdate = true;
     });
 
-    // Load and apply new texture
-    const loader = new THREE.TextureLoader();
-    loader.load(part.imageUrl, (texture) => {
-        meshes.forEach(mesh => {
-            if (mesh.material instanceof THREE.MeshStandardMaterial) {
-                mesh.material.map = texture;
-                mesh.material.needsUpdate = true;
-                mesh.material.transparent = true;
-            }
-        });
-        setAppliedPartKey(partKey);
-        toast.success(`${part.name} texture applied successfully.`);
-    }, undefined, (error) => {
-        console.error("Failed to load texture for part:", error);
-        setUploadError(`Failed to load texture for ${part.name}.`);
-    });
-  }, [segmentedParts]);
-  
+    accessoryGroupRef.current.add(accessory);
+    toast.success(`Accessory (${detectedClass}) applied successfully.`);
+  }, []);
+
   // Handle accessory application (simplified, using Coco-SSD)
   const handleApplyAccessory = async () => {
     if (!selectedImage) return;
@@ -352,18 +446,6 @@ const AvatarCreator: React.FC = () => {
         img.src = selectedImage;
         await new Promise((resolve) => (img.onload = resolve));
         
-        // Clear previous accessories
-        if (accessoryGroupRef.current) {
-            while (accessoryGroupRef.current.children.length > 0) {
-                const child = accessoryGroupRef.current.children[0];
-                accessoryGroupRef.current.remove(child);
-                if (child instanceof THREE.Mesh) {
-                    child.geometry.dispose();
-                    (child.material as THREE.Material).dispose();
-                }
-            }
-        }
-
         const model = await cocoSsd.load();
         const predictions = await model.detect(img);
 
@@ -371,34 +453,13 @@ const AvatarCreator: React.FC = () => {
             const topPrediction = predictions[0];
             const detectedClass = topPrediction.class; 
             
-            let accessoryGeometry: THREE.BufferGeometry;
-            let position = new THREE.Vector3(0, 1.2, 0);
-            let scale = 1;
-
-            if (detectedClass === 'hat' || detectedClass === 'cap') {
-                accessoryGeometry = new THREE.ConeGeometry(0.5, 0.8, 32);
-                position.set(0, 1.2, 0); 
-            } else if (detectedClass === 'backpack') {
-                accessoryGeometry = new THREE.BoxGeometry(0.6, 0.8, 0.3);
-                position.set(0, 0.8, -0.31); 
-            } else {
-                accessoryGeometry = new THREE.SphereGeometry(0.3, 32, 32);
-                position.set(0, 1.2, 0);
-            }
-
-            const accessoryMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            const accessory = new THREE.Mesh(accessoryGeometry, accessoryMaterial);
-            accessory.position.copy(position);
-            accessory.scale.set(scale, scale, scale);
-
-            const loader = new THREE.TextureLoader();
-            loader.load(selectedImage, (texture) => {
-                accessoryMaterial.map = texture;
-                accessoryMaterial.needsUpdate = true;
-            });
-
-            accessoryGroupRef.current?.add(accessory);
-            toast.success(`Accessory (${detectedClass}) applied successfully.`);
+            applyAccessoryToModel(selectedImage, detectedClass);
+            
+            setAppliedParts(prev => ({ 
+                ...prev, 
+                accessory: { imageUrl: selectedImage, detectedClass } 
+            }));
+            
         } else {
             setUploadError('No recognizable accessory object detected in the image.');
         }
@@ -407,10 +468,109 @@ const AvatarCreator: React.FC = () => {
         setUploadError('Failed to process accessory image.');
     } finally {
         setIsProcessing(false);
-        setSelectedImage(null);
-        setSelectedCategory(null);
     }
   };
+
+  // --- Supabase Integration ---
+
+  const handleSaveAvatar = async () => {
+    if (!walletAddress || !isConnected) {
+      toast.error("Please connect your wallet to save the avatar.");
+      return;
+    }
+    if (!isAvatarLoaded) {
+        toast.error("Please process an image and apply textures before saving.");
+        return;
+    }
+
+    setIsSaving(true);
+    
+    const avatarState: AvatarState = {
+        bodyParts: appliedParts,
+        accessory: (appliedParts as any).accessory,
+    };
+
+    const { error } = await supabase
+      .from('avatars')
+      .upsert(
+        {
+          wallet_address: walletAddress,
+          avatar_state: avatarState,
+        },
+        { onConflict: 'wallet_address' }
+      );
+
+    if (error) {
+      console.error("Save error:", error);
+      toast.error(`Failed to save avatar: ${error.message}`);
+    } else {
+      toast.success("Avatar saved successfully!");
+    }
+    setIsSaving(false);
+  };
+
+  const handleLoadAvatar = useCallback(async () => {
+    if (!walletAddress || !isConnected) {
+      toast.error("Please connect your wallet to load the avatar.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setUploadError(null);
+    
+    try {
+      const { data, error } = await supabase
+        .from('avatars')
+        .select('avatar_state')
+        .eq('wallet_address', walletAddress)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 means "No rows found"
+        throw new Error(error.message);
+      }
+
+      if (data && data.avatar_state) {
+        const state = data.avatar_state as AvatarState;
+        
+        // We need a dummy image and pose to initialize the 3D structure
+        // Since we don't have the original image, we use a placeholder and a default pose.
+        const dummyImg = new Image();
+        dummyImg.width = 500;
+        dummyImg.height = 1000;
+        
+        // Simple default pose (standing straight)
+        const defaultPose: Pose = {
+            score: 1.0,
+            keypoints: [
+                { part: 'nose', score: 1, position: { x: 250, y: 100 } },
+                { part: 'leftShoulder', score: 1, position: { x: 300, y: 300 } },
+                { part: 'rightShoulder', score: 1, position: { x: 200, y: 300 } },
+                { part: 'leftHip', score: 1, position: { x: 280, y: 600 } },
+                { part: 'rightHip', score: 1, position: { x: 220, y: 600 } },
+                { part: 'leftElbow', score: 1, position: { x: 350, y: 450 } },
+                { part: 'leftWrist', score: 1, position: { x: 400, y: 600 } },
+                { part: 'rightElbow', score: 1, position: { x: 150, y: 450 } },
+                { part: 'rightWrist', score: 1, position: { x: 100, y: 600 } },
+                { part: 'leftKnee', score: 1, position: { x: 280, y: 800 } },
+                { part: 'leftAnkle', score: 1, position: { x: 280, y: 950 } },
+                { part: 'rightKnee', score: 1, position: { x: 220, y: 800 } },
+                { part: 'rightAnkle', score: 1, position: { x: 220, y: 950 } },
+            ]
+        };
+        
+        initializeAvatar(dummyImg, defaultPose, state);
+        toast.success("Avatar loaded successfully!");
+        
+      } else {
+        toast.info("No saved avatar found for this wallet.");
+      }
+    } catch (error) {
+      console.error('Load error:', error);
+      toast.error(`Failed to load avatar: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [walletAddress, isConnected, initializeAvatar]);
 
   // Three.js initialization useEffect
   useEffect(() => {
@@ -467,6 +627,12 @@ const AvatarCreator: React.FC = () => {
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
       controls.update();
+      
+      const delta = clockRef.current.getDelta();
+      if (mixerRef.current) {
+          mixerRef.current.update(delta);
+      }
+      
       renderer.render(scene, camera);
     };
     animate();
@@ -482,7 +648,6 @@ const AvatarCreator: React.FC = () => {
     };
     window.addEventListener('resize', handleResize);
     
-    // Initial resize call to set correct size
     handleResize();
 
     // Cleanup
@@ -494,6 +659,13 @@ const AvatarCreator: React.FC = () => {
       mountRef.current?.removeChild(renderer.domElement);
     };
   }, []);
+
+  // Load avatar on mount if connected
+  useEffect(() => {
+    if (isConnected && walletAddress) {
+        handleLoadAvatar();
+    }
+  }, [isConnected, walletAddress, handleLoadAvatar]);
 
   // Handle image upload change
   const handleImageUploadChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -508,7 +680,7 @@ const AvatarCreator: React.FC = () => {
       setUploadError(null);
       setSegmentedParts([]);
       setSelectedCategory(null);
-      setAppliedPartKey(null);
+      setAppliedParts({});
       
       // Clear 3D model when new image is uploaded
       if (avatarGroupRef.current) {
@@ -521,6 +693,7 @@ const AvatarCreator: React.FC = () => {
               accessoryGroupRef.current.remove(accessoryGroupRef.current.children[0]);
           }
       }
+      setIsAvatarLoaded(false);
     }
   };
   
@@ -535,7 +708,6 @@ const AvatarCreator: React.FC = () => {
           img.onload = () => processImage(img);
           img.onerror = () => setUploadError('Failed to load image for processing.');
       } else if (category === 'accessory' && selectedImage) {
-          // Clear body segmentation results if switching to accessory mode
           setSegmentedParts([]);
       }
   };
@@ -550,7 +722,18 @@ const AvatarCreator: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div ref={mountRef} className="w-full aspect-square max-h-[60vh] border rounded-lg bg-gray-800 relative overflow-hidden">
-                {/* Three.js canvas will be appended here */}
+                {!isAvatarLoaded && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 text-white">
+                        {isProcessing ? (
+                            <div className="flex flex-col items-center space-y-2">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                                <p>Processing image...</p>
+                            </div>
+                        ) : (
+                            <p>Upload an image to begin creating your avatar.</p>
+                        )}
+                    </div>
+                )}
             </div>
           </CardContent>
         </Card>
@@ -562,6 +745,17 @@ const AvatarCreator: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             
+            {/* Wallet Status */}
+            <Alert className="bg-secondary">
+                <Upload className="h-4 w-4" />
+                <AlertTitle>Wallet Status</AlertTitle>
+                <AlertDescription>
+                    {isConnected && walletAddress 
+                        ? `Connected: ${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}. You can save and load your avatar.`
+                        : "Connect your wallet to save and load your avatar configuration."}
+                </AlertDescription>
+            </Alert>
+
             {/* Image Upload Section */}
             <div className="space-y-4">
               <Label htmlFor="image-upload">Upload NFT Image</Label>
@@ -609,7 +803,7 @@ const AvatarCreator: React.FC = () => {
                     <div 
                       key={part.key} 
                       className={`p-2 border rounded-lg cursor-pointer transition-all ${
-                        appliedPartKey === part.key 
+                        appliedParts[part.key]
                           ? 'border-green-500 ring-2 ring-green-500 bg-green-500/10' 
                           : 'border-border hover:bg-muted/50'
                       }`}
@@ -621,7 +815,7 @@ const AvatarCreator: React.FC = () => {
                           alt={part.name} 
                           className="w-full h-full object-contain"
                         />
-                        {appliedPartKey === part.key && (
+                        {appliedParts[part.key] && (
                             <CheckCircle className="absolute top-1 right-1 h-4 w-4 text-green-500 bg-background rounded-full" />
                         )}
                       </div>
@@ -657,6 +851,27 @@ const AvatarCreator: React.FC = () => {
                     </Button>
                 </div>
             )}
+            
+            {/* Save/Load Buttons */}
+            <div className="flex gap-4 pt-4 border-t">
+                <Button 
+                    onClick={handleSaveAvatar} 
+                    disabled={!isConnected || !isAvatarLoaded || isSaving}
+                    className="flex-1"
+                >
+                    <Save className="mr-2 h-4 w-4" />
+                    {isSaving ? 'Saving...' : 'Save Avatar'}
+                </Button>
+                <Button 
+                    onClick={handleLoadAvatar} 
+                    disabled={!isConnected || isProcessing || isSaving}
+                    variant="outline"
+                    className="flex-1"
+                >
+                    <Upload className="mr-2 h-4 w-4" />
+                    Load Saved Avatar
+                </Button>
+            </div>
             
           </CardContent>
         </Card>
