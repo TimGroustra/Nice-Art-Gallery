@@ -1,131 +1,59 @@
-import React, { useRef, useEffect, useState } from 'react';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three-stdlib';
+import React, { useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, RotateCw } from 'lucide-react';
+import { RotateCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import AvatarViewer, { AvatarViewerHandles, AvatarPart } from '@/components/AvatarViewer';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 
-const AVATAR_MODEL_URL = "/avatars/base_rig.glb";
+// Placeholder data for demonstration. These files must exist in public/avatars/
+const HEAD_VARIANTS: AvatarPart[] = [
+  { name: "Head 1 (Default)", url: "/avatars/heads/head_01.glb", boneName: "Head" },
+  { name: "Head 2 (Stylized)", url: "/avatars/heads/head_02.glb", boneName: "Head" },
+  { name: "Head 3 (Chibi)", url: "/avatars/heads/head_03.glb", boneName: "Head" },
+];
+
+const ACCESSORIES: AvatarPart[] = [
+  { name: "Hat", url: "/avatars/accessories/hat.glb", boneName: "Head" },
+  { name: "Backpack", url: "/avatars/accessories/backpack.glb", boneName: "Spine2" },
+];
 
 const AvatarEditor: React.FC = () => {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const sceneRef = useRef<THREE.Scene | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
-  const clockRef = useRef(new THREE.Clock());
+  const viewerRef = useRef<AvatarViewerHandles>(null);
+  const [currentHeadIndex, setCurrentHeadIndex] = useState(0);
+  const [currentAccessoryIndex, setCurrentAccessoryIndex] = useState(0);
 
-  const initThree = () => {
-    if (!mountRef.current) return;
+  const handleSwapHead = (direction: 'next' | 'prev') => {
+    const total = HEAD_VARIANTS.length;
+    let newIndex = currentHeadIndex;
 
-    // Cleanup previous instance
-    if (rendererRef.current) {
-      rendererRef.current.dispose();
-      mountRef.current.removeChild(rendererRef.current.domElement);
+    if (direction === 'next') {
+      newIndex = (currentHeadIndex + 1) % total;
+    } else {
+      newIndex = (currentHeadIndex - 1 + total) % total;
     }
-
-    const width = mountRef.current.clientWidth;
-    const height = mountRef.current.clientHeight;
-
-    // Scene
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1a1a1a);
-    sceneRef.current = scene;
-
-    // Camera
-    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    camera.position.set(0, 1.5, 3);
-    cameraRef.current = camera;
-
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    mountRef.current.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
-
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-    scene.add(ambientLight);
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
-    directionalLight.position.set(5, 10, 7.5);
-    scene.add(directionalLight);
-
-    // Load Avatar
-    const loader = new GLTFLoader();
-    loader.load(
-      AVATAR_MODEL_URL,
-      (gltf) => {
-        const avatar = gltf.scene;
-        scene.add(avatar);
-
-        // Simple rotation for viewing
-        avatar.rotation.y = Math.PI / 4; 
-
-        // Setup animation mixer if animations exist
-        if (gltf.animations && gltf.animations.length > 0) {
-          const mixer = new THREE.AnimationMixer(avatar);
-          mixerRef.current = mixer;
-          const action = mixer.clipAction(gltf.animations[0]);
-          action.play();
-        }
-
-        setLoading(false);
-        setError(null);
-      },
-      (xhr) => {
-        // Progress tracking (optional)
-        console.log((xhr.loaded / xhr.total) * 100 + '% loaded');
-      },
-      (err) => {
-        console.error('Error loading GLB model:', err);
-        setError("Failed to load avatar model. Ensure 'public/avatars/base_rig.glb' exists.");
-        setLoading(false);
-      }
-    );
-
-    // Animation Loop
-    const animate = () => {
-      requestAnimationFrame(animate);
-      
-      const delta = clockRef.current.getDelta();
-      mixerRef.current?.update(delta);
-
-      if (sceneRef.current && cameraRef.current && rendererRef.current) {
-        rendererRef.current.render(sceneRef.current, cameraRef.current);
-      }
-    };
-    animate();
-
-    // Handle Resize
-    const handleResize = () => {
-      if (mountRef.current && cameraRef.current && rendererRef.current) {
-        const newWidth = mountRef.current.clientWidth;
-        const newHeight = mountRef.current.clientHeight;
-        cameraRef.current.aspect = newWidth / newHeight;
-        cameraRef.current.updateProjectionMatrix();
-        rendererRef.current.setSize(newWidth, newHeight);
-      }
-    };
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (rendererRef.current) {
-        rendererRef.current.dispose();
-        if (mountRef.current && rendererRef.current.domElement.parentElement === mountRef.current) {
-            mountRef.current.removeChild(rendererRef.current.domElement);
-        }
-      }
-      mixerRef.current = null;
-    };
+    
+    setCurrentHeadIndex(newIndex);
+    viewerRef.current?.swapPart('head', HEAD_VARIANTS[newIndex]);
   };
 
-  useEffect(() => {
-    initThree();
-  }, []);
+  const handleSwapAccessory = (direction: 'next' | 'prev') => {
+    const total = ACCESSORIES.length;
+    let newIndex = currentAccessoryIndex;
+
+    if (direction === 'next') {
+      newIndex = (currentAccessoryIndex + 1) % total;
+    } else {
+      newIndex = (currentAccessoryIndex - 1 + total) % total;
+    }
+    
+    setCurrentAccessoryIndex(newIndex);
+    viewerRef.current?.swapPart('accessory', ACCESSORIES[newIndex]);
+  };
+
+  const handleRotate = () => {
+    viewerRef.current?.rotateAvatar(Math.PI / 4); // Rotate 45 degrees
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
@@ -135,13 +63,68 @@ const AvatarEditor: React.FC = () => {
           <CardHeader>
             <CardTitle>Avatar Editor Controls</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              This panel will contain controls for swapping heads, bodies, and accessories.
-            </p>
-            <Button disabled>
-              <RotateCw className="mr-2 h-4 w-4" /> Regenerate Head
-            </Button>
+          <CardContent className="space-y-6">
+            
+            {/* Head Swapping */}
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Head Variant</Label>
+              <div className="flex items-center justify-between space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => handleSwapHead('prev')}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="flex-1 text-center text-sm truncate">
+                  {HEAD_VARIANTS[currentHeadIndex].name}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => handleSwapHead('next')}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <Separator />
+
+            {/* Accessory Swapping */}
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Accessory</Label>
+              <div className="flex items-center justify-between space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => handleSwapAccessory('prev')}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="flex-1 text-center text-sm truncate">
+                  {ACCESSORIES[currentAccessoryIndex].name}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  onClick={() => handleSwapAccessory('next')}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Utility Controls */}
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Utilities</Label>
+              <Button onClick={handleRotate} className="w-full">
+                <RotateCw className="mr-2 h-4 w-4" /> Rotate Avatar
+              </Button>
+            </div>
+            
           </CardContent>
         </Card>
 
@@ -151,18 +134,7 @@ const AvatarEditor: React.FC = () => {
             <CardTitle>3D Avatar Preview</CardTitle>
           </CardHeader>
           <CardContent className="h-[60vh] lg:h-[calc(100%-6rem)] p-0">
-            <div ref={mountRef} className="w-full h-full relative">
-              {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              )}
-              {error && (
-                <div className="absolute inset-0 flex items-center justify-center bg-destructive/10 p-4 z-10">
-                  <p className="text-destructive">{error}</p>
-                </div>
-              )}
-            </div>
+            <AvatarViewer ref={viewerRef} />
           </CardContent>
         </Card>
       </div>
