@@ -450,8 +450,11 @@ const NftGalleryMobile: React.FC = () => {
       isDraggingRef.current = true;
       const deltaX = e.touches[0].clientX - touchStartRef.current.x;
       const deltaY = e.touches[0].clientY - touchStartRef.current.y;
-      rotationRef.current.yaw -= deltaX * 0.005;
-      rotationRef.current.pitch -= deltaY * 0.005;
+      
+      // Inverting rotations by using += instead of -=
+      rotationRef.current.yaw += deltaX * 0.005;
+      rotationRef.current.pitch += deltaY * 0.005;
+      
       rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
       touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
@@ -496,7 +499,7 @@ const NftGalleryMobile: React.FC = () => {
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
         if (isWalkingRef.current && !isTeleportingRef.current) {
-          const moveSpeed = 4.0; // Halved from 8.0
+          const moveSpeed = 4.0; 
           const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
           forward.y = 0;
           forward.normalize();
