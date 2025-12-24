@@ -46,17 +46,10 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>Connect Wallet</CardTitle>
-              <CardDescription>
-                Connect your wallet to verify ElectroGem ownership and access configuration.
-              </CardDescription>
-            </div>
-            <Button variant="outline" size="icon" onClick={handleBackToGallery} title="Back to Gallery">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </div>
+          <CardTitle>Connect Wallet</CardTitle>
+          <CardDescription>
+            Connect your wallet to verify ElectroGem ownership and access configuration.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {isConnected ? (
@@ -74,6 +67,9 @@ const Login: React.FC = () => {
               </div>
               <Button onClick={() => navigate('/gallery-config')} className="w-full">
                 Continue to Configuration
+              </Button>
+              <Button variant="outline" onClick={handleBackToGallery} className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Gallery
               </Button>
             </div>
           ) : (
@@ -94,6 +90,10 @@ const Login: React.FC = () => {
                   <LogIn className="mr-2 h-4 w-4" /> Connect Browser Wallet
                 </Button>
               )}
+              
+              <Button variant="outline" onClick={handleBackToGallery} className="w-full">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Gallery
+              </Button>
               
               {/* WalletConnect button removed */}
 
