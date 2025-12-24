@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
+import { RectAreaLightUniformsLib } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -13,7 +13,6 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useTouchControls } from '@/hooks/use-touch-controls';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
@@ -36,15 +35,12 @@ interface Panel {
   gifStopFunction: (() => void) | null;
 }
 
-interface NftGalleryProps {
-  setInstructionsVisible: (visible: boolean) => void;
-  isWalking: boolean; // New prop for mobile movement state
+interface MobileGalleryProps {
+  isWalking: boolean; // Prop for mobile movement state
 }
 
-// Global state for UI interaction
+// Global state for UI interaction (used for debugging/external checks)
 let currentTargetedPanel: Panel | null = null;
-let currentTargetedArrow: THREE.Mesh | null = null;
-let currentTargetedButton: THREE.Mesh | null = null;
 
 // --- GLSL Shader Code for Rainbow Under-Platform Plane ---
 const rainbowVertexShader = `
@@ -99,21 +95,17 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalking }) => {
+const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
-  const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
 
-  const isMobile = useIsMobile();
-
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const controlsRef = useRef<PointerLockControls | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
@@ -125,21 +117,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
   const FADE_DURATION = 0.5;
 
   const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
-
-  // Desktop Movement state
-  const moveForwardRef = useRef(false);
-  const moveBackwardRef = useRef(false);
-  const moveLeftRef = useRef(false);
-  const moveRightRef = useRef(false);
-  const velocityRef = useRef(new THREE.Vector3());
-  const directionRef = useRef(new THREE.Vector3());
   const prevTimeRef = useRef(performance.now());
 
-  // Mobile Controls Hook
+  // Mobile Controls Hook initialization
   const { updateMovement: updateTouchMovement } = useTouchControls({
     camera: cameraRef.current!,
     rendererDomElement: rendererRef.current?.domElement!,
-    isMobile,
+    isMobile: true, // Always true for this component
     isWalking,
     onInteraction: (event) => handleInteraction(event),
   });
@@ -178,9 +162,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
           videoEl.src = url;
           videoEl.load();
 
-          // Only attempt to play if controls are active (locked on desktop, or just active on mobile)
-          const controlsActive = isMobile || (window as any).galleryControls?.isLocked?.();
-          if (controlsActive) {
+          // Attempt to play immediately on mobile interaction
+          if (isWalking) {
             videoEl.play().catch((e) => console.warn('Video playback prevented:', e));
           }
 
@@ -216,7 +199,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
         );
       });
     },
-    [isMobile],
+    [isWalking],
   );
 
   const updatePanelContent = useCallback(
@@ -312,56 +295,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     panelsRef.current.forEach((panel) => {
       if (panel.videoElement) {
         if (shouldPlay) {
-          // Check if controls are locked (desktop) or if walking (mobile)
-          const controlsActive = isMobile ? isWalking : (window as any).galleryControls?.isLocked?.() ?? false;
-          if (controlsActive) {
-            panel.videoElement
-              .play()
-              .catch((e) => console.warn('Video playback prevented:', e));
-          }
+          panel.videoElement
+            .play()
+            .catch((e) => console.warn('Video playback prevented:', e));
         } else {
           panel.videoElement.pause();
         }
       }
     });
-  }, [isMobile, isWalking]);
+  }, []);
   
-  // Re-run video playback management when isWalking changes on mobile
+  // Re-run video playback management when isWalking changes
   useEffect(() => {
-    if (isMobile) {
-        manageVideoPlayback(isWalking);
-    }
-  }, [isMobile, isWalking, manageVideoPlayback]);
+    manageVideoPlayback(isWalking);
+  }, [isWalking, manageVideoPlayback]);
 
 
   const performTeleport = useCallback((targetY: number) => {
-    if (isTeleportingRef.current || !cameraRef.current || !controlsRef.current) return;
+    if (isTeleportingRef.current || !cameraRef.current) return;
     isTeleportingRef.current = true;
     fadeStartTimeRef.current = performance.now();
-
-    // On desktop, unlock controls during fade
-    if (!isMobile) {
-        controlsRef.current.unlock();
-    }
 
     setTimeout(() => {
       if (cameraRef.current) {
         cameraRef.current.position.y = targetY;
       }
-      // On desktop, relock controls after fade
-      if (!isMobile) {
-        controlsRef.current.lock();
-      }
       // Note: isTeleportingRef is reset in the animation loop after fade out
     }, FADE_DURATION * 1000);
-  }, [isMobile]);
+  }, []);
 
-  // Unified interaction handler for both desktop click and mobile tap
+  // Interaction handler for mobile (tap raycasting)
   const handleInteraction = useCallback((event: MouseEvent | TouchEvent) => {
     // Determine interaction coordinates (normalized to -1 to 1)
     let clientX, clientY;
     if (event instanceof MouseEvent) {
-        if (!controlsRef.current?.isLocked && !isMobile) return; // Only interact if locked on desktop
+        // This should only happen if a click event bubbles up on mobile, but we use touchend/handleTap in the hook
         clientX = event.clientX;
         clientY = event.clientY;
     } else if (event instanceof TouchEvent) {
@@ -375,6 +343,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     const rect = rendererRef.current?.domElement.getBoundingClientRect();
     if (!rect) return;
 
+    // Raycast from the tap point
     const mouse = new THREE.Vector2(
         ((clientX - rect.left) / rect.width) * 2 - 1,
         -(((clientY - rect.top) / rect.height) * 2 - 1)
@@ -385,13 +354,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     const raycaster = raycasterRef.current;
     const cam = cameraRef.current;
 
-    // For mobile, raycast from the tap point
-    if (isMobile) {
-        raycaster.setFromCamera(mouse, cam);
-    } else {
-        // For desktop, raycast from the center (0, 0)
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), cam);
-    }
+    raycaster.setFromCamera(mouse, cam);
 
     const objectsToTest: THREE.Object3D[] = [];
     panelsRef.current.forEach((p) => {
@@ -439,7 +402,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
             }
         }
     }
-  }, [isMobile, performTeleport, updatePanelContent]);
+  }, [performTeleport, updatePanelContent]);
 
 
   useEffect(() => {
@@ -464,31 +427,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
 
-    // Initialize controls based on platform
-    let controls: PointerLockControls | null = null;
-    if (!isMobile) {
-        controls = new PointerLockControls(camera, renderer.domElement);
-        controlsRef.current = controls;
-        
-        controls.addEventListener('lock', () => {
-            setIsLocked(true);
-            setInstructionsVisible(false);
-            manageVideoPlayback(true);
-        });
-
-        controls.addEventListener('unlock', () => {
-            setIsLocked(false);
-            setInstructionsVisible(true);
-            manageVideoPlayback(false);
-        });
-    } else {
-        // Mobile: No pointer lock, always active
-        setIsLocked(true); 
-        setInstructionsVisible(false);
-    }
-
+    // Mobile: Controls are handled by the useTouchControls hook
     (window as any).galleryControls = {
-      lockControls: () => controls?.lock(),
+      lockControls: () => {}, // No lock needed on mobile
       hasVideo: () => panelsRef.current.some((p) => p.videoElement !== null),
       isMuted: () => {
         const activeVideos = panelsRef.current.filter((p) => p.videoElement);
@@ -504,7 +445,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
           });
         }
       },
-      isLocked: () => controls?.isLocked ?? true, // Always return true on mobile
+      isLocked: () => true, // Always considered "locked" (active) on mobile
       getTargetedPanel: () => currentTargetedPanel,
     };
 
@@ -836,7 +777,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     });
 
     const ARROW_COLOR_DEFAULT = 0xcccccc;
-    const ARROW_COLOR_HOVER = 0x00ff00;
     const arrowShape = new THREE.Shape();
     arrowShape.moveTo(0, 0.15);
     arrowShape.lineTo(0.3, 0);
@@ -1033,60 +973,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     const raycaster = new THREE.Raycaster();
     raycasterRef.current = raycaster;
 
-    // --- Desktop Controls Setup ---
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (isMobile) return;
-      switch (event.code) {
-        case 'ArrowUp':
-        case 'KeyW':
-          moveForwardRef.current = true;
-          break;
-        case 'ArrowLeft':
-        case 'KeyA':
-          moveLeftRef.current = true;
-          break;
-        case 'ArrowDown':
-        case 'KeyS':
-          moveBackwardRef.current = true;
-          break;
-        case 'ArrowRight':
-        case 'KeyD':
-          moveRightRef.current = true;
-          break;
-        default:
-          break;
-      }
-    };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (isMobile) return;
-      switch (event.code) {
-        case 'ArrowUp':
-        case 'KeyW':
-          moveForwardRef.current = false;
-          break;
-        case 'ArrowLeft':
-        case 'KeyA':
-          moveLeftRef.current = false;
-          break;
-        case 'ArrowDown':
-        case 'KeyS':
-          moveBackwardRef.current = false;
-          break;
-        case 'ArrowRight':
-        case 'KeyD':
-          moveRightRef.current = false;
-          break;
-        default:
-          break;
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
-    // --- End Desktop Controls Setup ---
-
-
     // Resize handling
     const onWindowResize = () => {
       if (!cameraRef.current || !rendererRef.current) return;
@@ -1101,10 +987,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     // Context lost / restore
     const onContextLost = (event: WebGLContextEvent) => {
       event.preventDefault();
-      console.warn('[NftGallery] WebGL context lost');
+      console.warn('[MobileGallery] WebGL context lost');
     };
     const onContextRestored = () => {
-      console.info('[NftGallery] WebGL context restored');
+      console.info('[MobileGallery] WebGL context restored');
     };
     renderer.domElement.addEventListener('webglcontextlost', onContextLost as any, false);
     renderer.domElement.addEventListener(
@@ -1138,34 +1024,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
       const delta = (time - prevTimeRef.current) / 1000;
       prevTimeRef.current = time;
 
-      // Update movement
-      if (!isMobile && controlsRef.current?.isLocked) {
-        // Desktop movement (WASD)
-        const velocity = velocityRef.current;
-        const direction = directionRef.current;
+      // Mobile movement (Walk Toggle)
+      updateTouchMovement(delta);
 
-        direction.z = Number(moveForwardRef.current) - Number(moveBackwardRef.current);
-        direction.x = Number(moveRightRef.current) - Number(moveLeftRef.current);
-        direction.normalize();
-
-        const speed = 20.0;
-
-        if (moveForwardRef.current || moveBackwardRef.current)
-          velocity.z -= direction.z * speed * delta;
-        if (moveLeftRef.current || moveRightRef.current)
-          velocity.x -= direction.x * speed * delta;
-
-        velocity.x -= velocity.x * 10.0 * delta;
-        velocity.z -= velocity.z * 10.0 * delta;
-
-        controlsRef.current.moveRight(-velocity.x * delta);
-        controlsRef.current.moveForward(-velocity.z * delta);
-      } else if (isMobile) {
-        // Mobile movement (Walk Toggle)
-        updateTouchMovement(delta);
-      }
-
-      // Clamp within bounds (applies to both mobile and desktop)
+      // Clamp within bounds
       if (cameraRef.current) {
         const pos = cameraRef.current.position;
         pos.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.x));
@@ -1199,69 +1061,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
         }
       }
 
-      // Raycast for hover/highlight (Desktop only, using center reticle)
-      if (!isMobile && controlsRef.current?.isLocked && cameraRef.current && raycasterRef.current) {
-        const cam = cameraRef.current;
-        const raycaster = raycasterRef.current;
-
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), cam);
-
-        const objectsToTest: THREE.Object3D[] = [];
-        panelsRef.current.forEach((p) => {
-          objectsToTest.push(p.mesh, p.prevArrow, p.nextArrow);
-        });
-        objectsToTest.push(...teleportButtonsRef.current);
-
-        const intersects = raycaster.intersectObjects(objectsToTest, false);
-
-        currentTargetedPanel = null;
-        currentTargetedArrow = null;
-        currentTargetedButton = null;
-
-        // Reset arrow colors and button colors
-        panelsRef.current.forEach((p) => {
-          if (p.prevArrow.material instanceof THREE.MeshBasicMaterial) {
-            (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
-          }
-          if (p.nextArrow.material instanceof THREE.MeshBasicMaterial) {
-            (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_DEFAULT);
-          }
-        });
-        teleportButtonsRef.current.forEach((btn) => {
-          if (btn.material instanceof THREE.MeshStandardMaterial) {
-            (btn.material as THREE.MeshStandardMaterial).color.setHex(TELEPORT_BUTTON_COLOR);
-            (btn.material as THREE.MeshStandardMaterial).emissive.setHex(TELEPORT_BUTTON_COLOR);
-          }
-        });
-
-        if (intersects.length > 0) {
-          const hit = intersects[0].object as THREE.Mesh;
-          const panelHit = panelsRef.current.find(
-            (p) => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit,
-          );
-
-          if (hit.userData?.isTeleportButton) {
-            currentTargetedButton = hit;
-            if (hit.material instanceof THREE.MeshStandardMaterial) {
-              (hit.material as THREE.MeshStandardMaterial).color.setHex(
-                TELEPORT_BUTTON_HOVER_COLOR,
-              );
-              (hit.material as THREE.MeshStandardMaterial).emissive.setHex(
-                TELEPORT_BUTTON_HOVER_COLOR,
-              );
-            }
-          } else if (panelHit) {
-            if (hit === panelHit.prevArrow || hit === panelHit.nextArrow) {
-              currentTargetedArrow = hit;
-              if (hit.material instanceof THREE.MeshBasicMaterial) {
-                (hit.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
-              }
-            } else if (hit === panelHit.mesh) {
-              currentTargetedPanel = panelHit;
-            }
-          }
-        }
-      }
+      // No raycast hover/highlight needed for mobile (tap interaction only)
 
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
@@ -1273,10 +1073,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
     // Cleanup
     return () => {
       stopAnimation = true;
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('keyup', onKeyUp);
-      // Interaction listener is managed by useTouchControls hook now, but we remove the old one if it existed
-      renderer.domElement.removeEventListener('click', handleInteraction); 
       window.removeEventListener('resize', onWindowResize);
       renderer.domElement.removeEventListener(
         'webglcontextlost',
@@ -1323,7 +1119,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, isMobile, updateTouchMovement, handleInteraction, performTeleport]);
+  }, [updatePanelContent, manageVideoPlayback, updateTouchMovement, handleInteraction, performTeleport, isWalking]);
 
   return (
     <>
@@ -1340,4 +1136,4 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalki
   );
 };
 
-export default NftGallery;
+export default MobileGallery;

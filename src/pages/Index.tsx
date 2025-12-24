@@ -1,4 +1,5 @@
-import NftGallery from "@/components/NftGallery";
+import DesktopGallery from "@/components/DesktopGallery";
+import MobileGallery from "@/components/MobileGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import MobileControls from "@/components/MobileControls";
@@ -91,10 +92,15 @@ const Index = () => {
       </div>
       
       {/* 3D Canvas */}
-      <NftGallery 
-        setInstructionsVisible={setInstructionsVisible}
-        isWalking={isWalking}
-      />
+      {isMobile ? (
+        <MobileGallery 
+          isWalking={isWalking}
+        />
+      ) : (
+        <DesktopGallery 
+          setInstructionsVisible={setInstructionsVisible}
+        />
+      )}
       
       {/* 2D Overlay UI */}
       <GalleryUI 
