@@ -38,6 +38,7 @@ export function createMiniGolf(scene: THREE.Scene, baseLevelY: number): GolfGame
   scene.add(turf);
 
   // 2. Elevated Platform
+  // Positioned in the North-West corner
   const platGeo = new THREE.BoxGeometry(10, platformHeight, 10);
   const platMat = new THREE.MeshStandardMaterial({ color: 0x3d7a37, roughness: 0.8 });
   const platform = new THREE.Mesh(platGeo, platMat);
@@ -46,10 +47,21 @@ export function createMiniGolf(scene: THREE.Scene, baseLevelY: number): GolfGame
   const platformBox = new THREE.Box3().setFromObject(platform);
 
   // 3. Ramp
-  const rampGeo = new THREE.BoxGeometry(6, 0.2, 8);
+  // The platform edge is at Z = -5. The ramp starts at Z = 3 (floor).
+  // Length is 8 units on Z axis, height rise is 1.5 units.
+  const rampDepth = 8;
+  const rampWidth = 6;
+  const rampThickness = 0.2;
+  const angle = Math.atan(platformHeight / rampDepth);
+  const actualLength = Math.sqrt(rampDepth ** 2 + platformHeight ** 2);
+  
+  const rampGeo = new THREE.BoxGeometry(rampWidth, rampThickness, actualLength);
   const ramp = new THREE.Mesh(rampGeo, platMat);
-  ramp.position.set(-10, baseLevelY + platformHeight / 2, -1);
-  ramp.rotation.x = -0.2; // Sloped up to platform
+  
+  // Center of ramp on Z is at (3 + -5) / 2 = -1
+  // Center of ramp on Y is at (baseLevelY + platformY) / 2
+  ramp.position.set(-10, (baseLevelY + platformY) / 2, -1);
+  ramp.rotation.x = angle; 
   scene.add(ramp);
   const rampBox = new THREE.Box3().setFromObject(ramp);
 
@@ -59,7 +71,7 @@ export function createMiniGolf(scene: THREE.Scene, baseLevelY: number): GolfGame
 
   const createWall = (w: number, h: number, d: number, x: number, z: number, ry = 0) => {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-    // Position depends on if it's on ground or platform
+    // Determine if wall belongs to platform or ground
     const isNorth = z < -5;
     const yPos = isNorth ? platformY + h/2 : baseLevelY + h/2;
     wall.position.set(x, yPos, z);
@@ -69,22 +81,22 @@ export function createMiniGolf(scene: THREE.Scene, baseLevelY: number): GolfGame
     return wall;
   };
 
-  // Outer Perimeter (Ground)
+  // Outer Perimeter
   createWall(30, 1, 0.4, 0, 15);     // South
-  createWall(10, 1, 0.4, 10, -15);   // North (Gap for platform)
+  createWall(10, 1, 0.4, 10, -15);   // North (Ground part)
   createWall(0.4, 1, 30, 15, 0);     // East
-  createWall(0.4, 1, 10, -15, 10);   // West (Gap for platform)
+  createWall(0.4, 1, 10, -15, 10);   // West (Ground part)
 
   // Platform Guard Rails
   createWall(10, 1, 0.4, -10, -15);  // North edge
   createWall(0.4, 1, 10, -15, -10);  // West edge
   createWall(0.4, 1, 10, -5, -10);   // East edge (platform)
 
-  // Square Labyrinth Walls (Center/Right area)
-  createWall(10, 1, 0.4, 5, 10);     // Maze row 1
-  createWall(10, 1, 0.4, -5, 5);     // Maze row 2
-  createWall(10, 1, 0.4, 5, 0);      // Maze row 3
-  createWall(0.4, 1, 5, 0, 7.5);     // Vertical connector
+  // Labyrinth (on ground)
+  createWall(10, 1, 0.4, 5, 10);     
+  createWall(10, 1, 0.4, -5, 5);     
+  createWall(10, 1, 0.4, 5, 0);      
+  createWall(0.4, 1, 5, 0, 7.5);     
 
   // 5. Ball
   const ballGeo = new THREE.SphereGeometry(BALL_RADIUS, 16, 16);
@@ -95,12 +107,12 @@ export function createMiniGolf(scene: THREE.Scene, baseLevelY: number): GolfGame
   ball.userData = { isGolfBall: true };
   scene.add(ball);
 
-  // 6. Hole (On Platform)
+  // 6. Hole
   const holeGeo = new THREE.CircleGeometry(0.4, 32);
   const holeMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.DoubleSide });
   const hole = new THREE.Mesh(holeGeo, holeMat);
   hole.rotation.x = -Math.PI / 2;
-  hole.position.set(-10, platformY + 0.01, -10);
+  hole.position.set(-10, platformY + 0.02, -10);
   scene.add(hole);
 
   return {
@@ -128,17 +140,15 @@ export function updateMiniGolf(state: GolfGameState, delta: number) {
 
   state.isMoving = true;
 
-  // Movement prediction
   const nextPos = state.ball.position.clone().add(state.velocity.clone().multiplyScalar(delta));
 
-  // 1. Collision Detection with Walls
+  // 1. Wall Collisions
   const ballBox = new THREE.Box3();
   state.walls.forEach(wall => {
     ballBox.setFromCenterAndSize(nextPos, new THREE.Vector3(BALL_RADIUS*2, BALL_RADIUS*2, BALL_RADIUS*2));
     const wallBox = new THREE.Box3().setFromObject(wall);
 
     if (wallBox.intersectsBox(ballBox)) {
-      // Find collision normal (simplified AABB)
       const diff = nextPos.clone().sub(wall.position);
       if (Math.abs(diff.x) > Math.abs(diff.z)) {
         state.velocity.x *= -BOUNCE;
@@ -148,21 +158,21 @@ export function updateMiniGolf(state: GolfGameState, delta: number) {
     }
   });
 
-  // 2. Elevation / Slope Logic
+  // 2. Physics / Elevation
   const onPlatform = state.platformBox.containsPoint(nextPos);
   const onRamp = state.rampBox.containsPoint(nextPos);
 
   if (onPlatform) {
     nextPos.y = state.platformY + BALL_RADIUS;
   } else if (onRamp) {
-    // Linear interpolation of height along ramp
-    const relativeZ = (nextPos.z - state.rampBox.min.z) / (state.rampBox.max.z - state.rampBox.min.z);
-    nextPos.y = THREE.MathUtils.lerp(state.platformY, state.groundY, relativeZ) + BALL_RADIUS;
-    // Add slope gravity (acceleration down the ramp)
-    state.velocity.z += GRAVITY * 0.1 * delta;
+    // Correct lerp from floor (Z=3) to platform (Z=-5)
+    const t = (nextPos.z - 3) / (-5 - 3);
+    nextPos.y = THREE.MathUtils.lerp(state.groundY, state.platformY, t) + BALL_RADIUS;
+    
+    // Slope gravity (pulls ball down toward Z=3)
+    state.velocity.z += GRAVITY * 0.2 * delta; 
   } else {
     nextPos.y = state.groundY + BALL_RADIUS;
-    // Fall off check (if not on ramp/platform but high up)
     if (state.ball.position.y > state.groundY + 0.5) {
       state.velocity.y -= GRAVITY * delta;
     }
@@ -184,13 +194,9 @@ export function updateMiniGolf(state: GolfGameState, delta: number) {
     }
   }
 
-  // Update position
   state.ball.position.copy(nextPos);
-
-  // Apply Friction
   state.velocity.multiplyScalar(FRICTION);
 
-  // Stop check
   if (state.velocity.length() < MIN_SPEED) {
     state.velocity.set(0, 0, 0);
     state.isMoving = false;
