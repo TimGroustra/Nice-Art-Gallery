@@ -112,14 +112,23 @@ export async function initializeGalleryConfig() {
       tokenMap[address] = [1];
       continue;
     }
+    
+    // Use a much safer default if fetching total supply fails (e.g., 1 to 5)
+    const SAFE_DEFAULT_SUPPLY = 5;
+    let total = SAFE_DEFAULT_SUPPLY;
+    
     try {
       const totalSupply = await fetchTotalSupply(address);
-      const total = totalSupply ?? 100;
-      tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
+      total = totalSupply ?? SAFE_DEFAULT_SUPPLY;
     } catch (e) {
-      console.error(`Failed to get total supply for ${address}`, e);
-      tokenMap[address] = [1];
+      console.warn(`Failed to get total supply for ${address}. Defaulting to ${SAFE_DEFAULT_SUPPLY} tokens.`, e);
     }
+    
+    // Ensure total is at least 1
+    total = Math.max(1, total);
+    
+    // Generate token IDs from 1 up to the determined total
+    tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
   }
 
   for (const panelKey in galleryConfig) {
@@ -131,18 +140,35 @@ export async function initializeGalleryConfig() {
       const showCollection = configFromDb.show_collection ?? true;
 
       let tokens: number[];
+      
+      // Determine the list of tokens to display
       if (showCollection) {
+        // Use the full list of tokens we determined earlier
         tokens = tokenMap[contractAddress] || [defaultTokenId];
       } else {
+        // Only show the default token ID
         tokens = [defaultTokenId];
       }
       
-      const startIndex = Math.max(0, tokens.indexOf(defaultTokenId));
+      // Filter out any tokens that are outside the determined total supply range
+      const validTokens = tokens.filter(tokenId => {
+          const maxToken = tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId;
+          return tokenId >= 1 && tokenId <= maxToken;
+      });
+      
+      // Ensure the default token is included if it's valid
+      if (validTokens.length === 0 && defaultTokenId >= 1 && defaultTokenId <= (tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId)) {
+          validTokens.push(defaultTokenId);
+      }
+      
+      const tokensToUse = validTokens.length > 0 ? validTokens : [defaultTokenId];
+
+      const startIndex = Math.max(0, tokensToUse.indexOf(defaultTokenId));
 
       galleryConfig[panelKey] = {
         name: configFromDb.collection_name || 'Unnamed Collection',
         contractAddress: contractAddress,
-        tokenIds: tokens,
+        tokenIds: tokensToUse,
         currentIndex: startIndex,
         show_collection: showCollection,
         // Apply defaults if DB values are null
@@ -168,7 +194,7 @@ export const GALLERY_PANEL_CONFIG = galleryConfig;
 
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
-  if (!config || !config.contractAddress) return null;
+  if (!config || !config.contractAddress || config.tokenIds.length === 0) return null;
   const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,

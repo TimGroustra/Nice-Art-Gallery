@@ -13,8 +13,20 @@ export async function safeCall(contract: Contract, method: string, args: any[] =
     const value = await contract[method](...args);
     return { ok: true, value };
   } catch (err: any) {
-    // capture common shapes
+    // Capture common shapes
     const message = err?.reason || err?.message || String(err);
+    
+    // Check for common revert/call exceptions which indicate a token might not exist
+    const isRevertError = 
+      err.code === 'CALL_EXCEPTION' || 
+      message.includes('missing revert data') || 
+      message.includes('execution reverted');
+
+    if (isRevertError) {
+      return { ok: false, error: "Token does not exist or contract call failed (revert)", raw: err };
+    }
+
+    // Capture other errors (like batch size too large)
     return { ok: false, error: message, raw: err };
   }
 }
