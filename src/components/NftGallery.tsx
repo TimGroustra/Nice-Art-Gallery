@@ -13,7 +13,6 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import { createMiniGolf, updateMiniGolf, hitBall, GolfGameState } from '@/utils/miniGolfEngine';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -43,7 +42,6 @@ interface NftGalleryProps {
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedButton: THREE.Mesh | null = null;
-let currentTargetedBall: boolean = false;
 
 // --- GLSL Shader Code for Rainbow Under-Platform Plane ---
 const rainbowVertexShader = `
@@ -117,7 +115,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
-  const golfStateRef = useRef<GolfGameState | null>(null);
 
   const isTeleportingRef = useRef(false);
   const fadeStartTimeRef = useRef(0);
@@ -613,9 +610,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     platform.position.set(0, PLATFORM_Y, 0);
     scene.add(platform);
 
-    // Initialize Putt Putt on the 1st floor platform
-    golfStateRef.current = createMiniGolf(scene, PLATFORM_Y + WALL_THICKNESS / 2);
-
     // Under-platform rainbow plane
     const shaderPlaneGeometry = new THREE.PlaneGeometry(HOLE_SIZE, HOLE_SIZE);
     const shaderPlane = new THREE.Mesh(shaderPlaneGeometry, rainbowMaterial);
@@ -964,12 +958,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const onClick = (event: MouseEvent) => {
       if (!controls.isLocked) return;
 
-      // Golf ball hit
-      if (currentTargetedBall && golfStateRef.current) {
-        hitBall(golfStateRef.current, camera);
-        return;
-      }
-
       // If we have a targeted teleport button, teleport
       if (currentTargetedButton && currentTargetedButton.userData?.isTeleportButton) {
         const targetY = currentTargetedButton.userData.targetY as number;
@@ -1093,11 +1081,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         rainbowMaterialRef.current.uniforms.time.value += delta;
       }
 
-      // Update Golf Physics
-      if (golfStateRef.current) {
-        updateMiniGolf(golfStateRef.current, delta);
-      }
-
       // Position fade screen in front of camera
       if (fadeScreenRef.current && cameraRef.current) {
         const cam = cameraRef.current;
@@ -1131,16 +1114,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           objectsToTest.push(p.mesh, p.prevArrow, p.nextArrow);
         });
         objectsToTest.push(...teleportButtonsRef.current);
-        if (golfStateRef.current) {
-          objectsToTest.push(golfStateRef.current.ball);
-        }
 
         const intersects = raycaster.intersectObjects(objectsToTest, false);
 
         currentTargetedPanel = null;
         currentTargetedArrow = null;
         currentTargetedButton = null;
-        currentTargetedBall = false;
 
         // Reset arrow colors and button colors
         panelsRef.current.forEach((p) => {
@@ -1160,10 +1139,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
         if (intersects.length > 0) {
           const hit = intersects[0].object as THREE.Mesh;
+          const panelHit = panelsRef.current.find(
+            (p) => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit,
+          );
 
-          if (hit.userData?.isGolfBall) {
-            currentTargetedBall = true;
-          } else if (hit.userData?.isTeleportButton) {
+          if (hit.userData?.isTeleportButton) {
             currentTargetedButton = hit;
             if (hit.material instanceof THREE.MeshStandardMaterial) {
               (hit.material as THREE.MeshStandardMaterial).color.setHex(
@@ -1173,19 +1153,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
                 TELEPORT_BUTTON_HOVER_COLOR,
               );
             }
-          } else {
-            const panelHit = panelsRef.current.find(
-              (p) => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit,
-            );
-            if (panelHit) {
-              if (hit === panelHit.prevArrow || hit === panelHit.nextArrow) {
-                currentTargetedArrow = hit;
-                if (hit.material instanceof THREE.MeshBasicMaterial) {
-                  (hit.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
-                }
-              } else if (hit === panelHit.mesh) {
-                currentTargetedPanel = panelHit;
+          } else if (panelHit) {
+            if (hit === panelHit.prevArrow || hit === panelHit.nextArrow) {
+              currentTargetedArrow = hit;
+              if (hit.material instanceof THREE.MeshBasicMaterial) {
+                (hit.material as THREE.MeshBasicMaterial).color.setHex(ARROW_COLOR_HOVER);
               }
+            } else if (hit === panelHit.mesh) {
+              currentTargetedPanel = panelHit;
             }
           }
         }
