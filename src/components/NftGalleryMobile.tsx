@@ -350,6 +350,7 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
+    let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -360,6 +361,8 @@ const NftGalleryMobile: React.FC = () => {
       const ARROW_PANEL_OFFSET = 3.2;
 
       const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'] as const;
+      const tempPanels: Panel[] = [];
+
       for (let i = 0; i <= 4; i++) {
         for (const wallNameBase of WALL_NAMES) {
           const segmentCenter = (i - 2) * ROOM_SEGMENT_SIZE;
@@ -395,8 +398,8 @@ const NftGalleryMobile: React.FC = () => {
             scene.add(nextArrow);
 
             const p: Panel = { mesh, wallName: key, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
+            tempPanels.push(p);
             panelsRef.current.push(p);
-            updatePanelContent(p, getCurrentNftSource(key));
           }
         }
       }
@@ -428,10 +431,18 @@ const NftGalleryMobile: React.FC = () => {
           nextArrow.position.copy(mesh.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
           scene.add(nextArrow);
           const p: Panel = { mesh, wallName: cfg.key as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
+          tempPanels.push(p);
           panelsRef.current.push(p);
-          updatePanelContent(p, getCurrentNftSource(cfg.key as keyof PanelConfig));
         });
       });
+
+      // Stagger initial content loading
+      for (let i = 0; i < tempPanels.length; i++) {
+        if (stopLoad) break;
+        const p = tempPanels[i];
+        updatePanelContent(p, getCurrentNftSource(p.wallName));
+        if (i % 3 === 0) await new Promise(resolve => setTimeout(resolve, 100));
+      }
     };
     createPanels();
 
@@ -534,6 +545,7 @@ const NftGalleryMobile: React.FC = () => {
     };
     window.addEventListener('resize', onResize);
     return () => {
+      stopLoad = true;
       renderer.dispose();
       container.removeEventListener('touchstart', handleTouchStart);
       container.removeEventListener('touchmove', handleTouchMove);
