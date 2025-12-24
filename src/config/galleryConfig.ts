@@ -21,9 +21,9 @@ const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
 const DEFAULT_WALL_COLOR = '#4A235A';
 const DEFAULT_TEXT_COLOR = '#F4D03F';
 
-// Safety limit: never request more than this many token IDs per contract.
-// This prevents fetching IDs that don’t exist and reduces RPC load.
-const MAX_TOKENS_PER_COLLECTION = 10; // Adjust as needed
+// Safety limit: request up to 56 token IDs per contract (one for each panel).
+// This gives us a unique NFT per panel while still capping the request size.
+const MAX_TOKENS_PER_COLLECTION = 56; // Updated to match panel count
 
 // This part creates the structure of the gallery with all panel keys.
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
@@ -122,22 +122,27 @@ export async function initializeGalleryConfig() {
 
     // Try to get totalSupply; fall back to a safe default.
     const SAFE_DEFAULT_SUPPLY = 5;
-    let total = SAFE_DEFAULT_SUPPLY;
+    let totalSupply = SAFE_DEFAULT_SUPPLY;
 
     try {
-      const totalSupply = await fetchTotalSupply(address);
-      if (totalSupply && totalSupply > 0) {
-        total = Math.max(1, totalSupply);
+      const fetchedSupply = await fetchTotalSupply(address);
+      if (fetchedSupply && fetchedSupply > 0) {
+        totalSupply = fetchedSupply;
       }
     } catch (e) {
       console.warn(`Failed to get total supply for ${address}. Using safe default (${SAFE_DEFAULT_SUPPLY}).`, e);
     }
 
     // Cap the total to our safety ceiling.
-    const cappedTotal = Math.min(total, MAX_TOKENS_PER_COLLECTION);
+    const cappedTotal = Math.min(totalSupply, MAX_TOKENS_PER_COLLECTION);
 
-    // Generate token IDs 1..cappedTotal.
-    tokenMap[address] = Array.from({ length: cappedTotal }, (_, i) => i + 1);
+    // Generate token IDs starting from the highest IDs (presumed rarest).
+    const startId = Math.max(1, totalSupply - cappedTotal + 1);
+    const ids: number[] = [];
+    for (let id = totalSupply; id >= startId; id--) {
+      ids.push(id);
+    }
+    tokenMap[address] = ids;
   }
 
   // Fill in the galleryConfig with data from Supabase.
@@ -152,7 +157,7 @@ export async function initializeGalleryConfig() {
       // Determine the token IDs to expose.
       let tokens: number[];
       if (showCollection) {
-        // Use the safe, capped list for the contract.
+        // Use the safe, capped (high‑ID) list for the contract.
         tokens = tokenMap[contractAddress] || [defaultTokenId];
       } else {
         // Only the default token (still validated against the capped list).
@@ -190,7 +195,7 @@ export async function initializeGalleryConfig() {
     }
   }
 
-  console.log(`Gallery configuration initialized with safe token limits (max ${MAX_TOKENS_PER_COLLECTION} per contract).`);
+  console.log(`Gallery configuration initialized with up to ${MAX_TOKENS_PER_COLLECTION} high‑ID tokens per contract (total panels = 56).`);
 }
 
 export const GALLERY_PANEL_CONFIG = galleryConfig;
