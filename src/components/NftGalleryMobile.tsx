@@ -248,10 +248,14 @@ const NftGalleryMobile: React.FC = () => {
       touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e: TouchEvent) => {
       if (!isDraggingRef.current) {
+        const touch = e.changedTouches[0];
+        const x = (touch.clientX / window.innerWidth) * 2 - 1;
+        const y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
         const raycaster = raycasterRef.current;
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
         
         const objects = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
         const intersects = raycaster.intersectObjects(objects);
@@ -334,7 +338,7 @@ const NftGalleryMobile: React.FC = () => {
         >
           <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-2xl text-center max-w-xs animate-in fade-in zoom-in duration-300">
             <h2 className="text-2xl font-bold text-white mb-4">Art Gallery Mobile</h2>
-            <p className="text-white/70 mb-6">Drag to look around, align the crosshair and tap to interact.</p>
+            <p className="text-white/70 mb-6">Drag to look around, tap on panels to interact.</p>
             <button className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">
               Enter Gallery
             </button>
@@ -343,15 +347,9 @@ const NftGalleryMobile: React.FC = () => {
       )}
 
       {isStarted && (
-        <>
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-30">
-            <div className="absolute top-1/2 left-0 w-full h-px bg-white/60 -translate-y-1/2"></div>
-            <div className="absolute top-0 left-1/2 w-px h-full bg-white/60 -translate-x-1/2"></div>
-          </div>
-          <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-xs z-20">
-            Drag to look around • Align crosshair and tap to interact
-          </div>
-        </>
+        <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-xs z-20">
+          Drag to look around • Tap panels to interact
+        </div>
       )}
       
       {marketBrowserState.open && (
