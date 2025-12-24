@@ -2,8 +2,8 @@ import * as THREE from 'three';
 import { useRef, useEffect, useCallback } from 'react';
 
 interface TouchControlsProps {
-  camera: THREE.PerspectiveCamera;
-  rendererDomElement: HTMLElement;
+  camera: THREE.PerspectiveCamera | null;
+  rendererDomElement: HTMLElement | null;
   isMobile: boolean;
   isWalking: boolean;
   onInteraction: (event: MouseEvent | TouchEvent) => void;
@@ -45,7 +45,7 @@ export function useTouchControls({
   }, []);
 
   const handleTouchMove = useCallback((event: TouchEvent) => {
-    if (!isDragging.current || event.touches.length !== 1) return;
+    if (!isDragging.current || event.touches.length !== 1 || !camera) return;
 
     const touch = event.touches[0];
     const deltaX = touch.clientX - (previousTouch.current?.x ?? touch.clientX);

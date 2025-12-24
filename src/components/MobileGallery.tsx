@@ -105,8 +105,8 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
   }>({ open: false });
 
   const sceneRef = useRef<THREE.Scene | null>(null);
-  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
+  const [rendererDomElement, setRendererDomElement] = useState<HTMLElement | null>(null);
   const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
@@ -121,9 +121,9 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
 
   // Mobile Controls Hook initialization
   const { updateMovement: updateTouchMovement } = useTouchControls({
-    camera: cameraRef.current!,
-    rendererDomElement: rendererRef.current?.domElement!,
-    isMobile: true, // Always true for this component
+    camera: camera,
+    rendererDomElement: rendererDomElement,
+    isMobile: true,
     isWalking,
     onInteraction: (event) => handleInteraction(event),
   });
@@ -142,6 +142,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
       }
 
       if (panel.gifStopFunction) {
+        panel.gifStopFunction();
         panel.gifStopFunction = null;
       }
 
@@ -162,10 +163,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
           videoEl.src = url;
           videoEl.load();
 
-          // Attempt to play immediately on mobile interaction
-          if (isWalking) {
-            videoEl.play().catch((e) => console.warn('Video playback prevented:', e));
-          }
+          // Playback is now managed solely by the useEffect hook based on isWalking state.
 
           const videoTexture = new THREE.VideoTexture(videoEl);
           videoTexture.minFilter = THREE.LinearFilter;
@@ -199,7 +197,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
         );
       });
     },
-    [isWalking],
+    [], // FIX: Removed [isWalking] dependency to prevent unnecessary artwork reloads
   );
 
   const updatePanelContent = useCallback(
@@ -312,17 +310,18 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
 
 
   const performTeleport = useCallback((targetY: number) => {
-    if (isTeleportingRef.current || !cameraRef.current) return;
+    if (isTeleportingRef.current || !camera) return;
     isTeleportingRef.current = true;
     fadeStartTimeRef.current = performance.now();
 
     setTimeout(() => {
-      if (cameraRef.current) {
-        cameraRef.current.position.y = targetY;
+      if (camera) {
+        camera.position.y = targetY;
       }
       // Note: isTeleportingRef is reset in the animation loop after fade out
     }, FADE_DURATION * 1000);
-  }, []);
+  }, [camera]);
+
 
   // Interaction handler for mobile (tap raycasting)
   const handleInteraction = useCallback((event: MouseEvent | TouchEvent) => {
@@ -341,7 +340,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
     }
 
     const rect = rendererRef.current?.domElement.getBoundingClientRect();
-    if (!rect) return;
+    if (!rect || !rendererRef.current) return;
 
     // Raycast from the tap point
     const mouse = new THREE.Vector2(
@@ -349,10 +348,10 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
         -(((clientY - rect.top) / rect.height) * 2 - 1)
     );
 
-    if (!cameraRef.current || !raycasterRef.current) return;
+    if (!camera || !raycasterRef.current) return;
 
     const raycaster = raycasterRef.current;
-    const cam = cameraRef.current;
+    const cam = camera;
 
     raycaster.setFromCamera(mouse, cam);
 
@@ -402,8 +401,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
             }
         }
     }
-  }, [performTeleport, updatePanelContent]);
-
+  }, [performTeleport, updatePanelContent, camera]);
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -412,20 +410,21 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
     sceneRef.current = scene;
     scene.background = new THREE.Color(0x000000);
 
-    const camera = new THREE.PerspectiveCamera(
+    const cameraInstance = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
       0.1,
       1000,
     );
-    cameraRef.current = camera;
-    camera.position.set(0, 1.6, -20);
+    cameraInstance.position.set(0, 1.6, -20);
+    setCamera(cameraInstance); // Set camera state
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
+    setRendererDomElement(renderer.domElement); // Set rendererDomElement state
 
     // Mobile: Controls are handled by the useTouchControls hook
     (window as any).galleryControls = {
@@ -975,8 +974,8 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
 
     // Resize handling
     const onWindowResize = () => {
-      if (!cameraRef.current || !rendererRef.current) return;
-      const cam = cameraRef.current;
+      if (!cameraInstance || !rendererRef.current) return;
+      const cam = cameraInstance;
       const rend = rendererRef.current;
       cam.aspect = window.innerWidth / window.innerHeight;
       cam.updateProjectionMatrix();
@@ -1028,8 +1027,9 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
       updateTouchMovement(delta);
 
       // Clamp within bounds
-      if (cameraRef.current) {
-        const pos = cameraRef.current.position;
+      const cam = cameraInstance;
+      if (cam) {
+        const pos = cam.position;
         pos.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.x));
         pos.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.z));
       }
@@ -1041,8 +1041,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
       }
 
       // Position fade screen in front of camera
-      if (fadeScreenRef.current && cameraRef.current) {
-        const cam = cameraRef.current;
+      if (fadeScreenRef.current && cam) {
         fadeScreenRef.current.position.copy(cam.position);
         fadeScreenRef.current.quaternion.copy(cam.quaternion);
       }
@@ -1063,7 +1062,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
 
       // No raycast hover/highlight needed for mobile (tap interaction only)
 
-      renderer.render(scene, camera);
+      renderer.render(scene, cameraInstance);
       requestAnimationFrame(animate);
     };
 
@@ -1119,7 +1118,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [updatePanelContent, manageVideoPlayback, updateTouchMovement, handleInteraction, performTeleport, isWalking]);
+  }, [updatePanelContent, manageVideoPlayback, updateTouchMovement, handleInteraction, performTeleport]);
 
   return (
     <>
