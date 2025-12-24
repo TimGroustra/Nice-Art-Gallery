@@ -479,6 +479,10 @@ const NftGalleryMobile: React.FC = () => {
         const intersects = raycasterRef.current.intersectObjects(objects);
         if (intersects.length > 0) {
           const hit = intersects[0].object as THREE.Mesh;
+          
+          // Disable walking mode on any successful interaction
+          setIsWalking(false);
+
           if (hit.userData.isTeleportButton) {
             performTeleport(hit.userData.targetY);
             return;
