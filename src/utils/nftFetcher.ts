@@ -43,11 +43,12 @@ export type NftMetadataResult = {
 /**
  * Helper to retry an async function a few times with backoff.
  */
-async function retry<T>(fn: () => Promise<T>, retries = 3, delay = 500): Promise<T> {
+async function retry<T>(fn: () => Promise<T>, retries = 5, delay = 1000): Promise<T> {
   try {
     return await fn();
   } catch (e) {
     if (retries <= 0) throw e;
+    console.warn(`[NFT Fetcher] Retrying failed RPC call in ${delay}ms... Retries left: ${retries}`);
     await new Promise(r => setTimeout(r, delay));
     return retry(fn, retries - 1, delay * 2);
   }
