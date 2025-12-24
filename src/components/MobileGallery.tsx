@@ -107,6 +107,7 @@ const MobileGallery: React.FC<MobileGalleryProps> = ({ isWalking }) => {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const [camera, setCamera] = useState<THREE.PerspectiveCamera | null>(null);
   const [rendererDomElement, setRendererDomElement] = useState<HTMLElement | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null); // FIX: Added missing rendererRef
   const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
