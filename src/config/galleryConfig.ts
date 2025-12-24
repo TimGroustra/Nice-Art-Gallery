@@ -18,8 +18,8 @@ export interface PanelConfig {
 const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
 
 // Default colors for the new theme (Deep Purple and Bright Yellow)
-const DEFAULT_WALL_COLOR = '#4A235A'; 
-const DEFAULT_TEXT_COLOR = '#F4D03F'; 
+const DEFAULT_WALL_COLOR = '#4A235A';
+const DEFAULT_TEXT_COLOR = '#F4D03F';
 
 // This part creates the structure of the gallery with all panel keys.
 // We'll initialize them as blank, and they will be populated from the database.
@@ -80,16 +80,16 @@ export async function initializeGalleryConfig() {
   const { data: dbConfigs, error } = await supabase.from('gallery_config').select('*');
 
   if (error) {
-    console.error("Failed to fetch gallery config from Supabase:", error);
+    if (import.meta.env.DEV) console.error("Failed to fetch gallery config from Supabase:", error);
     for (const wallName in galleryConfig) {
-      galleryConfig[wallName] = { 
-        name: 'Error Loading', 
-        contractAddress: '', 
-        tokenIds: [], 
-        currentIndex: 0, 
-        show_collection: true, 
-        wall_color: DEFAULT_WALL_COLOR, 
-        text_color: DEFAULT_TEXT_COLOR 
+      galleryConfig[wallName] = {
+        name: 'Error Loading',
+        contractAddress: '',
+        tokenIds: [],
+        currentIndex: 0,
+        show_collection: true,
+        wall_color: DEFAULT_WALL_COLOR,
+        text_color: DEFAULT_TEXT_COLOR
       };
     }
     return;
@@ -113,7 +113,7 @@ export async function initializeGalleryConfig() {
       continue;
     }
     
-    // Use a much safer default if fetching total supply fails (e.g., 1 to 5)
+    // Safer fallback if fetching total supply fails
     const SAFE_DEFAULT_SUPPLY = 5;
     let total = SAFE_DEFAULT_SUPPLY;
     
@@ -121,13 +121,10 @@ export async function initializeGalleryConfig() {
       const totalSupply = await fetchTotalSupply(address);
       total = totalSupply ?? SAFE_DEFAULT_SUPPLY;
     } catch (e) {
-      console.warn(`Failed to get total supply for ${address}. Defaulting to ${SAFE_DEFAULT_SUPPLY} tokens.`, e);
+      if (import.meta.env.DEV) console.warn(`Failed to get total supply for ${address}. Using fallback ${SAFE_DEFAULT_SUPPLY}.`, e);
     }
     
-    // Ensure total is at least 1
     total = Math.max(1, total);
-    
-    // Generate token IDs from 1 up to the determined total
     tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
   }
 
@@ -141,37 +138,30 @@ export async function initializeGalleryConfig() {
 
       let tokens: number[];
       
-      // Determine the list of tokens to display
       if (showCollection) {
-        // Use the full list of tokens we determined earlier
         tokens = tokenMap[contractAddress] || [defaultTokenId];
       } else {
-        // Only show the default token ID
         tokens = [defaultTokenId];
       }
       
-      // Filter out any tokens that are outside the determined total supply range
       const validTokens = tokens.filter(tokenId => {
-          const maxToken = tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId;
-          return tokenId >= 1 && tokenId <= maxToken;
+        const maxToken = tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId;
+        return tokenId >= 1 && tokenId <= maxToken;
       });
       
-      // Ensure the default token is included if it's valid
       if (validTokens.length === 0 && defaultTokenId >= 1 && defaultTokenId <= (tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId)) {
-          validTokens.push(defaultTokenId);
+        validTokens.push(defaultTokenId);
       }
       
       const tokensToUse = validTokens.length > 0 ? validTokens : [defaultTokenId];
-
       const startIndex = Math.max(0, tokensToUse.indexOf(defaultTokenId));
 
       galleryConfig[panelKey] = {
         name: configFromDb.collection_name || 'Unnamed Collection',
-        contractAddress: contractAddress,
+        contractAddress,
         tokenIds: tokensToUse,
         currentIndex: startIndex,
         show_collection: showCollection,
-        // Apply defaults if DB values are null
         wall_color: configFromDb.wall_color || DEFAULT_WALL_COLOR,
         text_color: configFromDb.text_color || DEFAULT_TEXT_COLOR,
       };
@@ -187,9 +177,11 @@ export async function initializeGalleryConfig() {
       };
     }
   }
-  console.log(`Gallery configuration fully initialized from Supabase.`);
+
+  if (import.meta.env.DEV) console.log(`Gallery configuration fully initialized from Supabase.`);
 }
 
+// Exported constants stay the same
 export const GALLERY_PANEL_CONFIG = galleryConfig;
 
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
@@ -198,7 +190,7 @@ export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,
-    tokenId: tokenId,
+    tokenId,
   };
 };
 

@@ -15,12 +15,12 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
   useEffect(() => {
     const audio = new Audio(MUSIC_URL);
     audio.loop = true;
-    audio.volume = 0.3; // Start at a reasonable background volume
-    audio.muted = true; // Mute by default
+    audio.volume = 0.3; // Reasonable background volume
+    audio.muted = true; // Start muted
     audioRef.current = audio;
 
-    // Attempt to play immediately (might fail due to browser policy)
-    audio.play().catch(e => console.log("Autoplay blocked for background music:", e));
+    // Removed auto‑play on mount to avoid NotAllowedError on mobile.
+    // Playback can now be triggered after a user interaction via the exposed play() method.
 
     return () => {
       audio.pause();
@@ -31,7 +31,7 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
   useImperativeHandle(ref, () => ({
     play: () => {
       if (audioRef.current) {
-        audioRef.current.play().catch(e => console.error("Failed to play music:", e));
+        audioRef.current.play().catch(e => console.error("Play failed:", e));
       }
     },
     pause: () => {
@@ -49,7 +49,7 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
     }
   }));
 
-  return null; // This component renders nothing visible
+  return null; // No visible UI
 });
 
 export default BackgroundMusic;
