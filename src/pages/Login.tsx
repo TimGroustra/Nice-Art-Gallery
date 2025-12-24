@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { Loader2, Wallet, LogIn, X } from 'lucide-react';
+import { Loader2, Wallet, LogIn, X, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 
 const Login: React.FC = () => {
@@ -34,6 +34,10 @@ const Login: React.FC = () => {
     toast.info("Wallet disconnected.");
   };
 
+  const handleBackToGallery = () => {
+    navigate('/');
+  };
+
   // Use known string IDs for comparison
   const injectedConnector = connectors.find(c => c.id === 'injected');
   // WalletConnect connector is no longer needed
@@ -42,10 +46,17 @@ const Login: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Connect Wallet</CardTitle>
-          <CardDescription>
-            Connect your wallet to verify ElectroGem ownership and access configuration.
-          </CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Connect Wallet</CardTitle>
+              <CardDescription>
+                Connect your wallet to verify ElectroGem ownership and access configuration.
+              </CardDescription>
+            </div>
+            <Button variant="outline" size="icon" onClick={handleBackToGallery} title="Back to Gallery">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {isConnected ? (
