@@ -79,7 +79,7 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 const NftGalleryMobile: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
-  const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
+  const [isStarted, setIsStarted] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
     collection?: string;
@@ -165,7 +165,7 @@ const NftGalleryMobile: React.FC = () => {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     cameraRef.current = camera;
     camera.position.set(0, 1.6, 20);
-    camera.rotation.order = 'YXZ'; // Important for FPS-style rotation
+    camera.rotation.order = 'YXZ';
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
@@ -173,7 +173,6 @@ const NftGalleryMobile: React.FC = () => {
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
 
-    // Basic Scene Construction
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const sun = new THREE.DirectionalLight(0xffffff, 0.5);
     sun.position.set(5, 10, 7.5);
@@ -186,7 +185,6 @@ const NftGalleryMobile: React.FC = () => {
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // Rainbow Plane
     const rainbowMat = new THREE.ShaderMaterial({
       uniforms: { time: { value: 0 } },
       vertexShader: rainbowVertexShader,
@@ -198,7 +196,6 @@ const NftGalleryMobile: React.FC = () => {
     ceiling.position.y = 16;
     scene.add(ceiling);
 
-    // Initialize Panels
     const createPanels = async () => {
       await initializeGalleryConfig();
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -233,7 +230,6 @@ const NftGalleryMobile: React.FC = () => {
 
     createPanels();
 
-    // Interaction Handlers
     const handleTouchStart = (e: TouchEvent) => {
       isDraggingRef.current = false;
       touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
@@ -254,7 +250,6 @@ const NftGalleryMobile: React.FC = () => {
 
     const handleTouchEnd = () => {
       if (!isDraggingRef.current) {
-        // Simple tap -> Perform raycast from center (crosshair)
         const raycaster = raycasterRef.current;
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
         
@@ -321,19 +316,43 @@ const NftGalleryMobile: React.FC = () => {
     };
   }, [updatePanelContent]);
 
+  const handleStart = () => {
+    setIsStarted(true);
+    // Enable audio context if needed
+    const bgm = (window as any).musicControls;
+    if (bgm && bgm.play) bgm.play();
+  };
+
   return (
     <div className="w-full h-full bg-black relative">
       <div ref={mountRef} className="w-full h-full" />
       
-      {/* Central Crosshair */}
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-30">
-        <div className="absolute top-1/2 left-0 w-full h-px bg-white/40 -translate-y-1/2"></div>
-        <div className="absolute top-0 left-1/2 w-px h-full bg-white/40 -translate-x-1/2"></div>
-      </div>
+      {!isStarted && (
+        <div 
+          className="absolute inset-0 flex items-center justify-center bg-black/70 z-50 cursor-pointer"
+          onClick={handleStart}
+        >
+          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-2xl text-center max-w-xs animate-in fade-in zoom-in duration-300">
+            <h2 className="text-2xl font-bold text-white mb-4">Art Gallery Mobile</h2>
+            <p className="text-white/70 mb-6">Drag to look around, align the crosshair and tap to interact.</p>
+            <button className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">
+              Enter Gallery
+            </button>
+          </div>
+        </div>
+      )}
 
-      <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-sm z-20">
-        Drag screen to look around • Align crosshair and tap to interact
-      </div>
+      {isStarted && (
+        <>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-30">
+            <div className="absolute top-1/2 left-0 w-full h-px bg-white/60 -translate-y-1/2"></div>
+            <div className="absolute top-0 left-1/2 w-px h-full bg-white/60 -translate-x-1/2"></div>
+          </div>
+          <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-xs z-20">
+            Drag to look around • Align crosshair and tap to interact
+          </div>
+        </>
+      )}
       
       {marketBrowserState.open && (
         <MarketBrowserRefined
