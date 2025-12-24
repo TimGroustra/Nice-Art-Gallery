@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import GalleryConfig from "./pages/GalleryConfig";
 import Login from "./pages/Login";
+import MobileGallery from "./pages/MobileGallery";
 import { WagmiProvider } from 'wagmi';
 import { wagmiConfig } from '@/integrations/wagmi/config';
 
@@ -21,9 +22,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/mobile" element={<MobileGallery />} />
             <Route path="/login" element={<Login />} />
             <Route path="/gallery-config" element={<GalleryConfig />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

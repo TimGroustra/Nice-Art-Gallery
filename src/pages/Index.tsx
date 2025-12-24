@@ -2,10 +2,10 @@ import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import React, { useState, useCallback, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 
-// Define the type for the music controls exposed via ref
 interface BackgroundMusicHandles {
   play: () => void;
   pause: () => void;
@@ -16,8 +16,16 @@ interface BackgroundMusicHandles {
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
   const musicRef = useRef<BackgroundMusicHandles>(null);
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
 
-  // Expose music controls globally for GalleryUI to access
+  // Redirect to mobile version if on a mobile device
+  useEffect(() => {
+    if (isMobile) {
+      navigate('/mobile');
+    }
+  }, [isMobile, navigate]);
+
   useEffect(() => {
     (window as any).musicControls = {
       toggleMute: () => musicRef.current?.toggleMute(),
@@ -33,17 +41,14 @@ const Index = () => {
     if (galleryControls && galleryControls.lockControls) {
       galleryControls.lockControls();
     }
-    // Attempt to start music playback upon user interaction (locking controls)
     musicRef.current?.play();
   }, []);
   
-  // Add keyboard listener for 'M' key to toggle music mute
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const galleryControls = (window as any).galleryControls;
       const musicControls = (window as any).musicControls;
       
-      // Only allow keyboard shortcuts when controls are locked (user is in the gallery)
       if (galleryControls?.isLocked?.() && musicControls && event.code === 'KeyM') {
         musicControls.toggleMute();
       }
@@ -55,11 +60,13 @@ const Index = () => {
     };
   }, []);
 
+  // Return null or loading state during redirect
+  if (isMobile) return null;
+
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       <BackgroundMusic ref={musicRef} />
 
-      {/* Gallery Config Button */}
       <div className="fixed top-4 right-4 z-20">
         <Button asChild>
           <Link to="/gallery-config" target="_blank" rel="noopener noreferrer">
@@ -68,12 +75,10 @@ const Index = () => {
         </Button>
       </div>
       
-      {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
       />
       
-      {/* 2D Overlay UI */}
       <GalleryUI 
         instructionsVisible={instructionsVisible} 
         onLockClick={handleLockClick}
