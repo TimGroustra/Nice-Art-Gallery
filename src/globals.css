@@ -95,7 +95,13 @@
     @apply border-border;
   }
 
-  body {
+  /* Prevent browser navigation gestures and pull-to-refresh */
+  html, body {
     @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    overflow: hidden;
+    position: fixed;
+    width: 100%;
+    height: 100%;
   }
 }

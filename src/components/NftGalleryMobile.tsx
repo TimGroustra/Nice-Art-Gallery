@@ -328,8 +328,8 @@ const NftGalleryMobile: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-full bg-black relative">
-      <div ref={mountRef} className="w-full h-full" />
+    <div className="w-full h-full bg-black relative touch-none">
+      <div ref={mountRef} className="w-full h-full touch-none" />
       
       {!isStarted && (
         <div 
