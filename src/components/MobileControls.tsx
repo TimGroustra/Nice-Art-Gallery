@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Walk, Volume2, VolumeX, Pause, Play } from 'lucide-react';
+import { Volume2, VolumeX, Pause, Play } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MobileControlsProps {
