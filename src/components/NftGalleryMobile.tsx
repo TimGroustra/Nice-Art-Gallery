@@ -1,6 +1,8 @@
+"use client";
+
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { OrbitControls, RectAreaLightUniformsLib } from 'three-stdlib';
+import { RectAreaLightUniformsLib } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -87,7 +89,12 @@ const NftGalleryMobile: React.FC = () => {
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
+  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
+
+  // Rotation state for touch dragging
+  const rotationRef = useRef({ yaw: 0, pitch: 0 });
+  const touchStartRef = useRef({ x: 0, y: 0 });
+  const isDraggingRef = useRef(false);
 
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
@@ -158,6 +165,7 @@ const NftGalleryMobile: React.FC = () => {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     cameraRef.current = camera;
     camera.position.set(0, 1.6, 20);
+    camera.rotation.order = 'YXZ'; // Important for FPS-style rotation
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
@@ -165,17 +173,7 @@ const NftGalleryMobile: React.FC = () => {
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
 
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controlsRef.current = controls;
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.screenSpacePanning = false;
-    controls.minDistance = 2;
-    controls.maxDistance = 45;
-    controls.maxPolarAngle = Math.PI / 1.8;
-    controls.target.set(0, 1.6, 0);
-
-    // Basic Scene Construction (simplified for mobile)
+    // Basic Scene Construction
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const sun = new THREE.DirectionalLight(0xffffff, 0.5);
     sun.position.set(5, 10, 7.5);
@@ -200,46 +198,6 @@ const NftGalleryMobile: React.FC = () => {
     ceiling.position.y = 16;
     scene.add(ceiling);
 
-    // Logic for Raycasting Tap
-    const raycaster = new THREE.Raycaster();
-    const touch = new THREE.Vector2();
-
-    const onTouch = (event: TouchEvent | MouseEvent) => {
-      const x = 'touches' in event ? event.touches[0].clientX : event.clientX;
-      const y = 'touches' in event ? event.touches[0].clientY : event.clientY;
-      
-      touch.x = (x / window.innerWidth) * 2 - 1;
-      touch.y = -(y / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(touch, camera);
-      const objects = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
-      objects.push(...teleportButtonsRef.current);
-      
-      const intersects = raycaster.intersectObjects(objects);
-      if (intersects.length > 0) {
-        const hit = intersects[0].object as THREE.Mesh;
-        const panel = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
-        
-        if (panel) {
-          if (hit === panel.prevArrow || hit === panel.nextArrow) {
-            const direction = hit === panel.nextArrow ? 'next' : 'prev';
-            if (updatePanelIndex(panel.wallName, direction)) {
-              updatePanelContent(panel, getCurrentNftSource(panel.wallName));
-            }
-          } else if (panel.metadataUrl) {
-            const config = GALLERY_PANEL_CONFIG[panel.wallName];
-            setMarketBrowserState({
-              open: true,
-              collection: config.contractAddress,
-              tokenId: config.tokenIds[config.currentIndex]
-            });
-          }
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('click', onTouch);
-
     // Initialize Panels
     const createPanels = async () => {
       await initializeGalleryConfig();
@@ -253,7 +211,6 @@ const NftGalleryMobile: React.FC = () => {
         if (!config) return;
 
         const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x333333 }));
-        // Deterministic grid layout for mobile viewing
         const col = idx % 5;
         const row = Math.floor(idx / 5);
         mesh.position.set((col - 2) * 8, 4 + row * 8, -20);
@@ -276,27 +233,108 @@ const NftGalleryMobile: React.FC = () => {
 
     createPanels();
 
+    // Interaction Handlers
+    const handleTouchStart = (e: TouchEvent) => {
+      isDraggingRef.current = false;
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      isDraggingRef.current = true;
+      const deltaX = e.touches[0].clientX - touchStartRef.current.x;
+      const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+      
+      const sensitivity = 0.005;
+      rotationRef.current.yaw -= deltaX * sensitivity;
+      rotationRef.current.pitch -= deltaY * sensitivity;
+      rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
+
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+
+    const handleTouchEnd = () => {
+      if (!isDraggingRef.current) {
+        // Simple tap -> Perform raycast from center (crosshair)
+        const raycaster = raycasterRef.current;
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        
+        const objects = panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]);
+        const intersects = raycaster.intersectObjects(objects);
+
+        if (intersects.length > 0) {
+          const hit = intersects[0].object as THREE.Mesh;
+          const panel = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
+          
+          if (panel) {
+            if (hit === panel.prevArrow || hit === panel.nextArrow) {
+              const direction = hit === panel.nextArrow ? 'next' : 'prev';
+              if (updatePanelIndex(panel.wallName, direction)) {
+                updatePanelContent(panel, getCurrentNftSource(panel.wallName));
+              }
+            } else if (panel.metadataUrl) {
+              const config = GALLERY_PANEL_CONFIG[panel.wallName];
+              setMarketBrowserState({
+                open: true,
+                collection: config.contractAddress,
+                tokenId: config.tokenIds[config.currentIndex]
+              });
+            }
+          }
+        }
+      }
+    };
+
+    const container = mountRef.current;
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd);
+
     const animate = () => {
       const time = performance.now() * 0.001;
       rainbowMat.uniforms.time.value = time;
-      controls.update();
+      
+      if (camera) {
+        camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
+      }
+
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     };
     animate();
 
+    const onResize = () => {
+      if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+    };
+    window.addEventListener('resize', onResize);
+
     return () => {
       renderer.dispose();
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+      window.removeEventListener('resize', onResize);
       mountRef.current?.removeChild(renderer.domElement);
     };
   }, [updatePanelContent]);
 
   return (
-    <div className="w-full h-full bg-black">
+    <div className="w-full h-full bg-black relative">
       <div ref={mountRef} className="w-full h-full" />
-      <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-sm">
-        Drag to view • Tap NFT to open info • Use arrows to browse
+      
+      {/* Central Crosshair */}
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none z-30">
+        <div className="absolute top-1/2 left-0 w-full h-px bg-white/40 -translate-y-1/2"></div>
+        <div className="absolute top-0 left-1/2 w-px h-full bg-white/40 -translate-x-1/2"></div>
       </div>
+
+      <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-sm z-20">
+        Drag screen to look around • Align crosshair and tap to interact
+      </div>
+      
       {marketBrowserState.open && (
         <MarketBrowserRefined
           collection={marketBrowserState.collection || ''}
