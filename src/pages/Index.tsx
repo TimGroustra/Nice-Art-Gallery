@@ -1,9 +1,11 @@
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
+import MobileControls from "@/components/MobileControls";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Define the type for the music controls exposed via ref
 interface BackgroundMusicHandles {
@@ -14,7 +16,11 @@ interface BackgroundMusicHandles {
 }
 
 const Index = () => {
-  const [instructionsVisible, setInstructionsVisible] = useState(true);
+  const isMobile = useIsMobile();
+  // On mobile, instructions are never visible (controls are always active).
+  // On desktop, they are visible until pointer lock.
+  const [instructionsVisible, setInstructionsVisible] = useState(!isMobile); 
+  const [isWalking, setIsWalking] = useState(false);
   const musicRef = useRef<BackgroundMusicHandles>(null);
 
   // Expose music controls globally for GalleryUI to access
@@ -37,8 +43,22 @@ const Index = () => {
     musicRef.current?.play();
   }, []);
   
-  // Add keyboard listener for 'M' key to toggle music mute
+  const handleToggleWalk = useCallback(() => {
+    setIsWalking(prev => !prev);
+    musicRef.current?.play(); // Attempt to play music on first interaction
+  }, []);
+
+  const handleToggleMute = useCallback(() => {
+    const musicControls = (window as any).musicControls;
+    if (musicControls) {
+      musicControls.toggleMute();
+    }
+  }, []);
+
+  // Add keyboard listener for 'M' key to toggle music mute (Desktop only)
   useEffect(() => {
+    if (isMobile) return;
+    
     const handleKeyDown = (event: KeyboardEvent) => {
       const galleryControls = (window as any).galleryControls;
       const musicControls = (window as any).musicControls;
@@ -53,7 +73,9 @@ const Index = () => {
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [isMobile]);
+
+  const isMuted = (window as any).musicControls?.isMuted() ?? true;
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
@@ -71,13 +93,25 @@ const Index = () => {
       {/* 3D Canvas */}
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
+        isWalking={isWalking}
       />
       
       {/* 2D Overlay UI */}
       <GalleryUI 
         instructionsVisible={instructionsVisible} 
         onLockClick={handleLockClick}
+        isMobile={isMobile}
       />
+      
+      {/* Mobile Controls */}
+      {isMobile && (
+        <MobileControls
+          isWalking={isWalking}
+          onToggleWalk={handleToggleWalk}
+          onToggleMute={handleToggleMute}
+          isMuted={isMuted}
+        />
+      )}
     </div>
   );
 };

@@ -13,6 +13,8 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { useTouchControls } from '@/hooks/use-touch-controls';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -36,6 +38,7 @@ interface Panel {
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
+  isWalking: boolean; // New prop for mobile movement state
 }
 
 // Global state for UI interaction
@@ -96,16 +99,17 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, isWalking }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
-  const wallMeshesRef = useRef<Map<string, THREE.Mesh>>(new Map());
   const [isLocked, setIsLocked] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
+
+  const isMobile = useIsMobile();
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -122,7 +126,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
   const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
 
-  // Movement state
+  // Desktop Movement state
   const moveForwardRef = useRef(false);
   const moveBackwardRef = useRef(false);
   const moveLeftRef = useRef(false);
@@ -131,8 +135,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const directionRef = useRef(new THREE.Vector3());
   const prevTimeRef = useRef(performance.now());
 
+  // Mobile Controls Hook
+  const { updateMovement: updateTouchMovement } = useTouchControls({
+    camera: cameraRef.current!,
+    rendererDomElement: rendererRef.current?.domElement!,
+    isMobile,
+    isWalking,
+    onInteraction: (event) => handleInteraction(event),
+  });
+
   const loadTexture = useCallback(
     async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
+      disposeTextureSafely(panel.mesh);
+      
       const isVideo = isVideoContent(contentType, url);
       const isGif = isGifContent(contentType, url);
 
@@ -163,7 +178,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           videoEl.src = url;
           videoEl.load();
 
-          if ((window as any).galleryControls?.isLocked?.()) {
+          // Only attempt to play if controls are active (locked on desktop, or just active on mobile)
+          const controlsActive = isMobile || (window as any).galleryControls?.isLocked?.();
+          if (controlsActive) {
             videoEl.play().catch((e) => console.warn('Video playback prevented:', e));
           }
 
@@ -199,7 +216,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         );
       });
     },
-    [],
+    [isMobile],
   );
 
   const updatePanelContent = useCallback(
@@ -295,8 +312,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     panelsRef.current.forEach((panel) => {
       if (panel.videoElement) {
         if (shouldPlay) {
-          const controlsLocked = (window as any).galleryControls?.isLocked?.() ?? false;
-          if (controlsLocked) {
+          // Check if controls are locked (desktop) or if walking (mobile)
+          const controlsActive = isMobile ? isWalking : (window as any).galleryControls?.isLocked?.() ?? false;
+          if (controlsActive) {
             panel.videoElement
               .play()
               .catch((e) => console.warn('Video playback prevented:', e));
@@ -306,7 +324,123 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
     });
-  }, []);
+  }, [isMobile, isWalking]);
+  
+  // Re-run video playback management when isWalking changes on mobile
+  useEffect(() => {
+    if (isMobile) {
+        manageVideoPlayback(isWalking);
+    }
+  }, [isMobile, isWalking, manageVideoPlayback]);
+
+
+  const performTeleport = useCallback((targetY: number) => {
+    if (isTeleportingRef.current || !cameraRef.current || !controlsRef.current) return;
+    isTeleportingRef.current = true;
+    fadeStartTimeRef.current = performance.now();
+
+    // On desktop, unlock controls during fade
+    if (!isMobile) {
+        controlsRef.current.unlock();
+    }
+
+    setTimeout(() => {
+      if (cameraRef.current) {
+        cameraRef.current.position.y = targetY;
+      }
+      // On desktop, relock controls after fade
+      if (!isMobile) {
+        controlsRef.current.lock();
+      }
+      // Note: isTeleportingRef is reset in the animation loop after fade out
+    }, FADE_DURATION * 1000);
+  }, [isMobile]);
+
+  // Unified interaction handler for both desktop click and mobile tap
+  const handleInteraction = useCallback((event: MouseEvent | TouchEvent) => {
+    // Determine interaction coordinates (normalized to -1 to 1)
+    let clientX, clientY;
+    if (event instanceof MouseEvent) {
+        if (!controlsRef.current?.isLocked && !isMobile) return; // Only interact if locked on desktop
+        clientX = event.clientX;
+        clientY = event.clientY;
+    } else if (event instanceof TouchEvent) {
+        if (event.touches.length !== 1) return;
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+    } else {
+        return;
+    }
+
+    const rect = rendererRef.current?.domElement.getBoundingClientRect();
+    if (!rect) return;
+
+    const mouse = new THREE.Vector2(
+        ((clientX - rect.left) / rect.width) * 2 - 1,
+        -(((clientY - rect.top) / rect.height) * 2 - 1)
+    );
+
+    if (!cameraRef.current || !raycasterRef.current) return;
+
+    const raycaster = raycasterRef.current;
+    const cam = cameraRef.current;
+
+    // For mobile, raycast from the tap point
+    if (isMobile) {
+        raycaster.setFromCamera(mouse, cam);
+    } else {
+        // For desktop, raycast from the center (0, 0)
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), cam);
+    }
+
+    const objectsToTest: THREE.Object3D[] = [];
+    panelsRef.current.forEach((p) => {
+        objectsToTest.push(p.mesh, p.prevArrow, p.nextArrow);
+    });
+    objectsToTest.push(...teleportButtonsRef.current);
+
+    const intersects = raycaster.intersectObjects(objectsToTest, false);
+
+    if (intersects.length > 0) {
+        const hit = intersects[0].object as THREE.Mesh;
+        
+        // 1. Teleport button click
+        if (hit.userData?.isTeleportButton) {
+            const targetY = hit.userData.targetY as number;
+            performTeleport(targetY);
+            return;
+        }
+
+        // 2. Arrow click to change NFT
+        const panelHit = panelsRef.current.find(
+            (p) => p.prevArrow === hit || p.nextArrow === hit,
+        );
+        if (panelHit) {
+            const direction = hit.userData?.direction as 'next' | 'prev';
+            const updated = updatePanelIndex(panelHit.wallName, direction);
+            if (updated) {
+                const src = getCurrentNftSource(panelHit.wallName);
+                updatePanelContent(panelHit, src);
+            }
+            return;
+        }
+
+        // 3. Panel click: open marketplace browser
+        const panelMeshHit = panelsRef.current.find(p => p.mesh === hit);
+        if (panelMeshHit && panelMeshHit.metadataUrl) {
+            const config = GALLERY_PANEL_CONFIG[panelMeshHit.wallName];
+            if (config && config.contractAddress && config.tokenIds.length > 0) {
+                const tokenId = config.tokenIds[config.currentIndex];
+                setMarketBrowserState({
+                    open: true,
+                    collection: config.contractAddress,
+                    tokenId,
+                });
+            }
+        }
+    }
+  }, [isMobile, performTeleport, updatePanelContent]);
+
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -330,11 +464,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     renderer.setPixelRatio(window.devicePixelRatio);
     mountRef.current.appendChild(renderer.domElement);
 
-    const controls = new PointerLockControls(camera, renderer.domElement);
-    controlsRef.current = controls;
+    // Initialize controls based on platform
+    let controls: PointerLockControls | null = null;
+    if (!isMobile) {
+        controls = new PointerLockControls(camera, renderer.domElement);
+        controlsRef.current = controls;
+        
+        controls.addEventListener('lock', () => {
+            setIsLocked(true);
+            setInstructionsVisible(false);
+            manageVideoPlayback(true);
+        });
+
+        controls.addEventListener('unlock', () => {
+            setIsLocked(false);
+            setInstructionsVisible(true);
+            manageVideoPlayback(false);
+        });
+    } else {
+        // Mobile: No pointer lock, always active
+        setIsLocked(true); 
+        setInstructionsVisible(false);
+    }
 
     (window as any).galleryControls = {
-      lockControls: () => controls.lock(),
+      lockControls: () => controls?.lock(),
       hasVideo: () => panelsRef.current.some((p) => p.videoElement !== null),
       isMuted: () => {
         const activeVideos = panelsRef.current.filter((p) => p.videoElement);
@@ -350,21 +504,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           });
         }
       },
-      isLocked: () => controls.isLocked,
+      isLocked: () => controls?.isLocked ?? true, // Always return true on mobile
       getTargetedPanel: () => currentTargetedPanel,
     };
-
-    controls.addEventListener('lock', () => {
-      setIsLocked(true);
-      setInstructionsVisible(false);
-      manageVideoPlayback(true);
-    });
-
-    controls.addEventListener('unlock', () => {
-      setIsLocked(false);
-      setInstructionsVisible(true);
-      manageVideoPlayback(false);
-    });
 
     // Room constants
     const ROOM_SEGMENT_SIZE = 10;
@@ -678,19 +820,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     fadeScreen.renderOrder = 999;
     scene.add(fadeScreen);
 
-    const performTeleport = (targetY: number) => {
-      if (isTeleportingRef.current) return;
-      isTeleportingRef.current = true;
-      fadeStartTimeRef.current = performance.now();
-
-      controls.unlock();
-
-      setTimeout(() => {
-        camera.position.y = targetY;
-        controls.lock();
-      }, FADE_DURATION * 1000);
-    };
-
     // Lighting
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
@@ -904,8 +1033,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const raycaster = new THREE.Raycaster();
     raycasterRef.current = raycaster;
 
-    // Movement + controls
+    // --- Desktop Controls Setup ---
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isMobile) return;
       switch (event.code) {
         case 'ArrowUp':
         case 'KeyW':
@@ -929,6 +1059,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     };
 
     const onKeyUp = (event: KeyboardEvent) => {
+      if (isMobile) return;
       switch (event.code) {
         case 'ArrowUp':
         case 'KeyW':
@@ -953,49 +1084,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
+    // --- End Desktop Controls Setup ---
 
-    // Mouse click
-    const onClick = (event: MouseEvent) => {
-      if (!controls.isLocked) return;
-
-      // If we have a targeted teleport button, teleport
-      if (currentTargetedButton && currentTargetedButton.userData?.isTeleportButton) {
-        const targetY = currentTargetedButton.userData.targetY as number;
-        performTeleport(targetY);
-        return;
-      }
-
-      // Arrow click to change NFT
-      if (currentTargetedArrow) {
-        const direction = currentTargetedArrow.userData?.direction as 'next' | 'prev';
-        const panel = panelsRef.current.find(
-          (p) => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow,
-        );
-        if (panel) {
-          const updated = updatePanelIndex(panel.wallName, direction);
-          if (updated) {
-            const src = getCurrentNftSource(panel.wallName);
-            updatePanelContent(panel, src);
-          }
-        }
-        return;
-      }
-
-      // Panel click: open marketplace browser if metadata URL exists
-      if (currentTargetedPanel && currentTargetedPanel.metadataUrl) {
-        const config = GALLERY_PANEL_CONFIG[currentTargetedPanel.wallName];
-        if (config && config.contractAddress && config.tokenIds.length > 0) {
-          const tokenId = config.tokenIds[config.currentIndex];
-          setMarketBrowserState({
-            open: true,
-            collection: config.contractAddress,
-            tokenId,
-          });
-        }
-      }
-    };
-
-    renderer.domElement.addEventListener('click', onClick);
 
     // Resize handling
     const onWindowResize = () => {
@@ -1049,7 +1139,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       prevTimeRef.current = time;
 
       // Update movement
-      if (controls.isLocked) {
+      if (!isMobile && controlsRef.current?.isLocked) {
+        // Desktop movement (WASD)
         const velocity = velocityRef.current;
         const direction = directionRef.current;
 
@@ -1067,14 +1158,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         velocity.x -= velocity.x * 10.0 * delta;
         velocity.z -= velocity.z * 10.0 * delta;
 
-        controls.moveRight(-velocity.x * delta);
-        controls.moveForward(-velocity.z * delta);
+        controlsRef.current.moveRight(-velocity.x * delta);
+        controlsRef.current.moveForward(-velocity.z * delta);
+      } else if (isMobile) {
+        // Mobile movement (Walk Toggle)
+        updateTouchMovement(delta);
+      }
 
-        // Clamp within bounds
-        const pos = camera.position;
+      // Clamp within bounds (applies to both mobile and desktop)
+      if (cameraRef.current) {
+        const pos = cameraRef.current.position;
         pos.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.x));
         pos.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, pos.z));
       }
+
 
       // Update shader time
       if (rainbowMaterialRef.current) {
@@ -1102,8 +1199,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         }
       }
 
-      // Raycast from center of screen
-      if (cameraRef.current && raycasterRef.current) {
+      // Raycast for hover/highlight (Desktop only, using center reticle)
+      if (!isMobile && controlsRef.current?.isLocked && cameraRef.current && raycasterRef.current) {
         const cam = cameraRef.current;
         const raycaster = raycasterRef.current;
 
@@ -1178,7 +1275,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       stopAnimation = true;
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
-      renderer.domElement.removeEventListener('click', onClick);
+      // Interaction listener is managed by useTouchControls hook now, but we remove the old one if it existed
+      renderer.domElement.removeEventListener('click', handleInteraction); 
       window.removeEventListener('resize', onWindowResize);
       renderer.domElement.removeEventListener(
         'webglcontextlost',
@@ -1225,7 +1323,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, isMobile, updateTouchMovement, handleInteraction, performTeleport]);
 
   return (
     <>
