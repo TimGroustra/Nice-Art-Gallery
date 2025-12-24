@@ -555,7 +555,7 @@ const NftGalleryMobile: React.FC = () => {
       {!isStarted && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-50 cursor-pointer" onClick={handleStart}>
           <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-2xl text-center max-w-xs animate-in fade-in zoom-in duration-300">
-            <h2 className="text-2xl font-bold text-white mb-4">Art Gallery Mobile</h2>
+            <h2 className="text-2xl font-bold text-white mb-4">Nice Art Gallery</h2>
             <p className="text-white/70 mb-6">Drag to look around, tap on panels to interact.</p>
             <button className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">Enter Gallery</button>
           </div>
