@@ -15,11 +15,14 @@ import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
+import { Footprints } from 'lucide-react';
 
 RectAreaLightUniformsLib.init();
 
 const PANEL_WIDTH = 6;
 const PANEL_HEIGHT = 6;
+const ROOM_SIZE = 50;
+const BOUNDARY = ROOM_SIZE / 2 - 2;
 
 interface Panel {
   mesh: THREE.Mesh;
@@ -80,6 +83,7 @@ const NftGalleryMobile: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isStarted, setIsStarted] = useState(false);
+  const [isWalking, setIsWalking] = useState(false);
   const [marketBrowserState, setMarketBrowserState] = useState<{
     open: boolean;
     collection?: string;
@@ -95,6 +99,11 @@ const NftGalleryMobile: React.FC = () => {
   const rotationRef = useRef({ yaw: 0, pitch: 0 });
   const touchStartRef = useRef({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
+  const isWalkingRef = useRef(false);
+
+  useEffect(() => {
+    isWalkingRef.current = isWalking;
+  }, [isWalking]);
 
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
@@ -178,7 +187,6 @@ const NftGalleryMobile: React.FC = () => {
     sun.position.set(5, 10, 7.5);
     scene.add(sun);
 
-    const ROOM_SIZE = 50;
     const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -288,12 +296,30 @@ const NftGalleryMobile: React.FC = () => {
     container.addEventListener('touchmove', handleTouchMove, { passive: true });
     container.addEventListener('touchend', handleTouchEnd);
 
+    let lastTime = performance.now();
     const animate = () => {
-      const time = performance.now() * 0.001;
-      rainbowMat.uniforms.time.value = time;
+      const time = performance.now();
+      const delta = (time - lastTime) * 0.001;
+      lastTime = time;
+
+      rainbowMat.uniforms.time.value = time * 0.001;
       
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
+
+        if (isWalkingRef.current) {
+          const moveSpeed = 8.0;
+          const forward = new THREE.Vector3(0, 0, -1);
+          forward.applyQuaternion(camera.quaternion);
+          forward.y = 0;
+          forward.normalize();
+          
+          camera.position.addScaledVector(forward, moveSpeed * delta);
+          
+          // Boundaries
+          camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
+          camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
+        }
       }
 
       renderer.render(scene, camera);
@@ -322,7 +348,6 @@ const NftGalleryMobile: React.FC = () => {
 
   const handleStart = () => {
     setIsStarted(true);
-    // Enable audio context if needed
     const bgm = (window as any).musicControls;
     if (bgm && bgm.play) bgm.play();
   };
@@ -347,9 +372,22 @@ const NftGalleryMobile: React.FC = () => {
       )}
 
       {isStarted && (
-        <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-xs z-20">
-          Drag to look around • Tap panels to interact
-        </div>
+        <>
+          <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-xs z-20">
+            Drag to look around • Tap panels to interact
+          </div>
+          
+          <button
+            onClick={() => setIsWalking(!isWalking)}
+            className={`fixed bottom-16 right-6 p-4 rounded-full transition-all z-30 shadow-lg ${
+              isWalking 
+                ? 'bg-primary text-primary-foreground scale-110' 
+                : 'bg-white/10 text-white backdrop-blur-md border border-white/20'
+            }`}
+          >
+            <Footprints className={`h-8 w-8 ${isWalking ? 'animate-pulse' : ''}`} />
+          </button>
+        </>
       )}
       
       {marketBrowserState.open && (
