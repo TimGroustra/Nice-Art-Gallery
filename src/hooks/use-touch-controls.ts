@@ -23,6 +23,7 @@ export function useTouchControls({
   onInteraction,
 }: TouchControlsProps) {
   const isDragging = useRef(false);
+  const hasMoved = useRef(false); // Track if movement occurred during touch
   const previousTouch = useRef<{ x: number; y: number } | null>(null);
   const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const PI_2 = Math.PI / 2;
@@ -36,7 +37,9 @@ export function useTouchControls({
 
   const handleTouchStart = useCallback((event: TouchEvent) => {
     if (event.touches.length === 1) {
+      event.preventDefault(); // Prevent scrolling/zooming
       isDragging.current = true;
+      hasMoved.current = false;
       previousTouch.current = {
         x: event.touches[0].clientX,
         y: event.touches[0].clientY,
@@ -47,9 +50,16 @@ export function useTouchControls({
   const handleTouchMove = useCallback((event: TouchEvent) => {
     if (!isDragging.current || event.touches.length !== 1 || !camera) return;
 
+    event.preventDefault(); // Prevent scrolling/zooming
+
     const touch = event.touches[0];
     const deltaX = touch.clientX - (previousTouch.current?.x ?? touch.clientX);
     const deltaY = touch.clientY - (previousTouch.current?.y ?? touch.clientY);
+
+    // Check if movement is significant enough to count as a drag
+    if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+        hasMoved.current = true;
+    }
 
     // Sensitivity factor (adjust as needed)
     const sensitivity = 0.005;
@@ -67,40 +77,37 @@ export function useTouchControls({
     previousTouch.current = { x: touch.clientX, y: touch.clientY };
   }, [camera]);
 
-  const handleTouchEnd = useCallback(() => {
+  const handleTouchEnd = useCallback((event: TouchEvent) => {
     isDragging.current = false;
     previousTouch.current = null;
-  }, []);
-
-  const handleTap = useCallback((event: TouchEvent) => {
-    // Prevent drag from triggering tap
-    if (event.touches.length === 1) {
-        // Simulate a click event for raycasting purposes
+    
+    // If no significant movement occurred, treat it as a tap/interaction
+    if (!hasMoved.current) {
+        // We call onInteraction here instead of in a separate listener
+        // to ensure we only trigger interaction if it wasn't a drag.
         onInteraction(event);
     }
+    hasMoved.current = false;
   }, [onInteraction]);
 
   useEffect(() => {
     if (!rendererDomElement || !isMobile) return;
 
-    // Use passive listeners for performance
-    rendererDomElement.addEventListener('touchstart', handleTouchStart, { passive: true });
-    rendererDomElement.addEventListener('touchmove', handleTouchMove, { passive: true });
-    rendererDomElement.addEventListener('touchend', handleTouchEnd, { passive: true });
-    rendererDomElement.addEventListener('click', onInteraction); // Keep click for desktop fallback/testing
-
-    // Use a separate listener for tap detection (simple touchend)
-    rendererDomElement.addEventListener('touchend', handleTap, { passive: true });
-
+    // Use non-passive listeners to allow event.preventDefault()
+    rendererDomElement.addEventListener('touchstart', handleTouchStart, { passive: false });
+    rendererDomElement.addEventListener('touchmove', handleTouchMove, { passive: false });
+    rendererDomElement.addEventListener('touchend', handleTouchEnd, { passive: false });
+    
+    // Remove redundant listeners
+    rendererDomElement.removeEventListener('click', onInteraction);
+    // rendererDomElement.removeEventListener('touchend', handleTap); // Removed handleTap logic
 
     return () => {
       rendererDomElement.removeEventListener('touchstart', handleTouchStart);
       rendererDomElement.removeEventListener('touchmove', handleTouchMove);
       rendererDomElement.removeEventListener('touchend', handleTouchEnd);
-      rendererDomElement.removeEventListener('click', onInteraction);
-      rendererDomElement.removeEventListener('touchend', handleTap);
     };
-  }, [rendererDomElement, isMobile, handleTouchStart, handleTouchMove, handleTouchEnd, onInteraction, handleTap]);
+  }, [rendererDomElement, isMobile, handleTouchStart, handleTouchMove, handleTouchEnd]);
 
   // Expose movement logic for the animation loop
   const updateMovement = useCallback((delta: number) => {
