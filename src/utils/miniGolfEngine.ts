@@ -1,3 +1,5 @@
+"use client";
+
 import * as THREE from 'three';
 
 export interface GolfGameState {
@@ -9,6 +11,7 @@ export interface GolfGameState {
   score: number;
   initialPos: THREE.Vector3;
   platformY: number;
+  rampBox: THREE.Box3;
 }
 
 const BALL_RADIUS = 0.15;
@@ -16,25 +19,20 @@ const FRICTION = 0.985;
 const BOUNCE = 0.6;
 const MIN_SPEED = 0.01;
 const HIT_FORCE = 12;
-const GRAVITY = 9.8;
+const GRAVITY = 15;
 
-// Platform is 30x30 centered at 0,0
 const BOUNDS = 14.8; 
 
 export function createMiniGolf(scene: THREE.Scene, platformY: number): GolfGameState {
   const wallColor = 0x89CFF0; // Baby Blue
   const turfColor = 0x2d5a27; // Deep turf green
 
-  // 1. Turf Floor (Replacing the concrete platform's visual area)
+  // 1. Turf Floor
   const turfGeo = new THREE.PlaneGeometry(30, 30);
-  const turfMat = new THREE.MeshStandardMaterial({ 
-    color: turfColor, 
-    roughness: 0.9,
-    metalness: 0.0 
-  });
+  const turfMat = new THREE.MeshStandardMaterial({ color: turfColor, roughness: 0.9 });
   const turf = new THREE.Mesh(turfGeo, turfMat);
   turf.rotation.x = -Math.PI / 2;
-  turf.position.set(0, platformY + 0.02, 0); // Just above platform
+  turf.position.set(0, platformY + 0.02, 0);
   scene.add(turf);
 
   // 2. Ball
@@ -54,7 +52,7 @@ export function createMiniGolf(scene: THREE.Scene, platformY: number): GolfGameS
   hole.position.set(-12, platformY + 0.03, -12);
   scene.add(hole);
 
-  // 4. Obstacles & Guide Rails
+  // 4. Obstacles
   const obstacles: THREE.Mesh[] = [];
   const railMat = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.3, metalness: 0.2 });
 
@@ -67,39 +65,36 @@ export function createMiniGolf(scene: THREE.Scene, platformY: number): GolfGameS
     return rail;
   };
 
-  // Outer Perimeter Rails
-  createRail(30, 0.8, 0.4, 0, 15); // South
-  createRail(30, 0.8, 0.4, 0, -15); // North
-  createRail(0.4, 0.8, 30, 15, 0); // East
-  createRail(0.4, 0.8, 30, -15, 0); // West
+  // Outer Perimeter
+  createRail(30, 1, 0.4, 0, 15);
+  createRail(30, 1, 0.4, 0, -15);
+  createRail(0.4, 1, 30, 15, 0);
+  createRail(0.4, 1, 30, -15, 0);
 
-  // The Course Maze Layout
-  // Angle for bouncing
-  createRail(10, 0.8, 0.4, 10, 5, Math.PI / 4); 
-  createRail(10, 0.8, 0.4, -10, -5, Math.PI / 4);
+  // Sequential Path: Maze -> Ramp -> Tunnel
+  // Maze Walls
+  createRail(15, 1, 0.4, 7.5, 8); // Blocks direct path to center
+  createRail(15, 1, 0.4, -7.5, 4, Math.PI / 4); // Angled bounce wall
 
-  // Ramp Platform (Visual part)
-  const rampGeo = new THREE.BoxGeometry(8, 2, 8);
-  const rampMat = new THREE.MeshStandardMaterial({ color: turfColor, roughness: 0.9 });
-  const rampBlock = new THREE.Mesh(rampGeo, rampMat);
-  rampBlock.position.set(0, platformY + 0.5, 0);
-  rampBlock.rotation.x = -Math.PI / 12; // Sloped
-  rampBlock.userData = { isRamp: true };
-  scene.add(rampBlock);
-  // obstacles.push(rampBlock); // Ball rolls over it
+  // The Ramp (0,0 region)
+  const rampGeo = new THREE.BoxGeometry(6, 1.5, 10);
+  const rampMat = new THREE.MeshStandardMaterial({ color: 0x3d7a37, roughness: 0.8 });
+  const ramp = new THREE.Mesh(rampGeo, rampMat);
+  ramp.position.set(0, platformY + 0.2, 0);
+  ramp.rotation.x = -0.15; // Sloped
+  scene.add(ramp);
+  const rampBox = new THREE.Box3().setFromObject(ramp);
 
-  // Tunnel
+  // Tunnel Lane
+  createRail(0.4, 1, 10, -4, -5); 
+  createRail(0.4, 1, 10, 4, -5); 
+
+  // Tunnel Visual
   const tunnelMat = new THREE.MeshStandardMaterial({ color: wallColor, side: THREE.DoubleSide });
-  const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 6, 16, 1, true), tunnelMat);
-  tunnel.rotation.z = Math.PI / 2;
-  tunnel.position.set(-8, platformY + 1, 8);
+  const tunnel = new THREE.Mesh(new THREE.CylinderGeometry(1.8, 1.8, 8, 16, 1, true), tunnelMat);
+  tunnel.rotation.x = Math.PI / 2;
+  tunnel.position.set(0, platformY + 1.2, -10);
   scene.add(tunnel);
-
-  // Some interior walls to guide the path
-  createRail(12, 0.8, 0.4, 4, 10);
-  createRail(12, 0.8, 0.4, -4, -10);
-  createRail(0.4, 0.8, 12, 10, -4);
-  createRail(0.4, 0.8, 12, -10, 4);
 
   return {
     ball,
@@ -109,12 +104,13 @@ export function createMiniGolf(scene: THREE.Scene, platformY: number): GolfGameS
     isMoving: false,
     score: 0,
     initialPos: startPos,
-    platformY
+    platformY,
+    rampBox
   };
 }
 
 export function updateMiniGolf(state: GolfGameState, delta: number) {
-  if (delta > 0.1) return;
+  if (delta > 0.05) return;
 
   if (!state.isMoving && state.velocity.length() < MIN_SPEED) {
     state.velocity.set(0, 0, 0);
@@ -123,48 +119,42 @@ export function updateMiniGolf(state: GolfGameState, delta: number) {
 
   state.isMoving = true;
 
-  // Simple Gravity for visual height
+  // Potential next position
   const nextPos = state.ball.position.clone().add(state.velocity.clone().multiplyScalar(delta));
 
-  // Platform Area Bounds check
-  if (Math.abs(nextPos.x) > BOUNDS) {
-    state.velocity.x *= -BOUNCE;
-    nextPos.x = THREE.MathUtils.clamp(nextPos.x, -BOUNDS, BOUNDS);
-  }
-  if (Math.abs(nextPos.z) > BOUNDS) {
-    state.velocity.z *= -BOUNCE;
-    nextPos.z = THREE.MathUtils.clamp(nextPos.z, -BOUNDS, BOUNDS);
-  }
-
-  // Wall collisions
+  // 1. Boundary / Wall collisions
   state.obstacles.forEach(obs => {
     const ballBox = new THREE.Box3().setFromCenterAndSize(nextPos, new THREE.Vector3(BALL_RADIUS*2, BALL_RADIUS*2, BALL_RADIUS*2));
     const obsBox = new THREE.Box3().setFromObject(obs);
 
     if (obsBox.intersectsBox(ballBox)) {
-      // Normal-based reflection would be better, but AABB reflection for now
-      const center = obs.position;
-      const size = (obs.geometry as THREE.BoxGeometry).parameters;
-      const rot = obs.rotation.y;
-
-      // Handle rotated walls by transforming ball into local space
-      const localBallPos = nextPos.clone().sub(center).applyAxisAngle(new THREE.Vector3(0,1,0), -rot);
-      const halfW = size.width / 2;
-      const halfD = size.depth / 2;
-
-      if (Math.abs(localBallPos.x) > halfW - BALL_RADIUS) {
-          state.velocity.reflect(new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0,1,0), rot)).multiplyScalar(BOUNCE);
-      } else if (Math.abs(localBallPos.z) > halfD - BALL_RADIUS) {
-          state.velocity.reflect(new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0,1,0), rot)).multiplyScalar(BOUNCE);
+      // Basic AABB reflection
+      const diff = nextPos.clone().sub(obs.position);
+      if (Math.abs(diff.x) > Math.abs(diff.z)) {
+        state.velocity.x *= -BOUNCE;
+      } else {
+        state.velocity.z *= -BOUNCE;
       }
     }
   });
 
-  // Check Hole
+  // 2. Ramp Physics (Y-axis and slope acceleration)
+  const onRamp = state.rampBox.containsPoint(nextPos);
+  if (onRamp) {
+    // Ball rolls up/down based on ramp slope
+    state.velocity.z -= GRAVITY * 0.1 * delta; // Constant downward pull on slope
+    // Adjust Y height based on Z position relative to ramp center
+    const relativeZ = (nextPos.z - state.rampBox.getCenter(new THREE.Vector3()).z) / 10;
+    nextPos.y = state.platformY + BALL_RADIUS + (0.5 - relativeZ * 1.5);
+  } else {
+    // Return to flat ground
+    nextPos.y = THREE.MathUtils.lerp(nextPos.y, state.platformY + BALL_RADIUS + 0.05, 0.1);
+  }
+
+  // 3. Check Hole
   const distToHole = new THREE.Vector2(nextPos.x, nextPos.z).distanceTo(new THREE.Vector2(state.hole.position.x, state.hole.position.z));
-  if (distToHole < 0.45) {
-    // Absorb animation
-    state.ball.scale.multiplyScalar(0.9);
+  if (distToHole < 0.45 && !onRamp) {
+    state.ball.scale.multiplyScalar(0.9); // Absorption animation
     state.velocity.multiplyScalar(0.8);
     
     if (state.ball.scale.x < 0.1) {
@@ -177,9 +167,8 @@ export function updateMiniGolf(state: GolfGameState, delta: number) {
     }
   }
 
-  // Apply Position
-  state.ball.position.x = nextPos.x;
-  state.ball.position.z = nextPos.z;
+  // Apply final position
+  state.ball.position.copy(nextPos);
 
   // Friction
   state.velocity.multiplyScalar(FRICTION);
