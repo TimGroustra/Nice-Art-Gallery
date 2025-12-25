@@ -37,6 +37,34 @@ const UserPortal: React.FC = () => {
   const handleEditAvatarClick = () => {
     navigate('/avatar-config');
   };
+  
+  // Filter connectors to ensure only one 'injected' type is shown, and map for display
+  const uniqueConnectors = React.useMemo(() => {
+    const seenIds = new Set();
+    return connectors.filter(connector => {
+      if (connector.id === 'injected' && seenIds.has('injected')) {
+        return false;
+      }
+      seenIds.add(connector.id);
+      return true;
+    }).map(connector => {
+      let name = connector.name;
+      let icon = <LogIn className="mr-3 h-5 w-5" />;
+      let variant: "default" | "outline" = 'default';
+
+      if (connector.id === 'injected') {
+        name = 'Browser Extension Wallet';
+        icon = <Wallet className="mr-3 h-5 w-5" />;
+      } else if (connector.id === 'walletConnect') {
+        name = 'WalletConnect (Mobile/QR)';
+        icon = <Smartphone className="mr-3 h-5 w-5" />;
+        variant = 'outline';
+      }
+      
+      return { ...connector, displayName: name, icon, variant };
+    });
+  }, [connectors]);
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
@@ -60,20 +88,16 @@ const UserPortal: React.FC = () => {
               )}
               
               <div className="grid gap-3">
-                {connectors.map((connector) => (
+                {uniqueConnectors.map((connector) => (
                   <Button 
                     key={connector.id}
                     onClick={() => handleConnect(connector)} 
                     className="w-full h-12 text-lg justify-start px-6" 
-                    variant={connector.id === 'walletConnect' ? 'outline' : 'default'}
+                    variant={connector.variant}
                     disabled={isConnecting}
                   >
-                    {connector.id === 'walletConnect' ? (
-                      <Smartphone className="mr-3 h-5 w-5" />
-                    ) : (
-                      <LogIn className="mr-3 h-5 w-5" />
-                    )}
-                    {connector.name}
+                    {connector.icon}
+                    {connector.displayName}
                   </Button>
                 ))}
               </div>
