@@ -13,7 +13,7 @@ interface BalanceResult {
  */
 export function useGemBalance(walletAddress: string | null | undefined): BalanceResult {
   const [balance, setBalance] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!walletAddress);
   const [error, setError] = useState<string | null>(null);
 
   const fetchBalance = useCallback(async (address: string) => {
@@ -63,6 +63,7 @@ export function useGemBalance(walletAddress: string | null | undefined): Balance
     } else {
       setBalance(null);
       setError(null);
+      setIsLoading(false);
     }
   }, [walletAddress, fetchBalance]);
 

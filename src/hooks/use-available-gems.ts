@@ -16,7 +16,7 @@ interface AvailableGemsResult {
 export function useAvailableGems(walletAddress: string | null | undefined): AvailableGemsResult {
   const [availableTokens, setAvailableTokens] = useState<string[]>([]);
   const [ownedTokens, setOwnedTokens] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!walletAddress);
   const [error, setError] = useState<string | null>(null);
 
   const fetchGems = useCallback(async (address: string) => {
@@ -68,6 +68,7 @@ export function useAvailableGems(walletAddress: string | null | undefined): Avai
       setAvailableTokens([]);
       setOwnedTokens([]);
       setError(null);
+      setIsLoading(false);
     }
   }, [walletAddress, fetchGems]);
 

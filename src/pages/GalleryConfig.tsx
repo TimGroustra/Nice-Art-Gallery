@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { Loader2, Wallet, AlertTriangle, Gem, ArrowLeft } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useAccount, useDisconnect } from 'wagmi';
+import { Loader2, Gem, ArrowLeft } from 'lucide-react';
+import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 
 interface GalleryConfigRow {
@@ -79,13 +78,11 @@ const DEFAULT_TEXT_COLOR = '#40E0D0';
 const GalleryConfig = () => {
   const navigate = useNavigate();
   const { address: walletAddress, isConnected } = useAccount();
-  const { disconnect } = useDisconnect();
 
   const {
     availableTokens,
     ownedTokens,
     isLoading: isGemsLoading,
-    error: gemsError,
     refetch: refetchGems,
   } = useAvailableGems(walletAddress || null);
 
@@ -96,13 +93,14 @@ const GalleryConfig = () => {
   const [lockDurationDays, setLockDurationDays] = useState(1);
   const [outerFloor, setOuterFloor] = useState<OuterFloor>('ground');
 
-  const isAuthorized = isConnected && !!walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
-
+  // Redirection logic: Wait until loading is finished before checking balance
   useEffect(() => {
     if (!isConnected || !walletAddress) {
       navigate('/portal');
       return;
     }
+    
+    // Only redirect if loading has completed and we have verified the gem count
     if (!isGemsLoading && ownedTokens.length < REQUIRED_GEM_BALANCE) {
       toast.error(`Insufficient ElectroGems (${ownedTokens.length}/${REQUIRED_GEM_BALANCE})`);
       navigate('/portal');
@@ -110,13 +108,15 @@ const GalleryConfig = () => {
   }, [isConnected, walletAddress, isGemsLoading, ownedTokens.length, navigate]);
 
   useEffect(() => {
-    if (!isAuthorized) return;
-    const fetchLocks = async () => {
-      const { data } = await supabase.from('panel_locks').select('panel_id, locked_by_address, locked_until, locking_gem_token_id');
-      if (data) setPanelLocks(data as PanelLock[]);
-    };
-    fetchLocks();
-  }, [isAuthorized]);
+    // Only fetch locks if we've passed the initial balance check
+    if (!isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE) {
+      const fetchLocks = async () => {
+        const { data } = await supabase.from('panel_locks').select('panel_id, locked_by_address, locked_until, locking_gem_token_id');
+        if (data) setPanelLocks(data as PanelLock[]);
+      };
+      fetchLocks();
+    }
+  }, [isGemsLoading, ownedTokens.length]);
 
   const getLockStatus = useCallback((panelKey: string) => {
     const lock = panelLocks.find((l) => l.panel_id === panelKey);
@@ -152,11 +152,11 @@ const GalleryConfig = () => {
   }, [getTokenIdForPanel]);
 
   useEffect(() => {
-    if (isAuthorized && selectedPanelKey) fetchPanelConfig(selectedPanelKey);
-  }, [isAuthorized, selectedPanelKey, fetchPanelConfig]);
+    if (selectedPanelKey) fetchPanelConfig(selectedPanelKey);
+  }, [selectedPanelKey, fetchPanelConfig]);
 
   const handleSave = async () => {
-    if (!isAuthorized || !selectedPanelKey) return;
+    if (isGemsLoading || ownedTokens.length < REQUIRED_GEM_BALANCE || !selectedPanelKey) return;
     setIsLoading(true);
     const lockStatus = getLockStatus(selectedPanelKey);
     if (lockStatus.isLocked && !lockStatus.isLockedByMe) {
@@ -209,7 +209,18 @@ const GalleryConfig = () => {
     return key;
   };
 
-  if (!isAuthorized) return <div className="min-h-screen flex items-center justify-center bg-gray-900"><Loader2 className="animate-spin text-white" /></div>;
+  const isAuthorized = isConnected && !!walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
+  
+  if (!isAuthorized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-center space-y-4">
+          <Loader2 className="animate-spin text-white h-12 w-12 mx-auto" />
+          <p className="text-white/70">Verifying access...</p>
+        </div>
+      </div>
+    );
+  }
 
   const selectedLock = selectedPanelKey ? getLockStatus(selectedPanelKey) : null;
 
