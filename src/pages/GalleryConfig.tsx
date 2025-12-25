@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings } from 'lucide-react';
+import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings, Eye } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -36,13 +36,6 @@ const REQUIRED_GEM_BALANCE = 5;
 const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
 type OuterFloor = 'ground' | 'first';
 type OuterWall = 'north' | 'south' | 'east' | 'west';
-
-const INNER_WALL_KEYS = [
-  'north-inner-wall-outer-0', 'north-inner-wall-inner-0', 'north-inner-wall-outer-1', 'north-inner-wall-inner-1',
-  'south-inner-wall-outer-0', 'south-inner-wall-inner-0', 'south-inner-wall-outer-1', 'south-inner-wall-inner-1',
-  'east-inner-wall-outer-0', 'east-inner-wall-inner-0', 'east-inner-wall-outer-1', 'east-inner-wall-inner-1',
-  'west-inner-wall-outer-0', 'west-inner-wall-inner-0', 'west-inner-wall-outer-1', 'west-inner-wall-inner-1',
-] as const;
 
 const outerLabel = (wall: OuterWall, index: number, floor: OuterFloor) => {
   const base = wall.charAt(0).toUpperCase() + wall.slice(1);
@@ -130,7 +123,7 @@ const GalleryConfig = () => {
   useEffect(() => {
     if (selectedPanelKey) {
       fetchPanelConfig(selectedPanelKey);
-      if (window.innerWidth < 1024) {
+      if (window.innerWidth < 1024 && activeTab === 'map') {
         setActiveTab("settings");
       }
     }
@@ -416,12 +409,15 @@ const GalleryConfig = () => {
             <CardContent className="p-6">
               <div className="lg:hidden">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 mb-6">
+                  <TabsList className="grid w-full grid-cols-3 mb-6">
                     <TabsTrigger value="map" className="flex items-center gap-2">
                       <MapIcon className="h-4 w-4" /> Selector
                     </TabsTrigger>
                     <TabsTrigger value="settings" className="flex items-center gap-2">
                       <Settings className="h-4 w-4" /> Settings
+                    </TabsTrigger>
+                    <TabsTrigger value="preview" className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" /> Preview
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="map">
@@ -429,6 +425,11 @@ const GalleryConfig = () => {
                   </TabsContent>
                   <TabsContent value="settings">
                     <SettingsPanel />
+                  </TabsContent>
+                  <TabsContent value="preview">
+                    <div className="pt-4">
+                      <NftPreviewPane contractAddress={currentConfig.contract_address || null} tokenId={currentConfig.default_token_id || null} />
+                    </div>
                   </TabsContent>
                 </Tabs>
               </div>
@@ -438,7 +439,7 @@ const GalleryConfig = () => {
               </div>
             </CardContent>
           </Card>
-          <div className="lg:sticky lg:top-8 h-fit space-y-6">
+          <div className="hidden lg:block lg:sticky lg:top-8 h-fit space-y-6">
             <NftPreviewPane contractAddress={currentConfig.contract_address || null} tokenId={currentConfig.default_token_id || null} />
           </div>
         </div>
