@@ -40,48 +40,44 @@ const UserPortal: React.FC = () => {
   
   // Filter connectors to ensure only one 'injected' type is shown, and map for display
   const uniqueConnectors = React.useMemo(() => {
-    const seenInjected = new Set<string>();
-    const filteredConnectors = connectors.filter(connector => {
-      // Check if the connector is an injected type (like 'injected' or 'metaMask')
-      const isInjected = connector.id === 'injected' || connector.id === 'metaMask';
+    const finalConnectors: typeof connectors[number] & { displayName: string, icon: JSX.Element, variant: "default" | "outline" }[] = [];
+    let injectedAdded = false;
 
-      if (isInjected) {
-        // If we've already seen an injected connector, skip this one
-        if (seenInjected.has('injected')) {
-          return false;
+    for (const connector of connectors) {
+      const isMetaMask = connector.id === 'metaMask';
+      const isInjected = connector.id === 'injected';
+      const isWalletConnect = connector.id === 'walletConnect';
+
+      if (isInjected || isMetaMask) {
+        if (!injectedAdded) {
+          // Use the first injected connector found (MetaMask or generic)
+          finalConnectors.push({
+            ...connector,
+            displayName: 'Browser Extension Wallet',
+            icon: <Wallet className="mr-3 h-5 w-5" />,
+            variant: 'default',
+          });
+          injectedAdded = true;
         }
-        // Mark that we've seen an injected connector
-        seenInjected.add('injected');
-        return true;
+      } else if (isWalletConnect) {
+        finalConnectors.push({
+          ...connector,
+          displayName: 'WalletConnect (Mobile/QR)',
+          icon: <Smartphone className="mr-3 h-5 w-5" />,
+          variant: 'outline',
+        });
       }
-      
-      // Always include non-injected connectors (like WalletConnect)
-      return true;
-    }).map(connector => {
-      let name = connector.name;
-      let icon = <LogIn className="mr-3 h-5 w-5" />;
-      let variant: "default" | "outline" = 'default';
-
-      if (connector.id === 'injected' || connector.id === 'metaMask') {
-        name = 'Browser Extension Wallet';
-        icon = <Wallet className="mr-3 h-5 w-5" />;
-      } else if (connector.id === 'walletConnect') {
-        name = 'WalletConnect (Mobile/QR)';
-        icon = <Smartphone className="mr-3 h-5 w-5" />;
-        variant = 'outline';
-      }
-      
-      return { ...connector, displayName: name, icon, variant };
-    });
-
-    // Ensure WalletConnect is always last for visual hierarchy
-    const wcIndex = filteredConnectors.findIndex(c => c.id === 'walletConnect');
-    if (wcIndex > -1 && wcIndex !== filteredConnectors.length - 1) {
-      const wc = filteredConnectors.splice(wcIndex, 1)[0];
-      filteredConnectors.push(wc);
+      // Ignore any other unexpected connectors
     }
 
-    return filteredConnectors;
+    // Ensure WalletConnect is always last for visual hierarchy
+    const wcIndex = finalConnectors.findIndex(c => c.id === 'walletConnect');
+    if (wcIndex > -1 && wcIndex !== finalConnectors.length - 1) {
+      const wc = finalConnectors.splice(wcIndex, 1)[0];
+      finalConnectors.push(wc);
+    }
+
+    return finalConnectors;
   }, [connectors]);
 
 
