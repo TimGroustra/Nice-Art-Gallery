@@ -7,15 +7,12 @@ const corsHeaders = {
   'Content-Type': 'application/json',
 };
 
-// ElectroGems Contract Address (ERC-721/1155 compatible for balanceOf)
+// ElectroGems Contract Address
 const ELECTRO_GEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-const RPC_URL = "https://rpc.ankr.com/electroneum";
+// Using official Electroneum RPC for better reliability
+const RPC_URL = "https://rpc.electroneum.com";
 
-// Minimal ABI for balanceOf(address)
 const ABI = ["function balanceOf(address owner) view returns (uint256)"];
-
-const provider = new JsonRpcProvider(RPC_URL);
-const contract = new Contract(ELECTRO_GEMS_ADDRESS, ABI, provider);
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -31,10 +28,16 @@ serve(async (req) => {
         headers: corsHeaders,
       });
     }
+
+    console.log(`Checking balance for: ${walletAddress} on contract: ${ELECTRO_GEMS_ADDRESS}`);
     
-    // Call balanceOf
+    const provider = new JsonRpcProvider(RPC_URL);
+    const contract = new Contract(ELECTRO_GEMS_ADDRESS, ABI, provider);
+    
     const balanceBigInt = await contract.balanceOf(walletAddress);
     const balance = Number(balanceBigInt);
+
+    console.log(`Balance found: ${balance}`);
 
     return new Response(JSON.stringify({ balance }), {
       status: 200,
@@ -42,9 +45,9 @@ serve(async (req) => {
     });
 
   } catch (e) {
-    console.error("Edge Function error:", e);
+    console.error("Edge Function error checking balance:", e);
     return new Response(JSON.stringify({ error: "Failed to check balance", details: String(e) }), {
-      status: 500,
+      status: 200, // Return 200 with error in body so client can handle it gracefully
       headers: corsHeaders,
     });
   }
