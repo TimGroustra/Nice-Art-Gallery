@@ -9,7 +9,7 @@ const corsHeaders = {
 };
 
 const ELECTRO_GEMS_ADDRESS = "0xcff0d88Ed5311bAB09178b6ec19A464100880984";
-const RPC_URL = "https://rpc.electroneum.com";
+const RPC_URL = "https://rpc.ankr.com/electroneum";
 
 const ABI = [
   "function balanceOf(address owner) view returns (uint256)",
@@ -40,15 +40,14 @@ serve(async (req) => {
     }
 
     const ownedTokens: string[] = [];
-    // Only try to fetch indices if we have reason to believe it's enumerable
+    // Enumerate up to 20 tokens
     const limit = Math.min(balance, 20); 
-    
     for (let i = 0; i < limit; i++) {
         try {
             const tokenIdBigInt = await contract.tokenOfOwnerByIndex(walletAddress, i);
             ownedTokens.push(tokenIdBigInt.toString());
         } catch (e) {
-            console.warn(`Enumeration failed at index ${i}. Using basic ownership view.`);
+            console.warn(`[get-owned-gems] Enumeration break at ${i}`);
             break; 
         }
     }
@@ -65,7 +64,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ ownedTokens, availableTokens }), { status: 200, headers: corsHeaders });
 
   } catch (e) {
-    console.error("Edge Function error retrieving gems:", e);
+    console.error("[get-owned-gems] Error:", e);
     return new Response(JSON.stringify({ error: "Failed to retrieve gems", details: String(e) }), { status: 200, headers: corsHeaders });
   }
 });
