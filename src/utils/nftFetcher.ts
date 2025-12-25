@@ -72,23 +72,27 @@ async function parseMetadataObject(meta: any, baseUri?: string): Promise<Omit<Nf
   const animationUrl = resolveUrl(animation);
   const imageUrl = resolveUrl(image);
   const contentUrl = animationUrl ?? imageUrl ?? '';
-  let contentType = "";
+  let contentType = "image/unknown"; // Default fallback
 
-  if (contentUrl && !contentUrl.startsWith('data:')) {
+  // 1. Extension-based guess (fastest, no CORS issues)
+  if (contentUrl) {
+    const urlLower = contentUrl.toLowerCase().split('?')[0].split('#')[0];
+    if (urlLower.match(/\.(mp4|webm|ogg|mov)$/)) contentType = 'video/mp4';
+    else if (urlLower.match(/\.(gif)$/)) contentType = 'image/gif';
+    else if (urlLower.match(/\.(png|jpg|jpeg|webp|svg)$/)) contentType = 'image/jpeg';
+  }
+
+  // 2. Server-side HEAD check (more accurate, but prone to CORS failures)
+  if (contentUrl && contentUrl.startsWith('http') && contentType.includes('unknown')) {
     try {
       const head = await fetch(contentUrl, { method: "HEAD" });
-      contentType = head.headers.get("content-type") ?? "";
-    } catch (_) {}
+      const type = head.headers.get("content-type");
+      if (type) contentType = type;
+    } catch (_) {
+      // If HEAD fails (CORS), we stick with the extension guess or general fallback
+      if (animationUrl && animationUrl === contentUrl) contentType = 'video/unknown';
+    }
   }
-  
-  if (!contentType && contentUrl) {
-      if (contentUrl.match(/\.(mp4|webm|ogg)(\?|$)/i)) contentType = 'video/mp4';
-      else if (contentUrl.match(/\.(gif)(\?|$)/i)) contentType = 'image/gif';
-      else if (contentUrl.match(/\.(png|jpg|jpeg|webp)(\?|$)/i)) contentType = 'image/jpeg';
-  }
-  
-  if (!contentType && animationUrl && animationUrl === contentUrl) contentType = 'video/unknown';
-  if (!contentType && imageUrl && imageUrl === contentUrl) contentType = 'image/unknown';
 
   return {
     title: meta.name || '(No Title)',
