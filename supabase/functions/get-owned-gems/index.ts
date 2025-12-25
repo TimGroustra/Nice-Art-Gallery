@@ -20,88 +20,63 @@ const ABI = [
 const provider = new JsonRpcProvider(RPC_URL);
 const contract = new Contract(ELECTRO_GEMS_ADDRESS, ABI, provider);
 
-// Initialize Supabase client for database access using the service role key
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, 
   {
-    auth: {
-      persistSession: false
-    }
+    auth: { persistSession: false }
   }
 );
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
   
   try {
     const { walletAddress } = await req.json();
-    
-    if (!walletAddress) {
-      return new Response(JSON.stringify({ error: "Missing walletAddress" }), {
-        status: 400,
-        headers: corsHeaders,
-      });
-    }
+    if (!walletAddress) return new Response(JSON.stringify({ error: "Missing walletAddress" }), { status: 400, headers: corsHeaders });
     
     // 1. Get total balance
     const balanceBigInt = await contract.balanceOf(walletAddress);
     const balance = Number(balanceBigInt);
 
     if (balance === 0) {
-        return new Response(JSON.stringify({ ownedTokens: [], availableTokens: [] }), {
-            status: 200,
-            headers: corsHeaders,
-        });
+        return new Response(JSON.stringify({ ownedTokens: [], availableTokens: [] }), { status: 200, headers: corsHeaders });
     }
 
-    // 2. Fetch all owned token IDs
+    // 2. Fetch owned token IDs (limited to avoid timeouts)
     const ownedTokens: string[] = [];
-    for (let i = 0; i < balance; i++) {
+    const limit = Math.min(balance, 20); // Limit to 20 tokens to ensure stability
+    
+    for (let i = 0; i < limit; i++) {
         try {
             const tokenIdBigInt = await contract.tokenOfOwnerByIndex(walletAddress, i);
             ownedTokens.push(tokenIdBigInt.toString());
         } catch (e) {
-            console.error(`Failed to fetch token at index ${i}:`, e);
-            // If tokenOfOwnerByIndex fails (e.g., not enumerable), we stop.
+            console.warn(`Failed to fetch token at index ${i}. Contract might not be Enumerable.`);
             break; 
         }
     }
 
-    // 3. Fetch actively used locking tokens from Supabase
+    // 3. Fetch active locks
     const now = new Date().toISOString();
     const { data: locks, error: dbError } = await supabase
         .from('panel_locks')
         .select('locking_gem_token_id')
-        .gt('locked_until', now) // Only consider active locks
+        .gt('locked_until', now)
         .not('locking_gem_token_id', 'is', null); 
 
     if (dbError) {
         console.error("Supabase DB error:", dbError);
-        // If DB fails, we return all owned tokens as available (fallback)
-        return new Response(JSON.stringify({ ownedTokens, availableTokens: ownedTokens, warning: "DB lock check failed" }), {
-            status: 200,
-            headers: corsHeaders,
-        });
+        return new Response(JSON.stringify({ ownedTokens, availableTokens: ownedTokens }), { status: 200, headers: corsHeaders });
     }
 
     const usedTokens = new Set(locks.map(lock => lock.locking_gem_token_id).filter((id): id is string => !!id));
-    
-    // 4. Filter owned tokens to find available ones
     const availableTokens = ownedTokens.filter(tokenId => !usedTokens.has(tokenId));
 
-    return new Response(JSON.stringify({ ownedTokens, availableTokens }), {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(JSON.stringify({ ownedTokens, availableTokens }), { status: 200, headers: corsHeaders });
 
   } catch (e) {
     console.error("Edge Function error:", e);
-    return new Response(JSON.stringify({ error: "Failed to retrieve owned gems", details: String(e) }), {
-      status: 500,
-      headers: corsHeaders,
-    });
+    return new Response(JSON.stringify({ error: "Failed to retrieve gems", details: String(e) }), { status: 500, headers: corsHeaders });
   }
 });

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, UserCircle, Gem, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { useAvailableGems } from '@/hooks/use-available-gems';
+import { useGemBalance } from '@/hooks/use-gem-balance';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const REQUIRED_GEMS = 5;
@@ -16,7 +16,8 @@ const UserPortal: React.FC = () => {
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
 
-  const { ownedTokens, isLoading: isGemsLoading } = useAvailableGems(address);
+  // Use the simpler balance check for the portal gateway
+  const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(address);
 
   const handleConnect = (connectorId: string) => {
     const connector = connectors.find(c => c.id === connectorId);
@@ -25,11 +26,11 @@ const UserPortal: React.FC = () => {
     }
   };
 
-  const hasEnoughGems = ownedTokens.length >= REQUIRED_GEMS;
+  const hasEnoughGems = (balance ?? 0) >= REQUIRED_GEMS;
 
   const handleGalleryConfigClick = () => {
     if (!hasEnoughGems) {
-      toast.error(`Access Denied: You need at least ${REQUIRED_GEMS} ElectroGems to configure the gallery.`);
+      toast.error(`Access Denied: You need at least ${REQUIRED_GEMS} ElectroGems to configure the gallery. You currently have ${balance ?? 0}.`);
       return;
     }
     navigate('/gallery-config');
@@ -93,15 +94,17 @@ const UserPortal: React.FC = () => {
                   onClick={handleGalleryConfigClick} 
                   variant={hasEnoughGems ? "default" : "secondary"}
                   className="w-full h-14 justify-start px-6 relative overflow-hidden group"
-                  disabled={isGemsLoading}
+                  disabled={isBalanceLoading}
                 >
                   <Settings className="mr-4 h-5 w-5" />
                   <div className="flex flex-col items-start">
                     <span className="font-bold">Gallery Configuration</span>
-                    <span className="text-[10px] opacity-70">Requires 5+ ElectroGems</span>
+                    <span className="text-[10px] opacity-70">
+                      {isBalanceLoading ? "Checking balance..." : `Owned: ${balance ?? 0} / Need: ${REQUIRED_GEMS}`}
+                    </span>
                   </div>
-                  {isGemsLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
-                  {!isGemsLoading && !hasEnoughGems && <AlertTriangle className="ml-auto h-4 w-4 text-amber-500" />}
+                  {isBalanceLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
+                  {!isBalanceLoading && !hasEnoughGems && <AlertTriangle className="ml-auto h-4 w-4 text-amber-500" />}
                 </Button>
 
                 <Button 
@@ -123,12 +126,22 @@ const UserPortal: React.FC = () => {
                 </Button>
               </div>
 
-              {isConnected && !isGemsLoading && !hasEnoughGems && (
+              {balanceError && (
+                <Alert variant="destructive">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>Balance Check Failed</AlertTitle>
+                  <AlertDescription className="text-xs">
+                    Could not verify ElectroGems. Please check your connection or try again.
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {isConnected && !isBalanceLoading && !hasEnoughGems && !balanceError && (
                 <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900">
                   <Gem className="h-4 w-4 text-amber-600" />
                   <AlertTitle className="text-amber-800 dark:text-amber-400">Gems Required</AlertTitle>
                   <AlertDescription className="text-amber-700 dark:text-amber-500 text-xs">
-                    You currently have {ownedTokens.length} ElectroGems. You need {REQUIRED_GEMS} to edit the gallery panels.
+                    You currently have {balance ?? 0} ElectroGems. You need {REQUIRED_GEMS} to edit the gallery panels.
                   </AlertDescription>
                 </Alert>
               )}
