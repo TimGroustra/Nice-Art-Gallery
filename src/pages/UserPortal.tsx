@@ -40,19 +40,29 @@ const UserPortal: React.FC = () => {
   
   // Filter connectors to ensure only one 'injected' type is shown, and map for display
   const uniqueConnectors = React.useMemo(() => {
-    const seenIds = new Set();
-    return connectors.filter(connector => {
-      if (connector.id === 'injected' && seenIds.has('injected')) {
-        return false;
+    const seenInjected = new Set<string>();
+    const filteredConnectors = connectors.filter(connector => {
+      // Check if the connector is an injected type (like 'injected' or 'metaMask')
+      const isInjected = connector.id === 'injected' || connector.id === 'metaMask';
+
+      if (isInjected) {
+        // If we've already seen an injected connector, skip this one
+        if (seenInjected.has('injected')) {
+          return false;
+        }
+        // Mark that we've seen an injected connector
+        seenInjected.add('injected');
+        return true;
       }
-      seenIds.add(connector.id);
+      
+      // Always include non-injected connectors (like WalletConnect)
       return true;
     }).map(connector => {
       let name = connector.name;
       let icon = <LogIn className="mr-3 h-5 w-5" />;
       let variant: "default" | "outline" = 'default';
 
-      if (connector.id === 'injected') {
+      if (connector.id === 'injected' || connector.id === 'metaMask') {
         name = 'Browser Extension Wallet';
         icon = <Wallet className="mr-3 h-5 w-5" />;
       } else if (connector.id === 'walletConnect') {
@@ -63,6 +73,15 @@ const UserPortal: React.FC = () => {
       
       return { ...connector, displayName: name, icon, variant };
     });
+
+    // Ensure WalletConnect is always last for visual hierarchy
+    const wcIndex = filteredConnectors.findIndex(c => c.id === 'walletConnect');
+    if (wcIndex > -1 && wcIndex !== filteredConnectors.length - 1) {
+      const wc = filteredConnectors.splice(wcIndex, 1)[0];
+      filteredConnectors.push(wc);
+    }
+
+    return filteredConnectors;
   }, [connectors]);
 
 
