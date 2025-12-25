@@ -21,7 +21,7 @@ export const electroneum = defineChain({
 
 // 2. Create Wagmi config
 // Note: You should replace the placeholder Project ID with your own from https://cloud.walletconnect.com
-const WALLETCONNECT_PROJECT_ID = '3a8170812b1a5e7305943486c8d769c8';
+const WALLETCONNECT_PROJECT_ID = 'd8e06968909c98b4f4d3e89eea8e5a06';
 
 export const wagmiConfig = createConfig({
   chains: [electroneum],
