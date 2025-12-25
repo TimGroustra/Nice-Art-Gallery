@@ -222,8 +222,8 @@ const GalleryConfig = () => {
   const selectedLock = selectedPanelKey ? getLockStatus(selectedPanelKey) : null;
 
   return (
-    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4 lg:gap-8 pb-12">
+    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-3 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-6 lg:gap-8 pb-12">
         <Card className="flex flex-col h-fit">
           <CardHeader className="py-4 border-b">
             <div className="flex justify-between items-center mb-1">
@@ -235,7 +235,7 @@ const GalleryConfig = () => {
             <CardDescription className="text-xs">Select a wall panel to map content from the collection.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-4 pb-6">
-            <div className="flex justify-between items-center bg-secondary/30 p-2 rounded-lg text-xs">
+            <div className="flex justify-between items-center bg-secondary/30 p-2 rounded-lg text-[10px] sm:text-xs">
               <div className="flex items-center gap-2">
                 <Gem className="h-3 w-3 text-primary" />
                 <span>Owned: <strong>{ownedTokens.length}</strong></span>
@@ -245,22 +245,22 @@ const GalleryConfig = () => {
               <p className="font-mono opacity-60 hidden sm:block">{formatWalletAddress(walletAddress)}</p>
             </div>
 
-            <div className="rounded-xl border bg-slate-950 p-4 space-y-4">
+            <div className="rounded-xl border bg-slate-950 p-3 sm:p-4 space-y-4">
                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">Interactive Floor Plan</Label>
+                  <Label className="text-white text-xs sm:text-sm">Interactive Floor Plan</Label>
                   <div className="bg-white/10 p-0.5 rounded-full flex gap-1">
                     {['ground', 'first'].map(f => (
-                      <button key={f} onClick={() => setOuterFloor(f as OuterFloor)} className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${outerFloor === f ? 'bg-primary text-primary-foreground' : 'text-slate-400'}`}>{f === 'ground' ? 'GROUND' : 'FIRST'}</button>
+                      <button key={f} onClick={() => setOuterFloor(f as OuterFloor)} className={`px-2 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${outerFloor === f ? 'bg-primary text-primary-foreground' : 'text-slate-400'}`}>{f === 'ground' ? 'GROUND' : 'FIRST'}</button>
                     ))}
                   </div>
                </div>
 
-               <div className="relative aspect-[16/10] w-full border border-white/5 rounded-lg overflow-hidden bg-slate-900 flex items-center justify-center">
-                  <div className="relative w-full h-full p-8">
+               <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 overflow-x-auto">
+                  <div className="min-w-[400px] aspect-[16/10] relative p-8 sm:p-10">
                     <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
                       {/* Outer Walls */}
                       {['north', 'south'].map(w => (
-                        <div key={w} className={`absolute ${w === 'north' ? '-top-6' : '-bottom-6'} left-0 right-0 flex gap-0.5 h-5`}>
+                        <div key={w} className={`absolute ${w === 'north' ? '-top-6 sm:-top-8' : '-bottom-6 sm:-bottom-8'} left-0 right-0 flex gap-0.5 h-5 sm:h-6`}>
                           {OUTER_INDICES.map(i => {
                             const k = `${w}-wall-${i}-${outerFloor}`;
                             const isSel = selectedPanelKey === k;
@@ -270,7 +270,7 @@ const GalleryConfig = () => {
                                 key={k} 
                                 onClick={() => setSelectedPanelKey(k)} 
                                 title={getFriendlyLabel(k)}
-                                className={`flex-1 rounded-[2px] border text-[8px] font-bold flex items-center justify-center transition-all ${isSel ? 'bg-cyan-500 text-black border-cyan-300 scale-105 z-10' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/50 border-red-500/50 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                                className={`flex-1 rounded-[2px] border text-[8px] sm:text-[9px] font-bold flex items-center justify-center transition-all ${isSel ? 'bg-cyan-500 text-black border-cyan-300 scale-105 z-10' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/50 border-red-500/50 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
                               >
                                 {i+1}
                               </button>
@@ -279,7 +279,7 @@ const GalleryConfig = () => {
                         </div>
                       ))}
                       {['east', 'west'].map(w => (
-                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-6' : '-right-6'} flex flex-col gap-0.5 w-5`}>
+                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-6 sm:-left-8' : '-right-6 sm:-right-8'} flex flex-col gap-0.5 w-5 sm:w-6`}>
                           {OUTER_INDICES.map(i => {
                             const k = `${w}-wall-${i}-${outerFloor}`;
                             const isSel = selectedPanelKey === k;
@@ -289,7 +289,7 @@ const GalleryConfig = () => {
                                 key={k} 
                                 onClick={() => setSelectedPanelKey(k)} 
                                 title={getFriendlyLabel(k)}
-                                className={`flex-1 rounded-[2px] border text-[8px] font-bold flex items-center justify-center transition-all ${isSel ? 'bg-cyan-500 text-black border-cyan-300 scale-105 z-10' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/50 border-red-500/50 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+                                className={`flex-1 rounded-[2px] border text-[8px] sm:text-[9px] font-bold flex items-center justify-center transition-all ${isSel ? 'bg-cyan-500 text-black border-cyan-300 scale-105 z-10' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/50 border-red-500/50 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
                               >
                                 {i+1}
                               </button>
@@ -300,41 +300,41 @@ const GalleryConfig = () => {
 
                       {/* Inner Walls (Ground Floor Only) */}
                       {outerFloor === 'ground' && (
-                        <div className="absolute inset-12 border border-white/5 rounded bg-white/5 p-2">
+                        <div className="absolute inset-[15%] border border-white/5 rounded bg-white/5 p-2">
                            {/* Inner North */}
-                           <div className="absolute top-0 left-0 right-0 flex h-4 gap-1">
+                           <div className="absolute top-0 left-0 right-0 flex h-4 sm:h-5 gap-1">
                               {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
                                 const k = `north-inner-wall-${id}`;
                                 const isSel = selectedPanelKey === k;
                                 const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IN{i+1}</button>
+                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IN{i+1}</button>
                               })}
                            </div>
                            {/* Inner South */}
-                           <div className="absolute bottom-0 left-0 right-0 flex h-4 gap-1">
+                           <div className="absolute bottom-0 left-0 right-0 flex h-4 sm:h-5 gap-1">
                               {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
                                 const k = `south-inner-wall-${id}`;
                                 const isSel = selectedPanelKey === k;
                                 const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IS{i+1}</button>
+                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IS{i+1}</button>
                               })}
                            </div>
                            {/* Inner West */}
-                           <div className="absolute top-6 bottom-6 left-0 flex flex-col w-4 gap-1">
+                           <div className="absolute top-8 bottom-8 left-0 flex flex-col w-4 sm:w-5 gap-1">
                               {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
                                 const k = `west-inner-wall-${id}`;
                                 const isSel = selectedPanelKey === k;
                                 const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IW{i+1}</button>
+                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IW{i+1}</button>
                               })}
                            </div>
                            {/* Inner East */}
-                           <div className="absolute top-6 bottom-6 right-0 flex flex-col w-4 gap-1">
+                           <div className="absolute top-8 bottom-8 right-0 flex flex-col w-4 sm:w-5 gap-1">
                               {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
                                 const k = `east-inner-wall-${id}`;
                                 const isSel = selectedPanelKey === k;
                                 const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IE{i+1}</button>
+                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IE{i+1}</button>
                               })}
                            </div>
                            <div className="absolute inset-8 flex items-center justify-center opacity-20 pointer-events-none border border-dashed border-white/20">
@@ -343,7 +343,7 @@ const GalleryConfig = () => {
                         </div>
                       )}
                       {outerFloor === 'first' && (
-                        <div className="absolute inset-16 border border-cyan-500/10 rounded bg-cyan-500/5 flex items-center justify-center">
+                        <div className="absolute inset-[15%] border border-cyan-500/10 rounded bg-cyan-500/5 flex items-center justify-center">
                           <span className="text-[10px] text-cyan-500/20 uppercase tracking-widest font-bold">1st Floor Void</span>
                         </div>
                       )}
