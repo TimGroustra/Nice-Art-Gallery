@@ -140,10 +140,7 @@ const GalleryConfig = () => {
   useEffect(() => {
     if (selectedPanelKey) {
       fetchPanelConfig(selectedPanelKey);
-      // Automatically switch to settings tab on mobile when a panel is selected
-      if (window.innerWidth < 1024) {
-        setActiveTab("settings");
-      }
+      if (window.innerWidth < 1024) setActiveTab("settings");
     }
   }, [selectedPanelKey, fetchPanelConfig]);
 
@@ -209,7 +206,7 @@ const GalleryConfig = () => {
     return key;
   };
 
-  const WallButton = ({ panelKey, className, orientation = "horizontal" }: { panelKey: string, className?: string, orientation?: "horizontal" | "vertical" }) => {
+  const WallButton = ({ panelKey, style, orientation = "horizontal" }: { panelKey: string, style: React.CSSProperties, orientation?: "horizontal" | "vertical" }) => {
     const isSelected = selectedPanelKey === panelKey;
     const lock = getLockStatus(panelKey);
     const label = getFriendlyLabel(panelKey);
@@ -218,23 +215,20 @@ const GalleryConfig = () => {
       <button 
         onClick={() => setSelectedPanelKey(panelKey)} 
         title={label}
-        className={cn(
-          "relative flex items-center justify-center transition-all group p-1",
-          orientation === "horizontal" ? "flex-col" : "flex-row",
-          className
-        )}
+        style={style}
+        className="absolute group flex items-center justify-center p-0 transition-all z-10"
       >
-        {/* Visual wall line - thinner than the block, but visually distinct */}
+        {/* The visual wall line - thin and consistent */}
         <div className={cn(
-          "rounded-full transition-all",
-          orientation === "horizontal" ? "w-full h-[3px]" : "h-full w-[3px]",
-          isSelected ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] scale-y-125" : 
+          "transition-all duration-200",
+          orientation === "horizontal" ? "w-full h-[2px]" : "h-full w-[2px]",
+          isSelected ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)]" : 
           (lock.isLocked && !lock.isLockedByMe) ? "bg-red-500/60" : "bg-slate-700 group-hover:bg-slate-500"
         )} />
         
-        {/* Selection indicator */}
+        {/* Selection glow */}
         {isSelected && (
-           <div className="absolute inset-0 border border-cyan-400/30 rounded-sm pointer-events-none" />
+           <div className="absolute inset-0 border border-cyan-400/20 rounded-sm pointer-events-none" />
         )}
       </button>
     );
@@ -252,72 +246,84 @@ const GalleryConfig = () => {
       </div>
 
       <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center overflow-hidden">
+        {/* True 1:1 Aspect Ratio room (50x50 units) */}
         <div className="w-full max-w-[480px] aspect-square relative p-12">
           <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
             
-            {/* Outer Wall Horizontal Segments (North/South) */}
-            {['north', 'south'].map(w => (
-              <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
-                {OUTER_INDICES.map(i => (
-                  <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
-                ))}
-              </div>
+            {/* 
+                Room Coordinate Math (0% to 100%):
+                Total Size = 50. Each segment = 10 (20%).
+                
+                North/South Outer Walls
+            */}
+            {OUTER_INDICES.map(i => (
+              <React.Fragment key={`ns-${i}`}>
+                <WallButton 
+                  panelKey={`north-wall-${i}-${outerFloor}`} 
+                  style={{ top: '-12px', left: `${i * 20}%`, width: '20%', height: '24px' }} 
+                />
+                <WallButton 
+                  panelKey={`south-wall-${i}-${outerFloor}`} 
+                  style={{ bottom: '-12px', left: `${i * 20}%`, width: '20%', height: '24px' }} 
+                />
+              </React.Fragment>
             ))}
 
-            {/* Outer Wall Vertical Segments (East/West) */}
-            {['east', 'west'].map(w => (
-              <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
-                {OUTER_INDICES.map(i => (
-                  <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" orientation="vertical" />
-                ))}
-              </div>
+            {/* West/East Outer Walls */}
+            {OUTER_INDICES.map(i => (
+              <React.Fragment key={`we-${i}`}>
+                <WallButton 
+                  panelKey={`west-wall-${i}-${outerFloor}`} 
+                  style={{ left: '-12px', top: `${i * 20}%`, height: '20%', width: '24px' }} 
+                  orientation="vertical"
+                />
+                <WallButton 
+                  panelKey={`east-wall-${i}-${outerFloor}`} 
+                  style={{ right: '-12px', top: `${i * 20}%`, height: '20%', width: '24px' }} 
+                  orientation="vertical"
+                />
+              </React.Fragment>
             ))}
 
-            {/* Inner Walls - Accurate placement matching coordinates */}
+            {/* Inner Walls - Precisely positioned based on 3D coordinates (Z=±5, X=±10) */}
             {outerFloor === 'ground' && (
               <div className="absolute inset-0">
-                {/* North Inner Walls (Z=-5, X=±10) */}
-                <div className="absolute top-[40%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
-                  <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
-                </div>
-                <div className="absolute top-[40%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
-                  <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
-                </div>
+                {/* 
+                    North Inner Wall (Z=-5 relative to center 25) => 20 units from North (40% mark). 
+                    Segments at X centers -10 and 10 (30% and 70% of 50 units).
+                    Span 20-40% and 60-80%.
+                */}
+                
+                {/* North Inner - Segment 0 (X=-10) */}
+                <WallButton panelKey="north-inner-wall-outer-0" style={{ top: 'calc(40% - 15px)', left: '20%', width: '20%', height: '15px' }} />
+                <WallButton panelKey="north-inner-wall-inner-0" style={{ top: '40%', left: '20%', width: '20%', height: '15px' }} />
 
-                {/* South Inner Walls (Z=5, X=±10) */}
-                <div className="absolute top-[60%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
-                  <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
-                </div>
-                <div className="absolute top-[60%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
-                  <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
-                </div>
+                {/* North Inner - Segment 1 (X=10) */}
+                <WallButton panelKey="north-inner-wall-outer-1" style={{ top: 'calc(40% - 15px)', left: '60%', width: '20%', height: '15px' }} />
+                <WallButton panelKey="north-inner-wall-inner-1" style={{ top: '40%', left: '60%', width: '20%', height: '15px' }} />
 
-                {/* West Inner Walls (X=-5, Z=±10) */}
-                <div className="absolute left-[40%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
-                </div>
-                <div className="absolute left-[40%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
-                </div>
+                {/* South Inner - Segment 0 (X=-10, Z=5 => 60%) */}
+                <WallButton panelKey="south-inner-wall-inner-0" style={{ top: 'calc(60% - 15px)', left: '20%', width: '20%', height: '15px' }} />
+                <WallButton panelKey="south-inner-wall-outer-0" style={{ top: '60%', left: '20%', width: '20%', height: '15px' }} />
 
-                {/* East Inner Walls (X=5, Z=±10) */}
-                <div className="absolute left-[60%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
-                </div>
-                <div className="absolute left-[60%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
-                </div>
+                {/* South Inner - Segment 1 (X=10, Z=5 => 60%) */}
+                <WallButton panelKey="south-inner-wall-inner-1" style={{ top: 'calc(60% - 15px)', left: '60%', width: '20%', height: '15px' }} />
+                <WallButton panelKey="south-inner-wall-outer-1" style={{ top: '60%', left: '60%', width: '20%', height: '15px' }} />
 
-                {/* Center Marker */}
-                <div className="absolute inset-[48%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
+                {/* West Inner (X=-5 => 40%, Z=±10) */}
+                <WallButton panelKey="west-inner-wall-outer-0" style={{ left: 'calc(40% - 15px)', top: '20%', height: '20%', width: '15px' }} orientation="vertical" />
+                <WallButton panelKey="west-inner-wall-inner-0" style={{ left: '40%', top: '20%', height: '20%', width: '15px' }} orientation="vertical" />
+                <WallButton panelKey="west-inner-wall-outer-1" style={{ left: 'calc(40% - 15px)', top: '60%', height: '20%', width: '15px' }} orientation="vertical" />
+                <WallButton panelKey="west-inner-wall-inner-1" style={{ left: '40%', top: '60%', height: '20%', width: '15px' }} orientation="vertical" />
+
+                {/* East Inner (X=5 => 60%, Z=±10) */}
+                <WallButton panelKey="east-inner-wall-inner-0" style={{ left: 'calc(60% - 15px)', top: '20%', height: '20%', width: '15px' }} orientation="vertical" />
+                <WallButton panelKey="east-inner-wall-outer-0" style={{ left: '60%', top: '20%', height: '20%', width: '15px' }} orientation="vertical" />
+                <WallButton panelKey="east-inner-wall-inner-1" style={{ left: 'calc(60% - 15px)', top: '60%', height: '20%', width: '15px' }} orientation="vertical" />
+                <WallButton panelKey="east-inner-wall-outer-1" style={{ left: '60%', top: '60%', height: '20%', width: '15px' }} orientation="vertical" />
+
+                {/* Center Point */}
+                <div className="absolute inset-[49%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
                    <div className="w-1 h-1 bg-white/40 rounded-full" />
                 </div>
               </div>
@@ -337,7 +343,7 @@ const GalleryConfig = () => {
       {!selectedPanelKey ? (
         <div className="flex flex-col items-center justify-center py-12 text-center space-y-3 opacity-60 border-2 border-dashed rounded-xl">
           <MapIcon className="h-10 w-10 text-muted-foreground" />
-          <p className="text-sm">Please select a wall panel on the floor plan first.</p>
+          <p className="text-sm">Select a wall panel on the floor plan to begin configuration.</p>
           {window.innerWidth < 1024 && (
             <Button variant="outline" size="sm" onClick={() => setActiveTab("map")}>Open Floor Plan</Button>
           )}
@@ -367,7 +373,7 @@ const GalleryConfig = () => {
                     <TooltipTrigger asChild>
                       <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                     </TooltipTrigger>
-                    <TooltipContent><p className="text-xs">Locking consumes 1 available ElectroGem. Set to 0 to unlock.</p></TooltipContent>
+                    <TooltipContent><p className="text-xs">Locking consumes 1 ElectroGem. Set to 0 to unlock.</p></TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               </div>
@@ -403,7 +409,7 @@ const GalleryConfig = () => {
     <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-3 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto flex flex-col gap-6">
         
-        {/* Header Section */}
+        {/* Header */}
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <Button variant="ghost" size="sm" onClick={() => navigate('/portal')} className="px-0 hover:bg-transparent text-sm">
@@ -422,12 +428,9 @@ const GalleryConfig = () => {
           </div>
         </div>
 
-        {/* Layout with Preview always visible on Desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-8">
-          
           <Card className="flex flex-col h-fit">
             <CardContent className="p-6">
-              {/* Responsive Tabs Layout */}
               <div className="lg:hidden">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -438,16 +441,11 @@ const GalleryConfig = () => {
                       <Settings className="h-4 w-4" /> Settings
                     </TabsTrigger>
                   </TabsList>
-                  <TabsContent value="map">
-                    <FloorPlan />
-                  </TabsContent>
-                  <TabsContent value="settings">
-                    <SettingsPanel />
-                  </TabsContent>
+                  <TabsContent value="map"><FloorPlan /></TabsContent>
+                  <TabsContent value="settings"><SettingsPanel /></TabsContent>
                 </Tabs>
               </div>
 
-              {/* Desktop Always-Visible Selector */}
               <div className="hidden lg:block space-y-6">
                 <FloorPlan />
                 <SettingsPanel />
