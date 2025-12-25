@@ -36,10 +36,6 @@ const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
 type OuterFloor = 'ground' | 'first';
 type OuterWall = 'north' | 'south' | 'east' | 'west';
 
-const INNER_WALLS = ['north', 'south', 'east', 'west'] as const;
-const INNER_TYPES = ['outer', 'inner'] as const;
-const INNER_SEGS = [0, 1] as const;
-
 const INNER_WALL_KEYS = [
   'north-inner-wall-outer-0', 'north-inner-wall-inner-0', 'north-inner-wall-outer-1', 'north-inner-wall-inner-1',
   'south-inner-wall-outer-0', 'south-inner-wall-inner-0', 'south-inner-wall-outer-1', 'south-inner-wall-inner-1',
@@ -214,7 +210,7 @@ const GalleryConfig = () => {
   
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-900 z-[100]">
         <div className="text-center space-y-4">
           <Loader2 className="animate-spin text-white h-12 w-12 mx-auto" />
           <p className="text-white/70">Verifying access...</p>
@@ -226,8 +222,8 @@ const GalleryConfig = () => {
   const selectedLock = selectedPanelKey ? getLockStatus(selectedPanelKey) : null;
 
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-2 sm:p-4 lg:p-8 overflow-y-auto">
-      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4 lg:gap-8">
+    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4 lg:gap-8 pb-12">
         <Card className="flex flex-col h-fit">
           <CardHeader className="py-4 border-b">
             <div className="flex justify-between items-center mb-1">
@@ -238,7 +234,7 @@ const GalleryConfig = () => {
             <CardTitle className="text-lg">Gallery Configuration</CardTitle>
             <CardDescription className="text-xs">Select a wall panel to map content from the collection.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 pt-4 pb-6 overflow-hidden">
+          <CardContent className="space-y-4 pt-4 pb-6">
             <div className="flex justify-between items-center bg-secondary/30 p-2 rounded-lg text-xs">
               <div className="flex items-center gap-2">
                 <Gem className="h-3 w-3 text-primary" />
