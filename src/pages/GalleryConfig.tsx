@@ -43,29 +43,10 @@ const INNER_WALL_KEYS = [
   'west-inner-wall-outer-0', 'west-inner-wall-inner-0', 'west-inner-wall-outer-1', 'west-inner-wall-inner-1',
 ] as const;
 
-const PANEL_LABELS: Record<string, string> = {
-  'north-inner-wall-outer-0': 'Inner N (West-Out)',
-  'north-inner-wall-inner-0': 'Inner N (West-In)',
-  'north-inner-wall-outer-1': 'Inner N (East-Out)',
-  'north-inner-wall-inner-1': 'Inner N (East-In)',
-  'south-inner-wall-outer-0': 'Inner S (West-Out)',
-  'south-inner-wall-inner-0': 'Inner S (West-In)',
-  'south-inner-wall-outer-1': 'Inner S (East-Out)',
-  'south-inner-wall-inner-1': 'Inner S (East-In)',
-  'east-inner-wall-outer-0': 'Inner E (North-Out)',
-  'east-inner-wall-inner-0': 'Inner E (North-In)',
-  'east-inner-wall-outer-1': 'Inner E (South-Out)',
-  'east-inner-wall-inner-1': 'Inner E (South-In)',
-  'west-inner-wall-outer-0': 'Inner W (North-Out)',
-  'west-inner-wall-inner-0': 'Inner W (North-In)',
-  'west-inner-wall-outer-1': 'Inner W (South-Out)',
-  'west-inner-wall-inner-1': 'Inner W (South-In)',
-};
-
 const outerLabel = (wall: OuterWall, index: number, floor: OuterFloor) => {
   const base = wall.charAt(0).toUpperCase() + wall.slice(1);
   const floorLabel = floor === 'ground' ? 'G' : '1F';
-  return `${base} S${index + 1} (${floorLabel})`;
+  return `${base} Wall Segment ${index + 1} (${floorLabel})`;
 };
 
 const formatWalletAddress = (address: string | undefined | null) => {
@@ -200,26 +181,35 @@ const GalleryConfig = () => {
   };
 
   const getFriendlyLabel = (key: string) => {
-    if (PANEL_LABELS[key]) return PANEL_LABELS[key];
     const match = key.match(/^(north|south|east|west)-wall-(\d+)-(ground|first)$/);
     if (match) return outerLabel(match[1] as OuterWall, parseInt(match[2]), match[3] as OuterFloor);
+    
+    const innerMatch = key.match(/^(north|south|east|west)-inner-wall-(outer|inner)-(\d+)$/);
+    if (innerMatch) {
+        const wall = innerMatch[1].charAt(0).toUpperCase() + innerMatch[1].slice(1);
+        const side = innerMatch[2] === 'outer' ? 'Outer' : 'Inner';
+        const index = parseInt(innerMatch[3]) + 1;
+        return `Inner ${wall} Segment ${index} (${side} Side)`;
+    }
+    
     return key;
   };
 
-  const isAuthorized = isConnected && !!walletAddress && !isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE;
-  
-  if (!isAuthorized) {
+  const WallButton = ({ panelKey, className }: { panelKey: string, className?: string }) => {
+    const isSelected = selectedPanelKey === panelKey;
+    const lock = getLockStatus(panelKey);
+    const label = getFriendlyLabel(panelKey);
+    
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gray-900 z-[100]">
-        <div className="text-center space-y-4">
-          <Loader2 className="animate-spin text-white h-12 w-12 mx-auto" />
-          <p className="text-white/70">Verifying access...</p>
-        </div>
-      </div>
+      <button 
+        onClick={() => setSelectedPanelKey(panelKey)} 
+        title={label}
+        className={`rounded-[1px] border text-[7px] font-bold flex items-center justify-center transition-all ${className} ${isSelected ? 'bg-cyan-500 text-black border-white scale-110 z-20' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/80 border-red-500/50 text-red-100' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+      >
+        {isSelected ? '●' : ''}
+      </button>
     );
-  }
-
-  const selectedLock = selectedPanelKey ? getLockStatus(selectedPanelKey) : null;
+  };
 
   return (
     <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-3 sm:p-6 lg:p-8">
@@ -256,103 +246,93 @@ const GalleryConfig = () => {
                </div>
 
                <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 overflow-x-auto">
-                  <div className="min-w-[400px] aspect-[16/10] relative p-8 sm:p-10">
+                  <div className="min-w-[440px] aspect-[16/11] relative p-10 sm:p-12">
                     <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
-                      {/* Outer Walls */}
+                      
+                      {/* Outer Wall Horizontal Segments (North/South) */}
                       {['north', 'south'].map(w => (
-                        <div key={w} className={`absolute ${w === 'north' ? '-top-6 sm:-top-8' : '-bottom-6 sm:-bottom-8'} left-0 right-0 flex gap-0.5 h-5 sm:h-6`}>
-                          {OUTER_INDICES.map(i => {
-                            const k = `${w}-wall-${i}-${outerFloor}`;
-                            const isSel = selectedPanelKey === k;
-                            const lock = getLockStatus(k);
-                            return (
-                              <button 
-                                key={k} 
-                                onClick={() => setSelectedPanelKey(k)} 
-                                title={getFriendlyLabel(k)}
-                                className={`flex-1 rounded-[2px] border text-[8px] sm:text-[9px] font-bold flex items-center justify-center transition-all ${isSel ? 'bg-cyan-500 text-black border-cyan-300 scale-105 z-10' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/50 border-red-500/50 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
-                              >
-                                {i+1}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-                      {['east', 'west'].map(w => (
-                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-6 sm:-left-8' : '-right-6 sm:-right-8'} flex flex-col gap-0.5 w-5 sm:w-6`}>
-                          {OUTER_INDICES.map(i => {
-                            const k = `${w}-wall-${i}-${outerFloor}`;
-                            const isSel = selectedPanelKey === k;
-                            const lock = getLockStatus(k);
-                            return (
-                              <button 
-                                key={k} 
-                                onClick={() => setSelectedPanelKey(k)} 
-                                title={getFriendlyLabel(k)}
-                                className={`flex-1 rounded-[2px] border text-[8px] sm:text-[9px] font-bold flex items-center justify-center transition-all ${isSel ? 'bg-cyan-500 text-black border-cyan-300 scale-105 z-10' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/50 border-red-500/50 text-red-200' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
-                              >
-                                {i+1}
-                              </button>
-                            );
-                          })}
+                        <div key={w} className={`absolute ${w === 'north' ? '-top-6' : '-bottom-6'} left-0 right-0 flex gap-0.5 h-6`}>
+                          {OUTER_INDICES.map(i => (
+                            <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
+                          ))}
                         </div>
                       ))}
 
-                      {/* Inner Walls (Ground Floor Only) */}
+                      {/* Outer Wall Vertical Segments (East/West) */}
+                      {['east', 'west'].map(w => (
+                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-6' : '-right-6'} flex flex-col gap-0.5 w-6`}>
+                          {OUTER_INDICES.map(i => (
+                            <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
+                          ))}
+                        </div>
+                      ))}
+
+                      {/* Inner Walls - Accurate representation of cross-wall logic */}
                       {outerFloor === 'ground' && (
-                        <div className="absolute inset-[15%] border border-white/5 rounded bg-white/5 p-2">
-                           {/* Inner North */}
-                           <div className="absolute top-0 left-0 right-0 flex h-4 sm:h-5 gap-1">
-                              {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
-                                const k = `north-inner-wall-${id}`;
-                                const isSel = selectedPanelKey === k;
-                                const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IN{i+1}</button>
-                              })}
-                           </div>
-                           {/* Inner South */}
-                           <div className="absolute bottom-0 left-0 right-0 flex h-4 sm:h-5 gap-1">
-                              {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
-                                const k = `south-inner-wall-${id}`;
-                                const isSel = selectedPanelKey === k;
-                                const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IS{i+1}</button>
-                              })}
-                           </div>
-                           {/* Inner West */}
-                           <div className="absolute top-8 bottom-8 left-0 flex flex-col w-4 sm:w-5 gap-1">
-                              {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
-                                const k = `west-inner-wall-${id}`;
-                                const isSel = selectedPanelKey === k;
-                                const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IW{i+1}</button>
-                              })}
-                           </div>
-                           {/* Inner East */}
-                           <div className="absolute top-8 bottom-8 right-0 flex flex-col w-4 sm:w-5 gap-1">
-                              {['outer-0', 'inner-0', 'outer-1', 'inner-1'].map((id, i) => {
-                                const k = `east-inner-wall-${id}`;
-                                const isSel = selectedPanelKey === k;
-                                const lock = getLockStatus(k);
-                                return <button key={k} onClick={() => setSelectedPanelKey(k)} className={`flex-1 border text-[7px] sm:text-[8px] font-bold transition-all ${isSel ? 'bg-cyan-500 text-black border-white' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900 border-red-800' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>IE{i+1}</button>
-                              })}
-                           </div>
-                           <div className="absolute inset-8 flex items-center justify-center opacity-20 pointer-events-none border border-dashed border-white/20">
-                             <span className="text-[8px] uppercase font-bold tracking-[0.2em] text-white">Core</span>
-                           </div>
+                        <div className="absolute inset-0">
+                          {/* Each side has 2 segments at offsets -10 and 10 on a 50x50 grid. 
+                              North/South segments are horizontal (W=20%, H=1.5%) at Z=±5.
+                              East/West segments are vertical (W=1.5%, H=20%) at X=±5. 
+                          */}
+
+                          {/* North Inner Walls (Facing North and Facing South) */}
+                          <div className="absolute top-[38%] left-[10%] w-[20%] h-[3%] flex flex-col">
+                            <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
+                            <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
+                          </div>
+                          <div className="absolute top-[38%] right-[10%] w-[20%] h-[3%] flex flex-col">
+                            <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
+                            <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
+                          </div>
+
+                          {/* South Inner Walls (Facing North and Facing South) */}
+                          <div className="absolute bottom-[38%] left-[10%] w-[20%] h-[3%] flex flex-col">
+                            <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
+                            <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
+                          </div>
+                          <div className="absolute bottom-[38%] right-[10%] w-[20%] h-[3%] flex flex-col">
+                            <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
+                            <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
+                          </div>
+
+                          {/* West Inner Walls (Facing East and Facing West) */}
+                          <div className="absolute left-[38%] top-[10%] h-[20%] w-[3%] flex">
+                            <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" />
+                            <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" />
+                          </div>
+                          <div className="absolute left-[38%] bottom-[10%] h-[20%] w-[3%] flex">
+                            <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" />
+                            <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" />
+                          </div>
+
+                          {/* East Inner Walls (Facing East and Facing West) */}
+                          <div className="absolute right-[38%] top-[10%] h-[20%] w-[3%] flex">
+                            <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" />
+                            <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" />
+                          </div>
+                          <div className="absolute right-[38%] bottom-[10%] h-[20%] w-[3%] flex">
+                            <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" />
+                            <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" />
+                          </div>
+
+                          {/* Center Marker */}
+                          <div className="absolute inset-[44%] border border-white/10 rounded-full flex items-center justify-center pointer-events-none">
+                             <div className="w-1 h-1 bg-white/20 rounded-full" />
+                          </div>
                         </div>
                       )}
+                      
                       {outerFloor === 'first' && (
-                        <div className="absolute inset-[15%] border border-cyan-500/10 rounded bg-cyan-500/5 flex items-center justify-center">
-                          <span className="text-[10px] text-cyan-500/20 uppercase tracking-widest font-bold">1st Floor Void</span>
+                        <div className="absolute inset-[25%] border border-cyan-500/10 rounded bg-cyan-500/5 flex items-center justify-center">
+                          <span className="text-[10px] text-cyan-500/30 uppercase tracking-widest font-bold">First Floor Void</span>
                         </div>
                       )}
                     </div>
                   </div>
                </div>
+               
                <div className="text-[10px] text-slate-400 flex justify-between items-center px-1">
-                <span className="truncate">Selected: <span className="text-white font-bold">{selectedPanelKey ? `${getFriendlyLabel(selectedPanelKey)}` : 'N/A'}</span></span>
-                <span className="flex-shrink-0">Token ID: <span className="text-white font-bold">{selectedPanelKey ? `#${getTokenIdForPanel(selectedPanelKey)}` : '-'}</span></span>
+                <span className="truncate">Selected: <span className="text-white font-bold">{selectedPanelKey ? getFriendlyLabel(selectedPanelKey) : 'Select a wall segment'}</span></span>
                </div>
             </div>
 
@@ -361,7 +341,7 @@ const GalleryConfig = () => {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Panel Display Name</Label>
-                    <Input className="h-9 text-sm" value={currentConfig.collection_name || ''} onChange={e => setCurrentConfig(p => ({...p, collection_name: e.target.value}))} placeholder="e.g. Rare Bolt Jar" />
+                    <Input className="h-9 text-sm" value={currentConfig.collection_name || ''} onChange={e => setCurrentConfig(p => ({...p, collection_name: e.target.value}))} placeholder="e.g. My Gallery Section" />
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-1.5">
@@ -382,7 +362,7 @@ const GalleryConfig = () => {
                 <div className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
                   <div className="space-y-0.5">
                     <Label className="text-xs font-bold">Show Entire Collection</Label>
-                    <p className="text-[10px] text-muted-foreground">Allows visitors to cycle through your tokens on this panel.</p>
+                    <p className="text-[10px] text-muted-foreground">Allows visitors to cycle through tokens on this panel.</p>
                   </div>
                   <Switch checked={currentConfig.show_collection || false} onCheckedChange={v => setCurrentConfig(p => ({...p, show_collection: v}))} />
                 </div>
@@ -393,7 +373,7 @@ const GalleryConfig = () => {
                 
                 {selectedLock?.isLocked && (
                   <p className="text-[10px] text-center text-amber-500 font-medium">
-                    {selectedLock.isLockedByMe ? `Currently locked by you until ${selectedLock.lockedUntil?.toLocaleDateString()}` : "Locked by another curator."}
+                    {selectedLock.isLockedByMe ? `Locked by you until ${selectedLock.lockedUntil?.toLocaleDateString()}` : "Locked by another curator."}
                   </p>
                 )}
               </div>
