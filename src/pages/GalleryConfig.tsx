@@ -105,7 +105,6 @@ const GalleryConfig = () => {
     return { isLocked: true, isLockedByMe: isByMe, lockedUntil: until, lockingGemTokenId: lock.locking_gem_token_id };
   }, [panelLocks, walletAddress]);
 
-  // Define selectedLock here to fix ReferenceError
   const selectedLock = useMemo(() => {
     if (!selectedPanelKey) return { isLocked: false, isLockedByMe: false, lockedUntil: null, lockingGemTokenId: null };
     return getLockStatus(selectedPanelKey);
@@ -210,7 +209,7 @@ const GalleryConfig = () => {
       <button 
         onClick={() => setSelectedPanelKey(panelKey)} 
         title={label}
-        className={`rounded-[1px] border text-[7px] font-bold flex items-center justify-center transition-all ${className} ${isSelected ? 'bg-cyan-500 text-black border-white scale-110 z-20' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/80 border-red-500/50 text-red-100' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+        className={`rounded-[2px] border text-[8px] font-bold flex items-center justify-center transition-all ${className} ${isSelected ? 'bg-cyan-500 text-black border-white scale-110 z-20' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/80 border-red-500/50 text-red-100' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
       >
         {isSelected ? '●' : ''}
       </button>
@@ -252,12 +251,12 @@ const GalleryConfig = () => {
                </div>
 
                <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 overflow-x-auto">
-                  <div className="min-w-[440px] aspect-[16/11] relative p-10 sm:p-12">
+                  <div className="min-w-[480px] aspect-[16/11] relative p-12 sm:p-14">
                     <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
                       
                       {/* Outer Wall Horizontal Segments (North/South) */}
                       {['north', 'south'].map(w => (
-                        <div key={w} className={`absolute ${w === 'north' ? '-top-6' : '-bottom-6'} left-0 right-0 flex gap-0.5 h-6`}>
+                        <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex gap-1 h-10`}>
                           {OUTER_INDICES.map(i => (
                             <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
                           ))}
@@ -266,57 +265,54 @@ const GalleryConfig = () => {
 
                       {/* Outer Wall Vertical Segments (East/West) */}
                       {['east', 'west'].map(w => (
-                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-6' : '-right-6'} flex flex-col gap-0.5 w-6`}>
+                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col gap-1 w-10`}>
                           {OUTER_INDICES.map(i => (
                             <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
                           ))}
                         </div>
                       ))}
 
-                      {/* Inner Walls - Accurate representation of cross-wall logic */}
+                      {/* Inner Walls - Thicker segments for better touch selection */}
                       {outerFloor === 'ground' && (
                         <div className="absolute inset-0">
-                          {/* Each side has 2 segments at offsets -10 and 10 on a 50x50 grid. 
-                              North/South segments are horizontal (W=20%, H=1.5%) at Z=±5.
-                              East/West segments are vertical (W=1.5%, H=20%) at X=±5. 
-                          */}
+                          {/* Each inner wall is now much thicker (h-12 or w-12) to ensure good touch targets on mobile */}
 
                           {/* North Inner Walls (Facing North and Facing South) */}
-                          <div className="absolute top-[38%] left-[10%] w-[20%] h-[3%] flex flex-col">
+                          <div className="absolute top-[35%] left-[8%] w-[24%] h-12 flex flex-col gap-0.5">
                             <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
                             <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
                           </div>
-                          <div className="absolute top-[38%] right-[10%] w-[20%] h-[3%] flex flex-col">
+                          <div className="absolute top-[35%] right-[8%] w-[24%] h-12 flex flex-col gap-0.5">
                             <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
                             <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
                           </div>
 
                           {/* South Inner Walls (Facing North and Facing South) */}
-                          <div className="absolute bottom-[38%] left-[10%] w-[20%] h-[3%] flex flex-col">
+                          <div className="absolute bottom-[35%] left-[8%] w-[24%] h-12 flex flex-col gap-0.5">
                             <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
                             <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
                           </div>
-                          <div className="absolute bottom-[38%] right-[10%] w-[20%] h-[3%] flex flex-col">
+                          <div className="absolute bottom-[35%] right-[8%] w-[24%] h-12 flex flex-col gap-0.5">
                             <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
                             <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
                           </div>
 
                           {/* West Inner Walls (Facing East and Facing West) */}
-                          <div className="absolute left-[38%] top-[10%] h-[20%] w-[3%] flex">
+                          <div className="absolute left-[35%] top-[8%] h-[24%] w-12 flex gap-0.5">
                             <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" />
                             <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" />
                           </div>
-                          <div className="absolute left-[38%] bottom-[10%] h-[20%] w-[3%] flex">
+                          <div className="absolute left-[35%] bottom-[8%] h-[24%] w-12 flex gap-0.5">
                             <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" />
                             <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" />
                           </div>
 
                           {/* East Inner Walls (Facing East and Facing West) */}
-                          <div className="absolute right-[38%] top-[10%] h-[20%] w-[3%] flex">
+                          <div className="absolute right-[35%] top-[8%] h-[24%] w-12 flex gap-0.5">
                             <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" />
                             <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" />
                           </div>
-                          <div className="absolute right-[38%] bottom-[10%] h-[20%] w-[3%] flex">
+                          <div className="absolute right-[35%] bottom-[8%] h-[24%] w-12 flex gap-0.5">
                             <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" />
                             <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" />
                           </div>
