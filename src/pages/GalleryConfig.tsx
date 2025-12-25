@@ -209,7 +209,7 @@ const GalleryConfig = () => {
       <button 
         onClick={() => setSelectedPanelKey(panelKey)} 
         title={label}
-        className={`rounded-[2px] border text-[8px] font-bold flex items-center justify-center transition-all ${className} ${isSelected ? 'bg-cyan-500 text-black border-white scale-110 z-20' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/80 border-red-500/50 text-red-100' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
+        className={`rounded-[1px] border text-[7px] font-bold flex items-center justify-center transition-all ${className} ${isSelected ? 'bg-cyan-500 text-black border-white scale-110 z-20' : (lock.isLocked && !lock.isLockedByMe) ? 'bg-red-900/80 border-red-500/50 text-red-100' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500'}`}
       >
         {isSelected ? '●' : ''}
       </button>
@@ -242,7 +242,7 @@ const GalleryConfig = () => {
 
             <div className="rounded-xl border bg-slate-950 p-3 sm:p-4 space-y-4">
                <div className="flex justify-between items-center">
-                  <Label className="text-white text-xs sm:text-sm">Interactive Floor Plan</Label>
+                  <Label className="text-white text-xs sm:text-sm font-bold uppercase tracking-wider">Interactive Floor Plan</Label>
                   <div className="bg-white/10 p-0.5 rounded-full flex gap-1">
                     {['ground', 'first'].map(f => (
                       <button key={f} onClick={() => setOuterFloor(f as OuterFloor)} className={`px-2 sm:px-3 py-1 rounded-full text-[9px] sm:text-[10px] font-bold transition-all ${outerFloor === f ? 'bg-primary text-primary-foreground' : 'text-slate-400'}`}>{f === 'ground' ? 'GROUND' : 'FIRST'}</button>
@@ -250,76 +250,80 @@ const GalleryConfig = () => {
                   </div>
                </div>
 
-               <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 overflow-x-auto">
-                  <div className="min-w-[480px] aspect-[16/11] relative p-12 sm:p-14">
+               <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center overflow-hidden">
+                  {/* Container with forced 1:1 aspect ratio to match true 50x50 room scale */}
+                  <div className="w-full max-w-[480px] aspect-square relative p-12 sm:p-14">
                     <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
                       
-                      {/* Outer Wall Horizontal Segments (North/South) */}
+                      {/* Outer Wall Horizontal Segments (North/South) - Each is 20% of width (10 units) */}
                       {['north', 'south'].map(w => (
-                        <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex gap-1 h-10`}>
+                        <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
                           {OUTER_INDICES.map(i => (
                             <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
                           ))}
                         </div>
                       ))}
 
-                      {/* Outer Wall Vertical Segments (East/West) */}
+                      {/* Outer Wall Vertical Segments (East/West) - Each is 20% of height (10 units) */}
                       {['east', 'west'].map(w => (
-                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col gap-1 w-10`}>
+                        <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
                           {OUTER_INDICES.map(i => (
                             <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
                           ))}
                         </div>
                       ))}
 
-                      {/* Inner Walls - Thicker segments for better touch selection */}
+                      {/* Inner Walls - Accurate representation of 3D placement (X/Z coordinates ±10 and ±5) */}
                       {outerFloor === 'ground' && (
                         <div className="absolute inset-0">
-                          {/* Each inner wall is now much thicker (h-12 or w-12) to ensure good touch targets on mobile */}
+                          {/* Inner walls are length 10 (20% of 50 room size). 
+                              They are positioned exactly at the 3D grid offsets (±10 and ±5 relative to center).
+                              Center is 50%. Top 40% = Z -5, Top 60% = Z +5. Left 30% = X -10, Left 70% = X +10.
+                          */}
 
-                          {/* North Inner Walls (Facing North and Facing South) */}
-                          <div className="absolute top-[35%] left-[8%] w-[24%] h-12 flex flex-col gap-0.5">
+                          {/* North Inner Horizontal Wall (Z=-5, X=±10) */}
+                          <div className="absolute top-[40%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-0.5">
                             <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
                             <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
                           </div>
-                          <div className="absolute top-[35%] right-[8%] w-[24%] h-12 flex flex-col gap-0.5">
+                          <div className="absolute top-[40%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-0.5">
                             <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
                             <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
                           </div>
 
-                          {/* South Inner Walls (Facing North and Facing South) */}
-                          <div className="absolute bottom-[35%] left-[8%] w-[24%] h-12 flex flex-col gap-0.5">
+                          {/* South Inner Horizontal Wall (Z=5, X=±10) */}
+                          <div className="absolute top-[60%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-0.5">
                             <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
                             <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
                           </div>
-                          <div className="absolute bottom-[35%] right-[8%] w-[24%] h-12 flex flex-col gap-0.5">
+                          <div className="absolute top-[60%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-0.5">
                             <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
                             <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
                           </div>
 
-                          {/* West Inner Walls (Facing East and Facing West) */}
-                          <div className="absolute left-[35%] top-[8%] h-[24%] w-12 flex gap-0.5">
+                          {/* West Inner Vertical Wall (X=-5, Z=±10) */}
+                          <div className="absolute left-[40%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-0.5">
                             <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" />
                             <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" />
                           </div>
-                          <div className="absolute left-[35%] bottom-[8%] h-[24%] w-12 flex gap-0.5">
+                          <div className="absolute left-[40%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-0.5">
                             <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" />
                             <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" />
                           </div>
 
-                          {/* East Inner Walls (Facing East and Facing West) */}
-                          <div className="absolute right-[35%] top-[8%] h-[24%] w-12 flex gap-0.5">
+                          {/* East Inner Vertical Wall (X=5, Z=±10) */}
+                          <div className="absolute left-[60%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-0.5">
                             <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" />
                             <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" />
                           </div>
-                          <div className="absolute right-[35%] bottom-[8%] h-[24%] w-12 flex gap-0.5">
+                          <div className="absolute left-[60%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-0.5">
                             <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" />
                             <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" />
                           </div>
 
                           {/* Center Marker */}
-                          <div className="absolute inset-[44%] border border-white/10 rounded-full flex items-center justify-center pointer-events-none">
-                             <div className="w-1 h-1 bg-white/20 rounded-full" />
+                          <div className="absolute inset-[48%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
+                             <div className="w-1 h-1 bg-white/40 rounded-full" />
                           </div>
                         </div>
                       )}
