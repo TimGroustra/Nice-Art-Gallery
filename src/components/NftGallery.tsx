@@ -12,8 +12,9 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
+import AvatarModel from './AvatarModel';
+import { useAvatarConfig } from '@/hooks/use-avatar-config';
 
-// Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
 
 const PANEL_WIDTH = 6;
@@ -91,6 +92,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
+
+  const { avatarState } = useAvatarConfig();
+  const [isMoving, setIsMoving] = useState(false);
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -484,12 +488,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         dir.z = Number(moveForwardRef.current) - Number(moveBackwardRef.current);
         dir.x = Number(moveRightRef.current) - Number(moveLeftRef.current);
         dir.normalize();
+
+        // Check if moving for avatar animation
+        const currentlyMoving = moveForwardRef.current || moveBackwardRef.current || moveLeftRef.current || moveRightRef.current;
+        setIsMoving(currentlyMoving);
+
         if (moveForwardRef.current || moveBackwardRef.current) vel.z -= dir.z * 20.0 * delta;
         if (moveLeftRef.current || moveRightRef.current) vel.x -= dir.x * 20.0 * delta;
         vel.x -= vel.x * 10.0 * delta; vel.z -= vel.z * 10.0 * delta;
         controls.moveRight(-vel.x * delta); controls.moveForward(-vel.z * delta);
         camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
         camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
+      } else {
+        setIsMoving(false);
       }
 
       if (rainbowMaterialRef.current) rainbowMaterialRef.current.uniforms.time.value += delta;
@@ -540,6 +551,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   return (
     <>
       <div ref={mountRef} className="w-full h-full" />
+      {sceneRef.current && cameraRef.current && (
+        <AvatarModel 
+          state={avatarState} 
+          isWalking={isMoving} 
+          scene={sceneRef.current} 
+          camera={cameraRef.current} 
+        />
+      )}
       {marketBrowserState.open && (
         <MarketBrowserRefined collection={marketBrowserState.collection || ''} tokenId={marketBrowserState.tokenId || ''} open={marketBrowserState.open} onClose={() => setMarketBrowserState({ open: false })} />
       )}

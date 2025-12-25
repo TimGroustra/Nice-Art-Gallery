@@ -1,47 +1,143 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, UserCircle, Construction } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { ArrowLeft, UserCircle, CheckCircle2, AlertCircle, Loader2, Smartphone, User } from 'lucide-react';
 import { useAccount } from 'wagmi';
+import { useAvatarConfig, AvatarState } from '@/hooks/use-avatar-config';
+import { toast } from 'sonner';
 
 const AvatarConfig: React.FC = () => {
   const navigate = useNavigate();
   const { isConnected } = useAccount();
+  const { avatarState, updateAvatarConfig, isLoading } = useAvatarConfig();
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Basic security check
+  // Local state for form
+  const [enabled, setEnabled] = useState(avatarState.enabled);
+  const [type, setType] = useState(avatarState.type);
+  const [url, setUrl] = useState(avatarState.url || '');
+
+  // Sync with hook when data loads
   React.useEffect(() => {
-    if (!isConnected) {
-      navigate('/portal');
+    setEnabled(avatarState.enabled);
+    setType(avatarState.type);
+    setUrl(avatarState.url || '');
+  }, [avatarState]);
+
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
+        <Card className="w-full max-w-md text-center p-8">
+          <AlertCircle className="h-12 w-12 text-amber-500 mx-auto mb-4" />
+          <CardTitle>Wallet Required</CardTitle>
+          <CardDescription className="mt-2">Please connect your wallet to customize your avatar.</CardDescription>
+          <Button onClick={() => navigate('/portal')} className="mt-6 w-full">Go to Portal</Button>
+        </Card>
+      </div>
+    );
+  }
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    const success = await updateAvatarConfig({
+      enabled,
+      type,
+      url: type === 'rpm' ? url : undefined
+    });
+    
+    if (success) {
+      toast.success("Avatar settings saved!");
+    } else {
+      toast.error("Failed to save avatar settings.");
     }
-  }, [isConnected, navigate]);
+    setIsSaving(false);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md shadow-lg border-t-4 border-t-primary">
         <CardHeader>
-          <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
-            <UserCircle className="h-8 w-8" />
+          <div className="flex justify-between items-start">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+              <UserCircle className="h-8 w-8" />
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/portal')}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Portal
+            </Button>
           </div>
-          <CardTitle>Edit Avatar</CardTitle>
+          <CardTitle className="mt-4 text-2xl">3D Avatar Config</CardTitle>
           <CardDescription>
-            Customize your 3D presence in the gallery.
+            Choose how you appear to others in the gallery.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6 text-center py-8">
-          <div className="flex flex-col items-center gap-4">
-            <Construction className="h-12 w-12 text-muted-foreground animate-pulse" />
-            <div className="space-y-2">
-              <p className="font-medium">Avatar Customization Coming Soon</p>
-              <p className="text-sm text-muted-foreground">
-                We are currently building the integration with 3D avatar systems.
-              </p>
+        <CardContent className="space-y-6">
+          {isLoading ? (
+            <div className="flex flex-col items-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <p className="text-sm text-muted-foreground">Loading your profile...</p>
             </div>
-          </div>
-          
-          <Button onClick={() => navigate('/portal')} variant="outline" className="w-full">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Portal
-          </Button>
+          ) : (
+            <>
+              <div className="flex items-center justify-between p-4 border rounded-xl bg-secondary/20">
+                <div className="space-y-0.5">
+                  <Label className="text-base font-bold">Enable 3D Avatar</Label>
+                  <p className="text-xs text-muted-foreground">Show a humanoid body attached to your camera.</p>
+                </div>
+                <Switch checked={enabled} onCheckedChange={setEnabled} />
+              </div>
+
+              {enabled && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setType('silhouette')}
+                      className={`p-4 rounded-xl border-2 text-left transition-all ${type === 'silhouette' ? 'border-primary bg-primary/5' : 'border-transparent bg-secondary/50'}`}
+                    >
+                      <User className={`h-6 w-6 mb-2 ${type === 'silhouette' ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <div className="font-bold text-sm">Silhouette</div>
+                      <div className="text-[10px] opacity-60">Simple grey mannequin. Minimal lag.</div>
+                    </button>
+                    <button
+                      onClick={() => setType('rpm')}
+                      className={`p-4 rounded-xl border-2 text-left transition-all ${type === 'rpm' ? 'border-primary bg-primary/5' : 'border-transparent bg-secondary/50'}`}
+                    >
+                      <Smartphone className={`h-6 w-6 mb-2 ${type === 'rpm' ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <div className="font-bold text-sm">Custom GLB</div>
+                      <div className="text-[10px] opacity-60">Ready Player Me or custom model.</div>
+                    </button>
+                  </div>
+
+                  {type === 'rpm' && (
+                    <div className="space-y-2 animate-in fade-in duration-300">
+                      <Label className="text-xs font-bold uppercase tracking-wider">GLB URL</Label>
+                      <Input 
+                        placeholder="https://models.readyplayer.me/..." 
+                        value={url} 
+                        onChange={(e) => setUrl(e.target.value)}
+                        className="text-xs font-mono"
+                      />
+                      <p className="text-[10px] text-muted-foreground">Paste your .glb model URL here.</p>
+                    </div>
+                  )}
+
+                  <div className="p-3 bg-primary/5 border border-primary/10 rounded-lg flex gap-3 items-start">
+                    <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <p className="text-[11px] leading-relaxed">
+                      Your avatar will automatically play <strong>Idle</strong> and <strong>Walk</strong> animations based on your movement.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Button className="w-full h-12 font-bold" onClick={handleSave} disabled={isSaving}>
+                {isSaving ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : "Save Changes"}
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

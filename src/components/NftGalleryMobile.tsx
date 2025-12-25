@@ -16,6 +16,8 @@ import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 import { Footprints } from 'lucide-react';
+import AvatarModel from './AvatarModel';
+import { useAvatarConfig } from '@/hooks/use-avatar-config';
 
 RectAreaLightUniformsLib.init();
 
@@ -71,7 +73,7 @@ const rainbowFragmentShader = `
 `;
 
 const isVideoContent = (contentType: string, url: string) =>
-  !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg)(\?|$)/i));
+  !!(contentType.startsWith('video/') || url.match(/\.(mp4|webm|ogg|mov)$/i));
 
 const isGifContent = (contentType: string, url: string) =>
   !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
@@ -102,6 +104,8 @@ const NftGalleryMobile: React.FC = () => {
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
+
+  const { avatarState } = useAvatarConfig();
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -568,6 +572,14 @@ const NftGalleryMobile: React.FC = () => {
   return (
     <div className="w-full h-full bg-black relative touch-none">
       <div ref={mountRef} className="w-full h-full touch-none" />
+      {sceneRef.current && cameraRef.current && (
+        <AvatarModel 
+          state={avatarState} 
+          isWalking={isWalking} 
+          scene={sceneRef.current} 
+          camera={cameraRef.current} 
+        />
+      )}
       {!isStarted && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-50 cursor-pointer" onClick={handleStart}>
           <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-2xl text-center max-w-xs animate-in fade-in zoom-in duration-300">
