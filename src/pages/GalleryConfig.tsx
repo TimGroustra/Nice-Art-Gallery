@@ -321,12 +321,6 @@ const GalleryConfig = () => {
                           </div>
                         </div>
                       )}
-                      
-                      {outerFloor === 'first' && (
-                        <div className="absolute inset-[25%] border border-cyan-500/10 rounded bg-cyan-500/5 flex items-center justify-center">
-                          <span className="text-[10px] text-cyan-500/30 uppercase tracking-widest font-bold">First Floor Void</span>
-                        </div>
-                      )}
                     </div>
                   </div>
                </div>
