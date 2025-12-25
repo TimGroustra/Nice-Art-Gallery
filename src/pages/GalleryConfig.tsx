@@ -33,7 +33,6 @@ interface PanelLock {
 }
 
 const REQUIRED_GEM_BALANCE = 5;
-const FIXED_CONTRACT_ADDRESS = '0x947321143E176DC02FD4Ac82d5688759dCAb83ed';
 const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
 type OuterFloor = 'ground' | 'first';
 type OuterWall = 'north' | 'south' | 'east' | 'west';
@@ -113,34 +112,24 @@ const GalleryConfig = () => {
     return getLockStatus(selectedPanelKey);
   }, [selectedPanelKey, getLockStatus]);
 
-  const getTokenIdForPanel = useCallback((panelKey: string): number => {
-    const ordered: string[] = [];
-    OUTER_INDICES.forEach((i) => ['north','south','east','west'].forEach(w => ordered.push(`${w}-wall-${i}-ground`, `${w}-wall-${i}-first`)));
-    ordered.push(...INNER_WALL_KEYS);
-    const unique = Array.from(new Set(ordered));
-    const index = unique.indexOf(panelKey);
-    return index === -1 ? unique.length + 1 : index + 1;
-  }, []);
-
   const fetchPanelConfig = useCallback(async (panelKey: string) => {
     if (!panelKey) { setCurrentConfig({}); return; }
     setIsLoading(true);
     const { data } = await supabase.from('gallery_config').select('*').eq('panel_key', panelKey).single();
-    const mappedId = getTokenIdForPanel(panelKey);
+    
     setCurrentConfig({
       panel_key: panelKey,
-      collection_name: data?.collection_name || null,
-      contract_address: FIXED_CONTRACT_ADDRESS,
-      default_token_id: mappedId,
+      collection_name: data?.collection_name || '',
+      contract_address: data?.contract_address || '',
+      default_token_id: data?.default_token_id || 1,
       show_collection: data?.show_collection ?? false,
     });
     setIsLoading(false);
-  }, [getTokenIdForPanel]);
+  }, []);
 
   useEffect(() => {
     if (selectedPanelKey) {
       fetchPanelConfig(selectedPanelKey);
-      // Automatically switch to settings tab on mobile when a panel is selected
       if (window.innerWidth < 1024) {
         setActiveTab("settings");
       }
@@ -149,6 +138,12 @@ const GalleryConfig = () => {
 
   const handleSave = async () => {
     if (isGemsLoading || ownedTokens.length < REQUIRED_GEM_BALANCE || !selectedPanelKey) return;
+    
+    if (!currentConfig.contract_address || currentConfig.contract_address.trim() === '') {
+      toast.error('Please enter a contract address.');
+      return;
+    }
+
     setIsLoading(true);
     const lockStatus = getLockStatus(selectedPanelKey);
     if (lockStatus.isLocked && !lockStatus.isLockedByMe) {
@@ -156,12 +151,11 @@ const GalleryConfig = () => {
       setIsLoading(false); return;
     }
 
-    const mappedId = getTokenIdForPanel(selectedPanelKey);
     const { error: cfgErr } = await supabase.from('gallery_config').upsert({
       panel_key: selectedPanelKey,
       collection_name: currentConfig.collection_name || null,
-      contract_address: FIXED_CONTRACT_ADDRESS,
-      default_token_id: mappedId,
+      contract_address: currentConfig.contract_address.trim(),
+      default_token_id: currentConfig.default_token_id || 1,
       show_collection: currentConfig.show_collection ?? false,
       wall_color: DEFAULT_WALL_COLOR,
       text_color: DEFAULT_TEXT_COLOR,
@@ -182,8 +176,12 @@ const GalleryConfig = () => {
       if (!lockGem) { toast.error('No gems available.'); setIsLoading(false); return; }
       const until = new Date(Date.now() + days * 86400000).toISOString();
       const { error: lockErr } = await supabase.from('panel_locks').upsert({
-        panel_id: selectedPanelKey, contract_address: FIXED_CONTRACT_ADDRESS, token_id: String(mappedId),
-        locked_by_address: walletAddress!, locked_until: until, locking_gem_token_id: lockGem
+        panel_id: selectedPanelKey, 
+        contract_address: currentConfig.contract_address.trim(), 
+        token_id: String(currentConfig.default_token_id || 1),
+        locked_by_address: walletAddress!, 
+        locked_until: until, 
+        locking_gem_token_id: lockGem
       });
       if (!lockErr) {
         setPanelLocks(prev => [...prev.filter(l => l.panel_id !== selectedPanelKey), { panel_id: selectedPanelKey, locked_by_address: walletAddress!, locked_until: until, locking_gem_token_id: lockGem }]);
@@ -224,15 +222,12 @@ const GalleryConfig = () => {
           className
         )}
       >
-        {/* Visual wall line - thinner than the block, but visually distinct */}
         <div className={cn(
           "rounded-full transition-all",
           orientation === "horizontal" ? "w-full h-[3px]" : "h-full w-[3px]",
           isSelected ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] scale-y-125" : 
           (lock.isLocked && !lock.isLockedByMe) ? "bg-red-500/60" : "bg-slate-700 group-hover:bg-slate-500"
         )} />
-        
-        {/* Selection indicator */}
         {isSelected && (
            <div className="absolute inset-0 border border-cyan-400/30 rounded-sm pointer-events-none" />
         )}
@@ -254,8 +249,6 @@ const GalleryConfig = () => {
       <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center overflow-hidden">
         <div className="w-full max-w-[480px] aspect-square relative p-12">
           <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
-            
-            {/* Outer Wall Horizontal Segments (North/South) */}
             {['north', 'south'].map(w => (
               <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
                 {OUTER_INDICES.map(i => (
@@ -263,8 +256,6 @@ const GalleryConfig = () => {
                 ))}
               </div>
             ))}
-
-            {/* Outer Wall Vertical Segments (East/West) */}
             {['east', 'west'].map(w => (
               <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
                 {OUTER_INDICES.map(i => (
@@ -272,11 +263,8 @@ const GalleryConfig = () => {
                 ))}
               </div>
             ))}
-
-            {/* Inner Walls - Accurate placement matching coordinates */}
             {outerFloor === 'ground' && (
               <div className="absolute inset-0">
-                {/* North Inner Walls (Z=-5, X=±10) */}
                 <div className="absolute top-[40%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
                   <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
@@ -285,8 +273,6 @@ const GalleryConfig = () => {
                   <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
                   <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
                 </div>
-
-                {/* South Inner Walls (Z=5, X=±10) */}
                 <div className="absolute top-[60%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
                   <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
@@ -295,8 +281,6 @@ const GalleryConfig = () => {
                   <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
                   <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
                 </div>
-
-                {/* West Inner Walls (X=-5, Z=±10) */}
                 <div className="absolute left-[40%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
                   <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
                   <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
@@ -305,8 +289,6 @@ const GalleryConfig = () => {
                   <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
                   <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
                 </div>
-
-                {/* East Inner Walls (X=5, Z=±10) */}
                 <div className="absolute left-[60%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
                   <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
                   <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
@@ -315,8 +297,6 @@ const GalleryConfig = () => {
                   <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
                   <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
                 </div>
-
-                {/* Center Marker */}
                 <div className="absolute inset-[48%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
                    <div className="w-1 h-1 bg-white/40 rounded-full" />
                 </div>
@@ -325,7 +305,6 @@ const GalleryConfig = () => {
           </div>
         </div>
       </div>
-      
       <div className="text-[10px] text-slate-400 flex justify-between items-center px-1">
         <span className="truncate">Selected: <span className="text-white font-bold">{selectedPanelKey ? getFriendlyLabel(selectedPanelKey) : 'Select a wall segment'}</span></span>
       </div>
@@ -354,31 +333,43 @@ const GalleryConfig = () => {
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">Panel Display Name</Label>
-              <Input className="h-9 text-sm" value={currentConfig.collection_name || ''} onChange={e => setCurrentConfig(p => ({...p, collection_name: e.target.value}))} placeholder="e.g. My Gallery Section" />
+              <Label className="text-xs">Collection Title</Label>
+              <Input className="h-9 text-sm" value={currentConfig.collection_name || ''} onChange={e => setCurrentConfig(p => ({...p, collection_name: e.target.value}))} placeholder="e.g. My Favorite NFTs" />
             </div>
+
             <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs">Lock for (Days)</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent><p className="text-xs">Locking consumes 1 available ElectroGem. Set to 0 to unlock.</p></TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+              <Label className="text-xs">Contract Address</Label>
+              <Input className="h-9 text-sm font-mono" value={currentConfig.contract_address || ''} onChange={e => setCurrentConfig(p => ({...p, contract_address: e.target.value}))} placeholder="0x..." />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Default Token ID</Label>
+                <Input className="h-9 text-sm" type="number" value={currentConfig.default_token_id || 1} onChange={e => setCurrentConfig(p => ({...p, default_token_id: parseInt(e.target.value) || 1}))} />
               </div>
-              <Input className="h-9 text-sm" type="number" min={0} max={30} value={lockDurationDays} onChange={e => setLockDurationDays(Number(e.target.value))} />
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Lock for (Days)</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent><p className="text-xs">Locking consumes 1 available ElectroGem. Set to 0 to unlock.</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Input className="h-9 text-sm" type="number" min={0} max={30} value={lockDurationDays} onChange={e => setLockDurationDays(Number(e.target.value))} />
+              </div>
             </div>
           </div>
           
           <div className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
             <div className="space-y-0.5">
               <Label className="text-xs font-bold">Show Entire Collection</Label>
-              <p className="text-[10px] text-muted-foreground">Allows visitors to cycle through tokens on this panel.</p>
+              <p className="text-[10px] text-muted-foreground">Allows visitors to cycle through all tokens in this contract.</p>
             </div>
             <Switch checked={currentConfig.show_collection || false} onCheckedChange={v => setCurrentConfig(p => ({...p, show_collection: v}))} />
           </div>
@@ -388,8 +379,8 @@ const GalleryConfig = () => {
           </Button>
           
           {selectedLock?.isLocked && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
-              <p className="text-xs text-center text-amber-500 font-medium">
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center">
+              <p className="text-xs text-amber-500 font-medium">
                 {selectedLock.isLockedByMe ? `Locked by you until ${selectedLock.lockedUntil?.toLocaleDateString()}` : "Locked by another curator."}
               </p>
             </div>
@@ -402,8 +393,6 @@ const GalleryConfig = () => {
   return (
     <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-3 sm:p-6 lg:p-8">
       <div className="max-w-7xl mx-auto flex flex-col gap-6">
-        
-        {/* Header Section */}
         <div className="flex flex-col gap-4">
           <div className="flex justify-between items-center">
             <Button variant="ghost" size="sm" onClick={() => navigate('/portal')} className="px-0 hover:bg-transparent text-sm">
@@ -418,16 +407,13 @@ const GalleryConfig = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold">Gallery Configuration</h1>
-            <p className="text-sm text-muted-foreground">Designate wall panels to showcase pieces from the collection.</p>
+            <p className="text-sm text-muted-foreground">Customise any wall panel with content from any Electroneum collection.</p>
           </div>
         </div>
 
-        {/* Layout with Preview always visible on Desktop */}
         <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-8">
-          
           <Card className="flex flex-col h-fit">
             <CardContent className="p-6">
-              {/* Responsive Tabs Layout */}
               <div className="lg:hidden">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                   <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -446,17 +432,14 @@ const GalleryConfig = () => {
                   </TabsContent>
                 </Tabs>
               </div>
-
-              {/* Desktop Always-Visible Selector */}
               <div className="hidden lg:block space-y-6">
                 <FloorPlan />
                 <SettingsPanel />
               </div>
             </CardContent>
           </Card>
-
           <div className="lg:sticky lg:top-8 h-fit space-y-6">
-            <NftPreviewPane contractAddress={FIXED_CONTRACT_ADDRESS} tokenId={selectedPanelKey ? getTokenIdForPanel(selectedPanelKey) : null} />
+            <NftPreviewPane contractAddress={currentConfig.contract_address || null} tokenId={currentConfig.default_token_id || null} />
           </div>
         </div>
       </div>
