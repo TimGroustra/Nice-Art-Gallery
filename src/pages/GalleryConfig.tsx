@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -104,6 +104,12 @@ const GalleryConfig = () => {
     const isByMe = !!walletAddress && lock.locked_by_address.toLowerCase() === walletAddress.toLowerCase();
     return { isLocked: true, isLockedByMe: isByMe, lockedUntil: until, lockingGemTokenId: lock.locking_gem_token_id };
   }, [panelLocks, walletAddress]);
+
+  // Define selectedLock here to fix ReferenceError
+  const selectedLock = useMemo(() => {
+    if (!selectedPanelKey) return { isLocked: false, isLockedByMe: false, lockedUntil: null, lockingGemTokenId: null };
+    return getLockStatus(selectedPanelKey);
+  }, [selectedPanelKey, getLockStatus]);
 
   const getTokenIdForPanel = useCallback((panelKey: string): number => {
     const ordered: string[] = [];
