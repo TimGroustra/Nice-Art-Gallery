@@ -5,6 +5,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { User } from "lucide-react";
 
 interface BackgroundMusicHandles {
   play: () => void;
@@ -19,7 +20,6 @@ const Index = () => {
   const isMobile = useIsMobile();
   const navigate = useNavigate();
 
-  // Redirect to mobile version if on a mobile device
   useEffect(() => {
     if (isMobile) {
       navigate('/mobile');
@@ -60,7 +60,6 @@ const Index = () => {
     };
   }, []);
 
-  // Return null or loading state during redirect
   if (isMobile) return null;
 
   return (
@@ -68,9 +67,9 @@ const Index = () => {
       <BackgroundMusic ref={musicRef} />
 
       <div className="fixed top-4 right-4 z-20">
-        <Button asChild>
-          <Link to="/gallery-config" target="_blank" rel="noopener noreferrer">
-            Gallery Configuration
+        <Button asChild className="rounded-full shadow-lg">
+          <Link to="/portal">
+            <User className="mr-2 h-4 w-4" /> User Portal
           </Link>
         </Button>
       </div>
