@@ -1,9 +1,11 @@
+"use client";
+
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, UserCircle, Gem, AlertTriangle } from 'lucide-react';
+import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, UserCircle, Gem, AlertTriangle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGemBalance } from '@/hooks/use-gem-balance';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -16,14 +18,10 @@ const UserPortal: React.FC = () => {
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
 
-  // Use the simpler balance check for the portal gateway
   const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(address);
 
-  const handleConnect = (connectorId: string) => {
-    const connector = connectors.find(c => c.id === connectorId);
-    if (connector) {
-      connect({ connector });
-    }
+  const handleConnect = (connector: any) => {
+    connect({ connector });
   };
 
   const hasEnoughGems = (balance ?? 0) >= REQUIRED_GEMS;
@@ -39,8 +37,6 @@ const UserPortal: React.FC = () => {
   const handleEditAvatarClick = () => {
     navigate('/avatar-config');
   };
-
-  const injectedConnector = connectors.find(c => c.id === 'injected');
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
@@ -62,16 +58,27 @@ const UserPortal: React.FC = () => {
                   <span>Awaiting connection...</span>
                 </div>
               )}
-              {injectedConnector && (
-                <Button 
-                  onClick={() => handleConnect(injectedConnector.id)} 
-                  className="w-full h-12 text-lg" 
-                  disabled={isConnecting}
-                >
-                  <LogIn className="mr-2 h-5 w-5" /> Connect Wallet
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => navigate('/')} className="w-full">
+              
+              <div className="grid gap-3">
+                {connectors.map((connector) => (
+                  <Button 
+                    key={connector.id}
+                    onClick={() => handleConnect(connector)} 
+                    className="w-full h-12 text-lg justify-start px-6" 
+                    variant={connector.id === 'walletConnect' ? 'outline' : 'default'}
+                    disabled={isConnecting}
+                  >
+                    {connector.id === 'walletConnect' ? (
+                      <Smartphone className="mr-3 h-5 w-5" />
+                    ) : (
+                      <LogIn className="mr-3 h-5 w-5" />
+                    )}
+                    {connector.name}
+                  </Button>
+                ))}
+              </div>
+
+              <Button variant="ghost" onClick={() => navigate('/')} className="w-full">
                 <ArrowLeft className="mr-2 h-4 w-4" /> Return to Gallery
               </Button>
             </div>
