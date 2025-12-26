@@ -171,7 +171,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const updatePanelContent = useCallback(
     async (panel: Panel, source: NftSource | null) => {
       disposeTextureSafely(panel.mesh);
-      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x222222 });
+      panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x111111 });
       panel.metadataUrl = '';
       panel.isVideo = false;
       panel.isGif = false;
@@ -194,32 +194,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         return;
       }
 
-      const metadata: NftMetadata | null = await getCachedNftMetadata(
-        source.contractAddress,
-        source.tokenId,
-      );
+      try {
+        const metadata: NftMetadata | null = await getCachedNftMetadata(
+          source.contractAddress,
+          source.tokenId,
+        );
 
-      if (!metadata) {
-        const canvas = document.createElement('canvas');
-        canvas.width = 256; canvas.height = 256;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = '#222222'; ctx.fillRect(0, 0, 256, 256);
-          ctx.fillStyle = '#ff4444'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
-          ctx.fillText('Loading Error', 128, 128);
-        }
-        panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
-      } else {
-        try {
+        if (!metadata) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 256; canvas.height = 256;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#222222'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#ff4444'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('Loading Error', 128, 128);
+          }
+          panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
+        } else {
           const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
           disposeTextureSafely(panel.mesh);
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
           panel.metadataUrl = metadata.source;
           panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
           panel.isGif = isGifContent(metadata.contentType || '', metadata.contentUrl);
-        } catch (error) {
-          console.error(`Error loading content:`, error);
         }
+      } catch (error) {
+        console.error(`Error loading content for ${panel.wallName}:`, error);
+        const canvas = document.createElement('canvas');
+        canvas.width = 256; canvas.height = 256;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = '#222222'; ctx.fillRect(0, 0, 256, 256);
+          ctx.fillStyle = '#ff4444'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
+          ctx.fillText('Connection Error', 128, 128);
+        }
+        panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
       }
 
       const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
@@ -411,7 +420,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     panelsRef.current = [];
     dynamicPanelConfigs.forEach(cfg => {
-      const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
+      const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
       mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
       mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
       scene.add(mesh);
@@ -463,12 +472,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let stopAnim = false;
     const initLoad = async () => {
       await initializeGalleryConfig();
-      // Load panels with staggered delay to avoid RPC bursts
+      // Increased stagger delay and added jitter to avoid hitting rate limits
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
         const p = panelsRef.current[i];
         updatePanelContent(p, getCurrentNftSource(p.wallName));
-        if (i % 3 === 0) await new Promise(r => setTimeout(r, 100)); // Stagger load
+        // Stagger load every 2 panels with a 250ms delay + jitter
+        if (i % 2 === 0) {
+          const jitter = Math.random() * 200;
+          await new Promise(r => setTimeout(r, 250 + jitter));
+        }
       }
     };
     initLoad();

@@ -41,17 +41,30 @@ export type NftMetadataResult = {
 };
 
 /**
- * Helper to retry an async function a few times with backoff.
+ * Helper to retry an async function with exponential backoff and jitter.
  */
-async function retry<T>(fn: () => Promise<T>, retries = 5, delay = 1000): Promise<T> {
-  try {
-    return await fn();
-  } catch (e) {
-    if (retries <= 0) throw e;
-    console.warn(`[NFT Fetcher] Retrying failed RPC call in ${delay}ms... Retries left: ${retries}`);
-    await new Promise(r => setTimeout(r, delay));
-    return retry(fn, retries - 1, delay * 2);
+async function retry<T>(fn: () => Promise<T>, retries = 5, initialDelay = 1000): Promise<T> {
+  let attempt = 0;
+  while (attempt < retries) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      attempt++;
+      if (attempt >= retries) throw e;
+      
+      // Check for specific error codes like 429 (Too Many Requests)
+      const isRateLimit = e?.status === 429 || String(e).includes("429") || String(e).includes("too many requests");
+      
+      // Calculate delay: initialDelay * 2^attempt + random jitter
+      const backoff = initialDelay * Math.pow(2, attempt);
+      const jitter = Math.random() * 1000;
+      const delay = (isRateLimit ? backoff * 2 : backoff) + jitter;
+      
+      console.warn(`[NFT Fetcher] Attempt ${attempt} failed. Retrying in ${Math.round(delay)}ms...`, e.message || e);
+      await new Promise(r => setTimeout(r, delay));
+    }
   }
+  throw new Error("Retry exhausted");
 }
 
 async function parseMetadataObject(meta: any, baseUri?: string): Promise<Omit<NftMetadata, 'source'>> {
