@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib, Reflector } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -12,9 +12,8 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import AvatarModel from './AvatarModel';
-import { useAvatarConfig } from '@/hooks/use-avatar-config';
 
+// Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
 
 const PANEL_WIDTH = 6;
@@ -92,9 +91,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     collection?: string;
     tokenId?: string | number;
   }>({ open: false });
-
-  const { avatarState } = useAvatarConfig();
-  const [isMoving, setIsMoving] = useState(false);
 
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -257,9 +253,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     cameraRef.current = camera;
     camera.position.set(0, 1.6, -20);
-    
-    // Ensure camera only sees Layer 0 (the world) and NOT Layer 1 (own avatar)
-    camera.layers.set(0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
@@ -349,20 +342,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
     ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, WALL_HEIGHT + 0.01, 0); scene.add(ceiling);
-
-    // --- ADDING MIRROR ---
-    const mirrorGeo = new THREE.PlaneGeometry(6, 10);
-    const mirror = new Reflector(mirrorGeo, {
-      clipBias: 0.003,
-      textureWidth: window.innerWidth * window.devicePixelRatio,
-      textureHeight: window.innerHeight * window.devicePixelRatio,
-      color: 0x777777,
-    });
-    // Position it on the North wall near the starting area
-    mirror.position.set(0, 5, -halfRoomSize + 0.6);
-    // Tell mirror camera to see both world (0) and avatar (1)
-    mirror.camera.layers.enable(1);
-    scene.add(mirror);
 
     const buttonGeo = new THREE.CylinderGeometry(1, 1, 0.2, 32);
     const buttonMat = new THREE.MeshStandardMaterial({ color: 0x1a3f7c, emissive: 0x1a3f7c, emissiveIntensity: 0.5, roughness: 0.1, metalness: 0.9 });
@@ -505,19 +484,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         dir.z = Number(moveForwardRef.current) - Number(moveBackwardRef.current);
         dir.x = Number(moveRightRef.current) - Number(moveLeftRef.current);
         dir.normalize();
-
-        // Check if moving for avatar animation
-        const currentlyMoving = moveForwardRef.current || moveBackwardRef.current || moveLeftRef.current || moveRightRef.current;
-        setIsMoving(currentlyMoving);
-
         if (moveForwardRef.current || moveBackwardRef.current) vel.z -= dir.z * 20.0 * delta;
         if (moveLeftRef.current || moveRightRef.current) vel.x -= dir.x * 20.0 * delta;
         vel.x -= vel.x * 10.0 * delta; vel.z -= vel.z * 10.0 * delta;
         controls.moveRight(-vel.x * delta); controls.moveForward(-vel.z * delta);
         camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
         camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
-      } else {
-        setIsMoving(false);
       }
 
       if (rainbowMaterialRef.current) rainbowMaterialRef.current.uniforms.time.value += delta;
@@ -568,14 +540,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   return (
     <>
       <div ref={mountRef} className="w-full h-full" />
-      {sceneRef.current && cameraRef.current && (
-        <AvatarModel 
-          state={avatarState} 
-          isWalking={isMoving} 
-          scene={sceneRef.current} 
-          camera={cameraRef.current} 
-        />
-      )}
       {marketBrowserState.open && (
         <MarketBrowserRefined collection={marketBrowserState.collection || ''} tokenId={marketBrowserState.tokenId || ''} open={marketBrowserState.open} onClose={() => setMarketBrowserState({ open: false })} />
       )}
