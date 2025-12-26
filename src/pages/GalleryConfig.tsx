@@ -328,11 +328,6 @@ const GalleryConfig = () => {
 
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">Collection Title</Label>
-              <Input className="h-9 text-sm" value={currentConfig.collection_name || ''} onChange={e => setCurrentConfig(p => ({...p, collection_name: e.target.value}))} placeholder="e.g. My Favorite NFTs" />
-            </div>
-
-            <div className="space-y-1.5">
               <Label className="text-xs">Contract Address</Label>
               <Input className="h-9 text-sm font-mono" value={currentConfig.contract_address || ''} onChange={e => setCurrentConfig(p => ({...p, contract_address: e.target.value}))} placeholder="0x..." />
             </div>
