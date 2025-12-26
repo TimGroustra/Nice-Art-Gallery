@@ -5,11 +5,10 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, Gem, AlertTriangle, Smartphone, LayoutGrid } from 'lucide-react';
+import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, Gem, AlertTriangle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGemBalance } from '@/hooks/use-gem-balance';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { OwnedNftList } from '@/components/OwnedNftList';
 
 const REQUIRED_GEMS = 5;
 
@@ -181,11 +180,6 @@ const UserPortal: React.FC = () => {
                   </AlertDescription>
                 </Alert>
               )}
-
-              {/* OWNED NFT LIST SECTION */}
-              <div className="pt-4 border-t border-dashed">
-                <OwnedNftList address={address!} />
-              </div>
             </div>
           )}
         </CardContent>
