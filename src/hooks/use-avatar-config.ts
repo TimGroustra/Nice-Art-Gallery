@@ -52,11 +52,32 @@ export function useAvatarConfig() {
       return false;
     }
 
+    const lowerAddress = address.toLowerCase();
+
     try {
+      // 1. Ensure profile exists first (to satisfy foreign key constraint)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('wallet_address')
+        .eq('wallet_address', lowerAddress)
+        .maybeSingle();
+
+      if (!profile) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert({ wallet_address: lowerAddress });
+        
+        if (profileError) {
+          console.error("Error creating initial profile:", profileError);
+          return false;
+        }
+      }
+
+      // 2. Now upsert the avatar configuration
       const { error } = await supabase
         .from('avatars')
         .upsert({
-          wallet_address: address.toLowerCase(),
+          wallet_address: lowerAddress,
           avatar_state: newState as any,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'wallet_address' });
