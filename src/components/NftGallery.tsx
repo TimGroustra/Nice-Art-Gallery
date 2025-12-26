@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib, Reflector } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -257,6 +257,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     cameraRef.current = camera;
     camera.position.set(0, 1.6, -20);
+    
+    // Ensure camera only sees Layer 0 (the world) and NOT Layer 1 (own avatar)
+    camera.layers.set(0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
@@ -346,6 +349,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
     ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, WALL_HEIGHT + 0.01, 0); scene.add(ceiling);
+
+    // --- ADDING MIRROR ---
+    const mirrorGeo = new THREE.PlaneGeometry(6, 10);
+    const mirror = new Reflector(mirrorGeo, {
+      clipBias: 0.003,
+      textureWidth: window.innerWidth * window.devicePixelRatio,
+      textureHeight: window.innerHeight * window.devicePixelRatio,
+      color: 0x777777,
+    });
+    // Position it on the North wall near the starting area
+    mirror.position.set(0, 5, -halfRoomSize + 0.6);
+    // Tell mirror camera to see both world (0) and avatar (1)
+    mirror.getLoopbackCamera().layers.enable(1);
+    scene.add(mirror);
 
     const buttonGeo = new THREE.CylinderGeometry(1, 1, 0.2, 32);
     const buttonMat = new THREE.MeshStandardMaterial({ color: 0x1a3f7c, emissive: 0x1a3f7c, emissiveIntensity: 0.5, roughness: 0.1, metalness: 0.9 });

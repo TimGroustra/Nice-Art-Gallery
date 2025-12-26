@@ -10,6 +10,13 @@ interface AvatarModelProps {
   camera: THREE.Camera;
 }
 
+/**
+ * Layer 1 is designated for the player's own avatar.
+ * The main camera only renders Layer 0 (everything else), 
+ * while mirror cameras or other players render both.
+ */
+const AVATAR_LAYER = 1;
+
 const AvatarModel: React.FC<AvatarModelProps> = ({ state, isWalking, scene, camera }) => {
   const groupRef = useRef<THREE.Group>(new THREE.Group());
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
@@ -41,6 +48,11 @@ const AvatarModel: React.FC<AvatarModelProps> = ({ state, isWalking, scene, came
     const loader = new GLTFLoader();
 
     const setupModel = (model: THREE.Group, animations: THREE.AnimationClip[]) => {
+      // Set the entire model to the specific avatar layer
+      model.traverse((child) => {
+        child.layers.set(AVATAR_LAYER);
+      });
+      
       group.add(model);
       const mixer = new THREE.AnimationMixer(model);
       mixerRef.current = mixer;
