@@ -5,10 +5,11 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, UserCircle, Gem, AlertTriangle, Smartphone } from 'lucide-react';
+import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, Gem, AlertTriangle, Smartphone, LayoutGrid } from 'lucide-react';
 import { toast } from 'sonner';
 import { useGemBalance } from '@/hooks/use-gem-balance';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { OwnedNftList } from '@/components/OwnedNftList';
 
 const REQUIRED_GEMS = 5;
 
@@ -34,13 +35,14 @@ const UserPortal: React.FC = () => {
     navigate('/gallery-config');
   };
 
-  const handleEditAvatarClick = () => {
-    navigate('/avatar-config');
-  };
-  
   // Filter connectors to ensure only one 'injected' type is shown, and map for display
   const uniqueConnectors = React.useMemo(() => {
-    const finalConnectors: typeof connectors[number] & { displayName: string, icon: JSX.Element, variant: "default" | "outline" }[] = [];
+    type ConnectorWithUI = typeof connectors[number] & { 
+      displayName: string; 
+      icon: React.ReactNode; 
+      variant: "default" | "outline"; 
+    };
+    const finalConnectors: ConnectorWithUI[] = [];
     let injectedAdded = false;
 
     for (const connector of connectors) {
@@ -50,13 +52,12 @@ const UserPortal: React.FC = () => {
 
       if (isInjected || isMetaMask) {
         if (!injectedAdded) {
-          // Use the first injected connector found (MetaMask or generic)
           finalConnectors.push({
             ...connector,
             displayName: 'Browser Extension Wallet',
             icon: <Wallet className="mr-3 h-5 w-5" />,
             variant: 'default',
-          });
+          } as ConnectorWithUI);
           injectedAdded = true;
         }
       } else if (isWalletConnect) {
@@ -65,12 +66,10 @@ const UserPortal: React.FC = () => {
           displayName: 'WalletConnect (Mobile/QR)',
           icon: <Smartphone className="mr-3 h-5 w-5" />,
           variant: 'outline',
-        });
+        } as ConnectorWithUI);
       }
-      // Ignore any other unexpected connectors
     }
 
-    // Ensure WalletConnect is always last for visual hierarchy
     const wcIndex = finalConnectors.findIndex(c => c.id === 'walletConnect');
     if (wcIndex > -1 && wcIndex !== finalConnectors.length - 1) {
       const wc = finalConnectors.splice(wcIndex, 1)[0];
@@ -83,12 +82,12 @@ const UserPortal: React.FC = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 dark:bg-gray-900 p-4">
-      <Card className="w-full max-w-md shadow-xl border-t-4 border-t-primary">
+      <Card className="w-full max-w-lg shadow-xl border-t-4 border-t-primary">
         <CardHeader>
           <CardTitle className="text-2xl">User Portal</CardTitle>
           <CardDescription>
             {isConnected 
-              ? "Manage your gallery experience and digital identity." 
+              ? "Manage your gallery experience and digital assets." 
               : "Connect your wallet to access your dashboard."}
           </CardDescription>
         </CardHeader>
@@ -122,7 +121,7 @@ const UserPortal: React.FC = () => {
               </Button>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-8 animate-in fade-in duration-500">
               <div className="flex items-center justify-between p-4 border rounded-xl bg-secondary/50">
                 <div className="flex flex-col">
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Connected Wallet</span>
@@ -135,35 +134,26 @@ const UserPortal: React.FC = () => {
                 </Button>
               </div>
 
-              <div className="grid gap-3">
+              <div className="grid gap-4">
                 <Button 
                   onClick={handleGalleryConfigClick} 
                   variant={hasEnoughGems ? "default" : "secondary"}
-                  className="w-full h-14 justify-start px-6 relative overflow-hidden group"
+                  className="w-full h-16 justify-start px-6 relative overflow-hidden group border shadow-sm"
                   disabled={isBalanceLoading}
                 >
-                  <Settings className="mr-4 h-5 w-5" />
+                  <Settings className="mr-4 h-6 w-6 text-primary group-hover:rotate-45 transition-transform" />
                   <div className="flex flex-col items-start">
-                    <span className="font-bold">Gallery Configuration</span>
-                    <span className="text-[10px] opacity-70">
-                      {isBalanceLoading ? "Checking balance..." : `Owned: ${balance ?? 0} / Need: ${REQUIRED_GEMS}`}
+                    <span className="font-black text-lg">Gallery Configuration</span>
+                    <span className="text-xs opacity-70">
+                      {isBalanceLoading ? "Checking balance..." : `Owned: ${balance ?? 0} / Need: ${REQUIRED_GEMS} Gems`}
                     </span>
                   </div>
                   {isBalanceLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
-                  {!isBalanceLoading && !hasEnoughGems && <AlertTriangle className="ml-auto h-4 w-4 text-amber-500" />}
+                  {!isBalanceLoading && !hasEnoughGems && <AlertTriangle className="ml-auto h-5 w-5 text-amber-500" />}
                 </Button>
 
                 <Button 
-                  onClick={handleEditAvatarClick} 
                   variant="outline" 
-                  className="w-full h-14 justify-start px-6"
-                >
-                  <UserCircle className="mr-4 h-5 w-5" />
-                  <span className="font-bold">Edit Avatar</span>
-                </Button>
-
-                <Button 
-                  variant="ghost" 
                   onClick={() => navigate('/')} 
                   className="w-full h-14 justify-start px-6"
                 >
@@ -191,6 +181,11 @@ const UserPortal: React.FC = () => {
                   </AlertDescription>
                 </Alert>
               )}
+
+              {/* OWNED NFT LIST SECTION */}
+              <div className="pt-4 border-t border-dashed">
+                <OwnedNftList address={address!} />
+              </div>
             </div>
           )}
         </CardContent>
