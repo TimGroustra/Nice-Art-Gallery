@@ -24,37 +24,46 @@ export function useAvatarConfig() {
 
     const fetchConfig = async () => {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from('avatars')
-        .select('avatar_state')
-        .eq('wallet_address', address)
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from('avatars')
+          .select('avatar_state')
+          .eq('wallet_address', address.toLowerCase())
+          .maybeSingle();
 
-      if (data && data.avatar_state) {
-        setAvatarState(data.avatar_state as unknown as AvatarState);
+        if (data && data.avatar_state) {
+          setAvatarState(data.avatar_state as unknown as AvatarState);
+        }
+      } catch (err) {
+        console.error("Error fetching avatar config:", err);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     };
 
     fetchConfig();
   }, [address]);
 
   const updateAvatarConfig = async (newState: AvatarState) => {
-    if (!address) return;
+    if (!address) return false;
 
-    const { error } = await supabase
-      .from('avatars')
-      .upsert({
-        wallet_address: address,
-        avatar_state: newState as any,
-        updated_at: new Date().toISOString(),
-      });
+    try {
+      const { error } = await supabase
+        .from('avatars')
+        .upsert({
+          wallet_address: address.toLowerCase(),
+          avatar_state: newState as any,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'wallet_address' });
 
-    if (!error) {
-      setAvatarState(newState);
-      return true;
+      if (!error) {
+        setAvatarState(newState);
+        return true;
+      }
+      return false;
+    } catch (err) {
+      return false;
     }
-    return false;
   };
 
   return { avatarState, updateAvatarConfig, isLoading };

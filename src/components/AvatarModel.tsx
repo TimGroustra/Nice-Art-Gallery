@@ -14,7 +14,7 @@ const AvatarModel: React.FC<AvatarModelProps> = ({ state, isWalking, scene, came
   const groupRef = useRef<THREE.Group>(new THREE.Group());
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
   const actionsRef = useRef<{ [key: string]: THREE.AnimationAction }>({});
-  const silhouetteRefs = useRef<{ leftLeg: THREE.Mesh; rightLeg: THREE.Mesh; leftArm: THREE.Mesh; rightArm: THREE.Mesh } | null>(null);
+  const currentActionRef = useRef<string | null>(null);
 
   useEffect(() => {
     const group = groupRef.current;
@@ -22,70 +22,102 @@ const AvatarModel: React.FC<AvatarModelProps> = ({ state, isWalking, scene, came
 
     // Clear existing children
     while (group.children.length > 0) {
-      group.remove(group.children[0]);
+      const child = group.children[0];
+      group.remove(child);
+      child.traverse((obj) => {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach(m => m.dispose());
+          } else {
+            obj.material.dispose();
+          }
+        }
+      });
     }
 
     if (!state.enabled) return;
 
+    const loader = new GLTFLoader();
+
+    const setupModel = (model: THREE.Group, animations: THREE.AnimationClip[]) => {
+      group.add(model);
+      const mixer = new THREE.AnimationMixer(model);
+      mixerRef.current = mixer;
+
+      animations.forEach((clip) => {
+        const name = clip.name.toLowerCase();
+        actionsRef.current[name] = mixer.clipAction(clip);
+      });
+
+      // Default state
+      const initial = isWalking ? 'walk' : 'idle';
+      if (actionsRef.current[initial]) {
+        actionsRef.current[initial].play();
+        currentActionRef.current = initial;
+      } else if (animations.length > 0) {
+        const first = animations[0].name.toLowerCase();
+        actionsRef.current[first].play();
+        currentActionRef.current = first;
+      }
+    };
+
     if (state.type === 'silhouette') {
-      // Create a simple grey mannequin
-      const mat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.5 });
-      
-      // Body
-      const torso = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.25), mat);
-      torso.position.y = 1.15;
-      group.add(torso);
-
-      // Head
-      const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), mat);
-      head.position.y = 1.65;
-      group.add(head);
-
-      // Arms
-      const armGeo = new THREE.BoxGeometry(0.12, 0.6, 0.12);
-      const leftArm = new THREE.Mesh(armGeo, mat);
-      leftArm.position.set(-0.35, 1.2, 0);
-      group.add(leftArm);
-
-      const rightArm = new THREE.Mesh(armGeo, mat);
-      rightArm.position.set(0.35, 1.2, 0);
-      group.add(rightArm);
-
-      // Legs
-      const legGeo = new THREE.BoxGeometry(0.15, 0.8, 0.15);
-      const leftLeg = new THREE.Mesh(legGeo, mat);
-      leftLeg.position.set(-0.15, 0.4, 0);
-      group.add(leftLeg);
-
-      const rightLeg = new THREE.Mesh(legGeo, mat);
-      rightLeg.position.set(0.15, 0.4, 0);
-      group.add(rightLeg);
-
-      silhouetteRefs.current = { leftLeg, rightLeg, leftArm, rightArm };
-    } else if (state.type === 'rpm' && state.url) {
-      const loader = new GLTFLoader();
-      loader.load(state.url, (gltf) => {
+      loader.load('/models/mannequin.glb', (gltf) => {
         const model = gltf.scene;
-        model.scale.set(1, 1, 1);
-        group.add(model);
-
-        mixerRef.current = new THREE.AnimationMixer(model);
-        gltf.animations.forEach((clip) => {
-          actionsRef.current[clip.name.toLowerCase()] = mixerRef.current!.clipAction(clip);
+        model.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.material = new THREE.MeshStandardMaterial({ 
+              color: 0x444444, 
+              roughness: 0.8,
+              metalness: 0.2
+            });
+          }
         });
+        
+        const loadExternalAnims = async () => {
+          try {
+            const [idleGltf, walkGltf] = await Promise.all([
+              loader.loadAsync('/models/idle.glb'),
+              loader.loadAsync('/models/walk.glb')
+            ]);
+            
+            const clips = [...gltf.animations];
+            if (idleGltf.animations[0]) {
+              idleGltf.animations[0].name = 'idle';
+              clips.push(idleGltf.animations[0]);
+            }
+            if (walkGltf.animations[0]) {
+              walkGltf.animations[0].name = 'walk';
+              clips.push(walkGltf.animations[0]);
+            }
+            
+            setupModel(model, clips);
+          } catch (e) {
+            console.error("Failed to load animations", e);
+            setupModel(model, gltf.animations);
+          }
+        };
 
-        // Default to idle if available
-        if (actionsRef.current['idle']) actionsRef.current['idle'].play();
+        loadExternalAnims();
+      });
+    } else if (state.type === 'rpm' && state.url) {
+      loader.load(state.url, (gltf) => {
+        setupModel(gltf.scene, gltf.animations);
       });
     }
 
     return () => {
       scene.remove(group);
-      if (mixerRef.current) mixerRef.current.stopAllAction();
+      if (mixerRef.current) {
+        mixerRef.current.stopAllAction();
+        mixerRef.current = null;
+      }
+      actionsRef.current = {};
+      currentActionRef.current = null;
     };
   }, [state, scene]);
 
-  // Animation and positioning loop
   useEffect(() => {
     let lastTime = performance.now();
     let frameId: number;
@@ -96,48 +128,23 @@ const AvatarModel: React.FC<AvatarModelProps> = ({ state, isWalking, scene, came
       lastTime = time;
 
       if (state.enabled && groupRef.current) {
-        // Position avatar relative to camera
-        // We place it slightly behind the camera for a "light third person" or 
-        // just invisible to player but visible in mirrors/to others
-        const offset = new THREE.Vector3(0, -1.6, 0.5); // Adjusted to match ground
-        offset.applyQuaternion(camera.quaternion);
-        
-        // Lock Y orientation to camera but keep feet on ground
         groupRef.current.position.copy(camera.position).add(new THREE.Vector3(0, -1.6, 0));
-        
-        // Rotation: Look where the camera looks, but only around Y axis
         const camEuler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
-        groupRef.current.rotation.y = camEuler.y + Math.PI; // Face same way as camera
+        groupRef.current.rotation.y = camEuler.y + Math.PI; 
 
-        // Animate Silhouette
-        if (state.type === 'silhouette' && silhouetteRefs.current) {
-          const { leftLeg, rightLeg, leftArm, rightArm } = silhouetteRefs.current;
-          if (isWalking) {
-            const swing = Math.sin(time * 0.01) * 0.4;
-            leftLeg.rotation.x = swing;
-            rightLeg.rotation.x = -swing;
-            leftArm.rotation.x = -swing;
-            rightArm.rotation.x = swing;
-          } else {
-            leftLeg.rotation.x = THREE.MathUtils.lerp(leftLeg.rotation.x, 0, 0.1);
-            rightLeg.rotation.x = THREE.MathUtils.lerp(rightLeg.rotation.x, 0, 0.1);
-            leftArm.rotation.x = THREE.MathUtils.lerp(leftArm.rotation.x, 0, 0.1);
-            rightArm.rotation.x = THREE.MathUtils.lerp(rightArm.rotation.x, 0, 0.1);
-          }
-        }
-
-        // Animate GLB
         if (mixerRef.current) {
           mixerRef.current.update(delta);
-          const walkAction = actionsRef.current['walk'] || actionsRef.current['run'];
-          const idleAction = actionsRef.current['idle'];
-
-          if (isWalking && walkAction) {
-            if (idleAction) idleAction.fadeOut(0.2);
-            walkAction.reset().fadeIn(0.2).play();
-          } else if (idleAction) {
-            if (walkAction) walkAction.fadeOut(0.2);
-            idleAction.reset().fadeIn(0.2).play();
+          
+          const desired = isWalking ? 'walk' : 'idle';
+          if (currentActionRef.current !== desired) {
+            const current = actionsRef.current[currentActionRef.current || ''];
+            const next = actionsRef.current[desired] || (isWalking ? actionsRef.current['run'] : null);
+            
+            if (next) {
+              if (current) current.fadeOut(0.2);
+              next.reset().fadeIn(0.2).play();
+              currentActionRef.current = desired;
+            }
           }
         }
       }
