@@ -40,7 +40,12 @@ const UserPortal: React.FC = () => {
   
   // Filter connectors to ensure only one 'injected' type is shown, and map for display
   const uniqueConnectors = React.useMemo(() => {
-    const finalConnectors: typeof connectors[number] & { displayName: string, icon: JSX.Element, variant: "default" | "outline" }[] = [];
+    type ConnectorWithUI = typeof connectors[number] & { 
+      displayName: string; 
+      icon: React.ReactNode; 
+      variant: "default" | "outline"; 
+    };
+    const finalConnectors: ConnectorWithUI[] = [];
     let injectedAdded = false;
 
     for (const connector of connectors) {
@@ -56,7 +61,7 @@ const UserPortal: React.FC = () => {
             displayName: 'Browser Extension Wallet',
             icon: <Wallet className="mr-3 h-5 w-5" />,
             variant: 'default',
-          });
+          } as ConnectorWithUI);
           injectedAdded = true;
         }
       } else if (isWalletConnect) {
@@ -65,7 +70,7 @@ const UserPortal: React.FC = () => {
           displayName: 'WalletConnect (Mobile/QR)',
           icon: <Smartphone className="mr-3 h-5 w-5" />,
           variant: 'outline',
-        });
+        } as ConnectorWithUI);
       }
       // Ignore any other unexpected connectors
     }

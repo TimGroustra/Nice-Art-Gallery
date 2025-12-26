@@ -361,7 +361,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Position it on the North wall near the starting area
     mirror.position.set(0, 5, -halfRoomSize + 0.6);
     // Tell mirror camera to see both world (0) and avatar (1)
-    mirror.getLoopbackCamera().layers.enable(1);
+    mirror.camera.layers.enable(1);
     scene.add(mirror);
 
     const buttonGeo = new THREE.CylinderGeometry(1, 1, 0.2, 32);
