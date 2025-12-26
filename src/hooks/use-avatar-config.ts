@@ -31,11 +31,13 @@ export function useAvatarConfig() {
           .eq('wallet_address', address.toLowerCase())
           .maybeSingle();
 
-        if (data && data.avatar_state) {
+        if (error) {
+          console.error("Error fetching avatar config:", error);
+        } else if (data && data.avatar_state) {
           setAvatarState(data.avatar_state as unknown as AvatarState);
         }
       } catch (err) {
-        console.error("Error fetching avatar config:", err);
+        console.error("Unexpected error fetching avatar config:", err);
       } finally {
         setIsLoading(false);
       }
@@ -45,7 +47,10 @@ export function useAvatarConfig() {
   }, [address]);
 
   const updateAvatarConfig = async (newState: AvatarState) => {
-    if (!address) return false;
+    if (!address) {
+      console.warn("Cannot update avatar config: No wallet connected.");
+      return false;
+    }
 
     try {
       const { error } = await supabase
@@ -56,12 +61,15 @@ export function useAvatarConfig() {
           updated_at: new Date().toISOString(),
         }, { onConflict: 'wallet_address' });
 
-      if (!error) {
-        setAvatarState(newState);
-        return true;
+      if (error) {
+        console.error("Supabase error updating avatar config:", error);
+        return false;
       }
-      return false;
+      
+      setAvatarState(newState);
+      return true;
     } catch (err) {
+      console.error("Unexpected error updating avatar config:", err);
       return false;
     }
   };
