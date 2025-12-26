@@ -105,7 +105,7 @@ const UserPortal: React.FC = () => {
                   <Button 
                     key={connector.id}
                     onClick={() => handleConnect(connector)} 
-                    className="w-full h-12 text-lg justify-start px-6" 
+                    className="w-full h-14 sm:h-12 text-base sm:text-lg justify-start px-4 sm:px-6" 
                     variant={connector.variant}
                     disabled={isConnecting}
                   >
@@ -115,7 +115,7 @@ const UserPortal: React.FC = () => {
                 ))}
               </div>
 
-              <Button variant="ghost" onClick={() => navigate('/')} className="w-full">
+              <Button variant="ghost" onClick={() => navigate('/')} className="w-full h-12">
                 <ArrowLeft className="mr-2 h-4 w-4" /> Return to Gallery
               </Button>
             </div>
