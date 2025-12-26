@@ -4,8 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
-import { ArrowLeft, UserCircle, CheckCircle2, AlertCircle, Loader2, Smartphone, User, Save } from 'lucide-react';
+import { ArrowLeft, UserCircle, CheckCircle2, AlertCircle, Loader2, Save, User } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAvatarConfig, AvatarState } from '@/hooks/use-avatar-config';
 import { toast } from 'sonner';
@@ -17,16 +16,12 @@ const AvatarConfig: React.FC = () => {
   const { avatarState, updateAvatarConfig, isLoading } = useAvatarConfig();
   const [isSaving, setIsSaving] = useState(false);
 
-  // Local state for form
+  // Local state for form - simplified to just handle the toggle
   const [enabled, setEnabled] = useState(avatarState.enabled);
-  const [type, setType] = useState(avatarState.type);
-  const [url, setUrl] = useState(avatarState.url || '');
 
   // Sync with hook when data loads
   React.useEffect(() => {
     setEnabled(avatarState.enabled);
-    setType(avatarState.type);
-    setUrl(avatarState.url || '');
   }, [avatarState]);
 
   if (!isConnected) {
@@ -44,10 +39,10 @@ const AvatarConfig: React.FC = () => {
 
   const handleSave = async () => {
     setIsSaving(true);
+    // Always use 'silhouette' (mannequin) as the type now
     const success = await updateAvatarConfig({
       enabled,
-      type,
-      url: type === 'rpm' ? url : undefined
+      type: 'silhouette'
     });
     
     if (success) {
@@ -60,8 +55,7 @@ const AvatarConfig: React.FC = () => {
 
   const previewState: AvatarState = {
     enabled,
-    type,
-    url
+    type: 'silhouette'
   };
 
   return (
@@ -95,49 +89,27 @@ const AvatarConfig: React.FC = () => {
                 <div className="flex items-center justify-between p-5 border rounded-2xl bg-secondary/20 transition-all hover:bg-secondary/30">
                   <div className="space-y-0.5">
                     <Label className="text-base font-black uppercase tracking-tight">Enable 3D Avatar</Label>
-                    <p className="text-xs text-muted-foreground">Project a 3D body onto your digital presence.</p>
+                    <p className="text-xs text-muted-foreground">Project a 3D mannequin body onto your digital presence.</p>
                   </div>
                   <Switch checked={enabled} onCheckedChange={setEnabled} />
                 </div>
 
                 {enabled && (
                   <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setType('silhouette')}
-                        className={`p-5 rounded-2xl border-2 text-left transition-all ${type === 'silhouette' ? 'border-primary bg-primary/5 shadow-md' : 'border-transparent bg-secondary/40 hover:bg-secondary/60'}`}
-                      >
-                        <User className={`h-6 w-6 mb-2 ${type === 'silhouette' ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <div className="font-black text-sm uppercase tracking-tighter">Silhouette</div>
-                        <div className="text-[10px] opacity-60 mt-1">Simple grey mannequin. Minimal performance impact.</div>
-                      </button>
-                      <button
-                        onClick={() => setType('rpm')}
-                        className={`p-5 rounded-2xl border-2 text-left transition-all ${type === 'rpm' ? 'border-primary bg-primary/5 shadow-md' : 'border-transparent bg-secondary/40 hover:bg-secondary/60'}`}
-                      >
-                        <Smartphone className={`h-6 w-6 mb-2 ${type === 'rpm' ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <div className="font-black text-sm uppercase tracking-tighter">Custom GLB</div>
-                        <div className="text-[10px] opacity-60 mt-1">Ready Player Me or any custom .glb model.</div>
-                      </button>
-                    </div>
-
-                    {type === 'rpm' && (
-                      <div className="space-y-2 animate-in fade-in duration-300">
-                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Model Endpoint (GLB URL)</Label>
-                        <Input 
-                          placeholder="https://models.readyplayer.me/..." 
-                          value={url} 
-                          onChange={(e) => setUrl(e.target.value)}
-                          className="h-12 text-xs font-mono bg-secondary/10"
-                        />
-                        <p className="text-[10px] text-muted-foreground pl-1">Provide a direct link to your avatar's .glb file.</p>
+                    <div className="p-5 rounded-2xl border-2 border-primary bg-primary/5 shadow-md flex items-center gap-4">
+                      <div className="bg-primary/10 p-3 rounded-full">
+                        <User className="h-6 w-6 text-primary" />
                       </div>
-                    )}
+                      <div className="flex flex-col">
+                        <div className="font-black text-sm uppercase tracking-tighter">Electro-Mannequin</div>
+                        <div className="text-[10px] opacity-60">Standard interactive avatar enabled.</div>
+                      </div>
+                    </div>
 
                     <div className="p-4 bg-primary/5 border border-primary/10 rounded-xl flex gap-3 items-start">
                       <CheckCircle2 className="h-5 w-5 text-primary mt-0.5 shrink-0" />
                       <p className="text-xs leading-relaxed font-medium">
-                        Your avatar is fully rigged. It will automatically play <strong>Idle</strong> and <strong>Walking</strong> animations based on your movements.
+                        Your avatar is fully rigged. It will automatically play <strong>Idle</strong> and <strong>Walking</strong> animations based on your movements in the gallery.
                       </p>
                     </div>
                   </div>
