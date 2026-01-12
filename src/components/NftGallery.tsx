@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -380,6 +380,27 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
+
+    // Furniture loading
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      const sofaModel = gltf.scene;
+      sofaModel.scale.set(1.4, 1.4, 1.4);
+      
+      const sofaPositions = [
+        { x: 13.5, z: 13.5, rot: 0 },
+        { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
+        { x: 13.5, z: -13.5, rot: Math.PI / 2 },
+        { x: -13.5, z: -13.5, rot: Math.PI },
+      ];
+
+      sofaPositions.forEach(pos => {
+        const sofa = sofaModel.clone();
+        sofa.position.set(pos.x, 0, pos.z);
+        sofa.rotation.y = pos.rot;
+        scene.add(sofa);
+      });
+    });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();

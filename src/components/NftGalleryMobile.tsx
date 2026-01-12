@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import * as THREE from 'three';
-import { RectAreaLightUniformsLib } from 'three-stdlib';
+import * as THREE from 'theme';
+import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -349,6 +349,27 @@ const NftGalleryMobile: React.FC = () => {
     uBtn.userData = { isTeleportButton: true, targetY: 1.6 };
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
+
+    // Furniture loading
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      const sofaModel = gltf.scene;
+      sofaModel.scale.set(1.4, 1.4, 1.4);
+      
+      const sofaPositions = [
+        { x: 13.5, z: 13.5, rot: 0 },
+        { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
+        { x: 13.5, z: -13.5, rot: Math.PI / 2 },
+        { x: -13.5, z: -13.5, rot: Math.PI },
+      ];
+
+      sofaPositions.forEach(pos => {
+        const sofa = sofaModel.clone();
+        sofa.position.set(pos.x, 0, pos.z);
+        sofa.rotation.y = pos.rot;
+        scene.add(sofa);
+      });
+    });
 
     let stopLoad = false;
     const createPanels = async () => {
