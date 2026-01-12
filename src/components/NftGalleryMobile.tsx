@@ -350,25 +350,12 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Furniture loading with auto-scaling
+    // Furniture loading (Original Scale)
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       const sofaModel = gltf.scene;
+      sofaModel.scale.set(1, 1, 1);
       
-      // Auto-scale logic: Calculate size and adjust to ~3.5 meters wide
-      const box = new THREE.Box3().setFromObject(sofaModel);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const targetSize = 3.5; 
-      const scale = targetSize / maxDim;
-      sofaModel.scale.set(scale, scale, scale);
-      
-      // Calculate adjusted floor offset (to ensure it sits on Y=0)
-      const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
-      const bottomY = adjustedBox.min.y;
-
       const sofaPositions = [
         { x: 13.5, z: 13.5, rot: 0 },
         { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
@@ -378,7 +365,7 @@ const NftGalleryMobile: React.FC = () => {
 
       sofaPositions.forEach(pos => {
         const sofa = sofaModel.clone();
-        sofa.position.set(pos.x, -bottomY, pos.z);
+        sofa.position.set(pos.x, 0, pos.z);
         sofa.rotation.y = pos.rot;
         scene.add(sofa);
       });
