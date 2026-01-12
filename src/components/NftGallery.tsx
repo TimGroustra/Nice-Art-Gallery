@@ -407,11 +407,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       if (extractedSofa) {
         const sofaModel = extractedSofa as THREE.Object3D;
         
-        // Auto-scale the extracted sofa to ~3 meters wide
+        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
         const box = new THREE.Box3().setFromObject(sofaModel);
         const size = new THREE.Vector3(); box.getSize(size);
         const maxDim = Math.max(size.x, size.z);
-        const scale = 3.0 / maxDim;
+        const scale = 4.5 / maxDim;
         sofaModel.scale.set(scale, scale, scale);
         
         // Re-center Y position so it sits on floor
