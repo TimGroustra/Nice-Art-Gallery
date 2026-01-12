@@ -381,25 +381,57 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading (Original Scale)
+    // Furniture loading: Extract JUST the sofa part from the GLB
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      const sofaModel = gltf.scene;
-      sofaModel.scale.set(1, 1, 1);
+      let extractedSofa: THREE.Object3D | null = null;
       
-      const sofaPositions = [
-        { x: 13.5, z: 13.5, rot: 0 },
-        { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
-        { x: 13.5, z: -13.5, rot: Math.PI / 2 },
-        { x: -13.5, z: -13.5, rot: Math.PI },
-      ];
-
-      sofaPositions.forEach(pos => {
-        const sofa = sofaModel.clone();
-        sofa.position.set(pos.x, 0, pos.z);
-        sofa.rotation.y = pos.rot;
-        scene.add(sofa);
+      // Traverse to find an object with 'sofa' in the name
+      gltf.scene.traverse((child) => {
+        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+          if (!extractedSofa) extractedSofa = child;
+        }
       });
+      
+      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
+      if (!extractedSofa) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh && !extractedSofa) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x < 15 && size.z < 15) extractedSofa = child;
+          }
+        });
+      }
+
+      if (extractedSofa) {
+        const sofaModel = extractedSofa as THREE.Object3D;
+        
+        // Auto-scale the extracted sofa to ~3 meters wide
+        const box = new THREE.Box3().setFromObject(sofaModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 3.0 / maxDim;
+        sofaModel.scale.set(scale, scale, scale);
+        
+        // Re-center Y position so it sits on floor
+        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+        const bottomY = adjustedBox.min.y;
+
+        const sofaPositions = [
+          { x: 13.5, z: 13.5, rot: 0 },
+          { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
+          { x: 13.5, z: -13.5, rot: Math.PI / 2 },
+          { x: -13.5, z: -13.5, rot: Math.PI },
+        ];
+
+        sofaPositions.forEach(pos => {
+          const sofa = sofaModel.clone();
+          sofa.position.set(pos.x, -bottomY, pos.z);
+          sofa.rotation.y = pos.rot;
+          scene.add(sofa);
+        });
+      }
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
