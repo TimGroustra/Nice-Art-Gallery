@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib, GLTFLoader, Reflector } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -114,6 +114,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const velocityRef = useRef(new THREE.Vector3());
   const directionRef = useRef(new THREE.Vector3());
   const prevTimeRef = useRef(performance.now());
+
+  const avatarRef = useRef<THREE.Group | null>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
 
   const loadTexture = useCallback(
     async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
@@ -364,6 +367,39 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(firstBtn);
     teleportButtonsRef.current = [groundBtn, firstBtn];
 
+    // --- MIRROR IMPLEMENTATION ---
+    const mirrorGeometry = new THREE.PlaneGeometry(8, 10);
+    const mirror = new Reflector(mirrorGeometry, {
+        clipBias: 0.003,
+        textureWidth: window.innerWidth * window.devicePixelRatio,
+        textureHeight: window.innerHeight * window.devicePixelRatio,
+        color: 0x889999
+    });
+    // Place mirror on the North Inner Wall facing South
+    mirror.position.set(0, 5, -4.75);
+    scene.add(mirror);
+
+    // --- AVATAR LOADING ---
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load('/assets/models/BASEmodel.glb', (gltf) => {
+        const avatar = gltf.scene;
+        avatarRef.current = avatar;
+        
+        // Scale avatar (adjust based on typical model sizes)
+        avatar.scale.set(1.5, 1.5, 1.5);
+        
+        // Set up animations
+        if (gltf.animations.length > 0) {
+            const mixer = new THREE.AnimationMixer(avatar);
+            mixerRef.current = mixer;
+            // Play the first animation (usually idle or T-pose transition)
+            const action = mixer.clipAction(gltf.animations[0]);
+            action.play();
+        }
+        
+        scene.add(avatar);
+    });
+
     const fadeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false });
     fadeMaterialRef.current = fadeMaterial;
     const fadeScreen = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), fadeMaterial);
@@ -504,6 +540,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
         camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
       }
+
+      // Sync Avatar to Camera
+      if (avatarRef.current) {
+          avatarRef.current.position.set(camera.position.x, camera.position.y - 1.6, camera.position.z);
+          avatarRef.current.rotation.y = camera.rotation.y + Math.PI;
+      }
+      // Update Animations
+      if (mixerRef.current) mixerRef.current.update(delta);
 
       if (rainbowMaterialRef.current) rainbowMaterialRef.current.uniforms.time.value += delta;
       if (fadeScreenRef.current) { fadeScreenRef.current.position.copy(camera.position); fadeScreenRef.current.quaternion.copy(camera.quaternion); }
