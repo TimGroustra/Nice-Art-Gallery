@@ -381,12 +381,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading
+    // Furniture loading with auto-scaling
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       const sofaModel = gltf.scene;
-      sofaModel.scale.set(1.4, 1.4, 1.4);
       
+      // Auto-scale logic: Calculate size and adjust to ~3.5 meters wide
+      const box = new THREE.Box3().setFromObject(sofaModel);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const targetSize = 3.5; 
+      const scale = targetSize / maxDim;
+      sofaModel.scale.set(scale, scale, scale);
+      
+      // Calculate adjusted floor offset (to ensure it sits on Y=0)
+      const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+      const bottomY = adjustedBox.min.y;
+
       const sofaPositions = [
         { x: 13.5, z: 13.5, rot: 0 },
         { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
@@ -396,7 +409,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       sofaPositions.forEach(pos => {
         const sofa = sofaModel.clone();
-        sofa.position.set(pos.x, 0, pos.z);
+        // Adjust Y so the bottom of the bounding box is at 0
+        sofa.position.set(pos.x, -bottomY, pos.z);
         sofa.rotation.y = pos.rot;
         scene.add(sofa);
       });
