@@ -350,37 +350,6 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Plant loading and placement logic
-    const gltfLoader = new GLTFLoader();
-    const plantConfigs = [
-      { url: '/assets/models/Cactus.glb', targetSize: 1.2, positions: [{ x: 5, y: 0, z: 5 }, { x: -5, y: 0, z: -5 }] },
-      { url: '/assets/models/plant.glb', targetSize: 1.8, positions: [{ x: 8, y: 0, z: -8 }, { x: -8, y: 0, z: 8 }] },
-      { url: '/assets/models/potted_plant_blender_2.8.glb', targetSize: 1.5, positions: [{ x: 12, y: PLATFORM_Y, z: 12 }, { x: -12, y: PLATFORM_Y, z: -12 }] },
-      { url: '/assets/models/OutSidePlant.glb', targetSize: 2.2, positions: [{ x: 20, y: 0, z: 20 }, { x: -20, y: 0, z: -20 }] },
-      { url: '/assets/models/FlowerPot.glb', targetSize: 1.0, positions: [{ x: 2, y: 0, z: 2 }, { x: -2, y: 0, z: -2 }] },
-      { url: '/assets/models/Indoor plant_3_BI_blend.glb', targetSize: 1.6, positions: [{ x: 12, y: PLATFORM_Y, z: -12 }, { x: -12, y: PLATFORM_Y, z: 12 }] },
-    ];
-
-    plantConfigs.forEach(config => {
-      gltfLoader.load(config.url, (gltf) => {
-        const model = gltf.scene;
-        const box = new THREE.Box3().setFromObject(model);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = config.targetSize / maxDim;
-        model.scale.set(scale, scale, scale);
-        
-        const adjustedBox = new THREE.Box3().setFromObject(model);
-        const bottomY = adjustedBox.min.y;
-
-        config.positions.forEach(pos => {
-          const plant = model.clone();
-          plant.position.set(pos.x, pos.y - bottomY, pos.z);
-          scene.add(plant);
-        });
-      });
-    });
-
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
