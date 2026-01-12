@@ -353,12 +353,12 @@ const NftGalleryMobile: React.FC = () => {
     // Plant loading and placement logic
     const gltfLoader = new GLTFLoader();
     const plantConfigs = [
-      { url: '/assets/models/Cactus.glb', targetSize: 2.0, positions: [{ x: 5, y: 0, z: 5 }, { x: -5, y: 0, z: -5 }] },
-      { url: '/assets/models/plant.glb', targetSize: 3.0, positions: [{ x: 8, y: 0, z: -8 }, { x: -8, y: 0, z: 8 }] },
-      { url: '/assets/models/potted_plant_blender_2.8.glb', targetSize: 2.5, positions: [{ x: 12, y: PLATFORM_Y, z: 12 }, { x: -12, y: PLATFORM_Y, z: -12 }] },
-      { url: '/assets/models/OutSidePlant.glb', targetSize: 4.0, positions: [{ x: 20, y: 0, z: 20 }, { x: -20, y: 0, z: -20 }] },
-      { url: '/assets/models/FlowerPot.glb', targetSize: 1.5, positions: [{ x: 2, y: 0, z: 2 }, { x: -2, y: 0, z: -2 }] },
-      { url: '/assets/models/Indoor plant_3_BI_blend.glb', targetSize: 3.5, positions: [{ x: 12, y: PLATFORM_Y, z: -12 }, { x: -12, y: PLATFORM_Y, z: 12 }] },
+      { url: '/assets/models/Cactus.glb', targetSize: 1.2, positions: [{ x: 5, y: 0, z: 5 }, { x: -5, y: 0, z: -5 }] },
+      { url: '/assets/models/plant.glb', targetSize: 1.8, positions: [{ x: 8, y: 0, z: -8 }, { x: -8, y: 0, z: 8 }] },
+      { url: '/assets/models/potted_plant_blender_2.8.glb', targetSize: 1.5, positions: [{ x: 12, y: PLATFORM_Y, z: 12 }, { x: -12, y: PLATFORM_Y, z: -12 }] },
+      { url: '/assets/models/OutSidePlant.glb', targetSize: 2.2, positions: [{ x: 20, y: 0, z: 20 }, { x: -20, y: 0, z: -20 }] },
+      { url: '/assets/models/FlowerPot.glb', targetSize: 1.0, positions: [{ x: 2, y: 0, z: 2 }, { x: -2, y: 0, z: -2 }] },
+      { url: '/assets/models/Indoor plant_3_BI_blend.glb', targetSize: 1.6, positions: [{ x: 12, y: PLATFORM_Y, z: -12 }, { x: -12, y: PLATFORM_Y, z: 12 }] },
     ];
 
     plantConfigs.forEach(config => {
