@@ -419,16 +419,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const bottomY = adjustedBox.min.y;
 
         const sofaPositions = [
-          { x: 13.5, z: 13.5, rot: 0 },
-          { x: -13.5, z: 13.5, rot: -Math.PI / 2 },
-          { x: 13.5, z: -13.5, rot: Math.PI / 2 },
-          { x: -13.5, z: -13.5, rot: Math.PI },
+          { x: 13.5, z: 13.5 },
+          { x: -13.5, z: 13.5 },
+          { x: 13.5, z: -13.5 },
+          { x: -13.5, z: -13.5 },
         ];
 
         sofaPositions.forEach(pos => {
           const sofa = sofaModel.clone();
           sofa.position.set(pos.x, -bottomY, pos.z);
-          sofa.rotation.y = pos.rot;
+          // Calculate rotation to face the center (0,0)
+          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
           scene.add(sofa);
         });
       }
