@@ -117,6 +117,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
   const avatarRef = useRef<THREE.Group | null>(null);
   const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const actionsRef = useRef<{ [key: string]: THREE.AnimationAction }>({});
+  const currentActionRef = useRef<string>('idle');
 
   const loadTexture = useCallback(
     async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
@@ -375,26 +377,50 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         textureHeight: window.innerHeight * window.devicePixelRatio,
         color: 0x889999
     });
-    // Place mirror on the North Inner Wall facing South
     mirror.position.set(0, 5, -4.75);
     scene.add(mirror);
 
-    // --- AVATAR LOADING ---
+    // --- AVATAR LOADING & ANIMATION ---
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/BASEmodel.glb', (gltf) => {
         const avatar = gltf.scene;
         avatarRef.current = avatar;
+        avatar.scale.set(1, 1, 1);
         
-        // Scale avatar (adjust based on typical model sizes)
-        avatar.scale.set(1.5, 1.5, 1.5);
-        
-        // Set up animations
+        // Ensure lighting works by updating materials
+        avatar.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                const mesh = child as THREE.Mesh;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                if (mesh.material instanceof THREE.MeshStandardMaterial) {
+                    mesh.material.roughness = 0.5;
+                    mesh.material.metalness = 0.2;
+                }
+            }
+        });
+
         if (gltf.animations.length > 0) {
             const mixer = new THREE.AnimationMixer(avatar);
             mixerRef.current = mixer;
-            // Play the first animation (usually idle or T-pose transition)
-            const action = mixer.clipAction(gltf.animations[0]);
-            action.play();
+            
+            // Map standard animations
+            gltf.animations.forEach((clip) => {
+                const name = clip.name.toLowerCase();
+                const action = mixer.clipAction(clip);
+                
+                if (name.includes('idle')) actionsRef.current['idle'] = action;
+                else if (name.includes('walk')) actionsRef.current['walk'] = action;
+                else if (name.includes('sit')) actionsRef.current['sit'] = action;
+                
+                // Fallback for first animation if naming doesn't match
+                if (!actionsRef.current['idle']) actionsRef.current['idle'] = action;
+            });
+
+            if (actionsRef.current['idle']) {
+                actionsRef.current['idle'].play();
+                currentActionRef.current = 'idle';
+            }
         }
         
         scene.add(avatar);
@@ -441,7 +467,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
     }
 
-    // Inner cross walls
     [-10, 10].forEach((seg, i) => {
       const pos = 5 + ARROW_DEPTH_OFFSET;
       dynamicPanelConfigs.push({ wallName: `north-inner-wall-outer-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, -pos], rot: [0, Math.PI, 0] });
@@ -508,16 +533,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let stopAnim = false;
     const initLoad = async () => {
       await initializeGalleryConfig();
-      // Increased stagger delay and added jitter to avoid hitting rate limits
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
         const p = panelsRef.current[i];
         updatePanelContent(p, getCurrentNftSource(p.wallName));
-        // Stagger load every 2 panels with a 250ms delay + jitter
-        if (i % 2 === 0) {
-          const jitter = Math.random() * 200;
-          await new Promise(r => setTimeout(r, 250 + jitter));
-        }
+        if (i % 2 === 0) await new Promise(r => setTimeout(r, 250 + Math.random() * 200));
       }
     };
     initLoad();
@@ -533,20 +553,45 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         dir.z = Number(moveForwardRef.current) - Number(moveBackwardRef.current);
         dir.x = Number(moveRightRef.current) - Number(moveLeftRef.current);
         dir.normalize();
-        if (moveForwardRef.current || moveBackwardRef.current) vel.z -= dir.z * 20.0 * delta;
-        if (moveLeftRef.current || moveRightRef.current) vel.x -= dir.x * 20.0 * delta;
+        
+        const isMoving = moveForwardRef.current || moveBackwardRef.current || moveLeftRef.current || moveRightRef.current;
+
+        if (isMoving) {
+          vel.z -= dir.z * 20.0 * delta;
+          vel.x -= dir.x * 20.0 * delta;
+          
+          // Switch to walking animation
+          if (actionsRef.current['walk'] && currentActionRef.current !== 'walk') {
+              const prev = actionsRef.current[currentActionRef.current];
+              const next = actionsRef.current['walk'];
+              next.reset().fadeIn(0.2).play();
+              if (prev) prev.fadeOut(0.2);
+              currentActionRef.current = 'walk';
+          }
+        } else {
+          // Switch to idle animation
+          if (actionsRef.current['idle'] && currentActionRef.current !== 'idle') {
+              const prev = actionsRef.current[currentActionRef.current];
+              const next = actionsRef.current['idle'];
+              next.reset().fadeIn(0.3).play();
+              if (prev) prev.fadeOut(0.3);
+              currentActionRef.current = 'idle';
+          }
+        }
+
         vel.x -= vel.x * 10.0 * delta; vel.z -= vel.z * 10.0 * delta;
         controls.moveRight(-vel.x * delta); controls.moveForward(-vel.z * delta);
         camera.position.x = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.x));
         camera.position.z = Math.max(-BOUNDARY, Math.min(BOUNDARY, camera.position.z));
       }
 
-      // Sync Avatar to Camera
+      // Sync Avatar Position & Rotation
       if (avatarRef.current) {
-          avatarRef.current.position.set(camera.position.x, camera.position.y - 1.6, camera.position.z);
+          // Offset slightly backward so the camera isn't inside the head
+          const offset = new THREE.Vector3(0, 0, 0.5).applyQuaternion(camera.quaternion);
+          avatarRef.current.position.set(camera.position.x + offset.x, camera.position.y - 1.6, camera.position.z + offset.z);
           avatarRef.current.rotation.y = camera.rotation.y + Math.PI;
       }
-      // Update Animations
       if (mixerRef.current) mixerRef.current.update(delta);
 
       if (rainbowMaterialRef.current) rainbowMaterialRef.current.uniforms.time.value += delta;
