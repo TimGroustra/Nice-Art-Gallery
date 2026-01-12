@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import * as THREE from 'theme';
+import * as THREE from 'three';
 import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
