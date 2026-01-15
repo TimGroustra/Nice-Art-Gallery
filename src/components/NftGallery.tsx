@@ -18,6 +18,8 @@ RectAreaLightUniformsLib.init();
 
 const PANEL_WIDTH = 6;
 const PANEL_HEIGHT = 6;
+const PLATFORM_Y = 20; // Define missing constant
+const WALL_THICKNESS = 0.5; // Define missing constant
 
 interface Panel {
   mesh: THREE.Mesh;
@@ -83,7 +85,28 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 };
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
-  // ... existing code remains the same until furniture loading section ...
+  const mountRef = useRef<HTMLDivElement>(null);
+  const [showMarketBrowser, setShowMarketBrowser] = useState(false);
+  const [selectedNftSource, setSelectedNftSource] = useState<NftSource | null>(null);
+
+  const lockControls = useCallback(() => {
+    setInstructionsVisible(false);
+  }, [setInstructionsVisible]);
+
+  const unlockControls = useCallback(() => {
+    setInstructionsVisible(true);
+  }, [setInstructionsVisible]);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    // Initialize Three.js scene, camera, renderer
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    mountRef.current.appendChild(renderer.domElement);
 
     // Furniture loading: Replace with new sofa model
     const gltfLoader = new GLTFLoader();
@@ -131,7 +154,33 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // ... rest of the file remains the same ...
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // Cleanup
+    return () => {
+      mountRef.current?.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
+  }, []);
+
+  return (
+    <div className="w-full h-full">
+      <div ref={mountRef} className="w-full h-full" />
+      {showMarketBrowser && selectedNftSource && (
+        <MarketBrowserRefined
+          collection={selectedNftSource.contractAddress}
+          tokenId={selectedNftSource.tokenId}
+          open={showMarketBrowser}
+          onClose={() => setShowMarketBrowser(false)}
+        />
+      )}
+    </div>
+  );
 };
 
 export default NftGallery;

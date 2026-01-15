@@ -1,9 +1,26 @@
-"use client";
-
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
-// ... other imports remain the same ...
+
+// Initialize RectAreaLightUniformsLib immediately upon module load
+RectAreaLightUniformsLib.init();
+
+const PLATFORM_Y = 20; // Define missing constant
+const WALL_THICKNESS = 0.5; // Define missing constant
+
+const NftGalleryMobile: React.FC = () => {
+  const mountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    // Initialize Three.js scene, camera, renderer
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    mountRef.current.appendChild(renderer.domElement);
 
     // Furniture loading: Replace with new sofa model
     const gltfLoader = new GLTFLoader();
@@ -51,7 +68,25 @@ import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
       }
     });
 
-    // ... rest of the file remains the same ...
+    // Animation loop
+    const animate = () => {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // Cleanup
+    return () => {
+      mountRef.current?.removeChild(renderer.domElement);
+      renderer.dispose();
+    };
+  }, []);
+
+  return (
+    <div className="w-full h-full">
+      <div ref={mountRef} className="w-full h-full" />
+    </div>
+  );
 };
 
 export default NftGalleryMobile;
