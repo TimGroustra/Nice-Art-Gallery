@@ -383,26 +383,34 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
-    // Furniture loading: Sofa
+    // Furniture loading: Load sofas and coffee table from the same source GLB
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
+      let sofaTemplate: THREE.Object3D | null = null;
+      let tableTemplate: THREE.Object3D | null = null;
+      
+      // Intelligent extraction based on common GLB naming conventions
+      gltf.scene.traverse((node) => {
+        const name = node.name.toLowerCase();
+        if ((name.includes('sofa') || name.includes('couch')) && !sofaTemplate && (node instanceof THREE.Mesh || node instanceof THREE.Group)) {
+          sofaTemplate = node;
+        }
+        if ((name.includes('table') || name.includes('coffee') || name.includes('desk')) && !tableTemplate && (node instanceof THREE.Mesh || node instanceof THREE.Group)) {
+          tableTemplate = node;
         }
       });
-      if (!extractedSofa) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedSofa) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 15 && size.z < 15) extractedSofa = child;
+
+      // Fallback if naming is obscure: pick largest mesh that isn't the first one found
+      if (sofaTemplate && !tableTemplate) {
+        gltf.scene.traverse((node) => {
+          if (node instanceof THREE.Mesh && node !== sofaTemplate && !tableTemplate) {
+            tableTemplate = node;
           }
         });
       }
 
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
+      // Handle Sofa Placement
+      if (sofaTemplate) {
+        const sofaModel = sofaTemplate as THREE.Object3D;
         const box = new THREE.Box3().setFromObject(sofaModel);
         const size = new THREE.Vector3(); box.getSize(size);
         const maxDim = Math.max(size.x, size.z);
@@ -411,13 +419,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
         const bottomY = adjustedBox.min.y;
 
-        const sofaPositions = [
-          { x: 0, z: 4.5 },
-          { x: 0, z: -4.5 },
-          { x: 4.5, z: 0 },
-          { x: -4.5, z: 0 },
-        ];
-
+        const sofaPositions = [{ x: 0, z: 4.5 }, { x: 0, z: -4.5 }, { x: 4.5, z: 0 }, { x: -4.5, z: 0 }];
         sofaPositions.forEach(pos => {
           const sofa = sofaModel.clone();
           sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
@@ -425,61 +427,28 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           scene.add(sofa);
         });
       }
-    });
 
-    // Coffee Table loading: Improved extraction logic
-    gltfLoader.load('/table.glb', (gltf) => {
-      console.log("[NftGallery] Coffee table GLB loaded successfully");
-      
-      let tableNode: THREE.Object3D | null = null;
-      
-      // Look for specifically named table parts
-      gltf.scene.traverse((node) => {
-        const n = node.name.toLowerCase();
-        if ((n.includes("table") || n.includes("coffee") || n.includes("furniture")) && 
-            (node instanceof THREE.Mesh || node instanceof THREE.Group)) {
-          if (!tableNode) {
-            tableNode = node;
-            console.log("[NftGallery] Extracted table node:", node.name);
-          }
-        }
-      });
-
-      // Fallback: Use the whole scene if no specific node found
-      if (!tableNode) {
-        tableNode = gltf.scene;
-        console.warn("[NftGallery] No 'table' node found, using whole scene");
+      // Handle Coffee Table Placement
+      if (tableTemplate) {
+        const tableModel = tableTemplate.clone();
+        const box = new THREE.Box3().setFromObject(tableModel);
+        const center = new THREE.Vector3(); box.getCenter(center);
+        const size = new THREE.Vector3(); box.getSize(size);
+        
+        // Normalize table geometry
+        tableModel.position.set(-center.x, -box.min.y, -center.z);
+        const wrapper = new THREE.Group();
+        wrapper.add(tableModel);
+        
+        // Scale to fit between sofas (~2.5m wide)
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 2.5 / maxDim;
+        wrapper.scale.set(scale, scale, scale);
+        
+        // Center on the first floor platform
+        wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
+        scene.add(wrapper);
       }
-      
-      const model = tableNode.clone();
-      
-      // Calculate bounding box for normalization
-      const box = new THREE.Box3().setFromObject(model);
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      
-      // Create a clean wrapper to handle scaling and offset logic
-      const wrapper = new THREE.Group();
-      wrapper.add(model);
-      
-      // Normalize model internally
-      model.position.set(-center.x, -box.min.y, -center.z);
-      
-      // Scale table to fit nicely in center area (~2.6m wide)
-      const maxDim = Math.max(size.x, size.z);
-      const scale = 2.6 / maxDim;
-      wrapper.scale.set(scale, scale, scale);
-      
-      // Place the wrapper exactly on the first floor platform center
-      wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.05, 0);
-      
-      scene.add(wrapper);
-      console.log("[NftGallery] Coffee table added to scene at center");
-      
-    }, undefined, (error) => {
-      console.error("[NftGallery] CRITICAL: Coffee table failed to load from /table.glb:", error);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);

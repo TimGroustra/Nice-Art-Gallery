@@ -229,31 +229,49 @@ const NftGalleryMobile: React.FC = () => {
 
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => { if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) { if (!extractedSofa) extractedSofa = child; } });
-      if (!extractedSofa) { gltf.scene.traverse((child) => { if (child instanceof THREE.Mesh && !extractedSofa) { const box = new THREE.Box3().setFromObject(child); const size = new THREE.Vector3(); box.getSize(size); if (size.x < 15 && size.z < 15) extractedSofa = child; } }); }
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
+      let sofaTemplate: THREE.Object3D | null = null;
+      let tableTemplate: THREE.Object3D | null = null;
+      
+      gltf.scene.traverse((node) => {
+        const name = node.name.toLowerCase();
+        if ((name.includes('sofa') || name.includes('couch')) && !sofaTemplate && (node instanceof THREE.Mesh || node instanceof THREE.Group)) {
+          sofaTemplate = node;
+        }
+        if ((name.includes('table') || name.includes('coffee') || name.includes('desk')) && !tableTemplate && (node instanceof THREE.Mesh || node instanceof THREE.Group)) {
+          tableTemplate = node;
+        }
+      });
+
+      if (sofaTemplate && !tableTemplate) {
+        gltf.scene.traverse((node) => {
+          if (node instanceof THREE.Mesh && node !== sofaTemplate && !tableTemplate) {
+            tableTemplate = node;
+          }
+        });
+      }
+
+      if (sofaTemplate) {
+        const sofaModel = sofaTemplate as THREE.Object3D;
         const box = new THREE.Box3().setFromObject(sofaModel); const size = new THREE.Vector3(); box.getSize(size);
         const maxDim = Math.max(size.x, size.z); const scale = 4.5 / maxDim; sofaModel.scale.set(scale, scale, scale);
         const adjustedBox = new THREE.Box3().setFromObject(sofaModel); const bottomY = adjustedBox.min.y;
         const sofaPositions = [{ x: 0, z: 4.5 }, { x: 0, z: -4.5 }, { x: 4.5, z: 0 }, { x: -4.5, z: 0 }];
         sofaPositions.forEach(pos => { const sofa = sofaModel.clone(); sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z); sofa.rotation.y = Math.atan2(-pos.x, -pos.z); scene.add(sofa); });
       }
-    });
 
-    gltfLoader.load('/table.glb', (gltf) => {
-      const model = gltf.scene;
-      const box = new THREE.Box3().setFromObject(model);
-      const center = new THREE.Vector3(); box.getCenter(center);
-      const size = new THREE.Vector3(); box.getSize(size);
-      model.position.x = -center.x; model.position.z = -center.z; model.position.y = -box.min.y;
-      const wrapper = new THREE.Group(); wrapper.add(model);
-      const maxDim = Math.max(size.x, size.z);
-      const scale = 2.6 / maxDim; wrapper.scale.set(scale, scale, scale);
-      wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.01, 0);
-      scene.add(wrapper);
-    }, undefined, (e) => console.error("Table load error mobile:", e));
+      if (tableTemplate) {
+        const tableModel = tableTemplate.clone();
+        const box = new THREE.Box3().setFromObject(tableModel);
+        const center = new THREE.Vector3(); box.getCenter(center);
+        const size = new THREE.Vector3(); box.getSize(size);
+        tableModel.position.set(-center.x, -box.min.y, -center.z);
+        const wrapper = new THREE.Group(); wrapper.add(tableModel);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 2.5 / maxDim; wrapper.scale.set(scale, scale, scale);
+        wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
+        scene.add(wrapper);
+      }
+    });
 
     let stopLoad = false;
     const createPanels = async () => {
