@@ -381,59 +381,60 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
+    // Furniture loading: Extract JUST the sofa part from the GLB
     const gltfLoader = new GLTFLoader();
-
-    // Setup furniture placement positions
-    const sofaData = [
-      { x: 0, z: 4.5, tx: 0, tz: 2.2 },
-      { x: 0, z: -4.5, tx: 0, tz: -2.2 },
-      { x: 4.5, z: 0, tx: 2.2, tz: 0 },
-      { x: -4.5, z: 0, tx: -2.2, tz: 0 },
-    ];
-
-    // Furniture loading: Sofa
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let sofaBase: THREE.Object3D = gltf.scene;
+      let extractedSofa: THREE.Object3D | null = null;
       
-      const box = new THREE.Box3().setFromObject(sofaBase);
-      const size = new THREE.Vector3(); box.getSize(size);
-      const scale = 4.5 / Math.max(size.x, size.z);
-      sofaBase.scale.set(scale, scale, scale);
-      
-      const adjustedBox = new THREE.Box3().setFromObject(sofaBase);
-      const bottomY = adjustedBox.min.y;
-
-      sofaData.forEach(pos => {
-        const sofa = sofaBase.clone();
-        sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-        sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-        scene.add(sofa);
+      // Traverse to find an object with 'sofa' in the name
+      gltf.scene.traverse((child) => {
+        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+          if (!extractedSofa) extractedSofa = child;
+        }
       });
-    });
+      
+      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
+      if (!extractedSofa) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh && !extractedSofa) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x < 15 && size.z < 15) extractedSofa = child;
+          }
+        });
+      }
 
-    // Coffee Table Loading
-    gltfLoader.load('/assets/models/table.glb', (gltf) => {
-      // Use the whole scene if it's a simple model
-      let tableBase: THREE.Object3D = gltf.scene;
-      
-      const box = new THREE.Box3().setFromObject(tableBase);
-      const size = new THREE.Vector3(); box.getSize(size);
-      
-      // Auto-scale to roughly 1.5 meters wide
-      const maxDim = Math.max(size.x, size.z);
-      const scale = 1.5 / (maxDim || 1);
-      tableBase.scale.set(scale, scale, scale);
-      
-      const adjustedBox = new THREE.Box3().setFromObject(tableBase);
-      const bottomY = adjustedBox.min.y;
+      if (extractedSofa) {
+        const sofaModel = extractedSofa as THREE.Object3D;
+        
+        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
+        const box = new THREE.Box3().setFromObject(sofaModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 4.5 / maxDim;
+        sofaModel.scale.set(scale, scale, scale);
+        
+        // Re-center Y position so it sits on floor
+        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+        const bottomY = adjustedBox.min.y;
 
-      sofaData.forEach(pos => {
-        const table = tableBase.clone();
-        // Position on platform
-        table.position.set(pos.tx, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.tz);
-        table.rotation.y = Math.atan2(-pos.x, -pos.z);
-        scene.add(table);
-      });
+        // Move sofas to the center 10x10 area around the teleportation button
+        const sofaPositions = [
+          { x: 0, z: 4.5 },
+          { x: 0, z: -4.5 },
+          { x: 4.5, z: 0 },
+          { x: -4.5, z: 0 },
+        ];
+
+        sofaPositions.forEach(pos => {
+          const sofa = sofaModel.clone();
+          // Place on the first floor platform (sitting exactly on the surface)
+          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          // Calculate rotation to face the center (0,0)
+          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(sofa);
+        });
+      }
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -527,10 +528,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let stopAnim = false;
     const initLoad = async () => {
       await initializeGalleryConfig();
+      // Increased stagger delay and added jitter to avoid hitting rate limits
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
         const p = panelsRef.current[i];
         updatePanelContent(p, getCurrentNftSource(p.wallName));
+        // Stagger load every 2 panels with a 250ms delay + jitter
         if (i % 2 === 0) {
           const jitter = Math.random() * 200;
           await new Promise(r => setTimeout(r, 250 + jitter));
