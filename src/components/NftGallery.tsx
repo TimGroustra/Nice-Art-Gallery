@@ -383,7 +383,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
-    // Furniture loading: Extract JUST the sofa part from the GLB
+    // Furniture loading: Sofa
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let extractedSofa: THREE.Object3D | null = null;
       gltf.scene.traverse((child) => {
@@ -427,31 +427,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Coffee Table loading: Extract table object and place in center
-    gltfLoader.load('/assets/models/table.glb', (gltf) => {
-      let extractedTable: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if ((child.name.toLowerCase().includes('table') || child.name.toLowerCase().includes('coffee')) && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedTable) extractedTable = child;
-        }
-      });
-      if (!extractedTable) extractedTable = gltf.scene;
+    // Coffee Table loading: Use /table.glb path
+    gltfLoader.load('/table.glb', (gltf) => {
+      const tableModel = gltf.scene;
+      const box = new THREE.Box3().setFromObject(tableModel);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const maxDim = Math.max(size.x, size.z);
+      
+      // Scale table to fit nicely in center area (~2.2m wide)
+      const scale = 2.2 / maxDim;
+      tableModel.scale.set(scale, scale, scale);
+      
+      const adjustedBox = new THREE.Box3().setFromObject(tableModel);
+      const bottomY = adjustedBox.min.y;
 
-      if (extractedTable) {
-        const tableModel = extractedTable as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(tableModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.z);
-        // Scale table to fit nicely in center area (~2.5m wide)
-        const scale = 2.5 / maxDim;
-        tableModel.scale.set(scale, scale, scale);
-        const adjustedBox = new THREE.Box3().setFromObject(tableModel);
-        const bottomY = adjustedBox.min.y;
-
-        // Place table in the exact center of the seating area
-        tableModel.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, 0);
-        scene.add(tableModel);
-      }
+      // Place table in center, sitting on surface
+      tableModel.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY + 0.01, 0);
+      scene.add(tableModel);
+    }, undefined, (error) => {
+      console.error("[NftGallery] Error loading coffee table:", error);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);

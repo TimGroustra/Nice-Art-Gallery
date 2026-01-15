@@ -242,19 +242,14 @@ const NftGalleryMobile: React.FC = () => {
       }
     });
 
-    gltfLoader.load('/assets/models/table.glb', (gltf) => {
-      let extractedTable: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => { if ((child.name.toLowerCase().includes('table') || child.name.toLowerCase().includes('coffee')) && (child instanceof THREE.Mesh || child instanceof THREE.Group)) { if (!extractedTable) extractedTable = child; } });
-      if (!extractedTable) extractedTable = gltf.scene;
-      if (extractedTable) {
-        const tableModel = extractedTable as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(tableModel); const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.z); const scale = 2.5 / maxDim; tableModel.scale.set(scale, scale, scale);
-        const adjustedBox = new THREE.Box3().setFromObject(tableModel); const bottomY = adjustedBox.min.y;
-        tableModel.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, 0);
-        scene.add(tableModel);
-      }
-    });
+    gltfLoader.load('/table.glb', (gltf) => {
+      const tableModel = gltf.scene;
+      const box = new THREE.Box3().setFromObject(tableModel); const size = new THREE.Vector3(); box.getSize(size);
+      const maxDim = Math.max(size.x, size.z); const scale = 2.2 / maxDim; tableModel.scale.set(scale, scale, scale);
+      const adjustedBox = new THREE.Box3().setFromObject(tableModel); const bottomY = adjustedBox.min.y;
+      tableModel.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY + 0.01, 0);
+      scene.add(tableModel);
+    }, undefined, (e) => console.error("Table load error mobile:", e));
 
     let stopLoad = false;
     const createPanels = async () => {
