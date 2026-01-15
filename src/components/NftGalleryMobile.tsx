@@ -396,8 +396,8 @@ const NftGalleryMobile: React.FC = () => {
 
         sofaPositions.forEach(pos => {
           const sofa = sofaModel.clone();
-          // Place on the first floor platform
-          sofa.position.set(pos.x, PLATFORM_Y - bottomY, pos.z);
+          // Place on the first floor platform (sitting exactly on the surface)
+          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
           // Calculate rotation to face the center (0,0)
           sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
           scene.add(sofa);
