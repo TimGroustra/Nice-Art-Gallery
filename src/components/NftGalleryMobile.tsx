@@ -216,50 +216,34 @@ const NftGalleryMobile: React.FC = () => {
 
     const gltfLoader = new GLTFLoader();
     const furnitureData = [
-      { x: 0, z: 4.5, tx: 0, tz: 2.5 },
-      { x: 0, z: -4.5, tx: 0, tz: -2.5 },
-      { x: 4.5, z: 0, tx: 2.5, tz: 0 },
-      { x: -4.5, z: 0, tx: -2.5, tz: 0 },
+      { x: 0, z: 4.5, tx: 0, tz: 2.2 },
+      { x: 0, z: -4.5, tx: 0, tz: -2.2 },
+      { x: 4.5, z: 0, tx: 2.2, tz: 0 },
+      { x: -4.5, z: 0, tx: -2.2, tz: 0 },
     ];
 
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
-        }
+      let sofaBase = gltf.scene;
+      const size = new THREE.Vector3(); new THREE.Box3().setFromObject(sofaBase).getSize(size);
+      const scale = 4.5 / Math.max(size.x, size.z);
+      sofaBase.scale.set(scale, scale, scale);
+      const bottomY = new THREE.Box3().setFromObject(sofaBase).min.y;
+      furnitureData.forEach(pos => {
+        const sofa = sofaBase.clone(); sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+        sofa.rotation.y = Math.atan2(-pos.x, -pos.z); scene.add(sofa);
       });
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
-        const size = new THREE.Vector3(); new THREE.Box3().setFromObject(sofaModel).getSize(size);
-        const scale = 4.5 / Math.max(size.x, size.z);
-        sofaModel.scale.set(scale, scale, scale);
-        const bottomY = new THREE.Box3().setFromObject(sofaModel).min.y;
-        furnitureData.forEach(pos => {
-          const sofa = sofaModel.clone(); sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          sofa.rotation.y = Math.atan2(-pos.x, -pos.z); scene.add(sofa);
-        });
-      }
     });
 
     gltfLoader.load('/assets/models/table.glb', (gltf) => {
-      let extractedTable: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('table') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedTable) extractedTable = child;
-        }
+      let tableBase = gltf.scene;
+      const size = new THREE.Vector3(); new THREE.Box3().setFromObject(tableBase).getSize(size);
+      const scale = 1.5 / (Math.max(size.x, size.z) || 1);
+      tableBase.scale.set(scale, scale, scale);
+      const bottomY = new THREE.Box3().setFromObject(tableBase).min.y;
+      furnitureData.forEach(pos => {
+        const table = tableBase.clone(); table.position.set(pos.tx, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.tz);
+        table.rotation.y = Math.atan2(-pos.x, -pos.z); scene.add(table);
       });
-      if (extractedTable) {
-        const tableModel = extractedTable as THREE.Object3D;
-        const size = new THREE.Vector3(); new THREE.Box3().setFromObject(tableModel).getSize(size);
-        const scale = 1.5 / Math.max(size.x, size.z);
-        tableModel.scale.set(scale, scale, scale);
-        const bottomY = new THREE.Box3().setFromObject(tableModel).min.y;
-        furnitureData.forEach(pos => {
-          const table = tableModel.clone(); table.position.set(pos.tx, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.tz);
-          table.rotation.y = Math.atan2(-pos.x, -pos.z); scene.add(table);
-        });
-      }
     });
 
     let stopLoad = false;

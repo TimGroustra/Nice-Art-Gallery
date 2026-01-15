@@ -383,84 +383,57 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
-    // Setup sofa positions
+    // Setup furniture placement positions
     const sofaData = [
-      { x: 0, z: 4.5, tx: 0, tz: 2.5 },
-      { x: 0, z: -4.5, tx: 0, tz: -2.5 },
-      { x: 4.5, z: 0, tx: 2.5, tz: 0 },
-      { x: -4.5, z: 0, tx: -2.5, tz: 0 },
+      { x: 0, z: 4.5, tx: 0, tz: 2.2 },
+      { x: 0, z: -4.5, tx: 0, tz: -2.2 },
+      { x: 4.5, z: 0, tx: 2.2, tz: 0 },
+      { x: -4.5, z: 0, tx: -2.2, tz: 0 },
     ];
 
-    // Furniture loading: Extract JUST the sofa part from the GLB
+    // Furniture loading: Sofa
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
-        }
+      let sofaBase: THREE.Object3D = gltf.scene;
+      
+      const box = new THREE.Box3().setFromObject(sofaBase);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const scale = 4.5 / Math.max(size.x, size.z);
+      sofaBase.scale.set(scale, scale, scale);
+      
+      const adjustedBox = new THREE.Box3().setFromObject(sofaBase);
+      const bottomY = adjustedBox.min.y;
+
+      sofaData.forEach(pos => {
+        const sofa = sofaBase.clone();
+        sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+        sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
+        scene.add(sofa);
       });
-      if (!extractedSofa) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedSofa) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 15 && size.z < 15) extractedSofa = child;
-          }
-        });
-      }
-
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(sofaModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const scale = 4.5 / Math.max(size.x, size.z);
-        sofaModel.scale.set(scale, scale, scale);
-        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
-        const bottomY = adjustedBox.min.y;
-
-        sofaData.forEach(pos => {
-          const sofa = sofaModel.clone();
-          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(sofa);
-        });
-      }
     });
 
     // Coffee Table Loading
     gltfLoader.load('/assets/models/table.glb', (gltf) => {
-      let extractedTable: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('table') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedTable) extractedTable = child;
-        }
+      // Use the whole scene if it's a simple model
+      let tableBase: THREE.Object3D = gltf.scene;
+      
+      const box = new THREE.Box3().setFromObject(tableBase);
+      const size = new THREE.Vector3(); box.getSize(size);
+      
+      // Auto-scale to roughly 1.5 meters wide
+      const maxDim = Math.max(size.x, size.z);
+      const scale = 1.5 / (maxDim || 1);
+      tableBase.scale.set(scale, scale, scale);
+      
+      const adjustedBox = new THREE.Box3().setFromObject(tableBase);
+      const bottomY = adjustedBox.min.y;
+
+      sofaData.forEach(pos => {
+        const table = tableBase.clone();
+        // Position on platform
+        table.position.set(pos.tx, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.tz);
+        table.rotation.y = Math.atan2(-pos.x, -pos.z);
+        scene.add(table);
       });
-      if (!extractedTable) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedTable) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 8 && size.z < 8) extractedTable = child;
-          }
-        });
-      }
-
-      if (extractedTable) {
-        const tableModel = extractedTable as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(tableModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const scale = 1.5 / Math.max(size.x, size.z);
-        tableModel.scale.set(scale, scale, scale);
-        const adjustedBox = new THREE.Box3().setFromObject(tableModel);
-        const bottomY = adjustedBox.min.y;
-
-        sofaData.forEach(pos => {
-          const table = tableModel.clone();
-          table.position.set(pos.tx, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.tz);
-          table.rotation.y = Math.atan2(-pos.x, -pos.z); // Align rotation with couch
-          scene.add(table);
-        });
-      }
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
