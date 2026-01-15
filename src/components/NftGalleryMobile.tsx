@@ -387,11 +387,12 @@ const NftGalleryMobile: React.FC = () => {
         const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
         const bottomY = adjustedBox.min.y;
 
+        // Move sofas to the center 10x10 area around the teleportation button
         const sofaPositions = [
-          { x: 10, z: 10 },
-          { x: -10, z: 10 },
-          { x: 10, z: -10 },
-          { x: -10, z: -10 },
+          { x: 0, z: 4.5 },
+          { x: 0, z: -4.5 },
+          { x: 4.5, z: 0 },
+          { x: -4.5, z: 0 },
         ];
 
         sofaPositions.forEach(pos => {
