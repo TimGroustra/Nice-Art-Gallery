@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings, Eye, Package, Plus, Trash2 } from 'lucide-react';
+import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings, Eye, Package, Plus, Trash2, Search } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -73,8 +73,9 @@ const GalleryConfig = () => {
 
   // Asset Importer state
   const [furniture, setFurniture] = useState<FurnitureItem[]>([]);
-  const [newAsset, setNewAsset] = useState<Partial<FurnitureItem>>({
+  const [newAsset, setNewAsset] = useState<Partial<FurnitureItem & { name_filter: string }>>({
     model_url: '',
+    name_filter: '',
     target_width: 2.0,
     floor_level: 'ground',
     position_x: 0,
@@ -212,7 +213,7 @@ const GalleryConfig = () => {
     if (error) toast.error("Failed to add asset.");
     else {
       toast.success("3D Asset imported successfully.");
-      setNewAsset({ model_url: '', target_width: 2.0, floor_level: 'ground', position_x: 0, position_z: 0, rotation_y: 0 });
+      setNewAsset({ model_url: '', name_filter: '', target_width: 2.0, floor_level: 'ground', position_x: 0, position_z: 0, rotation_y: 0 });
       fetchFurniture();
     }
   };
@@ -311,6 +312,11 @@ const GalleryConfig = () => {
                 <CardHeader><CardTitle className="text-lg">Import New 3D Asset</CardTitle><CardDescription>Normalizes and centers GLB models for placement.</CardDescription></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2"><Label className="text-xs">Model URL (.glb)</Label><Input value={newAsset.model_url} onChange={e => setNewAsset(p => ({...p, model_url: e.target.value}))} placeholder="https://..." /></div>
+                  <div className="space-y-2">
+                    <Label className="text-xs flex items-center gap-2"><Search className="h-3 w-3" /> Name Filter (Optional)</Label>
+                    <Input value={newAsset.name_filter} onChange={e => setNewAsset(p => ({...p, name_filter: e.target.value}))} placeholder="e.g. 'table', 'sofa', 'statue'" />
+                    <p className="text-[10px] text-muted-foreground">Used to extract a specific object from a scene file.</p>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2"><Label className="text-xs">Target Width (meters)</Label><Input type="number" value={newAsset.target_width} onChange={e => setNewAsset(p => ({...p, target_width: Number(e.target.value)}))} /></div>
                     <div className="space-y-2"><Label className="text-xs">Floor</Label><select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={newAsset.floor_level} onChange={e => setNewAsset(p => ({...p, floor_level: e.target.value as any}))}><option value="ground">Ground</option><option value="first">First</option></select></div>
@@ -331,7 +337,7 @@ const GalleryConfig = () => {
                     <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
                       <div className="truncate pr-4">
                         <div className="text-sm font-bold truncate">{item.model_url.split('/').pop()}</div>
-                        <div className="text-[10px] text-muted-foreground uppercase">{item.floor_level} • Width: {item.target_width}m</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">{item.floor_level} • Width: {item.target_width}m {item.name_filter ? `• Filter: '${item.name_filter}'` : ''}</div>
                       </div>
                       <Button variant="ghost" size="icon" onClick={() => handleDeleteFurniture(item.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
                     </div>
