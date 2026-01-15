@@ -427,9 +427,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Coffee Table loading: Use /table.glb path with robust centering
+    // Coffee Table loading: Improved extraction logic
     gltfLoader.load('/table.glb', (gltf) => {
-      const model = gltf.scene;
+      console.log("[NftGallery] Coffee table GLB loaded successfully");
+      
+      let tableNode: THREE.Object3D | null = null;
+      
+      // Look for specifically named table parts
+      gltf.scene.traverse((node) => {
+        const n = node.name.toLowerCase();
+        if ((n.includes("table") || n.includes("coffee") || n.includes("furniture")) && 
+            (node instanceof THREE.Mesh || node instanceof THREE.Group)) {
+          if (!tableNode) {
+            tableNode = node;
+            console.log("[NftGallery] Extracted table node:", node.name);
+          }
+        }
+      });
+
+      // Fallback: Use the whole scene if no specific node found
+      if (!tableNode) {
+        tableNode = gltf.scene;
+        console.warn("[NftGallery] No 'table' node found, using whole scene");
+      }
+      
+      const model = tableNode.clone();
       
       // Calculate bounding box for normalization
       const box = new THREE.Box3().setFromObject(model);
@@ -438,14 +460,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const size = new THREE.Vector3();
       box.getSize(size);
       
-      // Center the model's geometry relative to its own internal origin
-      model.position.x = -center.x;
-      model.position.z = -center.z;
-      model.position.y = -box.min.y;
-      
-      // Create a wrapper group to handle scale and placement cleanly
+      // Create a clean wrapper to handle scaling and offset logic
       const wrapper = new THREE.Group();
       wrapper.add(model);
+      
+      // Normalize model internally
+      model.position.set(-center.x, -box.min.y, -center.z);
       
       // Scale table to fit nicely in center area (~2.6m wide)
       const maxDim = Math.max(size.x, size.z);
@@ -453,11 +473,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       wrapper.scale.set(scale, scale, scale);
       
       // Place the wrapper exactly on the first floor platform center
-      wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.01, 0);
+      wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.05, 0);
       
       scene.add(wrapper);
+      console.log("[NftGallery] Coffee table added to scene at center");
+      
     }, undefined, (error) => {
-      console.error("[NftGallery] Error loading coffee table:", error);
+      console.error("[NftGallery] CRITICAL: Coffee table failed to load from /table.glb:", error);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
