@@ -14,6 +14,7 @@ export interface NftCollection {
 export interface FurnitureItem {
   id: string;
   model_url: string;
+  name_filter?: string;
   position_x: number;
   position_y: number;
   position_z: number;
