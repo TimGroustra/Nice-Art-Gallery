@@ -427,23 +427,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Coffee Table loading: Use /table.glb path
+    // Coffee Table loading: Use /table.glb path with robust centering
     gltfLoader.load('/table.glb', (gltf) => {
-      const tableModel = gltf.scene;
-      const box = new THREE.Box3().setFromObject(tableModel);
-      const size = new THREE.Vector3(); box.getSize(size);
+      const model = gltf.scene;
+      
+      // Calculate bounding box for normalization
+      const box = new THREE.Box3().setFromObject(model);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      
+      // Center the model's geometry relative to its own internal origin
+      model.position.x = -center.x;
+      model.position.z = -center.z;
+      model.position.y = -box.min.y;
+      
+      // Create a wrapper group to handle scale and placement cleanly
+      const wrapper = new THREE.Group();
+      wrapper.add(model);
+      
+      // Scale table to fit nicely in center area (~2.6m wide)
       const maxDim = Math.max(size.x, size.z);
+      const scale = 2.6 / maxDim;
+      wrapper.scale.set(scale, scale, scale);
       
-      // Scale table to fit nicely in center area (~2.2m wide)
-      const scale = 2.2 / maxDim;
-      tableModel.scale.set(scale, scale, scale);
+      // Place the wrapper exactly on the first floor platform center
+      wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.01, 0);
       
-      const adjustedBox = new THREE.Box3().setFromObject(tableModel);
-      const bottomY = adjustedBox.min.y;
-
-      // Place table in center, sitting on surface
-      tableModel.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY + 0.01, 0);
-      scene.add(tableModel);
+      scene.add(wrapper);
     }, undefined, (error) => {
       console.error("[NftGallery] Error loading coffee table:", error);
     });

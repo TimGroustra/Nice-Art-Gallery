@@ -243,12 +243,16 @@ const NftGalleryMobile: React.FC = () => {
     });
 
     gltfLoader.load('/table.glb', (gltf) => {
-      const tableModel = gltf.scene;
-      const box = new THREE.Box3().setFromObject(tableModel); const size = new THREE.Vector3(); box.getSize(size);
-      const maxDim = Math.max(size.x, size.z); const scale = 2.2 / maxDim; tableModel.scale.set(scale, scale, scale);
-      const adjustedBox = new THREE.Box3().setFromObject(tableModel); const bottomY = adjustedBox.min.y;
-      tableModel.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY + 0.01, 0);
-      scene.add(tableModel);
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const center = new THREE.Vector3(); box.getCenter(center);
+      const size = new THREE.Vector3(); box.getSize(size);
+      model.position.x = -center.x; model.position.z = -center.z; model.position.y = -box.min.y;
+      const wrapper = new THREE.Group(); wrapper.add(model);
+      const maxDim = Math.max(size.x, size.z);
+      const scale = 2.6 / maxDim; wrapper.scale.set(scale, scale, scale);
+      wrapper.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.01, 0);
+      scene.add(wrapper);
     }, undefined, (e) => console.error("Table load error mobile:", e));
 
     let stopLoad = false;
