@@ -6,7 +6,6 @@ import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
-  GALLERY_FURNITURE_CONFIG,
   getCurrentNftSource,
   updatePanelIndex,
   PanelConfig,
@@ -15,7 +14,6 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
-import { importGalleryAsset } from '@/utils/assetImporter';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 import { Footprints } from 'lucide-react';
 
@@ -352,26 +350,65 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
+    // Furniture loading: Extract JUST the sofa part from the GLB
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let extractedSofa: THREE.Object3D | null = null;
+      
+      // Traverse to find an object with 'sofa' in the name
+      gltf.scene.traverse((child) => {
+        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+          if (!extractedSofa) extractedSofa = child;
+        }
+      });
+      
+      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
+      if (!extractedSofa) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh && !extractedSofa) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x < 15 && size.z < 15) extractedSofa = child;
+          }
+        });
+      }
+
+      if (extractedSofa) {
+        const sofaModel = extractedSofa as THREE.Object3D;
+        
+        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
+        const box = new THREE.Box3().setFromObject(sofaModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 4.5 / maxDim;
+        sofaModel.scale.set(scale, scale, scale);
+        
+        // Re-center Y position so it sits on floor
+        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+        const bottomY = adjustedBox.min.y;
+
+        // Move sofas to the center 10x10 area around the teleportation button
+        const sofaPositions = [
+          { x: 0, z: 4.5 },
+          { x: 0, z: -4.5 },
+          { x: 4.5, z: 0 },
+          { x: -4.5, z: 0 },
+        ];
+
+        sofaPositions.forEach(pos => {
+          const sofa = sofaModel.clone();
+          // Place on the first floor platform (sitting exactly on the surface)
+          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          // Calculate rotation to face the center (0,0)
+          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(sofa);
+        });
+      }
+    });
+
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
-      
-      // Load 3D Furniture dynamically
-      const furniture = GALLERY_FURNITURE_CONFIG();
-      for (const item of furniture) {
-        if (stopLoad) break;
-        try {
-          const adjustedConfig = {
-            ...item,
-            position_y: item.floor_level === 'first' ? PLATFORM_Y + WALL_THICKNESS / 2 : 0
-          };
-          const asset = await importGalleryAsset(adjustedConfig);
-          scene.add(asset);
-        } catch (e) {
-          console.error("Failed to load furniture item:", item, e);
-        }
-      }
-
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
       const arrowShape = new THREE.Shape();
       arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);

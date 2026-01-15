@@ -9,12 +9,11 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings, Eye, Package, Plus, Trash2, Search } from 'lucide-react';
+import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings, Eye } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from '@/lib/utils';
-import { FurnitureItem } from '@/config/galleryConfig';
 
 interface GalleryConfigRow {
   panel_key: string;
@@ -29,7 +28,7 @@ interface GalleryConfigRow {
 interface PanelLock {
   panel_id: string;
   locked_by_address: string;
-  locked_until: string;
+  locked_until: string; // ISO
   locking_gem_token_id: string | null;
 }
 
@@ -71,18 +70,6 @@ const GalleryConfig = () => {
   const [outerFloor, setOuterFloor] = useState<OuterFloor>('ground');
   const [activeTab, setActiveTab] = useState<string>("map");
 
-  // Asset Importer state
-  const [furniture, setFurniture] = useState<FurnitureItem[]>([]);
-  const [newAsset, setNewAsset] = useState<Partial<FurnitureItem & { name_filter: string }>>({
-    model_url: '',
-    name_filter: '',
-    target_width: 2.0,
-    floor_level: 'ground',
-    position_x: 0,
-    position_z: 0,
-    rotation_y: 0
-  });
-
   useEffect(() => {
     if (!isConnected || !walletAddress) {
       navigate('/portal');
@@ -94,11 +81,6 @@ const GalleryConfig = () => {
     }
   }, [isConnected, walletAddress, isGemsLoading, ownedTokens.length, navigate]);
 
-  const fetchFurniture = useCallback(async () => {
-    const { data } = await supabase.from('gallery_furniture').select('*');
-    if (data) setFurniture(data as FurnitureItem[]);
-  }, []);
-
   useEffect(() => {
     if (!isGemsLoading && ownedTokens.length >= REQUIRED_GEM_BALANCE) {
       const fetchLocks = async () => {
@@ -106,9 +88,8 @@ const GalleryConfig = () => {
         if (data) setPanelLocks(data as PanelLock[]);
       };
       fetchLocks();
-      fetchFurniture();
     }
-  }, [isGemsLoading, ownedTokens.length, fetchFurniture]);
+  }, [isGemsLoading, ownedTokens.length]);
 
   const getLockStatus = useCallback((panelKey: string) => {
     const lock = panelLocks.find((l) => l.panel_id === panelKey);
@@ -204,34 +185,18 @@ const GalleryConfig = () => {
     setIsLoading(false);
   };
 
-  const handleAddFurniture = async () => {
-    if (!newAsset.model_url) {
-      toast.error("Please provide a model URL.");
-      return;
-    }
-    const { error } = await supabase.from('gallery_furniture').insert([newAsset]);
-    if (error) toast.error("Failed to add asset.");
-    else {
-      toast.success("3D Asset imported successfully.");
-      setNewAsset({ model_url: '', name_filter: '', target_width: 2.0, floor_level: 'ground', position_x: 0, position_z: 0, rotation_y: 0 });
-      fetchFurniture();
-    }
-  };
-
-  const handleDeleteFurniture = async (id: string) => {
-    const { error } = await supabase.from('gallery_furniture').delete().eq('id', id);
-    if (error) toast.error("Failed to remove asset.");
-    else {
-      toast.success("Asset removed.");
-      fetchFurniture();
-    }
-  };
-
   const getFriendlyLabel = (key: string) => {
     const match = key.match(/^(north|south|east|west)-wall-(\d+)-(ground|first)$/);
     if (match) return outerLabel(match[1] as OuterWall, parseInt(match[2]), match[3] as OuterFloor);
+    
     const innerMatch = key.match(/^(north|south|east|west)-inner-wall-(outer|inner)-(\d+)$/);
-    if (innerMatch) return `Inner ${innerMatch[1].charAt(0).toUpperCase() + innerMatch[1].slice(1)} Segment ${parseInt(innerMatch[3]) + 1} (${innerMatch[2] === 'outer' ? 'Outer' : 'Inner'} Side)`;
+    if (innerMatch) {
+        const wall = innerMatch[1].charAt(0).toUpperCase() + innerMatch[1].slice(1);
+        const side = innerMatch[2] === 'outer' ? 'Outer' : 'Inner';
+        const index = parseInt(innerMatch[3]) + 1;
+        return `Inner ${wall} Segment ${index} (${side} Side)`;
+    }
+    
     return key;
   };
 
@@ -239,13 +204,179 @@ const GalleryConfig = () => {
     const isSelected = selectedPanelKey === panelKey;
     const lock = getLockStatus(panelKey);
     const label = getFriendlyLabel(panelKey);
+    
     return (
-      <button onClick={() => setSelectedPanelKey(panelKey)} title={label} className={cn("relative flex items-center justify-center transition-all group p-1", orientation === "horizontal" ? "flex-col" : "flex-row", className)}>
-        <div className={cn("rounded-full transition-all", orientation === "horizontal" ? "w-full h-[3px]" : "h-full w-[3px]", isSelected ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] scale-y-125" : (lock.isLocked && !lock.isLockedByMe) ? "bg-red-500/60" : "bg-slate-700 group-hover:bg-slate-500")} />
-        {isSelected && <div className="absolute inset-0 border border-cyan-400/30 rounded-sm pointer-events-none" />}
+      <button 
+        onClick={() => setSelectedPanelKey(panelKey)} 
+        title={label}
+        className={cn(
+          "relative flex items-center justify-center transition-all group p-1",
+          orientation === "horizontal" ? "flex-col" : "flex-row",
+          className
+        )}
+      >
+        <div className={cn(
+          "rounded-full transition-all",
+          orientation === "horizontal" ? "w-full h-[3px]" : "h-full w-[3px]",
+          isSelected ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] scale-y-125" : 
+          (lock.isLocked && !lock.isLockedByMe) ? "bg-red-500/60" : "bg-slate-700 group-hover:bg-slate-500"
+        )} />
+        {isSelected && (
+           <div className="absolute inset-0 border border-cyan-400/30 rounded-sm pointer-events-none" />
+        )}
       </button>
     );
   };
+
+  const FloorPlan = () => (
+    <div className="rounded-xl border bg-slate-950 p-4 space-y-4">
+      <div className="flex justify-between items-center">
+        <Label className="text-white text-xs font-bold uppercase tracking-wider">Interactive Floor Plan</Label>
+        <div className="bg-white/10 p-0.5 rounded-full flex gap-1">
+          {['ground', 'first'].map(f => (
+            <button key={f} onClick={() => setOuterFloor(f as OuterFloor)} className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${outerFloor === f ? 'bg-primary text-primary-foreground' : 'text-slate-400'}`}>{f === 'ground' ? 'GROUND' : 'FIRST'}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center overflow-hidden">
+        <div className="w-full max-w-[480px] aspect-square relative p-12">
+          <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
+            {['north', 'south'].map(w => (
+              <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
+                {OUTER_INDICES.map(i => (
+                  <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
+                ))}
+              </div>
+            ))}
+            {['east', 'west'].map(w => (
+              <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
+                {OUTER_INDICES.map(i => (
+                  <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" orientation="vertical" />
+                ))}
+              </div>
+            ))}
+            {outerFloor === 'ground' && (
+              <div className="absolute inset-0">
+                <div className="absolute top-[40%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                  <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
+                  <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
+                </div>
+                <div className="absolute top-[40%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                  <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
+                  <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
+                </div>
+                <div className="absolute top-[60%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                  <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
+                  <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
+                </div>
+                <div className="absolute top-[60%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                  <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
+                  <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
+                </div>
+                <div className="absolute left-[40%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                  <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
+                  <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
+                </div>
+                <div className="absolute left-[40%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                  <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
+                  <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
+                </div>
+                <div className="absolute left-[60%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                  <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
+                  <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
+                </div>
+                <div className="absolute left-[60%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                  <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
+                  <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
+                </div>
+                <div className="absolute inset-[48%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
+                   <div className="w-1 h-1 bg-white/40 rounded-full" />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      <div className="text-[10px] text-slate-400 flex justify-between items-center px-1">
+        <span className="truncate">Selected: <span className="text-white font-bold">{selectedPanelKey ? getFriendlyLabel(selectedPanelKey) : 'Select a wall segment'}</span></span>
+      </div>
+    </div>
+  );
+
+  const SettingsPanel = () => (
+    <div className="space-y-4 pt-4">
+      {!selectedPanelKey ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center space-y-3 opacity-60 border-2 border-dashed rounded-xl">
+          <MapIcon className="h-10 w-10 text-muted-foreground" />
+          <p className="text-sm">Please select a wall panel on the floor plan first.</p>
+          {window.innerWidth < 1024 && (
+            <Button variant="outline" size="sm" onClick={() => setActiveTab("map")}>Open Floor Plan</Button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6 animate-in fade-in slide-in-from-top-1 duration-300">
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Active Selection</span>
+              <span className="text-sm font-bold">{getFriendlyLabel(selectedPanelKey)}</span>
+            </div>
+            {window.innerWidth < 1024 && (
+              <Button variant="ghost" size="sm" onClick={() => setActiveTab("map")}>Change Selection</Button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Contract Address</Label>
+              <Input className="h-9 text-sm font-mono" value={currentConfig.contract_address || ''} onChange={e => setCurrentConfig(p => ({...p, contract_address: e.target.value}))} placeholder="0x..." />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Default Token ID</Label>
+                <Input className="h-9 text-sm" type="number" value={currentConfig.default_token_id || 1} onChange={e => setCurrentConfig(p => ({...p, default_token_id: parseInt(e.target.value) || 1}))} />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Lock for (Days)</Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent><p className="text-xs">Locking consumes 1 available ElectroGem. Set to 0 to unlock.</p></TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Input className="h-9 text-sm" type="number" min={0} max={30} value={lockDurationDays} onChange={e => setLockDurationDays(Number(e.target.value))} />
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-bold">Show Entire Collection</Label>
+              <p className="text-[10px] text-muted-foreground">Allows visitors to cycle through all tokens in this contract.</p>
+            </div>
+            <Switch checked={currentConfig.show_collection || false} onCheckedChange={v => setCurrentConfig(p => ({...p, show_collection: v}))} />
+          </div>
+
+          <Button className="w-full h-12 text-md font-bold" onClick={handleSave} disabled={isLoading || (selectedLock?.isLocked && !selectedLock?.isLockedByMe)}>
+            {isLoading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : 'Apply Configuration'}
+          </Button>
+          
+          {selectedLock?.isLocked && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center">
+              <p className="text-xs text-amber-500 font-medium">
+                {selectedLock.isLockedByMe ? `Locked by you until ${selectedLock.lockedUntil?.toLocaleDateString()}` : "Locked by another curator."}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-3 sm:p-6 lg:p-8">
@@ -262,92 +393,51 @@ const GalleryConfig = () => {
               <span className="opacity-60">{formatWalletAddress(walletAddress)}</span>
             </div>
           </div>
-          <h1 className="text-2xl font-bold">Gallery Configuration</h1>
+          <div>
+            <h1 className="text-2xl font-bold">Gallery Configuration</h1>
+            <p className="text-sm text-muted-foreground">Customise any wall panel with content from any Electroneum collection.</p>
+          </div>
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full justify-start border-b rounded-none bg-transparent h-auto p-0 mb-6">
-            <TabsTrigger value="map" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-              <MapIcon className="h-4 w-4 mr-2" /> Wall Layout
-            </TabsTrigger>
-            <TabsTrigger value="assets" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3">
-              <Package className="h-4 w-4 mr-2" /> 3D Asset Importer
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="map" className="animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-8">
-              <Card><CardContent className="p-6 space-y-6">
-                <div className="flex justify-between items-center">
-                  <Label className="text-xs font-bold uppercase tracking-wider">Floor Plan Selector</Label>
-                  <div className="bg-white/10 p-0.5 rounded-full flex gap-1">
-                    {['ground', 'first'].map(f => (
-                      <button key={f} onClick={() => setOuterFloor(f as OuterFloor)} className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${outerFloor === f ? 'bg-primary text-primary-foreground' : 'text-slate-400'}`}>{f.toUpperCase()}</button>
-                    ))}
-                  </div>
-                </div>
-                <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center p-12 aspect-square max-w-[480px] mx-auto">
-                  <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
-                    {['north', 'south'].map(w => <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>{OUTER_INDICES.map(i => <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />)}</div>)}
-                    {['east', 'west'].map(w => <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>{OUTER_INDICES.map(i => <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" orientation="vertical" />)}</div>)}
-                  </div>
-                </div>
-                {selectedPanelKey && (
-                  <div className="space-y-4 pt-4 border-t">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5"><Label className="text-xs">Contract</Label><Input className="h-9 text-sm" value={currentConfig.contract_address || ''} onChange={e => setCurrentConfig(p => ({...p, contract_address: e.target.value}))} /></div>
-                      <div className="space-y-1.5"><Label className="text-xs">Token ID</Label><Input className="h-9 text-sm" type="number" value={currentConfig.default_token_id || 1} onChange={e => setCurrentConfig(p => ({...p, default_token_id: parseInt(e.target.value) || 1}))} /></div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_0.7fr] gap-8">
+          <Card className="flex flex-col h-fit">
+            <CardContent className="p-6">
+              <div className="lg:hidden">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                  <TabsList className="grid w-full grid-cols-3 mb-6">
+                    <TabsTrigger value="map" className="flex items-center gap-2">
+                      <MapIcon className="h-4 w-4" /> Selector
+                    </TabsTrigger>
+                    <TabsTrigger value="settings" className="flex items-center gap-2">
+                      <Settings className="h-4 w-4" /> Settings
+                    </TabsTrigger>
+                    <TabsTrigger value="preview" className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" /> Preview
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="map">
+                    <FloorPlan />
+                  </TabsContent>
+                  <TabsContent value="settings">
+                    <SettingsPanel />
+                  </TabsContent>
+                  <TabsContent value="preview">
+                    <div className="pt-4">
+                      <NftPreviewPane contractAddress={currentConfig.contract_address || null} tokenId={currentConfig.default_token_id || null} />
                     </div>
-                    <Button className="w-full" onClick={handleSave} disabled={isLoading}>{isLoading ? <Loader2 className="animate-spin h-4 w-4" /> : 'Apply to Wall'}</Button>
-                  </div>
-                )}
-              </CardContent></Card>
-              <NftPreviewPane contractAddress={currentConfig.contract_address || null} tokenId={currentConfig.default_token_id || null} />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="assets" className="animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Import New 3D Asset</CardTitle><CardDescription>Normalizes and centers GLB models for placement.</CardDescription></CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2"><Label className="text-xs">Model URL (.glb)</Label><Input value={newAsset.model_url} onChange={e => setNewAsset(p => ({...p, model_url: e.target.value}))} placeholder="https://..." /></div>
-                  <div className="space-y-2">
-                    <Label className="text-xs flex items-center gap-2"><Search className="h-3 w-3" /> Name Filter (Optional)</Label>
-                    <Input value={newAsset.name_filter} onChange={e => setNewAsset(p => ({...p, name_filter: e.target.value}))} placeholder="e.g. 'table', 'sofa', 'statue'" />
-                    <p className="text-[10px] text-muted-foreground">Used to extract a specific object from a scene file.</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label className="text-xs">Target Width (meters)</Label><Input type="number" value={newAsset.target_width} onChange={e => setNewAsset(p => ({...p, target_width: Number(e.target.value)}))} /></div>
-                    <div className="space-y-2"><Label className="text-xs">Floor</Label><select className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm" value={newAsset.floor_level} onChange={e => setNewAsset(p => ({...p, floor_level: e.target.value as any}))}><option value="ground">Ground</option><option value="first">First</option></select></div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2"><Label className="text-xs">Pos X</Label><Input type="number" value={newAsset.position_x} onChange={e => setNewAsset(p => ({...p, position_x: Number(e.target.value)}))} /></div>
-                    <div className="space-y-2"><Label className="text-xs">Pos Z</Label><Input type="number" value={newAsset.position_z} onChange={e => setNewAsset(p => ({...p, position_z: Number(e.target.value)}))} /></div>
-                    <div className="space-y-2"><Label className="text-xs">Rot Y</Label><Input type="number" value={newAsset.rotation_y} onChange={e => setNewAsset(p => ({...p, rotation_y: Number(e.target.value)}))} /></div>
-                  </div>
-                  <Button className="w-full" onClick={handleAddFurniture}><Plus className="h-4 w-4 mr-2" /> Import Asset</Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader><CardTitle className="text-lg">Managed 3D Assets</CardTitle></CardHeader>
-                <CardContent className="space-y-2">
-                  {furniture.map(item => (
-                    <div key={item.id} className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
-                      <div className="truncate pr-4">
-                        <div className="text-sm font-bold truncate">{item.model_url.split('/').pop()}</div>
-                        <div className="text-[10px] text-muted-foreground uppercase">{item.floor_level} • Width: {item.target_width}m {item.name_filter ? `• Filter: '${item.name_filter}'` : ''}</div>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => handleDeleteFurniture(item.id)} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  ))}
-                  {furniture.length === 0 && <p className="text-center py-8 text-sm text-muted-foreground">No custom assets imported yet.</p>}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
+                  </TabsContent>
+                </Tabs>
+              </div>
+              <div className="hidden lg:block space-y-6">
+                <FloorPlan />
+                <SettingsPanel />
+              </div>
+            </CardContent>
+          </Card>
+          <div className="hidden lg:block lg:sticky lg:top-8 h-fit space-y-6">
+            <NftPreviewPane contractAddress={currentConfig.contract_address || null} tokenId={currentConfig.default_token_id || null} />
+          </div>
+        </div>
       </div>
     </div>
   );
