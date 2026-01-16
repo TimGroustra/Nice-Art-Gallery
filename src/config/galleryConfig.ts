@@ -24,6 +24,7 @@ export interface FurnitureConfig {
   position_z: number;
   rotation_y: number;
   scale_multiplier: number;
+  scale_y_multiplier: number; // Added new property
   target_width: number;
   floor_level: 'ground' | 'first';
 }
@@ -210,6 +211,7 @@ export async function initializeGalleryConfig() {
       position_z: item.position_z || 0,
       rotation_y: item.rotation_y || 0,
       scale_multiplier: item.scale_multiplier || 1.0,
+      scale_y_multiplier: item.scale_y_multiplier || 1.0, // Added new property
       target_width: item.target_width || 4.5,
       floor_level: item.floor_level || 'ground',
     }));
