@@ -350,17 +350,19 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Furniture loading: Sofa and Tables
+    // Furniture loading: Extract JUST the sofa part from the GLB
     const gltfLoader = new GLTFLoader();
-    
-    // Sofa
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let extractedSofa: THREE.Object3D | null = null;
+      
+      // Traverse to find an object with 'sofa' in the name
       gltf.scene.traverse((child) => {
         if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
           if (!extractedSofa) extractedSofa = child;
         }
       });
+      
+      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
       if (!extractedSofa) {
         gltf.scene.traverse((child) => {
           if (child instanceof THREE.Mesh && !extractedSofa) {
@@ -373,48 +375,35 @@ const NftGalleryMobile: React.FC = () => {
 
       if (extractedSofa) {
         const sofaModel = extractedSofa as THREE.Object3D;
+        
+        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
         const box = new THREE.Box3().setFromObject(sofaModel);
         const size = new THREE.Vector3(); box.getSize(size);
         const maxDim = Math.max(size.x, size.z);
         const scale = 4.5 / maxDim;
         sofaModel.scale.set(scale, scale, scale);
+        
+        // Re-center Y position so it sits on floor
         const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
         const bottomY = adjustedBox.min.y;
 
+        // Move sofas to the center 10x10 area around the teleportation button
         const sofaPositions = [
-          { x: 0, z: 4.5 }, { x: 0, z: -4.5 }, { x: 4.5, z: 0 }, { x: -4.5, z: 0 },
+          { x: 0, z: 4.5 },
+          { x: 0, z: -4.5 },
+          { x: 4.5, z: 0 },
+          { x: -4.5, z: 0 },
         ];
 
         sofaPositions.forEach(pos => {
           const sofa = sofaModel.clone();
+          // Place on the first floor platform (sitting exactly on the surface)
           sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          // Calculate rotation to face the center (0,0)
           sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
           scene.add(sofa);
         });
       }
-    });
-
-    // Wood Table
-    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
-      const tableModel = gltf.scene;
-      const box = new THREE.Box3().setFromObject(tableModel);
-      const size = new THREE.Vector3(); box.getSize(size);
-      const maxDim = Math.max(size.x, size.z);
-      const scale = 1.8 / maxDim;
-      tableModel.scale.set(scale, scale, scale);
-      const adjustedBox = new THREE.Box3().setFromObject(tableModel);
-      const bottomY = adjustedBox.min.y;
-
-      const tablePositions = [
-        { x: 0, z: 1.8 }, { x: 0, z: -1.8 }, { x: 1.8, z: 0 }, { x: -1.8, z: 0 },
-      ];
-
-      tablePositions.forEach(pos => {
-        const table = tableModel.clone();
-        table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-        table.rotation.y = Math.atan2(-pos.x, -pos.z);
-        scene.add(table);
-      });
     });
 
     let stopLoad = false;
