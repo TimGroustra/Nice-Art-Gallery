@@ -124,17 +124,15 @@ const loadFurniture = (scene: THREE.Scene, gltfLoader: GLTFLoader, furnitureConf
         const scaleFactor = targetWidth / size.x;
         
         // Apply scale multiplier from config
-        const finalScaleX = scaleFactor * instanceCfg.scale_multiplier;
-        const finalScaleY = scaleFactor * instanceCfg.scale_multiplier * (instanceCfg.scale_y_multiplier || 1.0);
-        const finalScaleZ = scaleFactor * instanceCfg.scale_multiplier;
+        const finalScale = scaleFactor * instanceCfg.scale_multiplier;
         
-        instance.scale.set(finalScaleX, finalScaleY, finalScaleZ);
+        instance.scale.set(finalScale, finalScale, finalScale);
         
         // Adjust position to sit on the floor (Y position is relative to the model's bounding box min Y)
-        // The Y position needs to account for the new vertical scaling (finalScaleY)
+        // instanceCfg.position_y is the floor level (0 or 8.26)
         instance.position.set(
           instanceCfg.position_x, 
-          instanceCfg.position_y - box.min.y * finalScaleY, 
+          instanceCfg.position_y - box.min.y * finalScale, 
           instanceCfg.position_z
         );
         instance.rotation.y = instanceCfg.rotation_y;
