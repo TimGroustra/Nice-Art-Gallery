@@ -418,36 +418,45 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     });
 
-    // Specific Table Loading
-    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
-      let tableMesh: THREE.Mesh | null = null;
+    // Specific Table Loading - Improved extraction logic
+    gltfLoader.load('/Wood_Table.glb', (gltf) => {
+      const tableGroup = new THREE.Group();
+      let foundMesh = false;
+
       gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !tableMesh) {
+        if (child instanceof THREE.Mesh) {
           const box = new THREE.Box3().setFromObject(child);
           const size = new THREE.Vector3(); box.getSize(size);
-          if (size.x < 15 && size.z < 15) {
-            tableMesh = child;
+          // Filter out giant environmental planes
+          if (size.x < 15 && size.z < 15 && size.y < 5) {
+            const clone = child.clone();
+            clone.position.set(0, 0, 0);
+            tableGroup.add(clone);
+            foundMesh = true;
           }
         }
       });
 
-      if (tableMesh) {
-        const mesh = tableMesh as THREE.Mesh;
-        mesh.geometry.computeBoundingBox();
-        const box = mesh.geometry.boundingBox!;
+      if (foundMesh) {
+        const box = new THREE.Box3().setFromObject(tableGroup);
         const size = new THREE.Vector3(); box.getSize(size);
-        const targetWidth = 2.0;
+        const targetWidth = 2.5;
         const scale = targetWidth / size.x;
-        const tableGroup = new THREE.Group();
-        tableGroup.add(mesh);
-        mesh.scale.set(scale, scale, scale);
-        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
+        tableGroup.scale.set(scale, scale, scale);
+        
+        // Offset Y so it sits on floor correctly
+        const yOffset = -box.min.y * scale;
 
-        // Position tables in the diagonal corners of the 1st floor platform
-        const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
-        positions.forEach(pos => {
+        const tablePositions = [
+          { x: 8, z: 8 },
+          { x: -8, z: 8 },
+          { x: 8, z: -8 },
+          { x: -8, z: -8 }
+        ];
+
+        tablePositions.forEach(pos => {
           const instance = tableGroup.clone();
-          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + yOffset, pos.z);
           scene.add(instance);
         });
       }
