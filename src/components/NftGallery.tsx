@@ -45,6 +45,26 @@ let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
 let currentTargetedButton: THREE.Mesh | null = null;
 
+/**
+ * Safely disposes of the material and its texture map, unless it's a GIF texture
+ * which is handled by its dedicated stop function.
+ */
+const disposeMaterialAndTexture = (mesh: THREE.Mesh, isGif: boolean) => {
+  const material = mesh.material;
+  if (material instanceof THREE.MeshBasicMaterial) {
+    const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
+    
+    // Only dispose texture if it wasn't a GIF (GIF texture is disposed by gifStopFunction)
+    if (mat.map && !isGif) {
+      mat.map.dispose();
+      mat.map = null;
+    }
+    
+    // Always dispose the material
+    mat.dispose();
+  }
+};
+
 const rainbowVertexShader = `
   varying vec2 vUv;
   void main() {
@@ -76,17 +96,6 @@ const isVideoContent = (contentType: string, url: string) =>
 const isGifContent = (contentType: string, url: string) =>
   !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
-const disposeTextureSafely = (mesh: THREE.Mesh) => {
-  const material = mesh.material;
-  if (material instanceof THREE.MeshBasicMaterial) {
-    const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
-    if (mat.map) {
-      mat.map.dispose();
-      mat.map = null;
-    }
-    mat.dispose();
-  }
-};
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -126,6 +135,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const isVideo = isVideoContent(contentType, url);
       const isGif = isGifContent(contentType, url);
 
+      // Cleanup existing resources before loading new ones
       if (panel.videoElement) {
         panel.videoElement.pause();
         panel.videoElement.removeAttribute('src');
@@ -176,21 +186,36 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
   const updatePanelContent = useCallback(
     async (panel: Panel, source: NftSource | null) => {
-      disposeTextureSafely(panel.mesh);
+      
+      // 1. Cleanup old resources (especially GIF/Video)
+      const wasGif = panel.isGif;
+      
+      if (panel.videoElement) {
+        panel.videoElement.pause();
+        panel.videoElement.removeAttribute('src');
+        panel.videoElement = null;
+      }
+      if (panel.gifStopFunction) {
+        // Stop function disposes the texture.
+        panel.gifStopFunction(); 
+        panel.gifStopFunction = null;
+        
+        // If it was a GIF, we must clear the map reference before disposing the material
+        // to prevent double disposal of the texture object.
+        if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
+            panel.mesh.material.map = null;
+        }
+      }
+      
+      // 2. Dispose old material (texture disposal handled above or inside disposeMaterialAndTexture if not GIF)
+      disposeMaterialAndTexture(panel.mesh, wasGif);
+      
+      // 3. Reset panel state and assign new default material
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x111111 });
       panel.metadataUrl = '';
       panel.isVideo = false;
       panel.isGif = false;
 
-      if (panel.videoElement) {
-        panel.videoElement.pause();
-        panel.videoElement.src = '';
-        panel.videoElement = null;
-      }
-      if (panel.gifStopFunction) {
-        panel.gifStopFunction();
-        panel.gifStopFunction = null;
-      }
 
       if (!source || !source.contractAddress) {
         const collectionConfig = GALLERY_PANEL_CONFIG[panel.wallName];
@@ -218,7 +243,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
         } else {
           const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
-          disposeTextureSafely(panel.mesh);
+          
+          // Dispose the temporary default material before assigning the new one
+          (panel.mesh.material as THREE.Material).dispose(); 
+          
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
           panel.metadataUrl = metadata.source;
           panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
@@ -234,6 +262,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           ctx.fillStyle = '#ff4444'; ctx.font = '24px Arial'; ctx.textAlign = 'center';
           ctx.fillText('Connection Error', 128, 128);
         }
+        // Dispose the temporary default material before assigning the error material
+        (panel.mesh.material as THREE.Material).dispose(); 
         panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
       }
 
@@ -352,10 +382,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
     platform.position.set(0, PLATFORM_Y_CALC, 0); scene.add(platform);
 
-    const shaderPlane = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
+    const shaderPlane = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial.clone()); // Clone material for shader plane
     shaderPlane.rotation.x = -Math.PI / 2; shaderPlane.position.set(0, LOWER_WALL_HEIGHT, 0); scene.add(shaderPlane);
 
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial.clone()); // Clone material for ceiling
     ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, WALL_HEIGHT + 0.01, 0); scene.add(ceiling);
 
     const buttonGeo = new THREE.CylinderGeometry(1, 1, 0.2, 32);
@@ -496,7 +526,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       mesh.rotation.set(cfg.rot[0], cfg.rot[1], cfg.rot[2]);
       scene.add(mesh);
 
-      const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(cfg.rot[0], cfg.rot[1], cfg.rot[2]));
+      const wallRotation = new THREE.Euler(cfg.rot[0], cfg.rot[1], cfg.rot[2], 'XYZ');
+      const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+      
       const prevArrow = new THREE.Mesh(arrowGeo, arrowMat.clone());
       prevArrow.rotation.y = cfg.rot[1] + Math.PI;
       prevArrow.position.copy(mesh.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
@@ -589,17 +621,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
         const hits = raycaster.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
-        panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
-        teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x1a3f7c); (b.material as any).emissive.setHex(0x1a3f7c); });
+        panelsRef.current.forEach(p => { 
+          (p.prevArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc); 
+          (p.nextArrow.material as THREE.MeshBasicMaterial).color.setHex(0xcccccc); 
+        });
+        teleportButtonsRef.current.forEach(b => { 
+          (b.material as THREE.MeshStandardMaterial).color.setHex(0x1a3f7c); 
+          (b.material as THREE.MeshStandardMaterial).emissive.setHex(0x1a3f7c); 
+        });
         if (hits.length > 0) {
           const hit = hits[0].object as THREE.Mesh;
           if (hit.userData.isTeleportButton) {
-            currentTargetedButton = hit; (hit.material as any).color.setHex(0x00ffff); (hit.material as any).emissive.setHex(0x00ffff);
+            currentTargetedButton = hit; 
+            (hit.material as THREE.MeshStandardMaterial).color.setHex(0x00ffff); 
+            (hit.material as THREE.MeshStandardMaterial).emissive.setHex(0x00ffff);
           } else {
             const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
             if (p) {
               if (hit === p.mesh) currentTargetedPanel = p;
-              else { currentTargetedArrow = hit; (hit.material as any).color.setHex(0x00ff00); }
+              else { currentTargetedArrow = hit; (hit.material as THREE.MeshBasicMaterial).color.setHex(0x00ff00); }
             }
           }
         }
@@ -616,7 +656,31 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       stopAnim = true; document.removeEventListener('keydown', onKeyDown); document.removeEventListener('keyup', onKeyUp);
       renderer.domElement.removeEventListener('click', onClick); window.removeEventListener('resize', onResize);
       (window as any).galleryControls = undefined;
-      panelsRef.current.forEach(p => { disposeTextureSafely(p.mesh); p.videoElement?.pause(); p.gifStopFunction?.(); });
+      
+      // Proper cleanup sequence: stop GIF/Video, then dispose materials/textures
+      panelsRef.current.forEach(p => { 
+        p.videoElement?.pause(); 
+        if (p.gifStopFunction) {
+            p.gifStopFunction(); // Disposes texture
+            if (p.mesh.material instanceof THREE.MeshBasicMaterial) {
+                p.mesh.material.map = null; // Clear map reference
+            }
+        }
+        disposeMaterialAndTexture(p.mesh, p.isGif); 
+      });
+      
+      // Dispose other materials (walls, floor, ceiling, buttons)
+      scene.traverse((object) => {
+        if (object instanceof THREE.Mesh) {
+          if (object.geometry) object.geometry.dispose();
+          if (Array.isArray(object.material)) {
+            object.material.forEach(m => m.dispose());
+          } else if (object.material) {
+            object.material.dispose();
+          }
+        }
+      });
+      
       renderer.dispose(); mountRef.current?.removeChild(renderer.domElement);
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
