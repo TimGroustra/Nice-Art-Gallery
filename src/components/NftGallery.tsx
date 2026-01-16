@@ -7,8 +7,6 @@ import {
   getCurrentNftSource,
   updatePanelIndex,
   PanelConfig,
-  GALLERY_FURNITURE_CONFIG,
-  FurnitureConfig,
 } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
@@ -83,67 +81,6 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
     mat.dispose();
   }
 };
-
-/**
- * Loads 3D furniture models based on configuration and adds them to the scene.
- */
-const loadFurniture = (scene: THREE.Scene, gltfLoader: GLTFLoader, furnitureConfigs: FurnitureConfig[]) => {
-  const configsByModelUrl = furnitureConfigs.reduce((acc, cfg) => {
-    if (!acc[cfg.model_url]) acc[cfg.model_url] = [];
-    acc[cfg.model_url].push(cfg);
-    return acc;
-  }, {} as Record<string, FurnitureConfig[]>);
-
-  Object.entries(configsByModelUrl).forEach(([modelUrl, configs]) => {
-    gltfLoader.load(modelUrl, (gltf) => {
-      let mesh: THREE.Mesh | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !mesh) {
-          mesh = child;
-        }
-      });
-
-      if (!mesh) {
-        console.warn(`[Gallery] Could not find primary mesh in GLTF for ${modelUrl}`);
-        return;
-      }
-
-      // 1. Create a base group containing the mesh
-      const baseGroup = new THREE.Group();
-      baseGroup.add(mesh);
-      
-      // 2. Calculate original bounding box for scaling/positioning reference
-      const box = new THREE.Box3().setFromObject(mesh);
-      const size = new THREE.Vector3(); box.getSize(size);
-      
-      // 3. Instantiate all configurations for this model
-      configs.forEach(instanceCfg => {
-        const instance = baseGroup.clone();
-        
-        const targetWidth = instanceCfg.target_width || 4.5;
-        const scaleFactor = targetWidth / size.x;
-        
-        // Apply scale multiplier from config
-        const finalScale = scaleFactor * instanceCfg.scale_multiplier;
-        
-        instance.scale.set(finalScale, finalScale, finalScale);
-        
-        // Adjust position to sit on the floor (Y position is relative to the model's bounding box min Y)
-        // instanceCfg.position_y is the floor level (0 or 8.26)
-        instance.position.set(
-          instanceCfg.position_x, 
-          instanceCfg.position_y - box.min.y * finalScale, 
-          instanceCfg.position_z
-        );
-        instance.rotation.y = instanceCfg.rotation_y;
-        scene.add(instance);
-      });
-    }, undefined, (error) => {
-      console.error(`[Gallery] Error loading GLTF model ${modelUrl}:`, error);
-    });
-  });
-};
-
 
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -362,6 +299,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const WALL_HEIGHT = 16;
     const LOWER_WALL_HEIGHT = 8;
     const LOWER_PANEL_Y = 5.0;
+    const INNER_LOWER_PANEL_Y = 4.0;
     const UPPER_PANEL_Y = 12.0;
     const WALL_THICKNESS = 0.5;
     const halfRoomSize = ROOM_SIZE / 2;
@@ -426,6 +364,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(firstBtn);
     teleportButtonsRef.current = [groundBtn, firstBtn];
 
+    const fadeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false });
+    fadeMaterialRef.current = fadeMaterial;
+    const fadeScreen = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), fadeMaterial);
+    fadeScreen.renderOrder = 999; scene.add(fadeScreen);
+    fadeScreenRef.current = fadeScreen;
+
     const performTeleport = (targetY: number) => {
       if (isTeleportingRef.current) return;
       isTeleportingRef.current = true; fadeStartTimeRef.current = performance.now();
@@ -437,9 +381,61 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
+    // Furniture loading: Extract JUST the sofa part from the GLB
     const gltfLoader = new GLTFLoader();
-    
-    // Furniture loading is now handled dynamically via loadFurniture
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let extractedSofa: THREE.Object3D | null = null;
+      
+      // Traverse to find an object with 'sofa' in the name
+      gltf.scene.traverse((child) => {
+        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+          if (!extractedSofa) extractedSofa = child;
+        }
+      });
+      
+      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
+      if (!extractedSofa) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh && !extractedSofa) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x < 15 && size.z < 15) extractedSofa = child;
+          }
+        });
+      }
+
+      if (extractedSofa) {
+        const sofaModel = extractedSofa as THREE.Object3D;
+        
+        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
+        const box = new THREE.Box3().setFromObject(sofaModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 4.5 / maxDim;
+        sofaModel.scale.set(scale, scale, scale);
+        
+        // Re-center Y position so it sits on floor
+        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+        const bottomY = adjustedBox.min.y;
+
+        // Move sofas to the center 10x10 area around the teleportation button
+        const sofaPositions = [
+          { x: 0, z: 4.5 },
+          { x: 0, z: -4.5 },
+          { x: 4.5, z: 0 },
+          { x: -4.5, z: 0 },
+        ];
+
+        sofaPositions.forEach(pos => {
+          const sofa = sofaModel.clone();
+          // Place on the first floor platform (sitting exactly on the surface)
+          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          // Calculate rotation to face the center (0,0)
+          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(sofa);
+        });
+      }
+    });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
@@ -468,14 +464,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // Inner cross walls
     [-10, 10].forEach((seg, i) => {
       const pos = 5 + ARROW_DEPTH_OFFSET;
-      dynamicPanelConfigs.push({ wallName: `north-inner-wall-outer-${i}`, pos: [seg, LOWER_PANEL_Y, -pos], rot: [0, Math.PI, 0] });
-      dynamicPanelConfigs.push({ wallName: `north-inner-wall-inner-${i}`, pos: [seg, LOWER_PANEL_Y, -5 + ARROW_DEPTH_OFFSET], rot: [0, 0, 0] });
-      dynamicPanelConfigs.push({ wallName: `south-inner-wall-outer-${i}`, pos: [seg, LOWER_PANEL_Y, pos], rot: [0, 0, 0] });
-      dynamicPanelConfigs.push({ wallName: `south-inner-wall-inner-${i}`, pos: [seg, LOWER_PANEL_Y, 5 - ARROW_DEPTH_OFFSET], rot: [0, Math.PI, 0] });
-      dynamicPanelConfigs.push({ wallName: `east-inner-wall-outer-${i}`, pos: [pos, LOWER_PANEL_Y, seg], rot: [0, Math.PI / 2, 0] });
-      dynamicPanelConfigs.push({ wallName: `east-inner-wall-inner-${i}`, pos: [5 - ARROW_DEPTH_OFFSET, LOWER_PANEL_Y, seg], rot: [0, -Math.PI / 2, 0] });
-      dynamicPanelConfigs.push({ wallName: `west-inner-wall-outer-${i}`, pos: [-pos, LOWER_PANEL_Y, seg], rot: [0, -Math.PI / 2, 0] });
-      dynamicPanelConfigs.push({ wallName: `west-inner-wall-inner-${i}`, pos: [-5 + ARROW_DEPTH_OFFSET, LOWER_PANEL_Y, seg], rot: [0, Math.PI / 2, 0] });
+      dynamicPanelConfigs.push({ wallName: `north-inner-wall-outer-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, -pos], rot: [0, Math.PI, 0] });
+      dynamicPanelConfigs.push({ wallName: `north-inner-wall-inner-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, -5 + ARROW_DEPTH_OFFSET], rot: [0, 0, 0] });
+      dynamicPanelConfigs.push({ wallName: `south-inner-wall-outer-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, pos], rot: [0, 0, 0] });
+      dynamicPanelConfigs.push({ wallName: `south-inner-wall-inner-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, 5 - ARROW_DEPTH_OFFSET], rot: [0, Math.PI, 0] });
+      dynamicPanelConfigs.push({ wallName: `east-inner-wall-outer-${i}`, pos: [pos, INNER_LOWER_PANEL_Y, seg], rot: [0, Math.PI / 2, 0] });
+      dynamicPanelConfigs.push({ wallName: `east-inner-wall-inner-${i}`, pos: [5 - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, seg], rot: [0, -Math.PI / 2, 0] });
+      dynamicPanelConfigs.push({ wallName: `west-inner-wall-outer-${i}`, pos: [-pos, INNER_LOWER_PANEL_Y, seg], rot: [0, -Math.PI / 2, 0] });
+      dynamicPanelConfigs.push({ wallName: `west-inner-wall-inner-${i}`, pos: [-5 + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, seg], rot: [0, Math.PI / 2, 0] });
     });
 
     panelsRef.current = [];
@@ -532,11 +528,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let stopAnim = false;
     const initLoad = async () => {
       await initializeGalleryConfig();
-      loadFurniture(scene, gltfLoader, GALLERY_FURNITURE_CONFIG);
+      // Increased stagger delay and added jitter to avoid hitting rate limits
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
         const p = panelsRef.current[i];
         updatePanelContent(p, getCurrentNftSource(p.wallName));
+        // Stagger load every 2 panels with a 250ms delay + jitter
         if (i % 2 === 0) {
           const jitter = Math.random() * 200;
           await new Promise(r => setTimeout(r, 250 + jitter));
@@ -578,7 +575,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const hits = raycaster.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
         panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
-        teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x00ffff); (b.material as any).emissive.setHex(0x00ffff); });
+        teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x1a3f7c); (b.material as any).emissive.setHex(0x1a3f7c); });
         if (hits.length > 0) {
           const hit = hits[0].object as THREE.Mesh;
           if (hit.userData.isTeleportButton) {

@@ -9,8 +9,6 @@ import {
   getCurrentNftSource,
   updatePanelIndex,
   PanelConfig,
-  GALLERY_FURNITURE_CONFIG,
-  FurnitureConfig,
 } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
@@ -89,67 +87,6 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
     mat.dispose();
   }
 };
-
-/**
- * Loads 3D furniture models based on configuration and adds them to the scene.
- */
-const loadFurniture = (scene: THREE.Scene, gltfLoader: GLTFLoader, furnitureConfigs: FurnitureConfig[]) => {
-  const configsByModelUrl = furnitureConfigs.reduce((acc, cfg) => {
-    if (!acc[cfg.model_url]) acc[cfg.model_url] = [];
-    acc[cfg.model_url].push(cfg);
-    return acc;
-  }, {} as Record<string, FurnitureConfig[]>);
-
-  Object.entries(configsByModelUrl).forEach(([modelUrl, configs]) => {
-    gltfLoader.load(modelUrl, (gltf) => {
-      let mesh: THREE.Mesh | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !mesh) {
-          mesh = child;
-        }
-      });
-
-      if (!mesh) {
-        console.warn(`[Gallery Mobile] Could not find primary mesh in GLTF for ${modelUrl}`);
-        return;
-      }
-
-      // 1. Create a base group containing the mesh
-      const baseGroup = new THREE.Group();
-      baseGroup.add(mesh);
-      
-      // 2. Calculate original bounding box for scaling/positioning reference
-      const box = new THREE.Box3().setFromObject(mesh);
-      const size = new THREE.Vector3(); box.getSize(size);
-      
-      // 3. Instantiate all configurations for this model
-      configs.forEach(instanceCfg => {
-        const instance = baseGroup.clone();
-        
-        const targetWidth = instanceCfg.target_width || 4.5;
-        const scaleFactor = targetWidth / size.x;
-        
-        // Apply scale multiplier from config
-        const finalScale = scaleFactor * instanceCfg.scale_multiplier;
-        
-        instance.scale.set(finalScale, finalScale, finalScale);
-        
-        // Adjust position to sit on the floor (Y position is relative to the model's bounding box min Y)
-        // instanceCfg.position_y is the floor level (0 or 8.26)
-        instance.position.set(
-          instanceCfg.position_x, 
-          instanceCfg.position_y - box.min.y * finalScale, 
-          instanceCfg.position_z
-        );
-        instance.rotation.y = instanceCfg.rotation_y;
-        scene.add(instance);
-      });
-    }, undefined, (error) => {
-      console.error(`[Gallery Mobile] Error loading GLTF model ${modelUrl}:`, error);
-    });
-  });
-};
-
 
 const NftGalleryMobile: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -413,16 +350,65 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
+    // Furniture loading: Extract JUST the sofa part from the GLB
     const gltfLoader = new GLTFLoader();
-    
-    // --- Furniture Loading ---
-    loadFurniture(scene, gltfLoader, GALLERY_FURNITURE_CONFIG);
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let extractedSofa: THREE.Object3D | null = null;
+      
+      // Traverse to find an object with 'sofa' in the name
+      gltf.scene.traverse((child) => {
+        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+          if (!extractedSofa) extractedSofa = child;
+        }
+      });
+      
+      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
+      if (!extractedSofa) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh && !extractedSofa) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x < 15 && size.z < 15) extractedSofa = child;
+          }
+        });
+      }
+
+      if (extractedSofa) {
+        const sofaModel = extractedSofa as THREE.Object3D;
+        
+        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
+        const box = new THREE.Box3().setFromObject(sofaModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 4.5 / maxDim;
+        sofaModel.scale.set(scale, scale, scale);
+        
+        // Re-center Y position so it sits on floor
+        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+        const bottomY = adjustedBox.min.y;
+
+        // Move sofas to the center 10x10 area around the teleportation button
+        const sofaPositions = [
+          { x: 0, z: 4.5 },
+          { x: 0, z: -4.5 },
+          { x: 4.5, z: 0 },
+          { x: -4.5, z: 0 },
+        ];
+
+        sofaPositions.forEach(pos => {
+          const sofa = sofaModel.clone();
+          // Place on the first floor platform (sitting exactly on the surface)
+          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          // Calculate rotation to face the center (0,0)
+          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(sofa);
+        });
+      }
+    });
 
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
-      loadFurniture(scene, gltfLoader, GALLERY_FURNITURE_CONFIG); // Re-run after config is initialized
-      
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
       const arrowShape = new THREE.Shape();
       arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
@@ -506,6 +492,7 @@ const NftGalleryMobile: React.FC = () => {
         });
       });
 
+      // Stagger initial content loading
       for (let i = 0; i < tempPanels.length; i++) {
         if (stopLoad) break;
         const p = tempPanels[i];
@@ -530,8 +517,11 @@ const NftGalleryMobile: React.FC = () => {
       isDraggingRef.current = true;
       const deltaX = e.touches[0].clientX - touchStartRef.current.x;
       const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+      
+      // Inverting rotations by using += instead of -=
       rotationRef.current.yaw += deltaX * 0.005;
       rotationRef.current.pitch += deltaY * 0.005;
+      
       rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
       touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
@@ -545,7 +535,10 @@ const NftGalleryMobile: React.FC = () => {
         const intersects = raycasterRef.current.intersectObjects(objects);
         if (intersects.length > 0) {
           const hit = intersects[0].object as THREE.Mesh;
+          
+          // Disable walking mode on any successful interaction
           setIsWalking(false);
+
           if (hit.userData.isTeleportButton) {
             performTeleport(hit.userData.targetY);
             return;
@@ -581,8 +574,10 @@ const NftGalleryMobile: React.FC = () => {
           const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
           forward.y = 0;
           forward.normalize();
+          
           const nextX = new THREE.Vector3(camera.position.x + forward.x * moveSpeed * delta, camera.position.y, camera.position.z);
           if (!checkCollision(nextX)) camera.position.x = nextX.x;
+          
           const nextZ = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z + forward.z * moveSpeed * delta);
           if (!checkCollision(nextZ)) camera.position.z = nextZ.z;
         }
