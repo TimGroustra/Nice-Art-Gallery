@@ -360,6 +360,13 @@ const NftGalleryMobile: React.FC = () => {
       const gltfLoader = new GLTFLoader();
 
       for (const item of furnitureItems) {
+        if (!item.model_url) continue;
+
+        // Skip non-model files
+        if (!item.model_url.toLowerCase().endsWith('.glb') && !item.model_url.toLowerCase().endsWith('.gltf')) {
+           continue;
+        }
+
         gltfLoader.load(item.model_url, (gltf) => {
           let extractedModel: THREE.Object3D | null = null;
           
@@ -412,7 +419,12 @@ const NftGalleryMobile: React.FC = () => {
             scene.add(model);
           }
         }, undefined, (error) => {
-          console.error(`[Gallery Mobile] Error loading furniture model ${item.model_url}:`, error);
+           // Improved error reporting for mobile
+           if (error instanceof SyntaxError && error.message.includes('<!doctype')) {
+              // Silently handle 404s
+           } else {
+              console.warn(`[Gallery Mobile] Error loading model ${item.model_url}:`, error);
+           }
         });
       }
     };

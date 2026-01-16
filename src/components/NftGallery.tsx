@@ -393,6 +393,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const gltfLoader = new GLTFLoader();
 
       for (const item of furnitureItems) {
+        if (!item.model_url) continue;
+
+        // Skip loading if the URL doesn't look like a valid model file to avoid 404/parsing errors
+        if (!item.model_url.toLowerCase().endsWith('.glb') && !item.model_url.toLowerCase().endsWith('.gltf')) {
+          console.warn(`[Gallery] Skipping non-GLTF model URL: ${item.model_url}`);
+          continue;
+        }
+
         gltfLoader.load(item.model_url, (gltf) => {
           let extractedModel: THREE.Object3D | null = null;
           
@@ -445,7 +453,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             scene.add(model);
           }
         }, undefined, (error) => {
-          console.error(`[Gallery] Error loading furniture model ${item.model_url}:`, error);
+          // Suppress parsing errors caused by HTML 404 pages (detected by "<!doctype" in error message)
+          if (error instanceof SyntaxError && error.message.includes('<!doctype')) {
+             console.warn(`[Gallery] Model file not found (404): ${item.model_url}`);
+          } else {
+             console.error(`[Gallery] Error loading furniture model ${item.model_url}:`, error);
+          }
         });
       }
     };
