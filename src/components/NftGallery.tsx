@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -380,6 +380,53 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
+
+    // Specific Sofa Loading
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let sofaMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !sofaMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          // Heuristic: Ensure it's not a giant environmental mesh (like a wall/floor)
+          if (size.x < 15 && size.z < 15) {
+            sofaMesh = child;
+          }
+        }
+      });
+
+      if (sofaMesh) {
+        const mesh = sofaMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        
+        // Scale to ~4.5m wide
+        const targetWidth = 4.5;
+        const scale = targetWidth / size.x;
+        
+        const sofaGroup = new THREE.Group();
+        sofaGroup.add(mesh);
+        mesh.scale.set(scale, scale, scale);
+        // Center the mesh within the group and set bottom edge to 0
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale,
+          - box.min.y * scale,
+          - (box.min.z + size.z / 2) * scale
+        );
+
+        // Place on the 1st floor platform around the center
+        const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
+        positions.forEach(pos => {
+          const instance = sofaGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          // Rotate to face the center
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }
+    });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
