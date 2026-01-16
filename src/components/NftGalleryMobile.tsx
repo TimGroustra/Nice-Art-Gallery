@@ -413,7 +413,16 @@ const NftGalleryMobile: React.FC = () => {
             });
           }
           
-          // 2. Fallback: Use the entire scene
+          // 2. Fallback: If no filter match, try to find the first non-root child that is a Mesh or Group
+          if (!extractedModel) {
+            gltf.scene.traverse((child) => {
+                if (child !== gltf.scene && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+                    if (!extractedModel) extractedModel = child;
+                }
+            });
+          }
+
+          // 3. Final Fallback: Use the entire scene
           if (!extractedModel) {
             extractedModel = gltf.scene;
           }
@@ -448,7 +457,7 @@ const NftGalleryMobile: React.FC = () => {
               floorHeight + item.position_y - bottomY, 
               item.position_z
             );
-            model.rotation.y = item.rotation_y;
+            model.rotation.y = item.rotation.y;
             
             scene.add(model);
           }

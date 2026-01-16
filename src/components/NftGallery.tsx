@@ -435,7 +435,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
             });
           }
           
-          // 2. Fallback: Use the entire scene
+          // 2. Fallback: If no filter match, try to find the first non-root child that is a Mesh or Group
+          if (!extractedModel) {
+            gltf.scene.traverse((child) => {
+                if (child !== gltf.scene && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+                    if (!extractedModel) extractedModel = child;
+                }
+            });
+          }
+
+          // 3. Final Fallback: Use the entire scene
           if (!extractedModel) {
             extractedModel = gltf.scene;
           }
