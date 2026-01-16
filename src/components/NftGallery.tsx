@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -380,73 +380,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
-
-    // Truly Agnostic Furniture Extractor
-    const gltfLoader = new GLTFLoader();
-
-    const extractAndPlaceModel = (url: string, positions: {x: number, z: number}[], floorY: number, targetWidth: number) => {
-      gltfLoader.load(url, (gltf) => {
-        const extractedGroup = new THREE.Group();
-        
-        // Content-Agnostic Heuristic:
-        // Filter out meshes that are likely environmental based on their dimensions.
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            
-            // Heuristic: If it's wider or taller than 15m, it's probably a wall, floor or ceiling.
-            const isEnvironment = size.x > 15 || size.z > 15 || size.y > 15;
-            
-            if (!isEnvironment) {
-              const clone = child.clone();
-              // Apply world transform to clone so it maintains relative position
-              child.updateWorldMatrix(true, false);
-              clone.applyMatrix4(child.matrixWorld);
-              extractedGroup.add(clone);
-            }
-          }
-        });
-
-        if (extractedGroup.children.length === 0) {
-          console.warn(`[AgnosticLoader] No suitable object found in ${url}. Falling back to full scene.`);
-          extractedGroup.add(gltf.scene.clone());
-        }
-
-        // Standardize the extracted object: Scale and re-center Y so bottom is at 0
-        const fullBox = new THREE.Box3().setFromObject(extractedGroup);
-        const fullSize = new THREE.Vector3();
-        fullBox.getSize(fullSize);
-        
-        const currentWidth = Math.max(fullSize.x, fullSize.z);
-        const scale = targetWidth / (currentWidth || 1);
-        extractedGroup.scale.set(scale, scale, scale);
-
-        // Calculate bottom offset after scaling
-        const scaledBox = new THREE.Box3().setFromObject(extractedGroup);
-        const bottomY = scaledBox.min.y;
-        const center = new THREE.Vector3();
-        scaledBox.getCenter(center);
-
-        positions.forEach(pos => {
-          const instance = extractedGroup.clone();
-          // Position relative to its own center but offset so bottom is at floorY
-          instance.position.set(pos.x - center.x * scale, floorY - bottomY, pos.z - center.z * scale);
-          
-          // Face center (0,0)
-          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(instance);
-        });
-      }, undefined, (err) => console.error(`[AgnosticLoader] Failed to load ${url}:`, err));
-    };
-
-    // Load assets using the agnostic logic
-    const sofaPos = [{ x: 0, z: 6.5 }, { x: 0, z: -6.5 }, { x: 6.5, z: 0 }, { x: -6.5, z: 0 }];
-    extractAndPlaceModel('/assets/models/sofa.glb', sofaPos, PLATFORM_Y + WALL_THICKNESS / 2, 4.5);
-
-    const tablePos = [{ x: 0, z: 3.5 }, { x: 0, z: -3.5 }, { x: 3.5, z: 0 }, { x: -3.5, z: 0 }];
-    extractAndPlaceModel('/assets/models/Wood_Table.glb', tablePos, PLATFORM_Y + WALL_THICKNESS / 2, 1.8);
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
