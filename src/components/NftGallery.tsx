@@ -381,62 +381,72 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading: Content-agnostic placement logic
+    // Truly Agnostic Furniture Extractor
     const gltfLoader = new GLTFLoader();
 
-    const placeModelInstances = (modelScene: THREE.Group, positions: {x: number, z: number}[], floorY: number, targetWidth: number) => {
-      // Use the whole scene group provided by GLTF loader
-      const box = new THREE.Box3().setFromObject(modelScene);
-      const size = new THREE.Vector3();
-      box.getSize(size);
-      
-      const currentWidth = Math.max(size.x, size.z);
-      const scale = targetWidth / (currentWidth || 1);
-      
-      // Vertical offset calculation to ensure bottom rests on floor
-      const bottomY = box.min.y;
+    const extractAndPlaceModel = (url: string, positions: {x: number, z: number}[], floorY: number, targetWidth: number) => {
+      gltfLoader.load(url, (gltf) => {
+        const extractedGroup = new THREE.Group();
+        
+        // Content-Agnostic Heuristic:
+        // Filter out meshes that are likely environmental based on their dimensions.
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3();
+            box.getSize(size);
+            
+            // Heuristic: If it's wider or taller than 15m, it's probably a wall, floor or ceiling.
+            const isEnvironment = size.x > 15 || size.z > 15 || size.y > 15;
+            
+            if (!isEnvironment) {
+              const clone = child.clone();
+              // Apply world transform to clone so it maintains relative position
+              child.updateWorldMatrix(true, false);
+              clone.applyMatrix4(child.matrixWorld);
+              extractedGroup.add(clone);
+            }
+          }
+        });
 
-      positions.forEach(pos => {
-        const instance = modelScene.clone();
-        instance.scale.set(scale, scale, scale);
+        if (extractedGroup.children.length === 0) {
+          console.warn(`[AgnosticLoader] No suitable object found in ${url}. Falling back to full scene.`);
+          extractedGroup.add(gltf.scene.clone());
+        }
+
+        // Standardize the extracted object: Scale and re-center Y so bottom is at 0
+        const fullBox = new THREE.Box3().setFromObject(extractedGroup);
+        const fullSize = new THREE.Vector3();
+        fullBox.getSize(fullSize);
         
-        // Adjust Y so the bottom of the bounding box rests on floorY
-        // We multiply bottomY by scale because the clone is scaled
-        instance.position.set(pos.x, floorY - (bottomY * scale), pos.z);
-        
-        // Point toward the center (0,0)
-        instance.rotation.y = Math.atan2(-pos.x, -pos.z);
-        scene.add(instance);
-      });
+        const currentWidth = Math.max(fullSize.x, fullSize.z);
+        const scale = targetWidth / (currentWidth || 1);
+        extractedGroup.scale.set(scale, scale, scale);
+
+        // Calculate bottom offset after scaling
+        const scaledBox = new THREE.Box3().setFromObject(extractedGroup);
+        const bottomY = scaledBox.min.y;
+        const center = new THREE.Vector3();
+        scaledBox.getCenter(center);
+
+        positions.forEach(pos => {
+          const instance = extractedGroup.clone();
+          // Position relative to its own center but offset so bottom is at floorY
+          instance.position.set(pos.x - center.x * scale, floorY - bottomY, pos.z - center.z * scale);
+          
+          // Face center (0,0)
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }, undefined, (err) => console.error(`[AgnosticLoader] Failed to load ${url}:`, err));
     };
 
-    // Load Sofas (Width ~4.5m)
-    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      const sofaPositions = [
-        { x: 0, z: 6.5 }, { x: 0, z: -6.5 }, { x: 6.5, z: 0 }, { x: -6.5, z: 0 }
-      ];
-      placeModelInstances(gltf.scene, sofaPositions, PLATFORM_Y + WALL_THICKNESS / 2, 4.5);
-    }, undefined, (e) => console.error("Error loading sofa.glb:", e));
+    // Load assets using the agnostic logic
+    const sofaPos = [{ x: 0, z: 6.5 }, { x: 0, z: -6.5 }, { x: 6.5, z: 0 }, { x: -6.5, z: 0 }];
+    extractAndPlaceModel('/assets/models/sofa.glb', sofaPos, PLATFORM_Y + WALL_THICKNESS / 2, 4.5);
 
-    // Load Wood Tables (Try both root and assets paths)
-    const tablePaths = ['/Wood_Table.glb', '/assets/models/Wood_Table.glb'];
-    let tableLoaded = false;
-    
-    const loadTable = (pathIndex: number) => {
-      if (pathIndex >= tablePaths.length || tableLoaded) return;
-      
-      gltfLoader.load(tablePaths[pathIndex], (gltf) => {
-        tableLoaded = true;
-        const tablePositions = [
-          { x: 0, z: 3.5 }, { x: 0, z: -3.5 }, { x: 3.5, z: 0 }, { x: -3.5, z: 0 }
-        ];
-        placeModelInstances(gltf.scene, tablePositions, PLATFORM_Y + WALL_THICKNESS / 2, 1.8);
-      }, undefined, (err) => {
-        console.warn(`Failed to load table from ${tablePaths[pathIndex]}, trying next...`);
-        loadTable(pathIndex + 1);
-      });
-    };
-    loadTable(0);
+    const tablePos = [{ x: 0, z: 3.5 }, { x: 0, z: -3.5 }, { x: 3.5, z: 0 }, { x: -3.5, z: 0 }];
+    extractAndPlaceModel('/assets/models/Wood_Table.glb', tablePos, PLATFORM_Y + WALL_THICKNESS / 2, 1.8);
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
