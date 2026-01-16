@@ -49,26 +49,6 @@ interface Panel {
   gifStopFunction: (() => void) | null;
 }
 
-/**
- * Safely disposes of the material and its texture map, unless it's a GIF texture
- * which is handled by its dedicated stop function.
- */
-const disposeMaterialAndTexture = (mesh: THREE.Mesh, isGif: boolean) => {
-  const material = mesh.material;
-  if (material instanceof THREE.MeshBasicMaterial) {
-    const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
-    
-    // Only dispose texture if it wasn't a GIF (GIF texture is disposed by gifStopFunction)
-    if (mat.map && !isGif) {
-      mat.map.dispose();
-      mat.map = null;
-    }
-    
-    // Always dispose the material
-    mat.dispose();
-  }
-};
-
 const rainbowVertexShader = `
   varying vec2 vUv;
   void main() {
@@ -100,6 +80,17 @@ const isVideoContent = (contentType: string, url: string) =>
 const isGifContent = (contentType: string, url: string) =>
   !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
+const disposeTextureSafely = (mesh: THREE.Mesh) => {
+  const material = mesh.material;
+  if (material instanceof THREE.MeshBasicMaterial) {
+    const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
+    if (mat.map) {
+      mat.map.dispose();
+      mat.map = null;
+    }
+    mat.dispose();
+  }
+};
 
 const NftGalleryMobile: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -139,7 +130,6 @@ const NftGalleryMobile: React.FC = () => {
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
 
-    // Cleanup existing resources before loading new ones
     if (panel.videoElement) {
       panel.videoElement.pause();
       panel.videoElement.src = '';
@@ -176,35 +166,10 @@ const NftGalleryMobile: React.FC = () => {
   }, []);
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
-    
-    // 1. Cleanup old resources (especially GIF/Video)
-    const wasGif = panel.isGif;
-    
-    if (panel.videoElement) {
-      panel.videoElement.pause();
-      panel.videoElement.removeAttribute('src');
-      panel.videoElement = null;
-    }
-    if (panel.gifStopFunction) {
-      // Stop function disposes the texture.
-      panel.gifStopFunction(); 
-      panel.gifStopFunction = null;
-      
-      // If it was a GIF, we must clear the map reference before disposing the material
-      if (panel.mesh.material instanceof THREE.MeshBasicMaterial) {
-          panel.mesh.material.map = null;
-      }
-    }
-    
-    // 2. Dispose old material (texture disposal handled above or inside disposeMaterialAndTexture if not GIF)
-    disposeMaterialAndTexture(panel.mesh, wasGif);
-    
-    // 3. Reset panel state and assign new default material
+    disposeTextureSafely(panel.mesh);
     panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x222222 });
     panel.metadataUrl = '';
-    panel.isVideo = false;
-    panel.isGif = false;
-
+    
     if (!source || source.contractAddress === '') return;
 
     const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
@@ -212,10 +177,6 @@ const NftGalleryMobile: React.FC = () => {
 
     try {
       const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
-      
-      // Dispose the temporary default material before assigning the new one
-      (panel.mesh.material as THREE.Material).dispose(); 
-      
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
@@ -227,8 +188,6 @@ const NftGalleryMobile: React.FC = () => {
       panel.nextArrow.visible = showArrows;
     } catch (e) {
       console.error(e);
-      // Dispose the temporary default material before assigning the error material
-      (panel.mesh.material as THREE.Material).dispose(); 
     }
   }, [loadTexture]);
 
@@ -359,7 +318,7 @@ const NftGalleryMobile: React.FC = () => {
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    const ceiling = new THREE.Mesh(floorGeo, rainbowMaterial.clone());
+    const ceiling = new THREE.Mesh(floorGeo, rainbowMaterial);
     ceiling.rotation.x = Math.PI / 2;
     ceiling.position.y = WALL_HEIGHT;
     scene.add(ceiling);
@@ -369,7 +328,7 @@ const NftGalleryMobile: React.FC = () => {
     platform.position.set(0, PLATFORM_Y_CALC, 0);
     scene.add(platform);
 
-    const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial.clone());
+    const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
     underPlatform.rotation.x = -Math.PI / 2;
     underPlatform.position.y = LOWER_WALL_HEIGHT;
     scene.add(underPlatform);
@@ -413,16 +372,7 @@ const NftGalleryMobile: React.FC = () => {
             });
           }
           
-          // 2. Fallback: If no filter match, try to find the first non-root child that is a Mesh or Group
-          if (!extractedModel) {
-            gltf.scene.traverse((child) => {
-                if (child !== gltf.scene && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-                    if (!extractedModel) extractedModel = child;
-                }
-            });
-          }
-
-          // 3. Final Fallback: Use the entire scene
+          // 2. Fallback: Use the entire scene
           if (!extractedModel) {
             extractedModel = gltf.scene;
           }
@@ -457,7 +407,7 @@ const NftGalleryMobile: React.FC = () => {
               floorHeight + item.position_y - bottomY, 
               item.position_z
             );
-            model.rotation.y = item.rotation.y;
+            model.rotation.y = item.rotation_y;
             
             scene.add(model);
           }
@@ -674,31 +624,6 @@ const NftGalleryMobile: React.FC = () => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('resize', onResize);
-      
-      // Proper cleanup sequence: stop GIF/Video, then dispose materials/textures
-      panelsRef.current.forEach(p => { 
-        p.videoElement?.pause(); 
-        if (p.gifStopFunction) {
-            p.gifStopFunction(); // Disposes texture
-            if (p.mesh.material instanceof THREE.MeshBasicMaterial) {
-                p.mesh.material.map = null; // Clear map reference
-            }
-        }
-        disposeMaterialAndTexture(p.mesh, p.isGif); 
-      });
-      
-      // Dispose other materials (walls, floor, ceiling, buttons)
-      scene.traverse((object) => {
-        if (object instanceof THREE.Mesh) {
-          if (object.geometry) object.geometry.dispose();
-          if (Array.isArray(object.material)) {
-            object.material.forEach(m => m.dispose());
-          } else if (object.material) {
-            object.material.dispose();
-          }
-        }
-      });
-      
       mountRef.current?.removeChild(renderer.domElement);
     };
   }, [updatePanelContent, checkCollision]);
