@@ -400,7 +400,7 @@ const NftGalleryMobile: React.FC = () => {
     });
 
     // Specific Table Loading
-    gltfLoader.load('/assets/models/table.glb', (gltf) => {
+    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
       let tableMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
         if (child instanceof THREE.Mesh && !tableMesh) {
