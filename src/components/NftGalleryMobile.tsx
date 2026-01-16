@@ -9,6 +9,8 @@ import {
   getCurrentNftSource,
   updatePanelIndex,
   PanelConfig,
+  GALLERY_FURNITURE_CONFIG,
+  FurnitureConfig,
 } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
@@ -87,6 +89,67 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
     mat.dispose();
   }
 };
+
+/**
+ * Loads 3D furniture models based on configuration and adds them to the scene.
+ */
+const loadFurniture = (scene: THREE.Scene, gltfLoader: GLTFLoader, furnitureConfigs: FurnitureConfig[]) => {
+  const configsByModelUrl = furnitureConfigs.reduce((acc, cfg) => {
+    if (!acc[cfg.model_url]) acc[cfg.model_url] = [];
+    acc[cfg.model_url].push(cfg);
+    return acc;
+  }, {} as Record<string, FurnitureConfig[]>);
+
+  Object.entries(configsByModelUrl).forEach(([modelUrl, configs]) => {
+    gltfLoader.load(modelUrl, (gltf) => {
+      let mesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !mesh) {
+          mesh = child;
+        }
+      });
+
+      if (!mesh) {
+        console.warn(`[Gallery Mobile] Could not find primary mesh in GLTF for ${modelUrl}`);
+        return;
+      }
+
+      // 1. Create a base group containing the mesh
+      const baseGroup = new THREE.Group();
+      baseGroup.add(mesh);
+      
+      // 2. Calculate original bounding box for scaling/positioning reference
+      const box = new THREE.Box3().setFromObject(mesh);
+      const size = new THREE.Vector3(); box.getSize(size);
+      
+      // 3. Instantiate all configurations for this model
+      configs.forEach(instanceCfg => {
+        const instance = baseGroup.clone();
+        
+        const targetWidth = instanceCfg.target_width || 4.5;
+        const scaleFactor = targetWidth / size.x;
+        
+        // Apply scale multiplier from config
+        const finalScale = scaleFactor * instanceCfg.scale_multiplier;
+        
+        instance.scale.set(finalScale, finalScale, finalScale);
+        
+        // Adjust position to sit on the floor (Y position is relative to the model's bounding box min Y)
+        // instanceCfg.position_y is the floor level (0 or 8.26)
+        instance.position.set(
+          instanceCfg.position_x, 
+          instanceCfg.position_y - box.min.y * finalScale, 
+          instanceCfg.position_z
+        );
+        instance.rotation.y = instanceCfg.rotation_y;
+        scene.add(instance);
+      });
+    }, undefined, (error) => {
+      console.error(`[Gallery Mobile] Error loading GLTF model ${modelUrl}:`, error);
+    });
+  });
+};
+
 
 const NftGalleryMobile: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -350,92 +413,16 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Furniture loading: Sofa with increased height
     const gltfLoader = new GLTFLoader();
-    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
-        }
-      });
-      
-      if (!extractedSofa) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedSofa) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 15 && size.z < 15) extractedSofa = child;
-          }
-        });
-      }
-
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(sofaModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.z);
-        const scale = 4.5 / maxDim;
-        
-        // Applying double height scale
-        sofaModel.scale.set(scale, scale * 2, scale);
-        
-        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
-        const bottomY = adjustedBox.min.y;
-
-        const sofaPositions = [
-          { x: 0, z: 4.5 },
-          { x: 0, z: -4.5 },
-          { x: 4.5, z: 0 },
-          { x: -4.5, z: 0 },
-        ];
-
-        sofaPositions.forEach(pos => {
-          const sofa = sofaModel.clone();
-          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(sofa);
-        });
-      }
-    });
-
-    // Specific Table Loading
-    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
-      let tableMesh: THREE.Mesh | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !tableMesh) {
-          const box = new THREE.Box3().setFromObject(child);
-          const size = new THREE.Vector3(); box.getSize(size);
-          if (size.x < 15 && size.z < 15) {
-            tableMesh = child;
-          }
-        }
-      });
-
-      if (tableMesh) {
-        const mesh = tableMesh as THREE.Mesh;
-        mesh.geometry.computeBoundingBox();
-        const box = mesh.geometry.boundingBox!;
-        const size = new THREE.Vector3(); box.getSize(size);
-        const targetWidth = 2.0;
-        const scale = targetWidth / size.x;
-        const tableGroup = new THREE.Group();
-        tableGroup.add(mesh);
-        mesh.scale.set(scale, scale, scale);
-        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
-
-        const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
-        positions.forEach(pos => {
-          const instance = tableGroup.clone();
-          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-          scene.add(instance);
-        });
-      }
-    });
+    
+    // --- Furniture Loading ---
+    loadFurniture(scene, gltfLoader, GALLERY_FURNITURE_CONFIG);
 
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
+      loadFurniture(scene, gltfLoader, GALLERY_FURNITURE_CONFIG); // Re-run after config is initialized
+      
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
       const arrowShape = new THREE.Shape();
       arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);

@@ -15,6 +15,19 @@ export interface PanelConfig {
   [wallName: string]: NftCollection;
 }
 
+export interface FurnitureConfig {
+  id: string;
+  model_url: string;
+  name: string | null;
+  position_x: number;
+  position_y: number;
+  position_z: number;
+  rotation_y: number;
+  scale_multiplier: number;
+  target_width: number;
+  floor_level: 'ground' | 'first';
+}
+
 const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
 
 // Default colors for the new theme (Deep Purple and Bright Yellow)
@@ -27,6 +40,7 @@ const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
 const NUM_SEGMENTS_TO_USE = 5;
 
 let galleryConfig: PanelConfig = {};
+export let GALLERY_FURNITURE_CONFIG: FurnitureConfig[] = [];
 
 const createBlankPanel = (): NftCollection => ({
   name: 'Loading...',
@@ -77,6 +91,7 @@ for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
 
 // Function to initialize the gallery configuration from Supabase
 export async function initializeGalleryConfig() {
+  // 1. Fetch Panel Config
   const { data: dbConfigs, error } = await supabase.from('gallery_config').select('*');
 
   if (error) {
@@ -92,90 +107,112 @@ export async function initializeGalleryConfig() {
         text_color: DEFAULT_TEXT_COLOR
       };
     }
-    return;
-  }
+  } else {
+    const dbConfigMap = new Map<string, any>();
+    dbConfigs.forEach(item => dbConfigMap.set(item.panel_key, item));
 
-  const dbConfigMap = new Map<string, any>();
-  dbConfigs.forEach(item => dbConfigMap.set(item.panel_key, item));
+    const uniqueContracts = Array.from(
+      new Set(
+        dbConfigs
+          .map(c => c.contract_address)
+          .filter((addr): addr is string => !!addr && addr.trim() !== '')
+      )
+    );
 
-  const uniqueContracts = Array.from(
-    new Set(
-      dbConfigs
-        .map(c => c.contract_address)
-        .filter((addr): addr is string => !!addr && addr.trim() !== '')
-    )
-  );
-
-  const tokenMap: { [contractAddress: string]: number[] } = {};
-  for (const address of uniqueContracts) {
-    if (address === ETN_VIDEO_NFT_ADDRESS) {
-      tokenMap[address] = [1];
-      continue;
-    }
-    
-    // Safer fallback if fetching total supply fails
-    const SAFE_DEFAULT_SUPPLY = 5;
-    let total = SAFE_DEFAULT_SUPPLY;
-    
-    try {
-      const totalSupply = await fetchTotalSupply(address);
-      total = totalSupply ?? SAFE_DEFAULT_SUPPLY;
-    } catch (e) {
-      if (import.meta.env.DEV) console.warn(`Failed to get total supply for ${address}. Using fallback ${SAFE_DEFAULT_SUPPLY}.`, e);
-    }
-    
-    total = Math.max(1, total);
-    tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
-  }
-
-  for (const panelKey in galleryConfig) {
-    const configFromDb = dbConfigMap.get(panelKey);
-
-    if (configFromDb && configFromDb.contract_address) {
-      const contractAddress = configFromDb.contract_address;
-      const defaultTokenId = configFromDb.default_token_id || 1;
-      const showCollection = configFromDb.show_collection ?? true;
-
-      let tokens: number[];
+    const tokenMap: { [contractAddress: string]: number[] } = {};
+    for (const address of uniqueContracts) {
+      if (address === ETN_VIDEO_NFT_ADDRESS) {
+        tokenMap[address] = [1];
+        continue;
+      }
       
-      if (showCollection) {
-        tokens = tokenMap[contractAddress] || [defaultTokenId];
+      // Safer fallback if fetching total supply fails
+      const SAFE_DEFAULT_SUPPLY = 5;
+      let total = SAFE_DEFAULT_SUPPLY;
+      
+      try {
+        const totalSupply = await fetchTotalSupply(address);
+        total = totalSupply ?? SAFE_DEFAULT_SUPPLY;
+      } catch (e) {
+        if (import.meta.env.DEV) console.warn(`Failed to get total supply for ${address}. Using fallback ${SAFE_DEFAULT_SUPPLY}.`, e);
+      }
+      
+      total = Math.max(1, total);
+      tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
+    }
+
+    for (const panelKey in galleryConfig) {
+      const configFromDb = dbConfigMap.get(panelKey);
+
+      if (configFromDb && configFromDb.contract_address) {
+        const contractAddress = configFromDb.contract_address;
+        const defaultTokenId = configFromDb.default_token_id || 1;
+        const showCollection = configFromDb.show_collection ?? true;
+
+        let tokens: number[];
+        
+        if (showCollection) {
+          tokens = tokenMap[contractAddress] || [defaultTokenId];
+        } else {
+          tokens = [defaultTokenId];
+        }
+        
+        const validTokens = tokens.filter(tokenId => {
+          const maxToken = tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId;
+          return tokenId >= 1 && tokenId <= maxToken;
+        });
+        
+        if (validTokens.length === 0 && defaultTokenId >= 1 && defaultTokenId <= (tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId)) {
+          validTokens.push(defaultTokenId);
+        }
+        
+        const tokensToUse = validTokens.length > 0 ? validTokens : [defaultTokenId];
+        const startIndex = Math.max(0, tokensToUse.indexOf(defaultTokenId));
+
+        galleryConfig[panelKey] = {
+          name: configFromDb.collection_name || 'Unnamed Collection',
+          contractAddress,
+          tokenIds: tokensToUse,
+          currentIndex: startIndex,
+          show_collection: showCollection,
+          wall_color: configFromDb.wall_color || DEFAULT_WALL_COLOR,
+          text_color: configFromDb.text_color || DEFAULT_TEXT_COLOR,
+        };
       } else {
-        tokens = [defaultTokenId];
+        galleryConfig[panelKey] = {
+          name: 'Blank Panel',
+          contractAddress: '',
+          tokenIds: [],
+          currentIndex: 0,
+          show_collection: true,
+          wall_color: DEFAULT_WALL_COLOR,
+          text_color: DEFAULT_TEXT_COLOR,
+        };
       }
-      
-      const validTokens = tokens.filter(tokenId => {
-        const maxToken = tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId;
-        return tokenId >= 1 && tokenId <= maxToken;
-      });
-      
-      if (validTokens.length === 0 && defaultTokenId >= 1 && defaultTokenId <= (tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId)) {
-        validTokens.push(defaultTokenId);
-      }
-      
-      const tokensToUse = validTokens.length > 0 ? validTokens : [defaultTokenId];
-      const startIndex = Math.max(0, tokensToUse.indexOf(defaultTokenId));
-
-      galleryConfig[panelKey] = {
-        name: configFromDb.collection_name || 'Unnamed Collection',
-        contractAddress,
-        tokenIds: tokensToUse,
-        currentIndex: startIndex,
-        show_collection: showCollection,
-        wall_color: configFromDb.wall_color || DEFAULT_WALL_COLOR,
-        text_color: configFromDb.text_color || DEFAULT_TEXT_COLOR,
-      };
-    } else {
-      galleryConfig[panelKey] = {
-        name: 'Blank Panel',
-        contractAddress: '',
-        tokenIds: [],
-        currentIndex: 0,
-        show_collection: true,
-        wall_color: DEFAULT_WALL_COLOR,
-        text_color: DEFAULT_TEXT_COLOR,
-      };
     }
+  }
+
+  // 2. Fetch Furniture Config
+  const { data: furnitureData, error: furnitureError } = await supabase
+    .from('gallery_furniture')
+    .select('*');
+
+  if (furnitureError) {
+    if (import.meta.env.DEV) console.error("Failed to fetch gallery furniture from Supabase:", furnitureError);
+    GALLERY_FURNITURE_CONFIG = [];
+  } else {
+    GALLERY_FURNITURE_CONFIG = furnitureData.map(item => ({
+      id: item.id,
+      model_url: item.model_url,
+      name: item.name,
+      position_x: item.position_x || 0,
+      position_y: item.position_y || 0,
+      position_z: item.position_z || 0,
+      rotation_y: item.rotation_y || 0,
+      scale_multiplier: item.scale_multiplier || 1.0,
+      target_width: item.target_width || 4.5,
+      floor_level: item.floor_level || 'ground',
+    }));
   }
 
   if (import.meta.env.DEV) console.log(`Gallery configuration fully initialized from Supabase.`);
