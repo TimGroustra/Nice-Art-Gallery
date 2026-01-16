@@ -416,15 +416,27 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         { x: 0, z: 6.5 }, { x: 0, z: -6.5 }, { x: 6.5, z: 0 }, { x: -6.5, z: 0 }
       ];
       placeModelInstances(gltf.scene, sofaPositions, PLATFORM_Y + WALL_THICKNESS / 2, 4.5);
-    });
+    }, undefined, (e) => console.error("Error loading sofa.glb:", e));
 
-    // Load Wood Tables (Width ~1.8m, placed in front of sofas)
-    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
-      const tablePositions = [
-        { x: 0, z: 3.5 }, { x: 0, z: -3.5 }, { x: 3.5, z: 0 }, { x: -3.5, z: 0 }
-      ];
-      placeModelInstances(gltf.scene, tablePositions, PLATFORM_Y + WALL_THICKNESS / 2, 1.8);
-    });
+    // Load Wood Tables (Try both root and assets paths)
+    const tablePaths = ['/Wood_Table.glb', '/assets/models/Wood_Table.glb'];
+    let tableLoaded = false;
+    
+    const loadTable = (pathIndex: number) => {
+      if (pathIndex >= tablePaths.length || tableLoaded) return;
+      
+      gltfLoader.load(tablePaths[pathIndex], (gltf) => {
+        tableLoaded = true;
+        const tablePositions = [
+          { x: 0, z: 3.5 }, { x: 0, z: -3.5 }, { x: 3.5, z: 0 }, { x: -3.5, z: 0 }
+        ];
+        placeModelInstances(gltf.scene, tablePositions, PLATFORM_Y + WALL_THICKNESS / 2, 1.8);
+      }, undefined, (err) => {
+        console.warn(`Failed to load table from ${tablePaths[pathIndex]}, trying next...`);
+        loadTable(pathIndex + 1);
+      });
+    };
+    loadTable(0);
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
