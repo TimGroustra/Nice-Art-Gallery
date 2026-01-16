@@ -381,15 +381,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Specific Sofa Loading
     const gltfLoader = new GLTFLoader();
+
+    // Specific Sofa Loading
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let sofaMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
         if (child instanceof THREE.Mesh && !sofaMesh) {
           const box = new THREE.Box3().setFromObject(child);
           const size = new THREE.Vector3(); box.getSize(size);
-          // Heuristic: Ensure it's not a giant environmental mesh (like a wall/floor)
           if (size.x < 15 && size.z < 15) {
             sofaMesh = child;
           }
@@ -401,28 +401,53 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         mesh.geometry.computeBoundingBox();
         const box = mesh.geometry.boundingBox!;
         const size = new THREE.Vector3(); box.getSize(size);
-        
-        // Scale to ~4.5m wide
         const targetWidth = 4.5;
         const scale = targetWidth / size.x;
-        
         const sofaGroup = new THREE.Group();
         sofaGroup.add(mesh);
         mesh.scale.set(scale, scale, scale);
-        // Center the mesh within the group and set bottom edge to 0
-        mesh.position.set(
-          - (box.min.x + size.x / 2) * scale,
-          - box.min.y * scale,
-          - (box.min.z + size.z / 2) * scale
-        );
+        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
 
-        // Place on the 1st floor platform around the center
         const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
         positions.forEach(pos => {
           const instance = sofaGroup.clone();
           instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-          // Rotate to face the center
           instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }
+    });
+
+    // Specific Table Loading
+    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
+      let tableMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !tableMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            tableMesh = child;
+          }
+        }
+      });
+
+      if (tableMesh) {
+        const mesh = tableMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 2.0;
+        const scale = targetWidth / size.x;
+        const tableGroup = new THREE.Group();
+        tableGroup.add(mesh);
+        mesh.scale.set(scale, scale, scale);
+        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
+
+        // Position tables in the diagonal corners of the 1st floor platform
+        const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
+        positions.forEach(pos => {
+          const instance = tableGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
           scene.add(instance);
         });
       }
