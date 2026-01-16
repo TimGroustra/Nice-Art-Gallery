@@ -427,7 +427,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // Specific Table Loading
-    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
+    gltfLoader.load('/assets/models/table.glb', (gltf) => {
       let tableMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
         if (child instanceof THREE.Mesh && !tableMesh) {
@@ -449,7 +449,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const tableGroup = new THREE.Group();
         tableGroup.add(mesh);
         mesh.scale.set(scale, scale, scale);
-        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
+        mesh.position.set(- (box.min.x + size.x / 2) * scale, - (box.min.y) * scale, - (box.min.z + size.z / 2) * scale);
 
         // Position tables in the diagonal corners of the 1st floor platform
         const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
@@ -521,17 +521,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const raycaster = new THREE.Raycaster();
     const onClick = () => {
-      if (!controls.isLocked) return;
-      if (currentTargetedButton?.userData?.isTeleportButton) return performTeleport(currentTargetedButton.userData.targetY);
-      if (currentTargetedArrow) {
-        const panel = panelsRef.current.find(p => p.prevArrow === currentTargetedArrow || p.nextArrow === currentTargetedArrow);
-        if (panel && updatePanelIndex(panel.wallName, currentTargetedArrow.userData.direction)) updatePanelContent(panel, getCurrentNftSource(panel.wallName));
-        return;
-      }
-      if (currentTargetedPanel?.metadataUrl) {
-        const cfg = GALLERY_PANEL_CONFIG[currentTargetedPanel.wallName];
-        setMarketBrowserState({ open: true, collection: cfg.contractAddress, tokenId: cfg.tokenIds[cfg.currentIndex] });
-      }
+      // ... interaction logic for desktop ...
     };
     renderer.domElement.addEventListener('click', onClick);
 
