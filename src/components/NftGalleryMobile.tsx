@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
+import { GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -12,12 +12,9 @@ import {
 } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
-import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 import { Footprints } from 'lucide-react';
-
-RectAreaLightUniformsLib.init();
 
 // Constants for geometry
 const PANEL_WIDTH = 6;
@@ -138,9 +135,13 @@ const NftGalleryMobile: React.FC = () => {
     }
 
     if (isGif) {
-      const { texture, stop } = await createGifTexture(url);
-      panel.gifStopFunction = stop;
-      return texture;
+      try {
+        const { texture, stop } = await createGifTexture(url);
+        panel.gifStopFunction = stop;
+        return texture;
+      } catch (e) {
+        console.error('GIF load fail:', e);
+      }
     }
 
     if (isVideo) {
@@ -152,12 +153,13 @@ const NftGalleryMobile: React.FC = () => {
       videoEl.crossOrigin = 'anonymous';
       videoEl.src = url;
       panel.videoElement = videoEl;
-      const videoTexture = new THREE.VideoTexture(videoEl);
-      return videoTexture;
+      return new THREE.VideoTexture(videoEl);
     }
 
     return new Promise((resolve, reject) => {
-      new THREE.TextureLoader().setCrossOrigin('anonymous').load(url, resolve, undefined, reject);
+      const loader = new THREE.TextureLoader();
+      loader.setCrossOrigin('anonymous');
+      loader.load(url, (tex) => resolve(tex), undefined, (err) => reject(err));
     });
   }, []);
 
@@ -168,11 +170,12 @@ const NftGalleryMobile: React.FC = () => {
     
     if (!source || source.contractAddress === '') return;
 
-    const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-    if (!metadata) return;
-
     try {
+      const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+      if (!metadata) return;
+
       const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
+      disposeTextureSafely(panel.mesh);
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
@@ -183,7 +186,7 @@ const NftGalleryMobile: React.FC = () => {
       panel.prevArrow.visible = showArrows;
       panel.nextArrow.visible = showArrows;
     } catch (e) {
-      console.error(e);
+      console.error('Mobile panel update error:', e);
     }
   }, [loadTexture]);
 
@@ -212,23 +215,15 @@ const NftGalleryMobile: React.FC = () => {
       const crossPoints = [-10, 10];
       const innerBoundary = 5.0;
 
-      // Check N/S inner walls
       for (const cp of crossPoints) {
-        // North segments
         if (Math.abs(pos.z - (-innerBoundary)) < wallThick && Math.abs(pos.x - cp) < wallHalfLen) return true;
-        // South segments
         if (Math.abs(pos.z - innerBoundary) < wallThick && Math.abs(pos.x - cp) < wallHalfLen) return true;
       }
-
-      // Check E/W inner walls
       for (const cp of crossPoints) {
-        // East segments
         if (Math.abs(pos.x - innerBoundary) < wallThick && Math.abs(pos.z - cp) < wallHalfLen) return true;
-        // West segments
         if (Math.abs(pos.x - (-innerBoundary)) < wallThick && Math.abs(pos.z - cp) < wallHalfLen) return true;
       }
     }
-    
     return false;
   }, []);
 
@@ -244,10 +239,10 @@ const NftGalleryMobile: React.FC = () => {
     camera.position.set(0, 1.6, 20);
     camera.rotation.order = 'YXZ';
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
     rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     mountRef.current.appendChild(renderer.domElement);
 
     scene.add(new THREE.AmbientLight(0x404050, 1.0));
@@ -255,50 +250,26 @@ const NftGalleryMobile: React.FC = () => {
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
 
-    const wallMaterial = new THREE.MeshStandardMaterial({
-      color: 0x666666,
-      roughness: 0.8,
-      metalness: 0.1,
-    });
-
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
     const halfRoomSize = ROOM_SIZE / 2;
     const outerWallGeometry = new THREE.BoxGeometry(ROOM_SIZE + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS);
-    const halfWallHeight = WALL_HEIGHT / 2;
 
     ['north', 'south', 'east', 'west'].forEach((dir) => {
       const wall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
-      if (dir === 'north') wall.position.set(0, halfWallHeight, -halfRoomSize);
-      if (dir === 'south') wall.position.set(0, halfWallHeight, halfRoomSize);
-      if (dir === 'east') {
-        wall.rotation.y = Math.PI / 2;
-        wall.position.set(halfRoomSize, halfWallHeight, 0);
-      }
-      if (dir === 'west') {
-        wall.rotation.y = Math.PI / 2;
-        wall.position.set(-halfRoomSize, halfWallHeight, 0);
-      }
+      if (dir === 'north') wall.position.set(0, WALL_HEIGHT/2, -halfRoomSize);
+      if (dir === 'south') wall.position.set(0, WALL_HEIGHT/2, halfRoomSize);
+      if (dir === 'east') { wall.rotation.y = Math.PI / 2; wall.position.set(halfRoomSize, WALL_HEIGHT/2, 0); }
+      if (dir === 'west') { wall.rotation.y = Math.PI / 2; wall.position.set(-halfRoomSize, WALL_HEIGHT/2, 0); }
       scene.add(wall);
     });
 
     const crossWallGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
-    const CROSS_WALL_BOUNDARY = 5;
     const crossWallSegments = [-10, 10];
-
-    crossWallSegments.forEach((segmentCenter) => {
-      const w1 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
-      w1.position.set(segmentCenter, LOWER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
-      scene.add(w1);
-      const w2 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
-      w2.position.set(segmentCenter, LOWER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
-      scene.add(w2);
-      const w3 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
-      w3.rotation.y = Math.PI / 2;
-      w3.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_HEIGHT / 2, segmentCenter);
-      scene.add(w3);
-      const w4 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
-      w4.rotation.y = Math.PI / 2;
-      w4.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_HEIGHT / 2, segmentCenter);
-      scene.add(w4);
+    crossWallSegments.forEach((sc) => {
+      const w1 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w1.position.set(sc, LOWER_WALL_HEIGHT / 2, -5); scene.add(w1);
+      const w2 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w2.position.set(sc, LOWER_WALL_HEIGHT / 2, 5); scene.add(w2);
+      const w3 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w3.rotation.y = Math.PI / 2; w3.position.set(-5, LOWER_WALL_HEIGHT / 2, sc); scene.add(w3);
+      const w4 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w4.rotation.y = Math.PI / 2; w4.position.set(5, LOWER_WALL_HEIGHT / 2, sc); scene.add(w4);
     });
 
     const rainbowMaterial = new THREE.ShaderMaterial({
@@ -308,196 +279,60 @@ const NftGalleryMobile: React.FC = () => {
       side: THREE.DoubleSide
     });
 
-    const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
-    const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.1 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
-
-    const ceiling = new THREE.Mesh(floorGeo, rainbowMaterial);
-    ceiling.rotation.x = Math.PI / 2;
-    ceiling.position.y = WALL_HEIGHT;
-    scene.add(ceiling);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), new THREE.MeshStandardMaterial({ color: 0x0a0a0a }));
+    floor.rotation.x = -Math.PI / 2; scene.add(floor);
+    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
+    ceiling.rotation.x = Math.PI / 2; ceiling.position.y = WALL_HEIGHT; scene.add(ceiling);
 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
     const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
-    platform.position.set(0, PLATFORM_Y, 0);
-    scene.add(platform);
-
+    platform.position.set(0, PLATFORM_Y, 0); scene.add(platform);
     const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
-    underPlatform.rotation.x = -Math.PI / 2;
-    underPlatform.position.y = LOWER_WALL_HEIGHT;
-    scene.add(underPlatform);
+    underPlatform.rotation.x = -Math.PI / 2; underPlatform.position.y = LOWER_WALL_HEIGHT; scene.add(underPlatform);
 
-    const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
-    const buttonGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.2, 32);
-    const buttonMat = new THREE.MeshStandardMaterial({
-      color: TELEPORT_BUTTON_COLOR,
-      emissive: TELEPORT_BUTTON_COLOR,
-      emissiveIntensity: 0.5,
-      roughness: 0.1,
-      metalness: 0.9,
-    });
-
-    const gBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    gBtn.position.set(0, 0.2, 0);
-    gBtn.userData = { isTeleportButton: true, targetY: PLATFORM_Y + 1.6 + WALL_THICKNESS / 2 };
-    scene.add(gBtn);
-
-    const uBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    uBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.1, 0);
-    uBtn.userData = { isTeleportButton: true, targetY: 1.6 };
-    scene.add(uBtn);
+    const buttonMat = new THREE.MeshStandardMaterial({ color: 0x1a3f7c, emissive: 0x1a3f7c, emissiveIntensity: 0.5 });
+    const gBtn = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 32), buttonMat.clone());
+    gBtn.position.set(0, 0.2, 0); gBtn.userData = { isTeleportButton: true, targetY: PLATFORM_Y + 1.6 + WALL_THICKNESS / 2 }; scene.add(gBtn);
+    const uBtn = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.2, 32), buttonMat.clone());
+    uBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.1, 0); uBtn.userData = { isTeleportButton: true, targetY: 1.6 }; scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
-
-    // Furniture loading: Extract JUST the sofa part from the GLB
-    const gltfLoader = new GLTFLoader();
-    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      
-      // Traverse to find an object with 'sofa' in the name
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
-        }
-      });
-      
-      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
-      if (!extractedSofa) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedSofa) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 15 && size.z < 15) extractedSofa = child;
-          }
-        });
-      }
-
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
-        
-        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
-        const box = new THREE.Box3().setFromObject(sofaModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.z);
-        const scale = 4.5 / maxDim;
-        sofaModel.scale.set(scale, scale, scale);
-        
-        // Re-center Y position so it sits on floor
-        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
-        const bottomY = adjustedBox.min.y;
-
-        // Move sofas to the center 10x10 area around the teleportation button
-        const sofaPositions = [
-          { x: 0, z: 4.5 },
-          { x: 0, z: -4.5 },
-          { x: 4.5, z: 0 },
-          { x: -4.5, z: 0 },
-        ];
-
-        sofaPositions.forEach(pos => {
-          const sofa = sofaModel.clone();
-          // Place on the first floor platform (sitting exactly on the surface)
-          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          // Calculate rotation to face the center (0,0)
-          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(sofa);
-        });
-      }
-    });
 
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
-      const arrowShape = new THREE.Shape();
-      arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
+      const arrowShape = new THREE.Shape(); arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
       const arrowGeo = new THREE.ShapeGeometry(arrowShape);
       const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
-      const ARROW_PANEL_OFFSET = 3.2;
-
-      const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'] as const;
       const tempPanels: Panel[] = [];
 
       for (let i = 0; i <= 4; i++) {
-        for (const wallNameBase of WALL_NAMES) {
-          const segmentCenter = (i - 2) * ROOM_SEGMENT_SIZE;
-          const tiers: { y: number; suffix: '-ground' | '-first' }[] = [
-            { y: LOWER_PANEL_Y, suffix: '-ground' },
-            { y: UPPER_PANEL_Y, suffix: '-first' },
-          ];
-
-          for (const tier of tiers) {
-            const key = `${wallNameBase}-${i}${tier.suffix}` as keyof PanelConfig;
+        for (const base of ['north-wall', 'south-wall', 'east-wall', 'west-wall']) {
+          const sc = (i - 2) * ROOM_SEGMENT_SIZE;
+          for (const tier of [{ y: LOWER_PANEL_Y, s: '-ground' }, { y: UPPER_PANEL_Y, s: '-first' }]) {
             let x = 0, z = 0, rotY = 0, dx = 0, dz = 0;
-            if (wallNameBase === 'north-wall') { x = segmentCenter; z = -halfRoomSize; rotY = 0; dz = ARROW_DEPTH_OFFSET; }
-            if (wallNameBase === 'south-wall') { x = segmentCenter; z = halfRoomSize; rotY = Math.PI; dz = -ARROW_DEPTH_OFFSET; }
-            if (wallNameBase === 'east-wall') { x = halfRoomSize; z = segmentCenter; rotY = -Math.PI / 2; dx = -ARROW_DEPTH_OFFSET; }
-            if (wallNameBase === 'west-wall') { x = -halfRoomSize; z = segmentCenter; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
-
+            if (base === 'north-wall') { x = sc; z = -halfRoomSize; rotY = 0; dz = ARROW_DEPTH_OFFSET; }
+            if (base === 'south-wall') { x = sc; z = halfRoomSize; rotY = Math.PI; dz = -ARROW_DEPTH_OFFSET; }
+            if (base === 'east-wall') { x = halfRoomSize; z = sc; rotY = -Math.PI / 2; dx = -ARROW_DEPTH_OFFSET; }
+            if (base === 'west-wall') { x = -halfRoomSize; z = sc; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
             const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
-            mesh.position.set(x + dx, tier.y, z + dz);
-            mesh.rotation.y = rotY;
-            scene.add(mesh);
-
-            const wallRotation = new THREE.Euler(0, rotY, 0, 'XYZ');
-            const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-
-            const prevArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
-            prevArrow.rotation.y = rotY + Math.PI;
-            prevArrow.position.copy(mesh.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
-            scene.add(prevArrow);
-
-            const nextArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
-            nextArrow.rotation.y = rotY;
-            nextArrow.position.copy(mesh.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
-            scene.add(nextArrow);
-
-            const p: Panel = { mesh, wallName: key, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
-            tempPanels.push(p);
-            panelsRef.current.push(p);
+            mesh.position.set(x + dx, tier.y, z + dz); mesh.rotation.y = rotY; scene.add(mesh);
+            const rv = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, rotY, 0));
+            const pa = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            pa.rotation.y = rotY + Math.PI; pa.position.copy(mesh.position).addScaledVector(rv, -3.2); scene.add(pa);
+            const na = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            na.rotation.y = rotY; na.position.copy(mesh.position).addScaledVector(rv, 3.2); scene.add(na);
+            const p = { mesh, wallName: `${base}-${i}${tier.s}` as any, metadataUrl: '', isVideo: false, isGif: false, prevArrow: pa, nextArrow: na, videoElement: null, gifStopFunction: null };
+            tempPanels.push(p); panelsRef.current.push(p);
           }
         }
       }
-
-      crossWallSegments.forEach((sc, idx) => {
-        const configs = [
-          { key: `north-inner-wall-outer-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET], rot: Math.PI },
-          { key: `north-inner-wall-inner-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET], rot: 0 },
-          { key: `south-inner-wall-outer-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET], rot: 0 },
-          { key: `south-inner-wall-inner-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET], rot: Math.PI },
-          { key: `east-inner-wall-outer-${idx}`, pos: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: Math.PI / 2 },
-          { key: `east-inner-wall-inner-${idx}`, pos: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: -Math.PI / 2 },
-          { key: `west-inner-wall-outer-${idx}`, pos: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: -Math.PI / 2 },
-          { key: `west-inner-wall-inner-${idx}`, pos: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: Math.PI / 2 },
-        ];
-        configs.forEach(cfg => {
-          const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
-          mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
-          mesh.rotation.y = cfg.rot;
-          scene.add(mesh);
-          const wallRotation = new THREE.Euler(0, cfg.rot, 0, 'XYZ');
-          const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
-          const prevArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
-          prevArrow.rotation.y = cfg.rot + Math.PI;
-          prevArrow.position.copy(mesh.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
-          scene.add(prevArrow);
-          const nextArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
-          nextArrow.rotation.y = cfg.rot;
-          nextArrow.position.copy(mesh.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
-          scene.add(nextArrow);
-          const p: Panel = { mesh, wallName: cfg.key as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
-          tempPanels.push(p);
-          panelsRef.current.push(p);
-        });
-      });
-
-      // Stagger initial content loading
+      
+      // Load SEQUENTIALLY for mobile
       for (let i = 0; i < tempPanels.length; i++) {
         if (stopLoad) break;
-        const p = tempPanels[i];
-        updatePanelContent(p, getCurrentNftSource(p.wallName));
-        if (i % 3 === 0) await new Promise(resolve => setTimeout(resolve, 100));
+        await updatePanelContent(tempPanels[i], getCurrentNftSource(tempPanels[i].wallName));
+        if (i % 2 === 0) await new Promise(r => setTimeout(r, 60));
       }
     };
     createPanels();
@@ -505,44 +340,26 @@ const NftGalleryMobile: React.FC = () => {
     const fadeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false });
     fadeMaterialRef.current = fadeMaterial;
     const fadeScreen = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), fadeMaterial);
-    fadeScreen.renderOrder = 999;
-    fadeScreenRef.current = fadeScreen;
-    scene.add(fadeScreen);
+    fadeScreen.renderOrder = 999; scene.add(fadeScreen); fadeScreenRef.current = fadeScreen;
 
-    const handleTouchStart = (e: TouchEvent) => {
-      isDraggingRef.current = false;
-      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    };
+    const container = mountRef.current;
+    const handleTouchStart = (e: TouchEvent) => { isDraggingRef.current = false; touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
     const handleTouchMove = (e: TouchEvent) => {
       isDraggingRef.current = true;
-      const deltaX = e.touches[0].clientX - touchStartRef.current.x;
-      const deltaY = e.touches[0].clientY - touchStartRef.current.y;
-      
-      // Inverting rotations by using += instead of -=
-      rotationRef.current.yaw += deltaX * 0.005;
-      rotationRef.current.pitch += deltaY * 0.005;
-      
+      const dx = e.touches[0].clientX - touchStartRef.current.x; const dy = e.touches[0].clientY - touchStartRef.current.y;
+      rotationRef.current.yaw += dx * 0.005; rotationRef.current.pitch += dy * 0.005;
       rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
       touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
     const handleTouchEnd = (e: TouchEvent) => {
       if (!isDraggingRef.current) {
-        const touch = e.changedTouches[0];
-        const x = (touch.clientX / window.innerWidth) * 2 - 1;
-        const y = -(touch.clientY / window.innerHeight) * 2 + 1;
-        raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), camera);
-        const objects = [...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current];
-        const intersects = raycasterRef.current.intersectObjects(objects);
-        if (intersects.length > 0) {
-          const hit = intersects[0].object as THREE.Mesh;
-          
-          // Disable walking mode on any successful interaction
-          setIsWalking(false);
-
-          if (hit.userData.isTeleportButton) {
-            performTeleport(hit.userData.targetY);
-            return;
-          }
+        const touch = e.changedTouches[0]; const v = new THREE.Vector2((touch.clientX/window.innerWidth)*2-1, -(touch.clientY/window.innerHeight)*2+1);
+        raycasterRef.current.setFromCamera(v, camera);
+        const objs = [...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current];
+        const hits = raycasterRef.current.intersectObjects(objs);
+        if (hits.length > 0) {
+          const hit = hits[0].object as THREE.Mesh; setIsWalking(false);
+          if (hit.userData.isTeleportButton) { performTeleport(hit.userData.targetY); return; }
           const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
           if (p) {
             if (hit === p.prevArrow || hit === p.nextArrow) {
@@ -555,89 +372,51 @@ const NftGalleryMobile: React.FC = () => {
         }
       }
     };
-
-    const container = mountRef.current;
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchmove', handleTouchMove, { passive: true });
-    container.addEventListener('touchend', handleTouchEnd);
+    container.addEventListener('touchstart', handleTouchStart, { passive: true }); container.addEventListener('touchmove', handleTouchMove, { passive: true }); container.addEventListener('touchend', handleTouchEnd);
 
     let lastTime = performance.now();
     const animate = () => {
-      const time = performance.now();
-      const delta = (time - lastTime) * 0.001;
-      lastTime = time;
+      const time = performance.now(); const delta = (time - lastTime) * 0.001; lastTime = time;
       rainbowMaterial.uniforms.time.value = time * 0.001;
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
         if (isWalkingRef.current && !isTeleportingRef.current) {
-          const moveSpeed = 4.0; 
-          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-          forward.y = 0;
-          forward.normalize();
-          
-          const nextX = new THREE.Vector3(camera.position.x + forward.x * moveSpeed * delta, camera.position.y, camera.position.z);
-          if (!checkCollision(nextX)) camera.position.x = nextX.x;
-          
-          const nextZ = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z + forward.z * moveSpeed * delta);
-          if (!checkCollision(nextZ)) camera.position.z = nextZ.z;
+          const f = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); f.y = 0; f.normalize();
+          const nx = new THREE.Vector3(camera.position.x + f.x*4*delta, camera.position.y, camera.position.z); if (!checkCollision(nx)) camera.position.x = nx.x;
+          const nz = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z + f.z*4*delta); if (!checkCollision(nz)) camera.position.z = nz.z;
         }
-        if (fadeScreenRef.current) {
-          fadeScreenRef.current.position.copy(camera.position);
-          fadeScreenRef.current.quaternion.copy(camera.quaternion);
-        }
+        if (fadeScreenRef.current) { fadeScreenRef.current.position.copy(camera.position); fadeScreenRef.current.quaternion.copy(camera.quaternion); }
       }
       if (isTeleportingRef.current && fadeMaterialRef.current) {
-        const elapsed = (time - fadeStartTimeRef.current) / 1000;
-        const half = FADE_DURATION;
-        if (elapsed < half) fadeMaterialRef.current.opacity = elapsed / half;
-        else if (elapsed < 2 * half) fadeMaterialRef.current.opacity = 1 - (elapsed - half) / half;
+        const el = (time - fadeStartTimeRef.current)/1000;
+        if (el < FADE_DURATION) fadeMaterialRef.current.opacity = el / FADE_DURATION;
+        else if (el < 2*FADE_DURATION) fadeMaterialRef.current.opacity = 1 - (el-FADE_DURATION)/FADE_DURATION;
         else { fadeMaterialRef.current.opacity = 0; isTeleportingRef.current = false; }
       }
-      renderer.render(scene, camera);
-      requestAnimationFrame(animate);
+      renderer.render(scene, camera); requestAnimationFrame(animate);
     };
     animate();
-    const onResize = () => {
-      if (camera && renderer) {
-        camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-      }
-    };
+    const onResize = () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); };
     window.addEventListener('resize', onResize);
-    return () => {
-      stopLoad = true;
-      renderer.dispose();
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
-      window.removeEventListener('resize', onResize);
-      mountRef.current?.removeChild(renderer.domElement);
-    };
+    return () => { stopLoad = true; renderer.dispose(); container.removeEventListener('touchstart', handleTouchStart); container.removeEventListener('touchmove', handleTouchMove); container.removeEventListener('touchend', handleTouchEnd); window.removeEventListener('resize', onResize); mountRef.current?.removeChild(renderer.domElement); };
   }, [updatePanelContent, checkCollision]);
-
-  const handleStart = () => {
-    setIsStarted(true);
-    const bgm = (window as any).musicControls;
-    if (bgm && bgm.play) bgm.play();
-  };
 
   return (
     <div className="w-full h-full bg-black relative touch-none">
       <div ref={mountRef} className="w-full h-full touch-none" />
       {!isStarted && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-50 cursor-pointer" onClick={handleStart}>
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-2xl text-center max-w-xs animate-in fade-in zoom-in duration-300">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 z-50 cursor-pointer" onClick={() => setIsStarted(true)}>
+          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-8 rounded-2xl text-center max-w-xs">
             <h2 className="text-2xl font-bold text-white mb-4">Nice Art Gallery</h2>
             <p className="text-white/70 mb-6">Drag to look around, tap on panels to interact.</p>
-            <button className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-bold hover:scale-105 transition-transform">Enter Gallery</button>
+            <button className="bg-primary text-primary-foreground px-8 py-3 rounded-full font-bold">Enter Gallery</button>
           </div>
         </div>
       )}
       {isStarted && (
         <>
-          <div className="fixed bottom-4 left-4 right-4 text-white text-center pointer-events-none bg-black/40 p-2 rounded text-xs z-20">Drag to look around • Tap panels to interact</div>
-          <button onClick={() => setIsWalking(!isWalking)} className={`fixed bottom-16 right-6 p-4 rounded-full transition-all z-30 shadow-lg ${isWalking ? 'bg-primary text-primary-foreground scale-110' : 'bg-white/10 text-white backdrop-blur-md border border-white/20'}`}>
-            <Footprints className={`h-8 w-8 ${isWalking ? 'animate-pulse' : ''}`} />
+          <button onClick={() => setIsWalking(!isWalking)} className={`fixed bottom-16 right-6 p-4 rounded-full z-30 shadow-lg ${isWalking ? 'bg-primary text-primary-foreground' : 'bg-white/10 text-white backdrop-blur-md'}`}>
+            <Footprints className="h-8 w-8" />
           </button>
         </>
       )}

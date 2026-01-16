@@ -162,7 +162,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       return new Promise((resolve, reject) => {
         const loader = new THREE.TextureLoader();
         loader.setCrossOrigin('anonymous');
-        loader.load(url, resolve, undefined, reject);
+        loader.load(url, (tex) => resolve(tex), undefined, (err) => reject(err));
       });
     },
     [],
@@ -263,7 +263,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     cameraRef.current = camera;
     camera.position.set(0, 1.6, -20);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -381,19 +381,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading: Extract JUST the sofa part from the GLB
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let extractedSofa: THREE.Object3D | null = null;
-      
-      // Traverse to find an object with 'sofa' in the name
       gltf.scene.traverse((child) => {
         if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
           if (!extractedSofa) extractedSofa = child;
         }
       });
-      
-      // Fallback: If no name match, use the first mesh that isn't a giant wall/floor
       if (!extractedSofa) {
         gltf.scene.traverse((child) => {
           if (child instanceof THREE.Mesh && !extractedSofa) {
@@ -403,34 +398,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           }
         });
       }
-
       if (extractedSofa) {
         const sofaModel = extractedSofa as THREE.Object3D;
-        
-        // Auto-scale the extracted sofa to ~4.5 meters wide (better match for 1.6m character height)
         const box = new THREE.Box3().setFromObject(sofaModel);
         const size = new THREE.Vector3(); box.getSize(size);
         const maxDim = Math.max(size.x, size.z);
         const scale = 4.5 / maxDim;
         sofaModel.scale.set(scale, scale, scale);
-        
-        // Re-center Y position so it sits on floor
         const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
         const bottomY = adjustedBox.min.y;
-
-        // Move sofas to the center 10x10 area around the teleportation button
-        const sofaPositions = [
-          { x: 0, z: 4.5 },
-          { x: 0, z: -4.5 },
-          { x: 4.5, z: 0 },
-          { x: -4.5, z: 0 },
-        ];
-
+        const sofaPositions = [{ x: 0, z: 4.5 }, { x: 0, z: -4.5 }, { x: 4.5, z: 0 }, { x: -4.5, z: 0 }];
         sofaPositions.forEach(pos => {
           const sofa = sofaModel.clone();
-          // Place on the first floor platform (sitting exactly on the surface)
           sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          // Calculate rotation to face the center (0,0)
           sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
           scene.add(sofa);
         });
@@ -528,15 +508,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let stopAnim = false;
     const initLoad = async () => {
       await initializeGalleryConfig();
-      // Increased stagger delay and added jitter to avoid hitting rate limits
+      // Load panels SEQUENTIALLY to prevent WebGL context loss
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
         const p = panelsRef.current[i];
-        updatePanelContent(p, getCurrentNftSource(p.wallName));
-        // Stagger load every 2 panels with a 250ms delay + jitter
-        if (i % 2 === 0) {
-          const jitter = Math.random() * 200;
-          await new Promise(r => setTimeout(r, 250 + jitter));
+        // Await each load to prevent GPU overloading
+        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+        // Small stagger to let browser breathe
+        if (i % 5 === 0) {
+          await new Promise(r => setTimeout(r, 50));
         }
       }
     };
