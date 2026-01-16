@@ -381,45 +381,47 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading: Reusable placement logic
+    // Furniture loading: Content-agnostic placement logic
     const gltfLoader = new GLTFLoader();
 
-    const placeModelInstances = (model: THREE.Object3D, positions: {x: number, z: number}[], floorY: number, targetWidth: number) => {
-      // Calculate global bounding box once for scaling
-      const box = new THREE.Box3().setFromObject(model);
+    const placeModelInstances = (modelScene: THREE.Group, positions: {x: number, z: number}[], floorY: number, targetWidth: number) => {
+      // Use the whole scene group provided by GLTF loader
+      const box = new THREE.Box3().setFromObject(modelScene);
       const size = new THREE.Vector3();
       box.getSize(size);
       
       const currentWidth = Math.max(size.x, size.z);
       const scale = targetWidth / (currentWidth || 1);
-      model.scale.set(scale, scale, scale);
       
-      // Re-calculate to find bottom alignment offset
-      const adjustedBox = new THREE.Box3().setFromObject(model);
-      const bottomY = adjustedBox.min.y;
+      // Vertical offset calculation to ensure bottom rests on floor
+      const bottomY = box.min.y;
 
       positions.forEach(pos => {
-        const instance = model.clone();
+        const instance = modelScene.clone();
+        instance.scale.set(scale, scale, scale);
+        
         // Adjust Y so the bottom of the bounding box rests on floorY
-        instance.position.set(pos.x, floorY - bottomY, pos.z);
+        // We multiply bottomY by scale because the clone is scaled
+        instance.position.set(pos.x, floorY - (bottomY * scale), pos.z);
+        
         // Point toward the center (0,0)
         instance.rotation.y = Math.atan2(-pos.x, -pos.z);
         scene.add(instance);
       });
     };
 
-    // Load Sofas
+    // Load Sofas (Width ~4.5m)
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       const sofaPositions = [
-        { x: 0, z: 5.5 }, { x: 0, z: -5.5 }, { x: 5.5, z: 0 }, { x: -5.5, z: 0 }
+        { x: 0, z: 6.5 }, { x: 0, z: -6.5 }, { x: 6.5, z: 0 }, { x: -6.5, z: 0 }
       ];
       placeModelInstances(gltf.scene, sofaPositions, PLATFORM_Y + WALL_THICKNESS / 2, 4.5);
     });
 
-    // Load Wood Tables
+    // Load Wood Tables (Width ~1.8m, placed in front of sofas)
     gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
       const tablePositions = [
-        { x: 0, z: 2.5 }, { x: 0, z: -2.5 }, { x: 2.5, z: 0 }, { x: -2.5, z: 0 }
+        { x: 0, z: 3.5 }, { x: 0, z: -3.5 }, { x: 3.5, z: 0 }, { x: -3.5, z: 0 }
       ];
       placeModelInstances(gltf.scene, tablePositions, PLATFORM_Y + WALL_THICKNESS / 2, 1.8);
     });
