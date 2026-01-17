@@ -83,7 +83,7 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 };
 
 /**
- * Creates a minimalist gallery table using Three.js primitives.
+ * Creates a minimalist rectangular gallery table using Three.js primitives.
  */
 function createProceduralTable() {
   const group = new THREE.Group();
@@ -100,20 +100,20 @@ function createProceduralTable() {
     roughness: 0.1 
   });
 
-  // 1. Tabletop (Circular)
-  const topGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.08, 48);
+  // 1. Tabletop (Rectangular)
+  const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
   const top = new THREE.Mesh(topGeo, darkMat);
-  top.position.y = 1.0;
+  top.position.y = 0.8;
   group.add(top);
 
-  // 2. Central Leg (Cylindrical)
-  const legGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.0, 16);
-  const leg = new THREE.Mesh(legGeo, chromeMat);
-  leg.position.y = 0.5;
-  group.add(leg);
+  // 2. Central Support (Rectangular Chrome Column)
+  const supportGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+  const support = new THREE.Mesh(supportGeo, chromeMat);
+  support.position.y = 0.4;
+  group.add(support);
 
-  // 3. Base (Circular)
-  const baseGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
+  // 3. Base (Rectangular)
+  const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
   const base = new THREE.Mesh(baseGeo, darkMat);
   base.position.y = 0.025;
   group.add(base);
@@ -464,18 +464,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.warn("Failed to load sofa model:", err);
     });
 
-    // Create and position Procedural Tables in front of each Sofa
+    // Create and position Rectangular Tables within the L-shape sofa open space
     const tablePositions = [
-      { x: 0, z: 3.5 },  // In front of sofa at (0, 6)
-      { x: 0, z: -3.5 }, // In front of sofa at (0, -6)
-      { x: 3.5, z: 0 },  // In front of sofa at (6, 0)
-      { x: -3.5, z: 0 }  // In front of sofa at (-6, 0)
+      { x: 0, z: 4.8 },  // Adjusted position for sofa at (0, 6)
+      { x: 0, z: -4.8 }, // Adjusted position for sofa at (0, -6)
+      { x: 4.8, z: 0 },  // Adjusted position for sofa at (6, 0)
+      { x: -4.8, z: 0 }  // Adjusted position for sofa at (-6, 0)
     ];
 
     tablePositions.forEach(pos => {
       const table = createProceduralTable();
       table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-      // Tables should have the same orientation as the sofas
+      // Tables should rotate to follow the orientation of the sofas
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       scene.add(table);
     });
