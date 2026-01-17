@@ -467,9 +467,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
     ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, WALL_HEIGHT + 0.01, 0); scene.add(ceiling);
 
-    // Electroneum Logo Vinyls for Corners of the platform
+    // Electroneum Logo Vinyls for Centers
     const textureLoader = new THREE.TextureLoader();
     const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
+    // Set anisotropy to the maximum supported by the hardware for a crisp look at angles
+    logoTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    
     const vinylGeo = new THREE.PlaneGeometry(10, 10);
     const vinylMat = new THREE.MeshBasicMaterial({ 
       map: logoTexture, 
@@ -478,20 +481,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       side: THREE.DoubleSide 
     });
 
-    const vinylPositions = [
-      { x: 10, z: 10 },
-      { x: -10, z: 10 },
-      { x: 10, z: -10 },
-      { x: -10, z: -10 }
-    ];
+    // 1. Ground floor center vinyl
+    const groundVinyl = new THREE.Mesh(vinylGeo, vinylMat);
+    groundVinyl.rotation.x = -Math.PI / 2;
+    groundVinyl.position.set(0, 0.01, 0);
+    scene.add(groundVinyl);
 
-    vinylPositions.forEach(pos => {
-      const vinyl = new THREE.Mesh(vinylGeo, vinylMat);
-      vinyl.rotation.x = -Math.PI / 2;
-      // Position slightly above the platform surface (PLATFORM_Y + half thickness + offset)
-      vinyl.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, pos.z);
-      scene.add(vinyl);
-    });
+    // 2. First floor platform center vinyl
+    const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
+    platformVinyl.rotation.x = -Math.PI / 2;
+    platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
+    scene.add(platformVinyl);
 
     // Create Diamond Teleporters
     const groundBtn = createDiamondTeleporter();
