@@ -425,8 +425,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.warn("Failed to load sofa model:", err);
     });
 
-    // Loading the table.glb model
-    gltfLoader.load('/assets/models/table.glb', (gltf) => {
+    // Loading the table.glb model from the root directory
+    gltfLoader.load('/table.glb', (gltf) => {
       let tableMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
         if (child instanceof THREE.Mesh && !tableMesh) {
@@ -464,7 +464,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         });
       }
     }, undefined, (err) => {
-      console.warn("Failed to load table model:", err);
+      console.warn("Failed to load table model from /table.glb:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);

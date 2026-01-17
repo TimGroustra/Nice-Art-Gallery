@@ -401,8 +401,8 @@ const NftGalleryMobile: React.FC = () => {
       console.warn("Failed to load sofa model:", err);
     });
 
-    // Loading the table.glb model for mobile
-    gltfLoader.load('/assets/models/table.glb', (gltf) => {
+    // Loading the table.glb model for mobile from the root directory
+    gltfLoader.load('/table.glb', (gltf) => {
       let extractedTable: THREE.Object3D | null = null;
       gltf.scene.traverse((child) => {
         if (child instanceof THREE.Mesh && !extractedTable) {
@@ -430,7 +430,7 @@ const NftGalleryMobile: React.FC = () => {
         });
       }
     }, undefined, (err) => {
-      console.warn("Failed to load table model:", err);
+      console.warn("Failed to load table model from /table.glb:", err);
     });
 
     let stopLoad = false;
