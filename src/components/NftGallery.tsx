@@ -116,8 +116,8 @@ function createProceduralTable() {
 
   // 3. Base (Rectangular)
   const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
-  base.position.y = 0.025;
   const base = new THREE.Mesh(baseGeo, darkMat);
+  base.position.y = 0.025;
   group.add(base);
 
   return group;
