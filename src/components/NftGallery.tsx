@@ -383,7 +383,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
-    // Specific Sofa Loading with Error Handling
+    // Load Sofa Model
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let sofaMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
@@ -423,6 +423,47 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
     }, undefined, (err) => {
       console.warn("Failed to load sofa model:", err);
+    });
+
+    // Load Table Model in front of each Sofa
+    gltfLoader.load('/table.glb', (gltf) => {
+      let tableModel: THREE.Object3D | null = gltf.scene;
+
+      if (tableModel) {
+        const box = new THREE.Box3().setFromObject(tableModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 1.5;
+        const scale = targetWidth / Math.max(size.x, size.z);
+        
+        tableModel.scale.set(scale, scale, scale);
+        
+        // Center the model within its local group
+        const tableGroup = new THREE.Group();
+        tableGroup.add(tableModel);
+        tableModel.position.set(
+          - (box.min.x + size.x / 2) * scale,
+          - box.min.y * scale,
+          - (box.min.z + size.z / 2) * scale
+        );
+
+        // Position tables 2.5 units in front of the sofas
+        const positions = [
+          { x: 0, z: 3.5 },  // In front of sofa at (0, 6)
+          { x: 0, z: -3.5 }, // In front of sofa at (0, -6)
+          { x: 3.5, z: 0 },  // In front of sofa at (6, 0)
+          { x: -3.5, z: 0 }  // In front of sofa at (-6, 0)
+        ];
+
+        positions.forEach(pos => {
+          const instance = tableGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          // Tables should have the same orientation as the sofas
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }
+    }, undefined, (err) => {
+      console.error("Failed to load table model:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
