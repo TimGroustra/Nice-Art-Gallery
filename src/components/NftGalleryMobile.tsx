@@ -396,6 +396,31 @@ const NftGalleryMobile: React.FC = () => {
     underPlatform.position.y = LOWER_WALL_HEIGHT;
     scene.add(underPlatform);
 
+    // Electroneum Logo Vinyls for Centers (Mobile)
+    const textureLoader = new THREE.TextureLoader();
+    const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
+    logoTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    
+    const vinylGeo = new THREE.PlaneGeometry(10, 10);
+    const vinylMat = new THREE.MeshBasicMaterial({ 
+      map: logoTexture, 
+      transparent: true, 
+      opacity: 0.8,
+      side: THREE.DoubleSide 
+    });
+
+    // 1. Ground floor center
+    const groundVinyl = new THREE.Mesh(vinylGeo, vinylMat);
+    groundVinyl.rotation.x = -Math.PI / 2;
+    groundVinyl.position.set(0, 0.01, 0);
+    scene.add(groundVinyl);
+
+    // 2. First floor platform center
+    const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
+    platformVinyl.rotation.x = -Math.PI / 2;
+    platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
+    scene.add(platformVinyl);
+
     // Create Diamond Teleporters for Mobile
     const gBtn = createDiamondTeleporter();
     gBtn.position.set(0, 2.0, 0);
@@ -407,40 +432,6 @@ const NftGalleryMobile: React.FC = () => {
     uBtn.userData.targetY = 1.6;
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
-
-    // --- Rug Implementation (First Floor) ---
-    const textureLoader = new THREE.TextureLoader();
-    const rugTexture = textureLoader.load('/textures/rug_pattern.jpg');
-    rugTexture.wrapS = THREE.RepeatWrapping;
-    rugTexture.wrapT = THREE.RepeatWrapping;
-    rugTexture.repeat.set(2, 2); // Repeat the pattern
-    
-    const rugMaterial = new THREE.MeshStandardMaterial({ 
-        map: rugTexture, 
-        roughness: 0.8, 
-        metalness: 0.1,
-        side: THREE.DoubleSide 
-    });
-    const rugGeometry = new THREE.PlaneGeometry(5, 5);
-    const RUG_Y = PLATFORM_Y + WALL_THICKNESS / 2 + 0.01; // Slightly above the platform
-
-    const rugConfigs = [
-        { x: 0, z: 4.5, rotY: 0 },
-        { x: 0, z: -4.5, rotY: 0 },
-        { x: 4.5, z: 0, rotY: Math.PI / 2 },
-        { x: -4.5, z: 0, rotY: Math.PI / 2 },
-    ];
-
-    const rugMeshes: THREE.Mesh[] = [];
-    rugConfigs.forEach(cfg => {
-        const rug = new THREE.Mesh(rugGeometry, rugMaterial);
-        rug.rotation.x = -Math.PI / 2; // Lay flat on the floor
-        rug.rotation.z = cfg.rotY; // Rotate around Y axis (which is Z axis when laid flat)
-        rug.position.set(cfg.x, RUG_Y, cfg.z);
-        scene.add(rug);
-        rugMeshes.push(rug);
-    });
-    // --- End Rug Implementation ---
 
     // Furniture loading: Sofa and Plants
     const gltfLoader = new GLTFLoader();
@@ -787,13 +778,6 @@ const NftGalleryMobile: React.FC = () => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('resize', onResize);
-      
-      // Dispose of rug resources
-      rugMeshes.forEach(m => scene.remove(m));
-      rugTexture.dispose();
-      rugMaterial.dispose();
-      rugGeometry.dispose();
-      
       mountRef.current?.removeChild(renderer.domElement);
     };
   }, [updatePanelContent, checkCollision]);
