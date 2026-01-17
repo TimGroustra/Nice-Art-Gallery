@@ -612,12 +612,31 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       tables.push(table);
     });
     
-    // --- Wineglass Model Removed ---
+    // Load Cup and Saucer model and place on tables (Mobile)
+    gltfLoader.load('/assets/models/cup.glb', (gltf) => {
+      const cupModel = gltf.scene;
+      const box = new THREE.Box3().setFromObject(cupModel);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const targetWidth = 0.25;
+      const scale = targetWidth / size.x;
+      cupModel.scale.set(scale, scale, scale);
+      const bottomY = box.min.y * scale;
+
+      tablePositions.forEach((pos, idx) => {
+        const cup = cupModel.clone();
+        const tableSurfaceY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.84;
+        cup.position.set(pos.x, tableSurfaceY - bottomY, pos.z);
+        cup.rotation.y = Math.atan2(-pos.x, -pos.z);
+        cup.translateX(1.1); 
+        cup.translateZ(0.2 * (idx % 2 === 0 ? 1 : -1));
+        scene.add(cup);
+      });
+    }, undefined, (err) => {
+      console.warn("Failed to load cup model:", err);
+    });
 
     // Create Rugs beneath sofa/table pairs (Mobile)
     const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
-    // Removed: rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
-    // Removed: rugTexture.repeat.set(2, 2);
     const rugGeo = new THREE.PlaneGeometry(6, 8);
     const rugMat = new THREE.MeshStandardMaterial({ 
       map: rugTexture, 
