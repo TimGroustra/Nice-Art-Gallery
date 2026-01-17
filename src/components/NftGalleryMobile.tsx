@@ -404,6 +404,18 @@ const NftGalleryMobile: React.FC = () => {
     // Load and place Plants at corners
     gltfLoader.load('/assets/models/plant.glb', (gltf) => {
       const plantModel = gltf.scene;
+
+      // Filter out floor/base meshes
+      plantModel.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const name = child.name.toLowerCase();
+          // Heuristic to find floor parts: names like "floor", "plane", "base", "ground", "shadow", or very flat meshes
+          if (name.includes('floor') || name.includes('plane') || name.includes('base') || name.includes('ground') || name.includes('shadow')) {
+            child.visible = false;
+          }
+        }
+      });
+
       const box = new THREE.Box3().setFromObject(plantModel);
       const size = new THREE.Vector3(); box.getSize(size);
       
