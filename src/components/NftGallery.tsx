@@ -498,6 +498,40 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
+    // --- Rug Implementation (First Floor) ---
+    const textureLoader = new THREE.TextureLoader();
+    const rugTexture = textureLoader.load('/textures/rug_pattern.jpg');
+    rugTexture.wrapS = THREE.RepeatWrapping;
+    rugTexture.wrapT = THREE.RepeatWrapping;
+    rugTexture.repeat.set(2, 2); // Repeat the pattern
+    
+    const rugMaterial = new THREE.MeshStandardMaterial({ 
+        map: rugTexture, 
+        roughness: 0.8, 
+        metalness: 0.1,
+        side: THREE.DoubleSide 
+    });
+    const rugGeometry = new THREE.PlaneGeometry(5, 5);
+    const RUG_Y = PLATFORM_Y + WALL_THICKNESS / 2 + 0.01; // Slightly above the platform
+
+    const rugConfigs = [
+        { x: 0, z: 5.4, rotY: 0 },
+        { x: 0, z: -5.4, rotY: 0 },
+        { x: 5.4, z: 0, rotY: Math.PI / 2 },
+        { x: -5.4, z: 0, rotY: Math.PI / 2 },
+    ];
+
+    const rugMeshes: THREE.Mesh[] = [];
+    rugConfigs.forEach(cfg => {
+        const rug = new THREE.Mesh(rugGeometry, rugMaterial);
+        rug.rotation.x = -Math.PI / 2; // Lay flat on the floor
+        rug.rotation.z = cfg.rotY; // Rotate around Y axis (which is Z axis when laid flat)
+        rug.position.set(cfg.x, RUG_Y, cfg.z);
+        scene.add(rug);
+        rugMeshes.push(rug);
+    });
+    // --- End Rug Implementation ---
+
     // Load Sofa Model
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let sofaMesh: THREE.Mesh | null = null;
@@ -545,7 +579,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       const plantModel = gltf.scene;
       
       // Calculate model bounding box for relative positioning
-      const modelBox = new THREE.Box3().setFromObject(plantModel);
+      const modelBox = new THREE.Box3().setFromFromObject(plantModel);
       const modelMinY = modelBox.min.y;
       const modelMaxY = modelBox.max.y;
       const modelHeight = modelMaxY - modelMinY;
@@ -839,6 +873,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       renderer.domElement.removeEventListener('click', onClick); window.removeEventListener('resize', onResize);
       (window as any).galleryControls = undefined;
       panelsRef.current.forEach(p => { disposeTextureSafely(p.mesh); p.videoElement?.pause(); p.gifStopFunction?.(); });
+      
+      // Dispose of rug resources
+      rugMeshes.forEach(m => scene.remove(m));
+      rugTexture.dispose();
+      rugMaterial.dispose();
+      rugGeometry.dispose();
+      
       renderer.dispose(); mountRef.current?.removeChild(renderer.domElement);
     };
   }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
