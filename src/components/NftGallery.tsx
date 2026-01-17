@@ -524,6 +524,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const raycaster = new THREE.Raycaster();
+    raycasterRef.current = raycaster;
+
     const onClick = () => {
       if (!controls.isLocked) return;
       if (currentTargetedButton?.userData?.isTeleportButton) return performTeleport(currentTargetedButton.userData.targetY);
@@ -554,6 +556,45 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('keydown', onKeyDown); document.addEventListener('keyup', onKeyUp);
 
     let stopAnim = false;
+    
+    // --- WebGL Context Handlers ---
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      console.warn('[Gallery] WebGL Context Lost. Pausing animation.');
+      stopAnim = true;
+      panelsRef.current.forEach(p => {
+        p.videoElement?.pause();
+        p.gifStopFunction?.();
+      });
+      setInstructionsVisible(true);
+    };
+
+    const handleContextRestored = async () => {
+      console.log('[Gallery] WebGL Context Restored. Reinitializing resources.');
+      
+      // Re-initialize custom shader uniforms
+      if (rainbowMaterialRef.current) {
+        rainbowMaterialRef.current.uniforms.time.value = 0.0;
+      }
+
+      // Reload all textures
+      await initializeGalleryConfig();
+      
+      const panelsToUpdate = [...panelsRef.current]; 
+      for (const p of panelsToUpdate) {
+        disposeTextureSafely(p.mesh);
+        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+      }
+      
+      // Restart animation loop
+      stopAnim = false;
+      animate();
+    };
+
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored, false);
+    // --- End WebGL Context Handlers ---
+
     const initLoad = async () => {
       await initializeGalleryConfig();
       // Increased stagger delay and added jitter to avoid hitting rate limits
@@ -598,9 +639,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         else { fadeMaterialRef.current.opacity = 0; isTeleportingRef.current = false; }
       }
 
-      if (camera && raycaster) {
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-        const hits = raycaster.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
+      if (camera && raycasterRef.current) {
+        raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hits = raycasterRef.current.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
         panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
         teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x1a3f7c); (b.material as any).emissive.setHex(0x1a3f7c); });
@@ -626,8 +667,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     window.addEventListener('resize', onResize);
 
     return () => {
-      stopAnim = true; document.removeEventListener('keydown', onKeyDown); document.removeEventListener('keyup', onKeyUp);
-      renderer.domElement.removeEventListener('click', onClick); window.removeEventListener('resize', onResize);
+      stopAnim = true; 
+      document.removeEventListener('keydown', onKeyDown); 
+      document.removeEventListener('keyup', onKeyUp);
+      renderer.domElement.removeEventListener('click', onClick); 
+      window.removeEventListener('resize', onResize);
+      
+      // Remove context listeners
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
+
       (window as any).galleryControls = undefined;
       panelsRef.current.forEach(p => { disposeTextureSafely(p.mesh); p.videoElement?.pause(); p.gifStopFunction?.(); });
       renderer.dispose(); mountRef.current?.removeChild(renderer.domElement);

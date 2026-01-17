@@ -98,6 +98,7 @@ const NftGalleryMobile: React.FC = () => {
   const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
+  const rainbowMaterialRef = useRef<THREE.ShaderMaterial | null>(null); // Added ref
   
   const [isStarted, setIsStarted] = useState(false);
   const [isWalking, setIsWalking] = useState(false);
@@ -311,6 +312,7 @@ const NftGalleryMobile: React.FC = () => {
       fragmentShader: rainbowFragmentShader,
       side: THREE.DoubleSide
     });
+    rainbowMaterialRef.current = rainbowMaterial;
 
     const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
     const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.1 });
@@ -432,6 +434,45 @@ const NftGalleryMobile: React.FC = () => {
     loadFurniture();
 
     let stopLoad = false;
+    
+    // --- WebGL Context Handlers ---
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      console.warn('[Gallery Mobile] WebGL Context Lost. Pausing animation.');
+      stopLoad = true;
+      panelsRef.current.forEach(p => {
+        p.videoElement?.pause();
+        p.gifStopFunction?.();
+      });
+      setIsWalking(false);
+    };
+
+    const handleContextRestored = async () => {
+      console.log('[Gallery Mobile] WebGL Context Restored. Reinitializing resources.');
+      
+      // Re-initialize custom shader uniforms
+      if (rainbowMaterialRef.current) {
+        rainbowMaterialRef.current.uniforms.time.value = 0.0;
+      }
+
+      // Reload all textures
+      await initializeGalleryConfig();
+      
+      const panelsToUpdate = [...panelsRef.current]; 
+      for (const p of panelsToUpdate) {
+        disposeTextureSafely(p.mesh);
+        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+      }
+      
+      // Restart animation loop
+      stopLoad = false;
+      animate();
+    };
+
+    renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
+    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored, false);
+    // --- End WebGL Context Handlers ---
+
     const createPanels = async () => {
       await initializeGalleryConfig();
       const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -588,10 +629,13 @@ const NftGalleryMobile: React.FC = () => {
 
     let lastTime = performance.now();
     const animate = () => {
+      if (stopLoad) return; // Added check for context loss
       const time = performance.now();
       const delta = (time - lastTime) * 0.001;
       lastTime = time;
-      rainbowMaterial.uniforms.time.value = time * 0.001;
+      if (rainbowMaterialRef.current) {
+        rainbowMaterialRef.current.uniforms.time.value = time * 0.001;
+      }
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
         if (isWalkingRef.current && !isTeleportingRef.current) {
@@ -636,9 +680,14 @@ const NftGalleryMobile: React.FC = () => {
       container.removeEventListener('touchmove', handleTouchMove);
       container.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('resize', onResize);
+      
+      // Remove context listeners
+      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
+      
       mountRef.current?.removeChild(renderer.domElement);
     };
-  }, [updatePanelContent, checkCollision]);
+  }, [updatePanelContent, checkCollision, isWalking]);
 
   const handleStart = () => {
     setIsStarted(true);
