@@ -94,6 +94,45 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 };
 
 /**
+ * Creates a minimalist rectangular gallery table using Three.js primitives.
+ */
+function createProceduralTable() {
+  const group = new THREE.Group();
+  
+  // Table Materials
+  const darkMat = new THREE.MeshStandardMaterial({ 
+    color: 0x111111, 
+    roughness: 0.1, 
+    metalness: 0.8 
+  });
+  const chromeMat = new THREE.MeshStandardMaterial({ 
+    color: 0x888888, 
+    metalness: 1.0, 
+    roughness: 0.1 
+  });
+
+  // 1. Tabletop (Rectangular)
+  const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
+  const top = new THREE.Mesh(topGeo, darkMat);
+  top.position.y = 0.8;
+  group.add(top);
+
+  // 2. Central Support (Rectangular Chrome Column)
+  const supportGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
+  const support = new THREE.Mesh(supportGeo, chromeMat);
+  support.position.y = 0.4;
+  group.add(support);
+
+  // 3. Base (Rectangular)
+  const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
+  const base = new THREE.Mesh(baseGeo, darkMat);
+  base.position.y = 0.025;
+  group.add(base);
+
+  return group;
+}
+
+/**
  * Creates the upgraded Diamond Teleporter group.
  */
 function createDiamondTeleporter() {
@@ -554,6 +593,62 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       console.warn("Failed to load plant model:", err);
     });
 
+    // Create and position Rectangular Tables
+    const tablePositions = [
+      { x: 0, z: 9.8 },  
+      { x: 0, z: -9.8 }, 
+      { x: 9.8, z: 0 },  
+      { x: -9.8, z: 0 }  
+    ];
+
+    const tables: THREE.Group[] = [];
+
+    tablePositions.forEach(pos => {
+      const table = createProceduralTable();
+      table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+      table.rotation.y = Math.atan2(-pos.x, -pos.z);
+      table.translateX(0.9);
+      scene.add(table);
+      tables.push(table);
+    });
+    
+    // Load Wineglass Model
+    gltfLoader.load('/assets/models/wineglass.glb', (gltf) => {
+      const glassModel = gltf.scene;
+      
+      const modelBox = new THREE.Box3().setFromObject(glassModel);
+      const size = new THREE.Vector3(); modelBox.getSize(size);
+      
+      // Target height around 0.3 units (30cm)
+      const targetHeight = 0.3; 
+      const scale = targetHeight / size.y;
+      
+      glassModel.scale.set(scale, scale, scale);
+      
+      // Recalculate box after scaling to find the new bottom Y
+      const scaledBox = new THREE.Box3().setFromObject(glassModel);
+      const bottomY = scaledBox.min.y;
+      
+      // The table top surface is 0.8 units above the table group's origin.
+      const tableTopOffset = 0.8; 
+      
+      tables.forEach(table => {
+        const glassInstance = glassModel.clone();
+        
+        // Position relative to the table group's local space
+        // Y position: tableTopOffset (0.8) - bottomY (to sit on the surface)
+        glassInstance.position.y = tableTopOffset - bottomY;
+        
+        // Place it slightly off-center on the table top
+        glassInstance.position.x = 0.5; 
+        glassInstance.position.z = 0; 
+        
+        table.add(glassInstance);
+      });
+    }, undefined, (err) => {
+      console.warn("Failed to load wineglass model:", err);
+    });
+
     // Create Rugs beneath sofa/table pairs (Mobile)
     const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
     // Removed: rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
@@ -716,11 +811,6 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
         raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), camera);
         
         // Collate targets
-        const interactiveTargets = [
-           ...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]),
-           ...teleportButtonsRef.current.flatMap(b => [b.userData.diamond]) // Intersect diamonds
-        ];
-        
         const allPotentialObjects = sceneRef.current.children.filter(obj => obj !== fadeScreenRef.current);
         const intersects = raycasterRef.current.intersectObjects(allPotentialObjects, true);
         
