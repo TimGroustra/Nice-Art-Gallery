@@ -13,19 +13,22 @@ const LoadingSplash: React.FC<LoadingSplashProps> = ({ progress, message = "Init
   return (
     <div className="fixed inset-0 z-[2000] bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
       <div className="relative mb-8">
-        <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full animate-pulse" />
+        <div className="absolute inset-0 bg-white/5 blur-3xl rounded-full animate-pulse" />
         <img 
           src="/electroneum-logo-symbol.svg" 
           alt="Electroneum Logo" 
-          className="w-24 h-24 relative z-10 animate-pulse"
+          className="w-24 h-24 relative z-10 opacity-40 animate-pulse"
         />
       </div>
       
       <div className="max-w-xs w-full space-y-4">
-        <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">Nice Art Gallery</h2>
+        <h2 className="text-2xl font-black text-white/40 tracking-tighter uppercase italic">Nice Art Gallery</h2>
         <div className="space-y-2">
-          <Progress value={progress} className="h-1 bg-white/10" />
-          <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-primary/60">
+          <Progress 
+            value={progress} 
+            className="h-1 bg-white/5 [&>div]:bg-white/30" 
+          />
+          <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-white/30">
             <span>{message}</span>
             <span>{Math.round(progress)}%</span>
           </div>
