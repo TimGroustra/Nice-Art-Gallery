@@ -399,7 +399,10 @@ const NftGalleryMobile: React.FC = () => {
     // Electroneum Logo Vinyls for Centers (Mobile)
     const textureLoader = new THREE.TextureLoader();
     const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
+    // Maximum crispness settings
     logoTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    logoTexture.minFilter = THREE.LinearMipmapLinearFilter;
+    logoTexture.magFilter = THREE.LinearFilter;
     
     const vinylGeo = new THREE.PlaneGeometry(10, 10);
     const vinylMat = new THREE.MeshBasicMaterial({ 
