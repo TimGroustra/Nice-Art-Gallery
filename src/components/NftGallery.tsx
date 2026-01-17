@@ -675,6 +675,25 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
     gltfLoader.load('/assets/models/wineglass.glb', (gltf) => {
       const glassModel = gltf.scene;
       
+      // Define clear glass material
+      const glassMaterial = new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        metalness: 0.0,
+        roughness: 0.1,
+        transmission: 1.0,
+        thickness: 0.5,
+        transparent: true,
+        opacity: 0.9,
+        envMapIntensity: 1.0,
+      });
+
+      // Apply material to all meshes in the model
+      glassModel.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.material = glassMaterial;
+        }
+      });
+      
       const modelBox = new THREE.Box3().setFromObject(glassModel);
       const size = new THREE.Vector3(); modelBox.getSize(size);
       
