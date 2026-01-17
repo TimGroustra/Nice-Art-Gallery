@@ -487,12 +487,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     groundVinyl.position.set(0, 0.01, 0);
     scene.add(groundVinyl);
 
-    // 2. First floor platform center vinyl
-    // REMOVED: const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    // REMOVED: platformVinyl.rotation.x = -Math.PI / 2;
-    // REMOVED: platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
-    // REMOVED: scene.add(platformVinyl);
-
     // Create Diamond Teleporters
     const groundBtn = createDiamondTeleporter();
     groundBtn.position.set(0, 2.0, 0); 
@@ -526,10 +520,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Table positions are defined here for use by both table and ashtray placement
     const tablePositions = [
-      { x: 0, z: 4.8 },  // Sofa at (0, 6)
-      { x: 0, z: -4.8 }, // Sofa at (0, -6)
-      { x: 4.8, z: 0 },  // Sofa at (6, 0)
-      { x: -4.8, z: 0 }  // Sofa at (-6, 0)
+      { x: 0, z: 12.0 },
+      { x: 0, z: -12.0 },
+      { x: 12.0, z: 0 },
+      { x: -12.0, z: 0 }
     ];
 
     // Load Sofa Model
@@ -664,8 +658,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       
       // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
-      // We use translateX to move it locally along its long axis without affecting distance to seats.
       table.translateX(1.2);
+      // SHIFT DEPTH: Move the table away from the sofa back
+      table.translateZ(1.0);
       
       scene.add(table);
     });
@@ -708,6 +703,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           instance.position.set(pos.x, tableTopY, pos.z);
           instance.rotation.y = Math.atan2(-pos.x, -pos.z);
           instance.translateX(1.2); // Match table lateral shift
+          instance.translateZ(1.0); // Match table depth shift
           scene.add(instance);
         });
       }

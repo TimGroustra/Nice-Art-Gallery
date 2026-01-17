@@ -470,10 +470,10 @@ const NftGalleryMobile: React.FC = () => {
 
     // Table positions are defined here for use by both table and ashtray placement
     const tablePositions = [
-      { x: 0, z: 4.8 },
-      { x: 0, z: -4.8 },
-      { x: 4.8, z: 0 },
-      { x: -4.8, z: 0 },
+      { x: 0, z: 12.0 },
+      { x: 0, z: -12.0 },
+      { x: 12.0, z: 0 },
+      { x: -12.0, z: 0 },
     ];
 
     // Furniture loading: Sofa and Plants
@@ -527,8 +527,9 @@ const NftGalleryMobile: React.FC = () => {
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       
       // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
-      // We use translateX to move it locally along its long axis without affecting distance to seats.
       table.translateX(1.2);
+      // SHIFT DEPTH: Move the table away from the sofa back
+      table.translateZ(1.0);
       
       scene.add(table);
     });
@@ -571,6 +572,7 @@ const NftGalleryMobile: React.FC = () => {
           instance.position.set(pos.x, tableTopY, pos.z);
           instance.rotation.y = Math.atan2(-pos.x, -pos.z);
           instance.translateX(1.2); // Match table lateral shift
+          instance.translateZ(1.0); // Match table depth shift
           scene.add(instance);
         });
       }
