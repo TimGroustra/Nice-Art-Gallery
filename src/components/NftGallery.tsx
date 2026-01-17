@@ -76,15 +76,19 @@ const isVideoContent = (contentType: string, url: string) =>
 const isGifContent = (contentType: string, url: string) =>
   !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
-const disposeTextureSafely = (mesh: THREE.Mesh) => {
+const disposeTextureSafely = (mesh: THREE.Mesh, isContextLost = false) => {
   const material = mesh.material;
   if (material instanceof THREE.MeshBasicMaterial) {
     const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
-    if (mat.map) {
+    // If context is lost, we DON'T call dispose() on textures as they are already invalidated
+    // and calling dispose() can throw INVALID_OPERATION.
+    if (!isContextLost && mat.map) {
       mat.map.dispose();
-      mat.map = null;
     }
-    mat.dispose();
+    mat.map = null;
+    if (!isContextLost) {
+      mat.dispose();
+    }
   }
 };
 
@@ -175,8 +179,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   );
 
   const updatePanelContent = useCallback(
-    async (panel: Panel, source: NftSource | null) => {
-      disposeTextureSafely(panel.mesh);
+    async (panel: Panel, source: NftSource | null, isContextLost = false) => {
+      disposeTextureSafely(panel.mesh, isContextLost);
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x111111 });
       panel.metadataUrl = '';
       panel.isVideo = false;
@@ -218,7 +222,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
         } else {
           const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
-          disposeTextureSafely(panel.mesh);
+          disposeTextureSafely(panel.mesh, isContextLost);
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
           panel.metadataUrl = metadata.source;
           panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
@@ -269,7 +273,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     cameraRef.current = camera;
     camera.position.set(0, 1.6, -20);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ 
+      antialias: true,
+      powerPreference: "high-performance",
+      stencil: false,
+      depth: true
+    });
     rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -387,24 +396,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading: Dynamic loading from DB
+    // Furniture loading
     const loadFurniture = async () => {
       const furnitureItems = await fetchGalleryFurniture();
       const gltfLoader = new GLTFLoader();
 
       for (const item of furnitureItems) {
         if (!item.model_url) continue;
-
-        // Skip loading if the URL doesn't look like a valid model file to avoid 404/parsing errors
-        if (!item.model_url.toLowerCase().endsWith('.glb') && !item.model_url.toLowerCase().endsWith('.gltf')) {
-          console.warn(`[Gallery] Skipping non-GLTF model URL: ${item.model_url}`);
-          continue;
-        }
+        if (!item.model_url.toLowerCase().endsWith('.glb') && !item.model_url.toLowerCase().endsWith('.gltf')) continue;
 
         gltfLoader.load(item.model_url, (gltf) => {
           let extractedModel: THREE.Object3D | null = null;
-          
-          // 1. Try to find by name filter if provided
           if (item.name_filter) {
             gltf.scene.traverse((child) => {
               if (child.name.toLowerCase().includes(item.name_filter!.toLowerCase()) && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
@@ -412,57 +414,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
               }
             });
           }
-          
-          // 2. Fallback: Use the entire scene
-          if (!extractedModel) {
-            extractedModel = gltf.scene;
-          }
+          if (!extractedModel) extractedModel = gltf.scene;
 
           if (extractedModel) {
             const model = extractedModel as THREE.Object3D;
-            
-            // Calculate scaling based on target_width
             const box = new THREE.Box3().setFromObject(model);
             const size = new THREE.Vector3(); box.getSize(size);
             const maxDim = Math.max(size.x, size.z);
-            
             let scale = item.scale_multiplier;
-            if (item.target_width > 0 && maxDim > 0) {
-              scale = item.target_width / maxDim;
-            }
-            
+            if (item.target_width > 0 && maxDim > 0) scale = item.target_width / maxDim;
             model.scale.set(scale, scale * item.scale_y_multiplier, scale);
-            
-            // Recalculate box after scaling
             const adjustedBox = new THREE.Box3().setFromObject(model);
             const bottomY = adjustedBox.min.y;
-
-            // Determine floor height
-            const floorHeight = item.floor_level === 'first' 
-              ? PLATFORM_Y + WALL_THICKNESS / 2 
-              : 0; // Ground floor is Y=0
-
-            // Apply position and rotation
-            model.position.set(
-              item.position_x, 
-              floorHeight + item.position_y - bottomY, 
-              item.position_z
-            );
+            const floorHeight = item.floor_level === 'first' ? PLATFORM_Y + WALL_THICKNESS / 2 : 0;
+            model.position.set(item.position_x, floorHeight + item.position_y - bottomY, item.position_z);
             model.rotation.y = item.rotation_y;
-            
             scene.add(model);
           }
         }, undefined, (error) => {
-          // Suppress parsing errors caused by HTML 404 pages (detected by "<!doctype" in error message)
-          if (error instanceof SyntaxError && error.message.includes('<!doctype')) {
-             console.warn(`[Gallery] Model file not found (404): ${item.model_url}`);
-          } else {
-             console.error(`[Gallery] Error loading furniture model ${item.model_url}:`, error);
+          if (!(error instanceof SyntaxError && error.message.includes('<!doctype'))) {
+             console.error(`[Gallery] Error loading furniture:`, error);
           }
         });
       }
     };
-
     loadFurniture();
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -489,7 +464,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
     }
 
-    // Inner cross walls
     [-10, 10].forEach((seg, i) => {
       const pos = 5 + ARROW_DEPTH_OFFSET;
       dynamicPanelConfigs.push({ wallName: `north-inner-wall-outer-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, -pos], rot: [0, Math.PI, 0] });
@@ -557,56 +531,49 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     let stopAnim = false;
     
-    // --- WebGL Context Handlers ---
     const handleContextLost = (event: Event) => {
       event.preventDefault();
-      console.warn('[Gallery] WebGL Context Lost. Pausing animation.');
+      console.warn('[Gallery] WebGL Context Lost.');
+      // Stop the animation loop immediately to prevent further GL calls
       stopAnim = true;
+      // We don't call dispose() here as the context is gone. 
+      // Just cleanup the handles to avoid INVALID_OPERATION later.
       panelsRef.current.forEach(p => {
         p.videoElement?.pause();
         p.gifStopFunction?.();
       });
-      setInstructionsVisible(true);
     };
 
     const handleContextRestored = async () => {
-      console.log('[Gallery] WebGL Context Restored. Reinitializing resources.');
+      console.log('[Gallery] WebGL Context Restored. Resuming session seamlessly.');
       
       // Re-initialize custom shader uniforms
       if (rainbowMaterialRef.current) {
         rainbowMaterialRef.current.uniforms.time.value = 0.0;
       }
 
-      // Reload all textures
-      await initializeGalleryConfig();
-      
+      // We skip initializeGalleryConfig() because we still have the config in memory.
+      // We just need to reload the textures for the new context.
       const panelsToUpdate = [...panelsRef.current]; 
       for (const p of panelsToUpdate) {
-        disposeTextureSafely(p.mesh);
-        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+        // Pass true to indicate context was lost so we don't try to call GL delete commands
+        await updatePanelContent(p, getCurrentNftSource(p.wallName), true);
       }
       
-      // Restart animation loop
       stopAnim = false;
+      prevTimeRef.current = performance.now();
       animate();
     };
 
     renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
     renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored, false);
-    // --- End WebGL Context Handlers ---
 
     const initLoad = async () => {
       await initializeGalleryConfig();
-      // Increased stagger delay and added jitter to avoid hitting rate limits
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
-        const p = panelsRef.current[i];
-        updatePanelContent(p, getCurrentNftSource(p.wallName));
-        // Stagger load every 2 panels with a 250ms delay + jitter
-        if (i % 2 === 0) {
-          const jitter = Math.random() * 200;
-          await new Promise(r => setTimeout(r, 250 + jitter));
-        }
+        updatePanelContent(panelsRef.current[i], getCurrentNftSource(panelsRef.current[i].wallName));
+        if (i % 2 === 0) await new Promise(r => setTimeout(r, 250 + Math.random() * 200));
       }
     };
     initLoad();
@@ -672,11 +639,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       document.removeEventListener('keyup', onKeyUp);
       renderer.domElement.removeEventListener('click', onClick); 
       window.removeEventListener('resize', onResize);
-      
-      // Remove context listeners
       renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
       renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
-
       (window as any).galleryControls = undefined;
       panelsRef.current.forEach(p => { disposeTextureSafely(p.mesh); p.videoElement?.pause(); p.gifStopFunction?.(); });
       renderer.dispose(); mountRef.current?.removeChild(renderer.domElement);
