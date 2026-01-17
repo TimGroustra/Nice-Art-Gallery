@@ -488,10 +488,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     scene.add(groundVinyl);
 
     // 2. First floor platform center vinyl
-    const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    platformVinyl.rotation.x = -Math.PI / 2;
-    platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
-    scene.add(platformVinyl);
+    // REMOVED: const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
+    // REMOVED: platformVinyl.rotation.x = -Math.PI / 2;
+    // REMOVED: platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
+    // REMOVED: scene.add(platformVinyl);
 
     // Create Diamond Teleporters
     const groundBtn = createDiamondTeleporter();
