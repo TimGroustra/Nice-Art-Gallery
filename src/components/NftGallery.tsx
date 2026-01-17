@@ -464,6 +464,36 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.warn("Failed to load sofa model:", err);
     });
 
+    // Load Plant Model and place at corners
+    gltfLoader.load('/assets/models/plant.glb', (gltf) => {
+      const plantModel = gltf.scene;
+      const box = new THREE.Box3().setFromObject(plantModel);
+      const size = new THREE.Vector3(); box.getSize(size);
+      
+      const targetHeight = 2.5;
+      const scale = targetHeight / size.y;
+      plantModel.scale.set(scale, scale, scale);
+      
+      const plantGroup = new THREE.Group();
+      plantGroup.add(plantModel);
+      
+      // Platform is 30x30, so corners are at ±15. We'll use ±14.2 for a small inset.
+      const corners = [
+        { x: 14.2, z: 14.2 },
+        { x: -14.2, z: 14.2 },
+        { x: 14.2, z: -14.2 },
+        { x: -14.2, z: -14.2 }
+      ];
+
+      corners.forEach(pos => {
+        const plant = plantGroup.clone();
+        plant.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+        scene.add(plant);
+      });
+    }, undefined, (err) => {
+      console.warn("Failed to load plant model:", err);
+    });
+
     // Create and position Rectangular Tables within the L-shape sofa open space
     const tablePositions = [
       { x: 0, z: 4.8 },  // Sofa at (0, 6)

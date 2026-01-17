@@ -350,7 +350,7 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Furniture loading: Sofa with increased height and error handling
+    // Furniture loading: Sofa and Plants
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let extractedSofa: THREE.Object3D | null = null;
@@ -399,6 +399,33 @@ const NftGalleryMobile: React.FC = () => {
       }
     }, undefined, (err) => {
       console.warn("Failed to load sofa model:", err);
+    });
+
+    // Load and place Plants at corners
+    gltfLoader.load('/assets/models/plant.glb', (gltf) => {
+      const plantModel = gltf.scene;
+      const box = new THREE.Box3().setFromObject(plantModel);
+      const size = new THREE.Vector3(); box.getSize(size);
+      
+      const targetHeight = 2.5;
+      const scale = targetHeight / size.y;
+      plantModel.scale.set(scale, scale, scale);
+      
+      // Platform is 30x30, so corners are at ±15. We'll inset them slightly to ±14.2
+      const corners = [
+        { x: 14.2, z: 14.2 },
+        { x: -14.2, z: 14.2 },
+        { x: 14.2, z: -14.2 },
+        { x: -14.2, z: -14.2 }
+      ];
+
+      corners.forEach(pos => {
+        const plant = plantModel.clone();
+        plant.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+        scene.add(plant);
+      });
+    }, undefined, (err) => {
+      console.warn("Failed to load plant model:", err);
     });
 
     let stopLoad = false;
