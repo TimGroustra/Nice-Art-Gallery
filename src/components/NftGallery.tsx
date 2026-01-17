@@ -82,6 +82,45 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
+/**
+ * Creates a minimalist gallery table using Three.js primitives.
+ */
+function createProceduralTable() {
+  const group = new THREE.Group();
+  
+  // Table Materials
+  const darkMat = new THREE.MeshStandardMaterial({ 
+    color: 0x111111, 
+    roughness: 0.1, 
+    metalness: 0.8 
+  });
+  const chromeMat = new THREE.MeshStandardMaterial({ 
+    color: 0x888888, 
+    metalness: 1.0, 
+    roughness: 0.1 
+  });
+
+  // 1. Tabletop (Circular)
+  const topGeo = new THREE.CylinderGeometry(0.8, 0.8, 0.08, 48);
+  const top = new THREE.Mesh(topGeo, darkMat);
+  top.position.y = 1.0;
+  group.add(top);
+
+  // 2. Central Leg (Cylindrical)
+  const legGeo = new THREE.CylinderGeometry(0.06, 0.06, 1.0, 16);
+  const leg = new THREE.Mesh(legGeo, chromeMat);
+  leg.position.y = 0.5;
+  group.add(leg);
+
+  // 3. Base (Circular)
+  const baseGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.05, 32);
+  const base = new THREE.Mesh(baseGeo, darkMat);
+  base.position.y = 0.025;
+  group.add(base);
+
+  return group;
+}
+
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -425,45 +464,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       console.warn("Failed to load sofa model:", err);
     });
 
-    // Load Table Model in front of each Sofa
-    gltfLoader.load('/table.glb', (gltf) => {
-      let tableModel: THREE.Object3D | null = gltf.scene;
+    // Create and position Procedural Tables in front of each Sofa
+    const tablePositions = [
+      { x: 0, z: 3.5 },  // In front of sofa at (0, 6)
+      { x: 0, z: -3.5 }, // In front of sofa at (0, -6)
+      { x: 3.5, z: 0 },  // In front of sofa at (6, 0)
+      { x: -3.5, z: 0 }  // In front of sofa at (-6, 0)
+    ];
 
-      if (tableModel) {
-        const box = new THREE.Box3().setFromObject(tableModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const targetWidth = 1.5;
-        const scale = targetWidth / Math.max(size.x, size.z);
-        
-        tableModel.scale.set(scale, scale, scale);
-        
-        // Center the model within its local group
-        const tableGroup = new THREE.Group();
-        tableGroup.add(tableModel);
-        tableModel.position.set(
-          - (box.min.x + size.x / 2) * scale,
-          - box.min.y * scale,
-          - (box.min.z + size.z / 2) * scale
-        );
-
-        // Position tables 2.5 units in front of the sofas
-        const positions = [
-          { x: 0, z: 3.5 },  // In front of sofa at (0, 6)
-          { x: 0, z: -3.5 }, // In front of sofa at (0, -6)
-          { x: 3.5, z: 0 },  // In front of sofa at (6, 0)
-          { x: -3.5, z: 0 }  // In front of sofa at (-6, 0)
-        ];
-
-        positions.forEach(pos => {
-          const instance = tableGroup.clone();
-          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-          // Tables should have the same orientation as the sofas
-          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(instance);
-        });
-      }
-    }, undefined, (err) => {
-      console.error("Failed to load table model:", err);
+    tablePositions.forEach(pos => {
+      const table = createProceduralTable();
+      table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+      // Tables should have the same orientation as the sofas
+      table.rotation.y = Math.atan2(-pos.x, -pos.z);
+      scene.add(table);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
