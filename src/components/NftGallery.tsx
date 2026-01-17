@@ -667,46 +667,41 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     
     // Load Ashtray Model and place on tables
     gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
-      let ashtrayMesh: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !ashtrayMesh) {
-          ashtrayMesh = child;
-        }
+      const ashtrayModel = gltf.scene;
+      
+      // Calculate bounding box for the entire scene
+      const box = new THREE.Box3().setFromObject(ashtrayModel);
+      const size = new THREE.Vector3(); box.getSize(size);
+      
+      // Determine scale: Ashtray should be small, target size 0.5 units wide/deep.
+      const targetSize = 0.5;
+      const maxDim = Math.max(size.x, size.z);
+      const scale = targetSize / maxDim;
+      
+      // Apply scale to the model itself
+      ashtrayModel.scale.set(scale, scale, scale);
+      
+      // Recalculate box after scaling to find the new bottom Y
+      const scaledBox = new THREE.Box3().setFromObject(ashtrayModel);
+      const bottomY = scaledBox.min.y;
+      
+      // Create a group to hold the model and position it correctly
+      const ashtrayGroup = new THREE.Group();
+      ashtrayGroup.add(ashtrayModel);
+      
+      // Offset the model so its bottom sits at Y=0 in the group's local space
+      ashtrayModel.position.y = -bottomY;
+
+      const tableTopY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.8 + 0.04; // Tabletop top surface + small offset
+      
+      tablePositions.forEach(pos => {
+        const instance = ashtrayGroup.clone();
+        instance.position.set(pos.x, tableTopY, pos.z);
+        instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+        instance.translateX(1.2); // Match table lateral shift
+        instance.translateZ(1.0); // Match table depth shift
+        scene.add(instance);
       });
-
-      if (ashtrayMesh) {
-        const mesh = ashtrayMesh as THREE.Mesh;
-        mesh.geometry.computeBoundingBox();
-        const box = mesh.geometry.boundingBox!;
-        const size = new THREE.Vector3(); box.getSize(size);
-        
-        // Determine scale: Ashtray should be small, target size 0.5 units wide/deep.
-        const targetSize = 0.5;
-        const maxDim = Math.max(size.x, size.z);
-        const scale = targetSize / maxDim;
-        
-        const ashtrayGroup = new THREE.Group();
-        ashtrayGroup.add(mesh);
-        
-        // Adjust position so the bottom of the ashtray is at Y=0 in the group's local space
-        mesh.scale.set(scale, scale, scale);
-        mesh.position.set(
-          - (box.min.x + size.x / 2) * scale, 
-          - box.min.y * scale, 
-          - (box.min.z + size.z / 2) * scale
-        );
-
-        const tableTopY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.8 + 0.01; // Tabletop height (0.8) + small offset
-        
-        tablePositions.forEach(pos => {
-          const instance = ashtrayGroup.clone();
-          instance.position.set(pos.x, tableTopY, pos.z);
-          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
-          instance.translateX(1.2); // Match table lateral shift
-          instance.translateZ(1.0); // Match table depth shift
-          scene.add(instance);
-        });
-      }
     }, undefined, (err) => {
       console.warn("Failed to load ashtray model:", err);
     });
