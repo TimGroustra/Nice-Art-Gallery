@@ -396,37 +396,6 @@ const NftGalleryMobile: React.FC = () => {
     underPlatform.position.y = LOWER_WALL_HEIGHT;
     scene.add(underPlatform);
 
-    // Electroneum Logo Vinyls for Centers (Mobile)
-    const textureLoader = new THREE.TextureLoader();
-    const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg', (tex) => {
-      // Force anisotropy and mipmap updates inside callback for full application
-      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-      tex.minFilter = THREE.LinearMipmapLinearFilter;
-      tex.magFilter = THREE.LinearFilter;
-      tex.needsUpdate = true;
-    });
-    
-    const vinylGeo = new THREE.PlaneGeometry(10, 10);
-    const vinylMat = new THREE.MeshBasicMaterial({ 
-      map: logoTexture, 
-      transparent: true, 
-      opacity: 0.8,
-      side: THREE.DoubleSide 
-    });
-
-    // 1. Ground floor center
-    const groundVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    groundVinyl.rotation.x = -Math.PI / 2;
-    groundVinyl.position.set(0, 0.01, 0);
-    scene.add(groundVinyl);
-
-    // 2. First floor platform center
-    const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    platformVinyl.rotation.x = -Math.PI / 2;
-    // Increased offset slightly for better depth buffer handling
-    platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.05, 0);
-    scene.add(platformVinyl);
-
     // Create Diamond Teleporters for Mobile
     const gBtn = createDiamondTeleporter();
     gBtn.position.set(0, 2.0, 0);
