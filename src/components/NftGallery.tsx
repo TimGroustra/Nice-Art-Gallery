@@ -660,7 +660,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       
       // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
-      table.translateX(1.2);
+      // Adjusted to move slightly further into the corner (1.5 units)
+      table.translateX(1.5);
       
       scene.add(table);
     });
