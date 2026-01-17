@@ -12,18 +12,12 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import { fetchGalleryFurniture, FurnitureItem } from '@/utils/furnitureFetcher';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
 
 const PANEL_WIDTH = 6;
 const PANEL_HEIGHT = 6;
-
-// Define constants used for geometry and furniture placement
-const WALL_THICKNESS = 0.5;
-const LOWER_WALL_HEIGHT = 8;
-const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01; // 8.26
 
 interface Panel {
   mesh: THREE.Mesh;
@@ -76,19 +70,15 @@ const isVideoContent = (contentType: string, url: string) =>
 const isGifContent = (contentType: string, url: string) =>
   !!(contentType === 'image/gif' || url.match(/\.gif(\?|$)/i));
 
-const disposeTextureSafely = (mesh: THREE.Mesh, isContextLost = false) => {
+const disposeTextureSafely = (mesh: THREE.Mesh) => {
   const material = mesh.material;
   if (material instanceof THREE.MeshBasicMaterial) {
     const mat = material as THREE.MeshBasicMaterial & { map: THREE.Texture | null };
-    // If context is lost, we DON'T call dispose() on textures as they are already invalidated
-    // and calling dispose() can throw INVALID_OPERATION.
-    if (!isContextLost && mat.map) {
+    if (mat.map) {
       mat.map.dispose();
+      mat.map = null;
     }
-    mat.map = null;
-    if (!isContextLost) {
-      mat.dispose();
-    }
+    mat.dispose();
   }
 };
 
@@ -179,8 +169,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   );
 
   const updatePanelContent = useCallback(
-    async (panel: Panel, source: NftSource | null, isContextLost = false) => {
-      disposeTextureSafely(panel.mesh, isContextLost);
+    async (panel: Panel, source: NftSource | null) => {
+      disposeTextureSafely(panel.mesh);
       panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x111111 });
       panel.metadataUrl = '';
       panel.isVideo = false;
@@ -222,7 +212,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), side: THREE.DoubleSide });
         } else {
           const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
-          disposeTextureSafely(panel.mesh, isContextLost);
+          disposeTextureSafely(panel.mesh);
           panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
           panel.metadataUrl = metadata.source;
           panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
@@ -273,12 +263,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     cameraRef.current = camera;
     camera.position.set(0, 1.6, -20);
 
-    const renderer = new THREE.WebGLRenderer({ 
-      antialias: true,
-      powerPreference: "high-performance",
-      stencil: false,
-      depth: true
-    });
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     rendererRef.current = renderer;
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -357,9 +342,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.1 }));
     floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
-    const PLATFORM_Y_CALC = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
+    const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
     const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
-    platform.position.set(0, PLATFORM_Y_CALC, 0); scene.add(platform);
+    platform.position.set(0, PLATFORM_Y, 0); scene.add(platform);
 
     const shaderPlane = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
     shaderPlane.rotation.x = -Math.PI / 2; shaderPlane.position.set(0, LOWER_WALL_HEIGHT, 0); scene.add(shaderPlane);
@@ -371,11 +356,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const buttonMat = new THREE.MeshStandardMaterial({ color: 0x1a3f7c, emissive: 0x1a3f7c, emissiveIntensity: 0.5, roughness: 0.1, metalness: 0.9 });
     
     const groundBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    groundBtn.position.set(0, 0.1, 0); groundBtn.userData = { isTeleportButton: true, targetY: PLATFORM_Y_CALC + 1.6 + WALL_THICKNESS / 2 };
+    groundBtn.position.set(0, 0.1, 0); groundBtn.userData = { isTeleportButton: true, targetY: PLATFORM_Y + 1.6 + WALL_THICKNESS / 2 };
     scene.add(groundBtn);
 
     const firstBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    firstBtn.position.set(0, PLATFORM_Y_CALC + WALL_THICKNESS / 2 + 0.1, 0); firstBtn.userData = { isTeleportButton: true, targetY: 1.6 };
+    firstBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.1, 0); firstBtn.userData = { isTeleportButton: true, targetY: 1.6 };
     scene.add(firstBtn);
     teleportButtonsRef.current = [groundBtn, firstBtn];
 
@@ -396,49 +381,85 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // Furniture loading
-    const loadFurniture = async () => {
-      const furnitureItems = await fetchGalleryFurniture();
-      const gltfLoader = new GLTFLoader();
+    const gltfLoader = new GLTFLoader();
 
-      for (const item of furnitureItems) {
-        if (!item.model_url) continue;
-        if (!item.model_url.toLowerCase().endsWith('.glb') && !item.model_url.toLowerCase().endsWith('.gltf')) continue;
+    // Specific Sofa Loading
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let sofaMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !sofaMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            sofaMesh = child;
+          }
+        }
+      });
 
-        gltfLoader.load(item.model_url, (gltf) => {
-          let extractedModel: THREE.Object3D | null = null;
-          if (item.name_filter) {
-            gltf.scene.traverse((child) => {
-              if (child.name.toLowerCase().includes(item.name_filter!.toLowerCase()) && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-                if (!extractedModel) extractedModel = child;
-              }
-            });
-          }
-          if (!extractedModel) extractedModel = gltf.scene;
+      if (sofaMesh) {
+        const mesh = sofaMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 4.5;
+        const scale = targetWidth / size.x;
+        const sofaGroup = new THREE.Group();
+        sofaGroup.add(mesh);
+        
+        // Make them twice as tall by doubling the Y scale factor
+        mesh.scale.set(scale, scale * 2, scale);
+        
+        // Adjust position to sit on floor with new height
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale, 
+          - box.min.y * (scale * 2), 
+          - (box.min.z + size.z / 2) * scale
+        );
 
-          if (extractedModel) {
-            const model = extractedModel as THREE.Object3D;
-            const box = new THREE.Box3().setFromObject(model);
-            const size = new THREE.Vector3(); box.getSize(size);
-            const maxDim = Math.max(size.x, size.z);
-            let scale = item.scale_multiplier;
-            if (item.target_width > 0 && maxDim > 0) scale = item.target_width / maxDim;
-            model.scale.set(scale, scale * item.scale_y_multiplier, scale);
-            const adjustedBox = new THREE.Box3().setFromObject(model);
-            const bottomY = adjustedBox.min.y;
-            const floorHeight = item.floor_level === 'first' ? PLATFORM_Y + WALL_THICKNESS / 2 : 0;
-            model.position.set(item.position_x, floorHeight + item.position_y - bottomY, item.position_z);
-            model.rotation.y = item.rotation_y;
-            scene.add(model);
-          }
-        }, undefined, (error) => {
-          if (!(error instanceof SyntaxError && error.message.includes('<!doctype'))) {
-             console.error(`[Gallery] Error loading furniture:`, error);
-          }
+        const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
+        positions.forEach(pos => {
+          const instance = sofaGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
         });
       }
-    };
-    loadFurniture();
+    });
+
+    // Specific Table Loading
+    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
+      let tableMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !tableMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            tableMesh = child;
+          }
+        }
+      });
+
+      if (tableMesh) {
+        const mesh = tableMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 2.0;
+        const scale = targetWidth / size.x;
+        const tableGroup = new THREE.Group();
+        tableGroup.add(mesh);
+        mesh.scale.set(scale, scale, scale);
+        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
+
+        // Position tables in the diagonal corners of the 1st floor platform
+        const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
+        positions.forEach(pos => {
+          const instance = tableGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          scene.add(instance);
+        });
+      }
+    });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
@@ -464,6 +485,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
     }
 
+    // Inner cross walls
     [-10, 10].forEach((seg, i) => {
       const pos = 5 + ARROW_DEPTH_OFFSET;
       dynamicPanelConfigs.push({ wallName: `north-inner-wall-outer-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, -pos], rot: [0, Math.PI, 0] });
@@ -498,8 +520,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const raycaster = new THREE.Raycaster();
-    raycasterRef.current = raycaster;
-
     const onClick = () => {
       if (!controls.isLocked) return;
       if (currentTargetedButton?.userData?.isTeleportButton) return performTeleport(currentTargetedButton.userData.targetY);
@@ -530,50 +550,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     document.addEventListener('keydown', onKeyDown); document.addEventListener('keyup', onKeyUp);
 
     let stopAnim = false;
-    
-    const handleContextLost = (event: Event) => {
-      event.preventDefault();
-      console.warn('[Gallery] WebGL Context Lost.');
-      // Stop the animation loop immediately to prevent further GL calls
-      stopAnim = true;
-      // We don't call dispose() here as the context is gone. 
-      // Just cleanup the handles to avoid INVALID_OPERATION later.
-      panelsRef.current.forEach(p => {
-        p.videoElement?.pause();
-        p.gifStopFunction?.();
-      });
-    };
-
-    const handleContextRestored = async () => {
-      console.log('[Gallery] WebGL Context Restored. Resuming session seamlessly.');
-      
-      // Re-initialize custom shader uniforms
-      if (rainbowMaterialRef.current) {
-        rainbowMaterialRef.current.uniforms.time.value = 0.0;
-      }
-
-      // We skip initializeGalleryConfig() because we still have the config in memory.
-      // We just need to reload the textures for the new context.
-      const panelsToUpdate = [...panelsRef.current]; 
-      for (const p of panelsToUpdate) {
-        // Pass true to indicate context was lost so we don't try to call GL delete commands
-        await updatePanelContent(p, getCurrentNftSource(p.wallName), true);
-      }
-      
-      stopAnim = false;
-      prevTimeRef.current = performance.now();
-      animate();
-    };
-
-    renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
-    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored, false);
-
     const initLoad = async () => {
       await initializeGalleryConfig();
       for (let i = 0; i < panelsRef.current.length; i++) {
         if (stopAnim) break;
-        updatePanelContent(panelsRef.current[i], getCurrentNftSource(panelsRef.current[i].wallName));
-        if (i % 2 === 0) await new Promise(r => setTimeout(r, 250 + Math.random() * 200));
+        const p = panelsRef.current[i];
+        updatePanelContent(p, getCurrentNftSource(p.wallName));
+        if (i % 2 === 0) {
+          const jitter = Math.random() * 200;
+          await new Promise(r => setTimeout(r, 250 + jitter));
+        }
       }
     };
     initLoad();
@@ -606,9 +592,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         else { fadeMaterialRef.current.opacity = 0; isTeleportingRef.current = false; }
       }
 
-      if (camera && raycasterRef.current) {
-        raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
-        const hits = raycasterRef.current.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
+      if (camera && raycaster) {
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const hits = raycaster.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
         panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
         teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x1a3f7c); (b.material as any).emissive.setHex(0x1a3f7c); });
@@ -634,13 +620,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     window.addEventListener('resize', onResize);
 
     return () => {
-      stopAnim = true; 
-      document.removeEventListener('keydown', onKeyDown); 
-      document.removeEventListener('keyup', onKeyUp);
-      renderer.domElement.removeEventListener('click', onClick); 
-      window.removeEventListener('resize', onResize);
-      renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
-      renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
+      stopAnim = true; document.removeEventListener('keydown', onKeyDown); document.removeEventListener('keyup', onKeyUp);
+      renderer.domElement.removeEventListener('click', onClick); window.removeEventListener('resize', onResize);
       (window as any).galleryControls = undefined;
       panelsRef.current.forEach(p => { disposeTextureSafely(p.mesh); p.videoElement?.pause(); p.gifStopFunction?.(); });
       renderer.dispose(); mountRef.current?.removeChild(renderer.domElement);
