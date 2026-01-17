@@ -616,30 +616,19 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     gltfLoader.load('/assets/models/wineglass.glb', (gltf) => {
       const glassModel = gltf.scene;
       
-      // Define clear glass material (slightly opaque white)
+      // Define clear glass material
       const glassMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0xf0f0f0, // Hint of white
+        color: 0xffffff,
         metalness: 0.0,
         roughness: 0.1,
-        transmission: 0.9, // Slightly opaque
+        transmission: 1.0,
         thickness: 0.5,
         transparent: true,
-        opacity: 0.95,
+        opacity: 0.9,
         envMapIntensity: 1.0,
       });
 
-      // Define wine material (deep red)
-      const wineMaterial = new THREE.MeshPhysicalMaterial({
-        color: 0x800020, // Deep red
-        metalness: 0.0,
-        roughness: 0.1,
-        transmission: 0.5,
-        transparent: true,
-        opacity: 0.9,
-        envMapIntensity: 0.5,
-      });
-
-      // Apply glass material to all meshes in the model
+      // Apply material to all meshes in the model
       glassModel.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.material = glassMaterial;
@@ -667,28 +656,13 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
         
         // Position relative to the table group's local space
         // Y position: tableTopOffset (0.8) - bottomY (to sit on the surface)
-        const glassY = tableTopOffset - bottomY;
-        glassInstance.position.y = glassY;
+        glassInstance.position.y = tableTopOffset - bottomY;
         
         // Place it slightly off-center on the table top
         glassInstance.position.x = 0.5; 
         glassInstance.position.z = 0; 
         
         table.add(glassInstance);
-
-        // Add wine (approximated by a cylinder)
-        const wineHeight = 0.1; 
-        const wineRadius = 0.1; 
-        const wineGeo = new THREE.CylinderGeometry(wineRadius, wineRadius * 0.8, wineHeight, 32);
-        const wineMesh = new THREE.Mesh(wineGeo, wineMaterial);
-        
-        // Position wine inside the glass bowl.
-        const wineOffsetFromGlassBase = 0.2; 
-        wineMesh.position.y = glassY + wineOffsetFromGlassBase + wineHeight / 2;
-        wineMesh.position.x = 0.5; 
-        wineMesh.position.z = 0; 
-        
-        table.add(wineMesh);
       });
     }, undefined, (err) => {
       console.warn("Failed to load wineglass model:", err);
@@ -752,7 +726,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
             if (wallNameBase === 'west-wall') { x = -halfRoomSize; z = segmentCenter; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
 
             const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
-            mesh.position.set(x + dx, tier.y, z + dz);
+            mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
             mesh.rotation.y = rotY;
             scene.add(mesh);
 
