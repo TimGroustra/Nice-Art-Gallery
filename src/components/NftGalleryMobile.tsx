@@ -404,38 +404,57 @@ const NftGalleryMobile: React.FC = () => {
     // Load and place Plants at corners
     gltfLoader.load('/assets/models/plant.glb', (gltf) => {
       const plantModel = gltf.scene;
+      
+      const modelBox = new THREE.Box3().setFromObject(plantModel);
+      const modelMinY = modelBox.min.y;
+      const modelMaxY = modelBox.max.y;
+      const modelHeight = modelMaxY - modelMinY;
 
-      // Customize colors and filter out floor/base meshes
+      const terracottaColor = 0xe2725b;
+      const soilColor = 0x5d4037;
+      const stemColor = 0x3d2b1f;
+      const leafColor = 0x2e7d32;
+
       plantModel.traverse((child) => {
         if (child instanceof THREE.Mesh) {
-          const name = child.name.toLowerCase();
+          const mesh = child as THREE.Mesh;
+          mesh.geometry.computeBoundingBox();
+          const box = mesh.geometry.boundingBox!;
           
-          // Heuristic to find floor parts
-          if (name.includes('floor') || name.includes('plane') || name.includes('base') || name.includes('ground') || name.includes('shadow')) {
-            child.visible = false;
+          const meshMinY = box.min.y;
+          const meshMaxY = box.max.y;
+          const meshHeight = meshMaxY - meshMinY;
+          const normalizedMinY = (meshMinY - modelMinY) / modelHeight;
+          const normalizedMaxY = (meshMaxY - modelMinY) / modelHeight;
+
+          if (normalizedMinY < 0.05 && meshHeight < 0.05) {
+            mesh.visible = false;
+            return;
           }
-          
-          // Re-apply specific materials for requested colors
-          if (name.includes('pot')) {
-            child.material = new THREE.MeshStandardMaterial({ color: 0xe2725b, roughness: 0.9 }); // Terracotta
-          } else if (name.includes('soil')) {
-            child.material = new THREE.MeshStandardMaterial({ color: 0x964b00, roughness: 1.0 }); // Light Brown
-          } else if (name.includes('stem') || name.includes('trunk') || name.includes('branch')) {
-            child.material = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.8 }); // Dark Brown
-          } else if (name.includes('leaf') || name.includes('leaves') || name.includes('foliage')) {
-            child.material = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.6 }); // Green
+
+          if (normalizedMinY < 0.1 && normalizedMaxY < 0.4) {
+             mesh.material = new THREE.MeshStandardMaterial({ color: terracottaColor, roughness: 0.9 });
+          } 
+          else if (normalizedMinY > 0.1 && normalizedMinY < 0.3 && meshHeight < 0.1) {
+             mesh.material = new THREE.MeshStandardMaterial({ color: soilColor, roughness: 1.0 });
+          }
+          else {
+            const meshSize = new THREE.Vector3(); box.getSize(meshSize);
+            const aspect = meshSize.y / Math.max(meshSize.x, meshSize.z);
+            if (aspect > 2.0) {
+              mesh.material = new THREE.MeshStandardMaterial({ color: stemColor, roughness: 0.8 });
+            } else {
+              mesh.material = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.6 });
+            }
           }
         }
       });
 
-      const box = new THREE.Box3().setFromObject(plantModel);
-      const size = new THREE.Vector3(); box.getSize(size);
-      
+      const size = new THREE.Vector3(); modelBox.getSize(size);
       const targetHeight = 2.5;
       const scale = targetHeight / size.y;
       plantModel.scale.set(scale, scale, scale);
       
-      // Platform is 30x30, so corners are at ±15. We'll inset them slightly to ±14.2
       const corners = [
         { x: 14.2, z: 14.2 },
         { x: -14.2, z: 14.2 },
