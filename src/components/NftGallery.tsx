@@ -669,36 +669,35 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       tables.push(table);
     });
     
-    // Load Cup and Saucer model and place on tables
-    gltfLoader.load('/assets/models/cup.glb', (gltf) => {
-      const cupModel = gltf.scene;
-      const box = new THREE.Box3().setFromObject(cupModel);
+    // Load Cappuccino Mug model and place on tables
+    gltfLoader.load('/assets/models/Cappuccino_Mug.glb', (gltf) => {
+      const mugModel = gltf.scene;
+      const box = new THREE.Box3().setFromObject(mugModel);
       const size = new THREE.Vector3(); box.getSize(size);
-      const targetWidth = 0.25; // Smaller realistic size for a cup/saucer
+      const targetWidth = 0.28; // Slightly larger for the mug
       const scale = targetWidth / size.x;
-      cupModel.scale.set(scale, scale, scale);
+      mugModel.scale.set(scale, scale, scale);
 
       // Extract bottom Y for correct placement on table
       const bottomY = box.min.y * scale;
 
       tablePositions.forEach((pos, idx) => {
-        const cup = cupModel.clone();
+        const mug = mugModel.clone();
         // The tabletop surface is at Y=0.84 relative to table origin
         const tableSurfaceY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.84;
         
         // Position it on the table, slightly offset from center
-        cup.position.set(pos.x, tableSurfaceY - bottomY, pos.z);
-        cup.rotation.y = Math.atan2(-pos.x, -pos.z);
+        mug.position.set(pos.x, tableSurfaceY - bottomY, pos.z);
+        mug.rotation.y = Math.atan2(-pos.x, -pos.z);
         
         // Translate it along the table surface to match table shift
-        // Table shifted 0.9, we put cup slightly off center on the table
-        cup.translateX(1.1); 
-        cup.translateZ(0.2 * (idx % 2 === 0 ? 1 : -1)); // Jitter Z slightly per table
+        mug.translateX(1.1); 
+        mug.translateZ(0.25 * (idx % 2 === 0 ? 1 : -1)); // Jitter Z slightly per table
 
-        scene.add(cup);
+        scene.add(mug);
       });
     }, null, (err) => {
-      console.warn("Failed to load cup model:", err);
+      console.warn("Failed to load mug model:", err);
     });
 
     // Create Rugs beneath sofa/table pairs on the FIRST FLOOR PLATFORM
