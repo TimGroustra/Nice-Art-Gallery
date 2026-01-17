@@ -474,49 +474,41 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     // Furniture loading: Sofa and Plants
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
+      let sofaMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
+        if (child instanceof THREE.Mesh && !sofaMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            sofaMesh = child;
+          }
         }
       });
-      
-      if (!extractedSofa) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedSofa) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 15 && size.z < 15) extractedSofa = child;
-          }
-        });
-      }
 
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(sofaModel);
+      if (sofaMesh) {
+        const mesh = sofaMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
         const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.z);
-        const scale = 4.5 / maxDim;
+        const targetWidth = 4.5;
+        const scale = targetWidth / size.x;
+        const sofaGroup = new THREE.Group();
+        sofaGroup.add(mesh);
         
-        // Applying double height scale
-        sofaModel.scale.set(scale, scale * 2, scale);
-        
-        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
-        const bottomY = adjustedBox.min.y;
+        mesh.scale.set(scale, scale * 2, scale);
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale, 
+          - box.min.y * (scale * 2), 
+          - (box.min.z + size.z / 2) * scale
+        );
 
-        // UPDATED: Move sofas from 4.5 units to 9.5 units away from center
-        const sofaPositions = [
-          { x: 0, z: 9.5 },
-          { x: 0, z: -9.5 },
-          { x: 9.5, z: 0 },
-          { x: -9.5, z: 0 },
-        ];
-
+        // Aligning positions with desktop (11 units from center)
+        const sofaPositions = [{ x: 0, z: 11 }, { x: 0, z: -11 }, { x: 11, z: 0 }, { x: -11, z: 0 }];
         sofaPositions.forEach(pos => {
-          const sofa = sofaModel.clone();
-          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(sofa);
+          const instance = sofaGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
         });
       }
     }, undefined, (err) => {
