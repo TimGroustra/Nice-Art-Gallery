@@ -396,6 +396,31 @@ const NftGalleryMobile: React.FC = () => {
     underPlatform.position.y = LOWER_WALL_HEIGHT;
     scene.add(underPlatform);
 
+    // Electroneum Logo Vinyls for Corners (Mobile)
+    const textureLoader = new THREE.TextureLoader();
+    const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
+    const vinylGeo = new THREE.PlaneGeometry(10, 10);
+    const vinylMat = new THREE.MeshBasicMaterial({ 
+      map: logoTexture, 
+      transparent: true, 
+      opacity: 0.8,
+      side: THREE.DoubleSide 
+    });
+
+    const vinylPositions = [
+      { x: 10, z: 10 },
+      { x: -10, z: 10 },
+      { x: 10, z: -10 },
+      { x: -10, z: -10 }
+    ];
+
+    vinylPositions.forEach(pos => {
+      const vinyl = new THREE.Mesh(vinylGeo, vinylMat);
+      vinyl.rotation.x = -Math.PI / 2;
+      vinyl.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, pos.z);
+      scene.add(vinyl);
+    });
+
     // Create Diamond Teleporters for Mobile
     const gBtn = createDiamondTeleporter();
     gBtn.position.set(0, 2.0, 0);

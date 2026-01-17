@@ -467,6 +467,32 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
     ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, WALL_HEIGHT + 0.01, 0); scene.add(ceiling);
 
+    // Electroneum Logo Vinyls for Corners of the platform
+    const textureLoader = new THREE.TextureLoader();
+    const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
+    const vinylGeo = new THREE.PlaneGeometry(10, 10);
+    const vinylMat = new THREE.MeshBasicMaterial({ 
+      map: logoTexture, 
+      transparent: true, 
+      opacity: 0.8,
+      side: THREE.DoubleSide 
+    });
+
+    const vinylPositions = [
+      { x: 10, z: 10 },
+      { x: -10, z: 10 },
+      { x: 10, z: -10 },
+      { x: -10, z: -10 }
+    ];
+
+    vinylPositions.forEach(pos => {
+      const vinyl = new THREE.Mesh(vinylGeo, vinylMat);
+      vinyl.rotation.x = -Math.PI / 2;
+      // Position slightly above the platform surface (PLATFORM_Y + half thickness + offset)
+      vinyl.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, pos.z);
+      scene.add(vinyl);
+    });
+
     // Create Diamond Teleporters
     const groundBtn = createDiamondTeleporter();
     groundBtn.position.set(0, 2.0, 0); 
