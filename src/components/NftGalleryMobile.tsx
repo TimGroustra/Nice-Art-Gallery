@@ -94,45 +94,6 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 };
 
 /**
- * Creates a minimalist rectangular gallery table using Three.js primitives.
- */
-function createProceduralTable() {
-  const group = new THREE.Group();
-  
-  // Table Materials
-  const darkMat = new THREE.MeshStandardMaterial({ 
-    color: 0x111111, 
-    roughness: 0.1, 
-    metalness: 0.8 
-  });
-  const chromeMat = new THREE.MeshStandardMaterial({ 
-    color: 0x888888, 
-    metalness: 1.0, 
-    roughness: 0.1 
-  });
-
-  // 1. Tabletop (Rectangular)
-  const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
-  const top = new THREE.Mesh(topGeo, darkMat);
-  top.position.y = 0.8;
-  group.add(top);
-
-  // 2. Central Support (Rectangular Chrome Column)
-  const supportGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-  const support = new THREE.Mesh(supportGeo, chromeMat);
-  support.position.y = 0.4;
-  group.add(support);
-
-  // 3. Base (Rectangular)
-  const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
-  const base = new THREE.Mesh(baseGeo, darkMat);
-  base.position.y = 0.025;
-  group.add(base);
-
-  return group;
-}
-
-/**
  * Creates the upgraded Diamond Teleporter group.
  */
 function createDiamondTeleporter() {
@@ -474,89 +435,53 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     // Furniture loading: Sofa and Plants
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let sofaMesh: THREE.Mesh | null = null;
+      let extractedSofa: THREE.Object3D | null = null;
       gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !sofaMesh) {
-          const box = new THREE.Box3().setFromObject(child);
-          const size = new THREE.Vector3(); box.getSize(size);
-          if (size.x < 15 && size.z < 15) {
-            sofaMesh = child;
-          }
+        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
+          if (!extractedSofa) extractedSofa = child;
         }
       });
+      
+      if (!extractedSofa) {
+        gltf.scene.traverse((child) => {
+          if (child instanceof THREE.Mesh && !extractedSofa) {
+            const box = new THREE.Box3().setFromObject(child);
+            const size = new THREE.Vector3(); box.getSize(size);
+            if (size.x < 15 && size.z < 15) extractedSofa = child;
+          }
+        });
+      }
 
-      if (sofaMesh) {
-        const mesh = sofaMesh as THREE.Mesh;
-        mesh.geometry.computeBoundingBox();
-        const box = mesh.geometry.boundingBox!;
+      if (extractedSofa) {
+        const sofaModel = extractedSofa as THREE.Object3D;
+        const box = new THREE.Box3().setFromObject(sofaModel);
         const size = new THREE.Vector3(); box.getSize(size);
-        const targetWidth = 4.5;
-        const scale = targetWidth / size.x;
-        const sofaGroup = new THREE.Group();
-        sofaGroup.add(mesh);
+        const maxDim = Math.max(size.x, size.z);
+        const scale = 4.5 / maxDim;
         
-        mesh.scale.set(scale, scale * 2, scale);
-        mesh.position.set(
-          - (box.min.x + size.x / 2) * scale, 
-          - box.min.y * (scale * 2), 
-          - (box.min.z + size.z / 2) * scale
-        );
+        // Applying double height scale
+        sofaModel.scale.set(scale, scale * 2, scale);
+        
+        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
+        const bottomY = adjustedBox.min.y;
 
+        // UPDATED: Move sofas from 4.5 units to 9.5 units away from center
         const sofaPositions = [
-          { x: 0, z: 11 },
-          { x: 0, z: -11 },
-          { x: 11, z: 0 },
-          { x: -11, z: 0 },
+          { x: 0, z: 9.5 },
+          { x: 0, z: -9.5 },
+          { x: 9.5, z: 0 },
+          { x: -9.5, z: 0 },
         ];
 
         sofaPositions.forEach(pos => {
-          const instance = sofaGroup.clone();
-          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(instance);
+          const sofa = sofaModel.clone();
+          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(sofa);
         });
       }
     }, undefined, (err) => {
       console.warn("Failed to load sofa model:", err);
-    });
-
-    // Tables and Ashtrays for Mobile
-    const tablePositions = [
-      { x: 0, z: 9.8 },  
-      { x: 0, z: -9.8 }, 
-      { x: 9.8, z: 0 },  
-      { x: -9.8, z: 0 }  
-    ];
-    const tables: THREE.Group[] = [];
-
-    tablePositions.forEach(pos => {
-      const table = createProceduralTable();
-      table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-      table.rotation.y = Math.atan2(-pos.x, -pos.z);
-      table.translateX(0.9);
-      scene.add(table);
-      tables.push(table);
-    });
-
-    gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
-      const ashtrayScene = gltf.scene;
-      const box = new THREE.Box3().setFromObject(ashtrayScene);
-      const size = new THREE.Vector3(); box.getSize(size);
-      const center = new THREE.Vector3(); box.getCenter(center);
-      ashtrayScene.position.x -= center.x;
-      ashtrayScene.position.z -= center.z;
-      ashtrayScene.position.y -= box.min.y;
-      const targetWidth = 0.35;
-      const scale = targetWidth / Math.max(size.x, size.z);
-      ashtrayScene.scale.set(scale, scale, scale);
-
-      tables.forEach(table => {
-        const ashtray = ashtrayScene.clone();
-        ashtray.position.y = 0.84;
-        table.add(ashtray);
-      });
-    }, undefined, (err) => {
-      console.warn("Failed to load ashtray model:", err);
     });
 
     // Load and place Plants at corners

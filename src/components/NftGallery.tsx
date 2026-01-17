@@ -646,7 +646,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       console.warn("Failed to load plant model:", err);
     });
 
-    // Create and position Rectangular Tables with ashtrays
+    // Create and position Rectangular Tables within the L-shape sofa open space
+    // Sofas moved to 11. Tables are 9.8 units away from center.
     const tablePositions = [
       { x: 0, z: 9.8 },  
       { x: 0, z: -9.8 }, 
@@ -654,48 +655,17 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       { x: -9.8, z: 0 }  
     ];
 
-    const tables: THREE.Group[] = [];
-
     tablePositions.forEach(pos => {
       const table = createProceduralTable();
       table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
       // Rotate to follow sofa orientation
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       
-      // SHIFT LATERALLY: Move the table away from the daybed side.
+      // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
+      // Adjusted to move slightly further away from the daybed side (0.9 units)
       table.translateX(0.9);
       
       scene.add(table);
-      tables.push(table);
-    });
-
-    // Load Ashtray Model and place it on each table
-    gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
-      const ashtrayScene = gltf.scene;
-      
-      // Calculate bounds and center the ashtray
-      const box = new THREE.Box3().setFromObject(ashtrayScene);
-      const size = new THREE.Vector3(); box.getSize(size);
-      const center = new THREE.Vector3(); box.getCenter(center);
-      
-      ashtrayScene.position.x -= center.x;
-      ashtrayScene.position.z -= center.z;
-      ashtrayScene.position.y -= box.min.y; // Bottom at 0 locally
-
-      const targetWidth = 0.35;
-      const scale = targetWidth / Math.max(size.x, size.z);
-      ashtrayScene.scale.set(scale, scale, scale);
-
-      // Tabletop surface is at y=0.84 in table group space
-      const tableSurfaceY = 0.84;
-
-      tables.forEach(table => {
-        const ashtray = ashtrayScene.clone();
-        ashtray.position.y = tableSurfaceY;
-        table.add(ashtray);
-      });
-    }, undefined, (err) => {
-      console.warn("Failed to load ashtray model:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
