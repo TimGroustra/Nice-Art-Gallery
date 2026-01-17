@@ -33,6 +33,8 @@ interface Panel {
 
 interface NftGalleryProps {
   setInstructionsVisible: (visible: boolean) => void;
+  onLoadingProgress?: (progress: number) => void;
+  onLoadingComplete?: () => void;
 }
 
 let currentTargetedPanel: Panel | null = null;
@@ -197,7 +199,7 @@ function createDiamondTeleporter() {
   return group;
 }
 
-const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
+const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadingProgress, onLoadingComplete }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const [isLocked, setIsLocked] = useState(false);
@@ -756,14 +758,24 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     let stopAnim = false;
     const initLoad = async () => {
       await initializeGalleryConfig();
-      for (let i = 0; i < panelsRef.current.length; i++) {
+      const total = panelsRef.current.length;
+      for (let i = 0; i < total; i++) {
         if (stopAnim) break;
         const p = panelsRef.current[i];
-        updatePanelContent(p, getCurrentNftSource(p.wallName));
-        if (i % 2 === 0) {
-          const jitter = Math.random() * 200;
-          await new Promise(r => setTimeout(r, 250 + jitter));
+        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+        
+        // Report progress
+        if (onLoadingProgress) {
+          onLoadingProgress((i + 1) / total * 100);
         }
+
+        if (i % 2 === 0) {
+          const jitter = Math.random() * 50;
+          await new Promise(r => setTimeout(r, 50 + jitter));
+        }
+      }
+      if (!stopAnim && onLoadingComplete) {
+        onLoadingComplete();
       }
     };
     initLoad();
@@ -863,7 +875,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       panelsRef.current.forEach(p => { disposeTextureSafely(p.mesh); p.videoElement?.pause(); p.gifStopFunction?.(); });
       renderer.dispose(); mountRef.current?.removeChild(renderer.domElement);
     };
-  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback]);
+  }, [setInstructionsVisible, updatePanelContent, manageVideoPlayback, onLoadingProgress, onLoadingComplete]);
 
   return (
     <>

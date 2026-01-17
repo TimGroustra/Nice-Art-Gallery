@@ -1,6 +1,7 @@
 import NftGallery from "@/components/NftGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
+import LoadingSplash from "@/components/LoadingSplash";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ interface BackgroundMusicHandles {
 
 const Index = () => {
   const [instructionsVisible, setInstructionsVisible] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const musicRef = useRef<BackgroundMusicHandles>(null);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
@@ -64,6 +67,8 @@ const Index = () => {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden">
+      {isLoading && <LoadingSplash progress={loadingProgress} />}
+      
       <BackgroundMusic ref={musicRef} />
 
       <div className="fixed top-4 right-4 z-20">
@@ -76,6 +81,8 @@ const Index = () => {
       
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
+        onLoadingProgress={setLoadingProgress}
+        onLoadingComplete={() => setIsLoading(false)}
       />
       
       <GalleryUI 

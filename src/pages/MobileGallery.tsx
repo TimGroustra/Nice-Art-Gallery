@@ -1,13 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import NftGalleryMobile from '@/components/NftGalleryMobile';
 import BackgroundMusic from '@/components/BackgroundMusic';
+import LoadingSplash from '@/components/LoadingSplash';
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { User } from 'lucide-react';
 
 const MobileGallery: React.FC = () => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black">
+      {isLoading && <LoadingSplash progress={loadingProgress} message="Preparing Mobile Experience..." />}
+      
       <BackgroundMusic />
       
       {/* Mobile-Friendly Header */}
@@ -20,7 +26,10 @@ const MobileGallery: React.FC = () => {
         </Button>
       </div>
 
-      <NftGalleryMobile />
+      <NftGalleryMobile 
+        onLoadingProgress={setLoadingProgress}
+        onLoadingComplete={() => setIsLoading(false)}
+      />
     </div>
   );
 };

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import * as THREE from 'three';
+import * as THREE from 'theme';
 import { RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
@@ -43,6 +43,11 @@ interface Panel {
   nextArrow: THREE.Mesh;
   videoElement: HTMLVideoElement | null;
   gifStopFunction: (() => void) | null;
+}
+
+interface NftGalleryMobileProps {
+  onLoadingProgress?: (progress: number) => void;
+  onLoadingComplete?: () => void;
 }
 
 const rainbowVertexShader = `
@@ -155,7 +160,7 @@ function createDiamondTeleporter() {
   return group;
 }
 
-const NftGalleryMobile: React.FC = () => {
+const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, onLoadingComplete }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
   const teleportButtonsRef = useRef<THREE.Group[]>([]);
@@ -635,11 +640,22 @@ const NftGalleryMobile: React.FC = () => {
         });
       });
 
-      for (let i = 0; i < tempPanels.length; i++) {
+      const total = tempPanels.length;
+      for (let i = 0; i < total; i++) {
         if (stopLoad) break;
         const p = tempPanels[i];
-        updatePanelContent(p, getCurrentNftSource(p.wallName));
-        if (i % 3 === 0) await new Promise(resolve => setTimeout(resolve, 100));
+        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+        
+        // Report progress
+        if (onLoadingProgress) {
+          onLoadingProgress((i + 1) / total * 100);
+        }
+
+        if (i % 3 === 0) await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      if (!stopLoad && onLoadingComplete) {
+        onLoadingComplete();
       }
     };
     createPanels();
@@ -775,7 +791,7 @@ const NftGalleryMobile: React.FC = () => {
       window.removeEventListener('resize', onResize);
       mountRef.current?.removeChild(renderer.domElement);
     };
-  }, [updatePanelContent, checkCollision]);
+  }, [updatePanelContent, checkCollision, onLoadingProgress, onLoadingComplete]);
 
   const handleStart = () => {
     setIsStarted(true);
