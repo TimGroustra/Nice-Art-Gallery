@@ -12,7 +12,6 @@ import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
-import { supabase } from '@/integrations/supabase/client';
 
 // Initialize RectAreaLightUniformsLib immediately upon module load
 RectAreaLightUniformsLib.init();
@@ -384,53 +383,47 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
-    // Data-driven Furniture Loader
-    const loadFurnitureFromDb = async () => {
-      const { data: furnitureData, error } = await supabase.from('gallery_furniture').select('*');
-      if (error) {
-        console.error("Failed to fetch furniture:", error);
-        return;
-      }
-      
-      const loader = new GLTFLoader();
-      
-      for (const item of furnitureData) {
-        loader.load(item.model_url, (gltf) => {
-          const model = gltf.scene;
-          
-          // Calculate original size for scaling
-          const box = new THREE.Box3().setFromObject(model);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-          
-          const targetWidth = item.target_width || 4.5;
-          const baseScale = targetWidth / size.x;
-          
-          // Apply individual scales
-          const scaleY = baseScale * (item.scale_y_multiplier || 1.0);
-          const scaleX = baseScale * (item.scale_multiplier || 1.0);
-          const scaleZ = baseScale * (item.scale_multiplier || 1.0);
-          
-          model.scale.set(scaleX, scaleY, scaleZ);
-          
-          // Adjust position so 'y' is the base of the model
-          const adjustedBox = new THREE.Box3().setFromObject(model);
-          const bottomY = adjustedBox.min.y;
-          
-          model.position.set(
-            item.position_x,
-            item.position_y - bottomY,
-            item.position_z
-          );
-          
-          model.rotation.y = item.rotation_y || 0;
-          
-          scene.add(model);
-        }, undefined, (err) => console.warn(`Failed to load model ${item.model_url}:`, err));
-      }
-    };
+    // Specific Sofa Loading with Error Handling
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let sofaMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !sofaMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            sofaMesh = child;
+          }
+        }
+      });
 
-    loadFurnitureFromDb();
+      if (sofaMesh) {
+        const mesh = sofaMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 4.5;
+        const scale = targetWidth / size.x;
+        const sofaGroup = new THREE.Group();
+        sofaGroup.add(mesh);
+        
+        mesh.scale.set(scale, scale * 2, scale);
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale, 
+          - box.min.y * (scale * 2), 
+          - (box.min.z + size.z / 2) * scale
+        );
+
+        const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
+        positions.forEach(pos => {
+          const instance = sofaGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }
+    }, undefined, (err) => {
+      console.warn("Failed to load sofa model:", err);
+    });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
