@@ -466,17 +466,22 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Create and position Rectangular Tables within the L-shape sofa open space
     const tablePositions = [
-      { x: 0, z: 4.8 },  // Adjusted position for sofa at (0, 6)
-      { x: 0, z: -4.8 }, // Adjusted position for sofa at (0, -6)
-      { x: 4.8, z: 0 },  // Adjusted position for sofa at (6, 0)
-      { x: -4.8, z: 0 }  // Adjusted position for sofa at (-6, 0)
+      { x: 0, z: 4.8 },  // Sofa at (0, 6)
+      { x: 0, z: -4.8 }, // Sofa at (0, -6)
+      { x: 4.8, z: 0 },  // Sofa at (6, 0)
+      { x: -4.8, z: 0 }  // Sofa at (-6, 0)
     ];
 
     tablePositions.forEach(pos => {
       const table = createProceduralTable();
       table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-      // Tables should rotate to follow the orientation of the sofas
+      // Rotate to follow sofa orientation
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
+      
+      // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
+      // We use translateX to move it locally along its long axis without affecting distance to seats.
+      table.translateX(1.2);
+      
       scene.add(table);
     });
 
