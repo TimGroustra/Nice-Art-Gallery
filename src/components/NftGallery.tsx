@@ -116,8 +116,8 @@ function createProceduralTable() {
 
   // 3. Base (Rectangular)
   const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
-  const base = new THREE.Mesh(baseGeo, darkMat);
   base.position.y = 0.025;
+  const base = new THREE.Mesh(baseGeo, darkMat);
   group.add(base);
 
   return group;
@@ -672,13 +672,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
     // UPDATED: Using '/images.jpg' directly as it matches the uploaded filename
     const rugTexture = textureLoader.load('/images.jpg');
     rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
-    const rugGeo = new THREE.PlaneGeometry(6, 8);
+    const rugGeo = new THREE.PlaneGeometry(7, 9); // Increased size from 6, 8 to 7, 9
     const rugMat = new THREE.MeshStandardMaterial({ 
       map: rugTexture, 
       roughness: 1, 
       metalness: 0,
       transparent: true,
-      opacity: 0.9
+      opacity: 1.0 // Increased opacity from 0.9 to 1.0
     });
 
     const rugPositions = [
