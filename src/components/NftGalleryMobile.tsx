@@ -405,13 +405,25 @@ const NftGalleryMobile: React.FC = () => {
     gltfLoader.load('/assets/models/plant.glb', (gltf) => {
       const plantModel = gltf.scene;
 
-      // Filter out floor/base meshes
+      // Customize colors and filter out floor/base meshes
       plantModel.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           const name = child.name.toLowerCase();
-          // Heuristic to find floor parts: names like "floor", "plane", "base", "ground", "shadow", or very flat meshes
+          
+          // Heuristic to find floor parts
           if (name.includes('floor') || name.includes('plane') || name.includes('base') || name.includes('ground') || name.includes('shadow')) {
             child.visible = false;
+          }
+          
+          // Re-apply specific materials for requested colors
+          if (name.includes('pot')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0xe2725b, roughness: 0.9 }); // Terracotta
+          } else if (name.includes('soil')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0x964b00, roughness: 1.0 }); // Light Brown
+          } else if (name.includes('stem') || name.includes('trunk') || name.includes('branch')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0x3d2b1f, roughness: 0.8 }); // Dark Brown
+          } else if (name.includes('leaf') || name.includes('leaves') || name.includes('foliage')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 0.6 }); // Green
           }
         }
       });
