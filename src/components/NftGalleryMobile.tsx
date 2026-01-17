@@ -844,7 +844,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
         if (isWalkingRef.current && !isTeleportingRef.current) {
-          const moveSpeed = 4.0; 
+          const moveSpeed = 3.4; // Reduced from 4.0 (15% slower)
           const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
           forward.y = 0;
           forward.normalize();
