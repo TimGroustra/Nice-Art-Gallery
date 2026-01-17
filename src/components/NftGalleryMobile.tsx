@@ -393,20 +393,44 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
     
-    // Load the new platform texture
-    const platformTexture = new THREE.TextureLoader().load('/textures/platform_texture.jpg');
-    platformTexture.wrapS = platformTexture.wrapT = THREE.RepeatWrapping;
-    platformTexture.repeat.set(3, 3); // Repeat the texture 3 times across the platform
-
-    const platformMat = new THREE.MeshStandardMaterial({ 
-      map: platformTexture, 
+    // Platform (First Floor) - Reverting to solid color
+    const platformMatSolid = new THREE.MeshStandardMaterial({ 
+      color: 0x0a0a0a, 
       roughness: 0.8, 
       metalness: 0.1 
     });
 
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), platformMat);
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), platformMatSolid);
     platform.position.set(0, PLATFORM_Y, 0);
     scene.add(platform);
+
+    // Rugs (4 instances of the uploaded image)
+    const rugTexture = new THREE.TextureLoader().load('/textures/platform_texture.jpg');
+    rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
+    rugTexture.repeat.set(1, 1); 
+    rugTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    const rugMat = new THREE.MeshStandardMaterial({
+      map: rugTexture,
+      roughness: 0.8,
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+
+    const rugGeo = new THREE.PlaneGeometry(8, 8); // 8x8 rug size
+    const rugPositions = [
+      { x: 0, z: 9.5 }, // Sofas are at 9.5 units in mobile version
+      { x: 0, z: -9.5 },
+      { x: 9.5, z: 0 },
+      { x: -9.5, z: 0 },
+    ];
+
+    rugPositions.forEach(pos => {
+      const rug = new THREE.Mesh(rugGeo, rugMat);
+      rug.rotation.x = -Math.PI / 2; // Lay flat
+      rug.position.set(pos.x, PLATFORM_Y + 0.02, pos.z);
+      scene.add(rug);
+    });
 
     const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
     underPlatform.rotation.x = -Math.PI / 2;

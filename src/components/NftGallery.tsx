@@ -422,19 +422,43 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
     
-    // Load the new platform texture
-    const platformTexture = new THREE.TextureLoader().load('/textures/platform_texture.jpg');
-    platformTexture.wrapS = platformTexture.wrapT = THREE.RepeatWrapping;
-    platformTexture.repeat.set(3, 3); // Repeat the texture 3 times across the platform
-    
-    const platformMat = new THREE.MeshStandardMaterial({ 
-      map: platformTexture, 
+    // Platform (First Floor) - Reverting to solid color
+    const platformMatSolid = new THREE.MeshStandardMaterial({ 
+      color: 0x0a0a0a, 
       roughness: 0.8, 
       metalness: 0.1 
     });
     
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), platformMat);
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), platformMatSolid);
     platform.position.set(0, PLATFORM_Y, 0); scene.add(platform);
+
+    // Rugs (4 instances of the uploaded image)
+    const rugTexture = new THREE.TextureLoader().load('/textures/platform_texture.jpg');
+    rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
+    rugTexture.repeat.set(1, 1); 
+    rugTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+    const rugMat = new THREE.MeshStandardMaterial({
+      map: rugTexture,
+      roughness: 0.8,
+      metalness: 0.1,
+      side: THREE.DoubleSide
+    });
+
+    const rugGeo = new THREE.PlaneGeometry(8, 8); // 8x8 rug size
+    const rugPositions = [
+      { x: 0, z: 11 },
+      { x: 0, z: -11 },
+      { x: 11, z: 0 },
+      { x: -11, z: 0 },
+    ];
+
+    rugPositions.forEach(pos => {
+      const rug = new THREE.Mesh(rugGeo, rugMat);
+      rug.rotation.x = -Math.PI / 2; // Lay flat
+      rug.position.set(pos.x, PLATFORM_Y + 0.02, pos.z);
+      scene.add(rug);
+    });
 
     const shaderPlane = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
     shaderPlane.rotation.x = -Math.PI / 2; shaderPlane.position.set(0, LOWER_WALL_HEIGHT, 0); scene.add(shaderPlane);
@@ -618,8 +642,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
     }, undefined, (err) => {
       console.warn("Failed to load plant model:", err);
     });
-
-    // Removed procedural table and rug creation logic
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
