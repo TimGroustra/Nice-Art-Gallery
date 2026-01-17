@@ -589,9 +589,9 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
           // Position relative to local origin (0..1 scale)
           const meshMinY = box.min.y;
           const meshMaxY = box.max.y;
-          const meshHeight = meshMaxY - meshMinY;
           const normalizedMinY = (meshMinY - modelMinY) / modelHeight;
           const normalizedMaxY = (meshMaxY - modelMinY) / modelHeight;
+          const meshHeight = meshMaxY - meshMinY;
 
           // 1. Floor/Base meshes: Extremely flat and at the bottom
           if (normalizedMinY < 0.05 && meshHeight < 0.05) {
@@ -675,16 +675,16 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
     gltfLoader.load('/assets/models/wineglass.glb', (gltf) => {
       const glassModel = gltf.scene;
       
-      // Define clear glass material
+      // Define slightly opaque white material
       const glassMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         metalness: 0.0,
-        roughness: 0.1,
-        transmission: 1.0,
+        roughness: 0.3, // Slightly rougher for a milky look
+        transmission: 0.6, // Reduced transmission for opacity
         thickness: 0.5,
         transparent: true,
-        opacity: 0.9,
-        envMapIntensity: 1.0,
+        opacity: 0.95, // Slightly higher opacity
+        envMapIntensity: 0.5, // Reduced environment reflection intensity
       });
 
       // Apply material to all meshes in the model

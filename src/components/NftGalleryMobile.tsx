@@ -616,16 +616,16 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     gltfLoader.load('/assets/models/wineglass.glb', (gltf) => {
       const glassModel = gltf.scene;
       
-      // Define clear glass material
+      // Define slightly opaque white material
       const glassMaterial = new THREE.MeshPhysicalMaterial({
         color: 0xffffff,
         metalness: 0.0,
-        roughness: 0.1,
-        transmission: 1.0,
+        roughness: 0.3, // Slightly rougher for a milky look
+        transmission: 0.6, // Reduced transmission for opacity
         thickness: 0.5,
         transparent: true,
-        opacity: 0.9,
-        envMapIntensity: 1.0,
+        opacity: 0.95, // Slightly higher opacity
+        envMapIntensity: 0.5, // Reduced environment reflection intensity
       });
 
       // Apply material to all meshes in the model
@@ -726,7 +726,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
             if (wallNameBase === 'west-wall') { x = -halfRoomSize; z = segmentCenter; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
 
             const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
-            mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+            mesh.position.set(x + dx, tier.y, z + dz);
             mesh.rotation.y = rotY;
             scene.add(mesh);
 
