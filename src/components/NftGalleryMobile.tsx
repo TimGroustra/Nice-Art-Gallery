@@ -16,6 +16,7 @@ import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 import { Footprints } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 RectAreaLightUniformsLib.init();
 
@@ -350,56 +351,50 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Furniture loading: Sofa with increased height and error handling
-    const gltfLoader = new GLTFLoader();
-    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let extractedSofa: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child.name.toLowerCase().includes('sofa') && (child instanceof THREE.Mesh || child instanceof THREE.Group)) {
-          if (!extractedSofa) extractedSofa = child;
-        }
-      });
+    // Data-driven Furniture Loader
+    const loadFurnitureFromDb = async () => {
+      const { data: furnitureData, error } = await supabase.from('gallery_furniture').select('*');
+      if (error) {
+        console.error("Failed to fetch furniture:", error);
+        return;
+      }
       
-      if (!extractedSofa) {
-        gltf.scene.traverse((child) => {
-          if (child instanceof THREE.Mesh && !extractedSofa) {
-            const box = new THREE.Box3().setFromObject(child);
-            const size = new THREE.Vector3(); box.getSize(size);
-            if (size.x < 15 && size.z < 15) extractedSofa = child;
-          }
-        });
+      const loader = new GLTFLoader();
+      
+      for (const item of furnitureData) {
+        loader.load(item.model_url, (gltf) => {
+          const model = gltf.scene;
+          
+          const box = new THREE.Box3().setFromObject(model);
+          const size = new THREE.Vector3();
+          box.getSize(size);
+          
+          const targetWidth = item.target_width || 4.5;
+          const baseScale = targetWidth / size.x;
+          
+          const scaleY = baseScale * (item.scale_y_multiplier || 1.0);
+          const scaleX = baseScale * (item.scale_multiplier || 1.0);
+          const scaleZ = baseScale * (item.scale_multiplier || 1.0);
+          
+          model.scale.set(scaleX, scaleY, scaleZ);
+          
+          const adjustedBox = new THREE.Box3().setFromObject(model);
+          const bottomY = adjustedBox.min.y;
+          
+          model.position.set(
+            item.position_x,
+            item.position_y - bottomY,
+            item.position_z
+          );
+          
+          model.rotation.y = item.rotation_y || 0;
+          
+          scene.add(model);
+        }, undefined, (err) => console.warn(`Failed to load model ${item.model_url}:`, err));
       }
+    };
 
-      if (extractedSofa) {
-        const sofaModel = extractedSofa as THREE.Object3D;
-        const box = new THREE.Box3().setFromObject(sofaModel);
-        const size = new THREE.Vector3(); box.getSize(size);
-        const maxDim = Math.max(size.x, size.z);
-        const scale = 4.5 / maxDim;
-        
-        // Applying double height scale
-        sofaModel.scale.set(scale, scale * 2, scale);
-        
-        const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
-        const bottomY = adjustedBox.min.y;
-
-        const sofaPositions = [
-          { x: 0, z: 4.5 },
-          { x: 0, z: -4.5 },
-          { x: 4.5, z: 0 },
-          { x: -4.5, z: 0 },
-        ];
-
-        sofaPositions.forEach(pos => {
-          const sofa = sofaModel.clone();
-          sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
-          sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-          scene.add(sofa);
-        });
-      }
-    }, undefined, (err) => {
-      console.warn("Failed to load sofa model:", err);
-    });
+    loadFurnitureFromDb();
 
     let stopLoad = false;
     const createPanels = async () => {
