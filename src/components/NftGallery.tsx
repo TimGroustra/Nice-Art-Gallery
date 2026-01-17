@@ -548,7 +548,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           - (box.min.z + size.z / 2) * scale
         );
 
-        // UPDATED: Move sofas from 6 units to 11 units away from center
+        // Sofas are 11 units away from center
         const positions = [{ x: 0, z: 11 }, { x: 0, z: -11 }, { x: 11, z: 0 }, { x: -11, z: 0 }];
         positions.forEach(pos => {
           const instance = sofaGroup.clone();
@@ -645,7 +645,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // Create and position Rectangular Tables within the L-shape sofa open space
-    // Sofas moved from 6 to 11. Tables maintain 1.2 unit distance from sofa center. 11 - 1.2 = 9.8
+    // Sofas moved to 11. Tables are 9.8 units away from center.
     const tablePositions = [
       { x: 0, z: 9.8 },  
       { x: 0, z: -9.8 }, 
@@ -660,8 +660,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       
       // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
-      // Adjusted to move slightly further into the corner (1.5 units)
-      table.translateX(1.5);
+      // Adjusted to move slightly further away from the daybed side (0.8 units)
+      table.translateX(0.8);
       
       scene.add(table);
     });
