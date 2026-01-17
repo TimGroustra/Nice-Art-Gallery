@@ -668,9 +668,10 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       scene.add(table);
     });
 
-    // Create Rugs beneath sofa/table pairs
-    const rugTexture = textureLoader.load('/textures/rug-pattern.jpg');
+    // Create Rugs beneath sofa/table pairs on the FIRST FLOOR PLATFORM
+    const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
     rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
+    rugTexture.repeat.set(2, 2); // Repeat the pattern
     const rugGeo = new THREE.PlaneGeometry(6, 8);
     const rugMat = new THREE.MeshStandardMaterial({ 
       map: rugTexture, 
@@ -691,6 +692,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       const rug = new THREE.Mesh(rugGeo, rugMat);
       rug.rotation.x = -Math.PI / 2;
       rug.rotation.z = pos.rot;
+      // Positioned on the first floor platform
       rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.005, pos.z);
       scene.add(rug);
     });

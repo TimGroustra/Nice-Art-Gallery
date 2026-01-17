@@ -555,8 +555,9 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     });
 
     // Create Rugs beneath sofa/table pairs (Mobile)
-    const rugTexture = textureLoader.load('/textures/rug-pattern.jpg');
+    const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
     rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
+    rugTexture.repeat.set(2, 2); // Repeat the pattern
     const rugGeo = new THREE.PlaneGeometry(6, 8);
     const rugMat = new THREE.MeshStandardMaterial({ 
       map: rugTexture, 
