@@ -1,6 +1,7 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
+import * as THREE from 'three';
 import { Loader2 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
@@ -9,16 +10,91 @@ interface LoadingSplashProps {
   message?: string;
 }
 
+const DiamondVisual = () => {
+  const mountRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const width = 150;
+    const height = 150;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    camera.position.z = 3.5;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    mountRef.current.appendChild(renderer.domElement);
+
+    // Diamond (Octahedron)
+    const diamondGeo = new THREE.OctahedronGeometry(1, 0);
+    const diamondMat = new THREE.MeshBasicMaterial({ 
+      color: 0x00ccff, 
+      transparent: true, 
+      opacity: 0.3,
+      wireframe: true
+    });
+    const diamond = new THREE.Mesh(diamondGeo, diamondMat);
+    scene.add(diamond);
+
+    // Inner Core
+    const core = new THREE.Mesh(
+      new THREE.SphereGeometry(0.15, 16, 16),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    scene.add(core);
+
+    // Electrons
+    const createElectron = (radius: number, color: number, rotationOffset: number) => {
+      const group = new THREE.Group();
+      const electron = new THREE.Mesh(
+        new THREE.SphereGeometry(0.08, 12, 12),
+        new THREE.MeshBasicMaterial({ color })
+      );
+      electron.position.x = radius;
+      group.add(electron);
+      group.rotation.z = rotationOffset;
+      scene.add(group);
+      return group;
+    };
+
+    const e1 = createElectron(1.8, 0x00ffff, Math.PI / 4);
+    const e2 = createElectron(2.2, 0xff00ff, -Math.PI / 3);
+
+    let animationId: number;
+    const animate = () => {
+      const time = performance.now() * 0.001;
+      
+      diamond.rotation.y += 0.01;
+      diamond.position.y = Math.sin(time * 2) * 0.1;
+      
+      e1.rotation.y += 0.03;
+      e2.rotation.y -= 0.02;
+      
+      renderer.render(scene, camera);
+      animationId = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+      renderer.dispose();
+      mountRef.current?.removeChild(renderer.domElement);
+    };
+  }, []);
+
+  return <div ref={mountRef} className="w-[150px] h-[150px]" />;
+};
+
 const LoadingSplash: React.FC<LoadingSplashProps> = ({ progress, message = "Initializing Gallery..." }) => {
   return (
     <div className="fixed inset-0 z-[2000] bg-[#050505] flex flex-col items-center justify-center p-6 text-center">
-      <div className="relative mb-8">
-        <div className="absolute inset-0 bg-white/5 blur-3xl rounded-full animate-pulse" />
-        <img 
-          src="/electroneum-logo-symbol.svg" 
-          alt="Electroneum Logo" 
-          className="w-24 h-24 relative z-10 opacity-40 animate-pulse"
-        />
+      <div className="relative mb-4 flex items-center justify-center">
+        <div className="absolute w-48 h-48 bg-cyan-500/5 blur-[80px] rounded-full animate-pulse" />
+        <div className="relative z-10 opacity-60">
+          <DiamondVisual />
+        </div>
       </div>
       
       <div className="max-w-xs w-full space-y-4">
