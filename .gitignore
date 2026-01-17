@@ -7,12 +7,16 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build and Tooling
 node_modules
 dist
 dist-ssr
 *.local
+.npm
+.eslintcache
+.stylelintcache
 
-# Editor directories and files
+# Editor and OS
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,3 +26,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+Thumbs.db
+
+# Large Assets (uncomment if you move assets to an external CDN)
+# public/assets/models/*.glb
+# public/audio/*.mp3
