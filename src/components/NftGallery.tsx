@@ -90,11 +90,11 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 function createProceduralTable() {
   const group = new THREE.Group();
   
-  // Table Materials
-  const darkMat = new THREE.MeshStandardMaterial({ 
-    color: 0x111111, 
-    roughness: 0.1, 
-    metalness: 0.8 
+  // Mahogany Brown Material
+  const mahoganyMat = new THREE.MeshStandardMaterial({ 
+    color: 0x4A1C1C, // Deep reddish-brown
+    roughness: 0.6, 
+    metalness: 0.1 
   });
   const chromeMat = new THREE.MeshStandardMaterial({ 
     color: 0x888888, 
@@ -104,7 +104,7 @@ function createProceduralTable() {
 
   // 1. Tabletop (Rectangular)
   const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
-  const top = new THREE.Mesh(topGeo, darkMat);
+  const top = new THREE.Mesh(topGeo, mahoganyMat);
   top.position.y = 0.8;
   group.add(top);
 
@@ -116,7 +116,7 @@ function createProceduralTable() {
 
   // 3. Base (Rectangular)
   const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
-  const base = new THREE.Mesh(baseGeo, darkMat);
+  const base = new THREE.Mesh(baseGeo, mahoganyMat);
   base.position.y = 0.025;
   group.add(base);
 

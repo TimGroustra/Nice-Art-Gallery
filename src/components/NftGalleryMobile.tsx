@@ -99,11 +99,11 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 function createProceduralTable() {
   const group = new THREE.Group();
   
-  // Table Materials
-  const darkMat = new THREE.MeshStandardMaterial({ 
-    color: 0x111111, 
-    roughness: 0.1, 
-    metalness: 0.8 
+  // Mahogany Brown Material
+  const mahoganyMat = new THREE.MeshStandardMaterial({ 
+    color: 0x4A1C1C, // Deep reddish-brown
+    roughness: 0.6, 
+    metalness: 0.1 
   });
   const chromeMat = new THREE.MeshStandardMaterial({ 
     color: 0x888888, 
@@ -113,7 +113,7 @@ function createProceduralTable() {
 
   // 1. Tabletop (Rectangular)
   const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
-  const top = new THREE.Mesh(topGeo, darkMat);
+  const top = new THREE.Mesh(topGeo, mahoganyMat);
   top.position.y = 0.8;
   group.add(top);
 
@@ -125,7 +125,7 @@ function createProceduralTable() {
 
   // 3. Base (Rectangular)
   const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
-  const base = new THREE.Mesh(baseGeo, darkMat);
+  const base = new THREE.Mesh(baseGeo, mahoganyMat);
   base.position.y = 0.025;
   group.add(base);
 
@@ -726,7 +726,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
             if (wallNameBase === 'west-wall') { x = -halfRoomSize; z = segmentCenter; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
 
             const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
-            mesh.position.set(x + dx, tier.y, z + dz);
+            mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
             mesh.rotation.y = rotY;
             scene.add(mesh);
 
