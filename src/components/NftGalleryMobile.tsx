@@ -392,45 +392,9 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     scene.add(ceiling);
 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
-    
-    // Platform (First Floor) - Reverting to solid color
-    const platformMatSolid = new THREE.MeshStandardMaterial({ 
-      color: 0x0a0a0a, 
-      roughness: 0.8, 
-      metalness: 0.1 
-    });
-
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), platformMatSolid);
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
     platform.position.set(0, PLATFORM_Y, 0);
     scene.add(platform);
-
-    // Rugs (4 instances of the uploaded image)
-    const rugTexture = new THREE.TextureLoader().load('/textures/platform_texture.jpg');
-    rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
-    rugTexture.repeat.set(1, 1); 
-    rugTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-
-    const rugMat = new THREE.MeshStandardMaterial({
-      map: rugTexture,
-      roughness: 0.8,
-      metalness: 0.1,
-      side: THREE.DoubleSide
-    });
-
-    const rugGeo = new THREE.PlaneGeometry(8, 8); // 8x8 rug size
-    const rugPositions = [
-      { x: 0, z: 9.5 }, // Sofas are at 9.5 units in mobile version
-      { x: 0, z: -9.5 },
-      { x: 9.5, z: 0 },
-      { x: -9.5, z: 0 },
-    ];
-
-    rugPositions.forEach(pos => {
-      const rug = new THREE.Mesh(rugGeo, rugMat);
-      rug.rotation.x = -Math.PI / 2; // Lay flat
-      rug.position.set(pos.x, PLATFORM_Y + 0.02, pos.z);
-      scene.add(rug);
-    });
 
     const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
     underPlatform.rotation.x = -Math.PI / 2;
@@ -590,6 +554,33 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       console.warn("Failed to load plant model:", err);
     });
 
+    // Create Rugs beneath sofa/table pairs (Mobile)
+    const rugTexture = textureLoader.load('/textures/rug-pattern.jpg');
+    rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
+    const rugGeo = new THREE.PlaneGeometry(6, 8);
+    const rugMat = new THREE.MeshStandardMaterial({ 
+      map: rugTexture, 
+      roughness: 1, 
+      metalness: 0,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    const rugPositions = [
+      { x: 0, z: 10.4, rot: 0 },
+      { x: 0, z: -10.4, rot: Math.PI },
+      { x: 10.4, z: 0, rot: -Math.PI / 2 },
+      { x: -10.4, z: 0, rot: Math.PI / 2 }
+    ];
+
+    rugPositions.forEach(pos => {
+      const rug = new THREE.Mesh(rugGeo, rugMat);
+      rug.rotation.x = -Math.PI / 2;
+      rug.rotation.z = pos.rot;
+      rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.005, pos.z);
+      scene.add(rug);
+    });
+
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
@@ -703,6 +694,63 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     fadeScreenRef.current = fadeScreen;
     scene.add(fadeScreen);
 
+    const handleTouchStart = (e: TouchEvent) => {
+      isDraggingRef.current = false;
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      isDraggingRef.current = true;
+      const deltaX = e.touches[0].clientX - touchStartRef.current.x;
+      const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+      rotationRef.current.yaw += deltaX * 0.005;
+      rotationRef.current.pitch += deltaY * 0.005;
+      rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    };
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (!isDraggingRef.current) {
+        const touch = e.changedTouches[0];
+        const x = (touch.clientX / window.innerWidth) * 2 - 1;
+        const y = -(touch.clientY / window.innerHeight) * 2 + 1;
+        raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), camera);
+        
+        // Collate targets
+        const interactiveTargets = [
+           ...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]),
+           ...teleportButtonsRef.current.flatMap(b => [b.userData.diamond]) // Intersect diamonds
+        ];
+        
+        const allPotentialObjects = sceneRef.current.children.filter(obj => obj !== fadeScreenRef.current);
+        const intersects = raycasterRef.current.intersectObjects(allPotentialObjects, true);
+        
+        if (intersects.length > 0) {
+          const hit = intersects[0].object as THREE.Mesh;
+          
+          setIsWalking(false);
+
+          // Check if we hit a diamond teleporter
+          let parentTeleporter: THREE.Group | null = null;
+          if (hit.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent as THREE.Group;
+          else if (hit.parent?.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent.parent as THREE.Group;
+
+          if (parentTeleporter) {
+            performTeleport(parentTeleporter.userData.targetY);
+            return;
+          }
+
+          const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
+          if (p) {
+            if (hit === p.prevArrow || hit === p.nextArrow) {
+              if (updatePanelIndex(p.wallName, hit === p.nextArrow ? 'next' : 'prev')) updatePanelContent(p, getCurrentNftSource(p.wallName));
+            } else if (p.metadataUrl) {
+              const cfg = GALLERY_PANEL_CONFIG[p.wallName];
+              setMarketBrowserState({ open: true, collection: cfg.contractAddress, tokenId: cfg.tokenIds[cfg.currentIndex] });
+            }
+          }
+        }
+      }
+    };
+
     const container = mountRef.current;
     container.addEventListener('touchstart', handleTouchStart, { passive: true });
     container.addEventListener('touchmove', handleTouchMove, { passive: true });
@@ -771,58 +819,6 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       mountRef.current?.removeChild(renderer.domElement);
     };
   }, [updatePanelContent, checkCollision, onLoadingProgress, onLoadingComplete]);
-
-  const handleTouchStart = (e: TouchEvent) => {
-    isDraggingRef.current = false;
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-  const handleTouchMove = (e: TouchEvent) => {
-    isDraggingRef.current = true;
-    const deltaX = e.touches[0].clientX - touchStartRef.current.x;
-    const deltaY = e.touches[0].clientY - touchStartRef.current.y;
-    rotationRef.current.yaw += deltaX * 0.005;
-    rotationRef.current.pitch += deltaY * 0.005;
-    rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-  const handleTouchEnd = (e: TouchEvent) => {
-    if (!isDraggingRef.current) {
-      const touch = e.changedTouches[0];
-      const x = (touch.clientX / window.innerWidth) * 2 - 1;
-      const y = -(touch.clientY / window.innerHeight) * 2 + 1;
-      raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), cameraRef.current!);
-      
-      // Collate targets
-      const allPotentialObjects = sceneRef.current!.children.filter(obj => obj !== fadeScreenRef.current);
-      const intersects = raycasterRef.current.intersectObjects(allPotentialObjects, true);
-      
-      if (intersects.length > 0) {
-        const hit = intersects[0].object as THREE.Mesh;
-        
-        setIsWalking(false);
-
-        // Check if we hit a diamond teleporter
-        let parentTeleporter: THREE.Group | null = null;
-        if (hit.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent as THREE.Group;
-        else if (hit.parent?.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent.parent as THREE.Group;
-
-        if (parentTeleporter) {
-          performTeleport(parentTeleporter.userData.targetY);
-          return;
-        }
-
-        const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
-        if (p) {
-          if (hit === p.prevArrow || hit === p.nextArrow) {
-            if (updatePanelIndex(p.wallName, hit === p.nextArrow ? 'next' : 'prev')) updatePanelContent(p, getCurrentNftSource(p.wallName));
-          } else if (p.metadataUrl) {
-            const cfg = GALLERY_PANEL_CONFIG[p.wallName];
-            setMarketBrowserState({ open: true, collection: cfg.contractAddress, tokenId: cfg.tokenIds[cfg.currentIndex] });
-          }
-        }
-      }
-    }
-  };
 
   const handleStart = () => {
     setIsStarted(true);
