@@ -669,9 +669,30 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       tables.push(table);
     });
     
+    // Porcelain Material for the mugs and saucers
+    const porcelainMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.05,
+      metalness: 0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
+      reflectivity: 0.5
+    });
+
     // Load Cappuccino Mug model and place on tables
     gltfLoader.load('/assets/models/Cappuccino_Mug.glb', (gltf) => {
       const mugModel = gltf.scene;
+      
+      // Apply porcelain material to the vessel meshes
+      mugModel.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          // Heuristic: If it's not likely liquid, make it porcelain.
+          // Liquid is often darker or specifically named, but since we want the whole cup/saucer look,
+          // we apply it to everything unless we have a clear distinction.
+          child.material = porcelainMat;
+        }
+      });
+
       const box = new THREE.Box3().setFromObject(mugModel);
       const size = new THREE.Vector3(); box.getSize(size);
       const targetWidth = 0.28; // Slightly larger for the mug
