@@ -487,12 +487,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     groundVinyl.position.set(0, 0.01, 0);
     scene.add(groundVinyl);
 
-    // 2. First floor platform center vinyl
-    // REMOVED: const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    // REMOVED: platformVinyl.rotation.x = -Math.PI / 2;
-    // REMOVED: platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
-    // REMOVED: scene.add(platformVinyl);
-
     // Create Diamond Teleporters
     const groundBtn = createDiamondTeleporter();
     groundBtn.position.set(0, 2.0, 0); 
@@ -554,7 +548,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           - (box.min.z + size.z / 2) * scale
         );
 
-        const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
+        // UPDATED: Move sofas from 6 units to 11 units away from center
+        const positions = [{ x: 0, z: 11 }, { x: 0, z: -11 }, { x: 11, z: 0 }, { x: -11, z: 0 }];
         positions.forEach(pos => {
           const instance = sofaGroup.clone();
           instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
@@ -650,11 +645,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // Create and position Rectangular Tables within the L-shape sofa open space
+    // Sofas moved from 6 to 11. Tables maintain 1.2 unit distance from sofa center. 11 - 1.2 = 9.8
     const tablePositions = [
-      { x: 0, z: 4.8 },  // Sofa at (0, 6)
-      { x: 0, z: -4.8 }, // Sofa at (0, -6)
-      { x: 4.8, z: 0 },  // Sofa at (6, 0)
-      { x: -4.8, z: 0 }  // Sofa at (-6, 0)
+      { x: 0, z: 9.8 },  
+      { x: 0, z: -9.8 }, 
+      { x: 9.8, z: 0 },  
+      { x: -9.8, z: 0 }  
     ];
 
     tablePositions.forEach(pos => {
@@ -664,7 +660,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       table.rotation.y = Math.atan2(-pos.x, -pos.z);
       
       // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
-      // We use translateX to move it locally along its long axis without affecting distance to seats.
       table.translateX(1.2);
       
       scene.add(table);

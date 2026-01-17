@@ -415,12 +415,6 @@ const NftGalleryMobile: React.FC = () => {
     groundVinyl.position.set(0, 0.01, 0);
     scene.add(groundVinyl);
 
-    // 2. First floor platform center
-    // REMOVED: const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    // REMOVED: platformVinyl.rotation.x = -Math.PI / 2;
-    // REMOVED: platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
-    // REMOVED: scene.add(platformVinyl);
-
     // Create Diamond Teleporters for Mobile
     const gBtn = createDiamondTeleporter();
     gBtn.position.set(0, 2.0, 0);
@@ -466,11 +460,12 @@ const NftGalleryMobile: React.FC = () => {
         const adjustedBox = new THREE.Box3().setFromObject(sofaModel);
         const bottomY = adjustedBox.min.y;
 
+        // UPDATED: Move sofas from 4.5 units to 9.5 units away from center
         const sofaPositions = [
-          { x: 0, z: 4.5 },
-          { x: 0, z: -4.5 },
-          { x: 4.5, z: 0 },
-          { x: -4.5, z: 0 },
+          { x: 0, z: 9.5 },
+          { x: 0, z: -9.5 },
+          { x: 9.5, z: 0 },
+          { x: -9.5, z: 0 },
         ];
 
         sofaPositions.forEach(pos => {
