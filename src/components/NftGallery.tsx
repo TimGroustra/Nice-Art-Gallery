@@ -469,11 +469,13 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     // Electroneum Logo Vinyls for Centers
     const textureLoader = new THREE.TextureLoader();
-    const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
-    // Maximum crispness settings
-    logoTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    logoTexture.minFilter = THREE.LinearMipmapLinearFilter;
-    logoTexture.magFilter = THREE.LinearFilter;
+    const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg', (tex) => {
+      // Force anisotropy and mipmap updates inside callback for full application
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.magFilter = THREE.LinearFilter;
+      tex.needsUpdate = true;
+    });
     
     const vinylGeo = new THREE.PlaneGeometry(10, 10);
     const vinylMat = new THREE.MeshBasicMaterial({ 
@@ -492,7 +494,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     // 2. First floor platform center vinyl
     const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
     platformVinyl.rotation.x = -Math.PI / 2;
-    platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
+    // Increased offset slightly for better depth buffer handling
+    platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.05, 0);
     scene.add(platformVinyl);
 
     // Create Diamond Teleporters
