@@ -85,45 +85,6 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
 };
 
 /**
- * Creates a minimalist rectangular gallery table using Three.js primitives.
- */
-function createProceduralTable() {
-  const group = new THREE.Group();
-  
-  // Table Materials
-  const darkMat = new THREE.MeshStandardMaterial({ 
-    color: 0x111111, 
-    roughness: 0.1, 
-    metalness: 0.8 
-  });
-  const chromeMat = new THREE.MeshStandardMaterial({ 
-    color: 0x888888, 
-    metalness: 1.0, 
-    roughness: 0.1 
-  });
-
-  // 1. Tabletop (Rectangular)
-  const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
-  const top = new THREE.Mesh(topGeo, darkMat);
-  top.position.y = 0.8;
-  group.add(top);
-
-  // 2. Central Support (Rectangular Chrome Column)
-  const supportGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
-  const support = new THREE.Mesh(supportGeo, chromeMat);
-  support.position.y = 0.4;
-  group.add(support);
-
-  // 3. Base (Rectangular)
-  const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
-  const base = new THREE.Mesh(baseGeo, darkMat);
-  base.position.y = 0.025;
-  group.add(base);
-
-  return group;
-}
-
-/**
  * Creates the upgraded Diamond Teleporter group.
  */
 function createDiamondTeleporter() {
@@ -460,7 +421,19 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
     floor.rotation.x = -Math.PI / 2; scene.add(floor);
 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
-    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
+    
+    // Load the new platform texture
+    const platformTexture = new THREE.TextureLoader().load('/textures/platform_texture.jpg');
+    platformTexture.wrapS = platformTexture.wrapT = THREE.RepeatWrapping;
+    platformTexture.repeat.set(3, 3); // Repeat the texture 3 times across the platform
+    
+    const platformMat = new THREE.MeshStandardMaterial({ 
+      map: platformTexture, 
+      roughness: 0.8, 
+      metalness: 0.1 
+    });
+    
+    const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), platformMat);
     platform.position.set(0, PLATFORM_Y, 0); scene.add(platform);
 
     const shaderPlane = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
@@ -646,54 +619,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       console.warn("Failed to load plant model:", err);
     });
 
-    // Create and position Rectangular Tables within the L-shape sofa open space
-    // Sofas moved to 11. Tables are 9.8 units away from center.
-    const tablePositions = [
-      { x: 0, z: 9.8 },  
-      { x: 0, z: -9.8 }, 
-      { x: 9.8, z: 0 },  
-      { x: -9.8, z: 0 }  
-    ];
-
-    tablePositions.forEach(pos => {
-      const table = createProceduralTable();
-      table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-      // Rotate to follow sofa orientation
-      table.rotation.y = Math.atan2(-pos.x, -pos.z);
-      
-      // SHIFT LATERALLY: Move the table half its width (2.4 / 2 = 1.2) away from the daybed side.
-      // Adjusted to move slightly further away from the daybed side (0.9 units)
-      table.translateX(0.9);
-      
-      scene.add(table);
-    });
-
-    // Create Rugs beneath sofa/table pairs
-    const rugTexture = textureLoader.load('/textures/rug-pattern.jpg');
-    rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
-    const rugGeo = new THREE.PlaneGeometry(6, 8);
-    const rugMat = new THREE.MeshStandardMaterial({ 
-      map: rugTexture, 
-      roughness: 1, 
-      metalness: 0,
-      transparent: true,
-      opacity: 0.9
-    });
-
-    const rugPositions = [
-      { x: 0, z: 10.4, rot: 0 },
-      { x: 0, z: -10.4, rot: Math.PI },
-      { x: 10.4, z: 0, rot: -Math.PI / 2 },
-      { x: -10.4, z: 0, rot: Math.PI / 2 }
-    ];
-
-    rugPositions.forEach(pos => {
-      const rug = new THREE.Mesh(rugGeo, rugMat);
-      rug.rotation.x = -Math.PI / 2;
-      rug.rotation.z = pos.rot;
-      rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.005, pos.z);
-      scene.add(rug);
-    });
+    // Removed procedural table and rug creation logic
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
     const arrowShape = new THREE.Shape();
