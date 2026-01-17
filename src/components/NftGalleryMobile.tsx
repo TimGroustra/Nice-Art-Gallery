@@ -268,7 +268,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     }
 
     return new Promise((resolve, reject) => {
-      new THREE.TextureLoader().setCrossOrigin('anonymous').load(url, resolve, undefined, reject);
+      new THREE.TextureLoader().setCrossOrigin('anonymous').load(url, resolve, null, reject);
     });
   }, []);
 
@@ -511,7 +511,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
           scene.add(instance);
         });
       }
-    }, undefined, (err) => {
+    }, null, (err) => {
       console.warn("Failed to load sofa model:", err);
     });
 
@@ -581,7 +581,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
         plant.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
         scene.add(plant);
       });
-    }, undefined, (err) => {
+    }, null, (err) => {
       console.warn("Failed to load plant model:", err);
     });
 
@@ -623,7 +623,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
         cup.translateZ(0.2 * (idx % 2 === 0 ? 1 : -1));
         scene.add(cup);
       });
-    }, undefined, (err) => {
+    }, null, (err) => {
       console.warn("Failed to load cup model:", err);
     });
 
