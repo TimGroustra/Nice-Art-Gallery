@@ -383,7 +383,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
-    // Specific Sofa Loading
+    // Specific Sofa Loading with Error Handling
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let sofaMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
@@ -406,10 +406,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         const sofaGroup = new THREE.Group();
         sofaGroup.add(mesh);
         
-        // Make them twice as tall by doubling the Y scale factor
         mesh.scale.set(scale, scale * 2, scale);
-        
-        // Adjust position to sit on floor with new height
         mesh.position.set(
           - (box.min.x + size.x / 2) * scale, 
           - box.min.y * (scale * 2), 
@@ -424,9 +421,11 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           scene.add(instance);
         });
       }
+    }, undefined, (err) => {
+      console.warn("Failed to load sofa model:", err);
     });
 
-    // Specific Table Loading
+    // Specific Table Loading with Error Handling
     gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
       let tableMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
@@ -451,7 +450,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         mesh.scale.set(scale, scale, scale);
         mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
 
-        // Position tables in the diagonal corners of the 1st floor platform
         const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
         positions.forEach(pos => {
           const instance = tableGroup.clone();
@@ -459,6 +457,8 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           scene.add(instance);
         });
       }
+    }, undefined, (err) => {
+      console.warn("Failed to load table model:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -485,7 +485,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       });
     }
 
-    // Inner cross walls
     [-10, 10].forEach((seg, i) => {
       const pos = 5 + ARROW_DEPTH_OFFSET;
       dynamicPanelConfigs.push({ wallName: `north-inner-wall-outer-${i}`, pos: [seg, INNER_LOWER_PANEL_Y, -pos], rot: [0, Math.PI, 0] });

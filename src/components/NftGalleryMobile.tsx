@@ -350,7 +350,7 @@ const NftGalleryMobile: React.FC = () => {
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
-    // Furniture loading: Sofa with increased height
+    // Furniture loading: Sofa with increased height and error handling
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let extractedSofa: THREE.Object3D | null = null;
@@ -397,9 +397,11 @@ const NftGalleryMobile: React.FC = () => {
           scene.add(sofa);
         });
       }
+    }, undefined, (err) => {
+      console.warn("Failed to load sofa model:", err);
     });
 
-    // Specific Table Loading
+    // Specific Table Loading with Error Handling
     gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
       let tableMesh: THREE.Mesh | null = null;
       gltf.scene.traverse((child) => {
@@ -431,6 +433,8 @@ const NftGalleryMobile: React.FC = () => {
           scene.add(instance);
         });
       }
+    }, undefined, (err) => {
+      console.warn("Failed to load table model:", err);
     });
 
     let stopLoad = false;
