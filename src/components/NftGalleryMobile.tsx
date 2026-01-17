@@ -612,49 +612,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       tables.push(table);
     });
     
-    // Load Ashtray Model and place on tables
-    gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
-      let ashtrayMesh: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !ashtrayMesh) {
-          ashtrayMesh = child;
-        }
-      });
-
-      if (ashtrayMesh) {
-        const model = ashtrayMesh.clone();
-        const modelBox = new THREE.Box3().setFromObject(model);
-        const modelMinY = modelBox.min.y;
-        
-        // Table surface Y calculation: 
-        // Table Group Y: PLATFORM_Y + WALL_THICKNESS / 2 (8.51) + Table Top relative Y (0.8) + Half Table Top thickness (0.04) = 9.35
-        const TABLE_SURFACE_Y = PLATFORM_Y + WALL_THICKNESS / 2 + 0.84;
-        const targetY = TABLE_SURFACE_Y + 0.01; // 0.01 unit above surface
-
-        const ashtrayGroup = new THREE.Group();
-        ashtrayGroup.add(model);
-        
-        // Adjust model position so its base (modelMinY) aligns with targetY
-        model.position.y -= modelMinY;
-        
-        tablePositions.forEach((pos, index) => {
-          const table = tables[index]; 
-          
-          const ashtrayInstance = ashtrayGroup.clone();
-          
-          // Use the table's final position and rotation, but adjust Y
-          ashtrayInstance.position.copy(table.position);
-          ashtrayInstance.rotation.copy(table.rotation);
-          
-          // Set the final absolute Y position
-          ashtrayInstance.position.y = targetY;
-          
-          scene.add(ashtrayInstance);
-        });
-      }
-    }, undefined, (err) => {
-      console.warn("Failed to load ashtray model:", err);
-    });
+    // --- Wineglass Model Removed ---
 
     // Create Rugs beneath sofa/table pairs (Mobile)
     const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
@@ -714,7 +672,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
             if (wallNameBase === 'west-wall') { x = -halfRoomSize; z = segmentCenter; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
 
             const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
-            mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+            mesh.position.set(x + dx, tier.y, z + dz);
             mesh.rotation.y = rotY;
             scene.add(mesh);
 

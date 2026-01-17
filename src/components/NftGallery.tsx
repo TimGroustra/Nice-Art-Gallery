@@ -671,52 +671,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible, onLoadi
       tables.push(table);
     });
     
-    // Load Ashtray Model and place on tables
-    gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
-      let ashtrayMesh: THREE.Object3D | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !ashtrayMesh) {
-          ashtrayMesh = child;
-        }
-      });
-
-      if (ashtrayMesh) {
-        const model = ashtrayMesh.clone();
-        const modelBox = new THREE.Box3().setFromObject(model);
-        const modelMinY = modelBox.min.y;
-        
-        // Table surface Y calculation: 
-        // Table Group Y: PLATFORM_Y + WALL_THICKNESS / 2 (8.51) + Table Top relative Y (0.8) + Half Table Top thickness (0.04) = 9.35
-        const TABLE_SURFACE_Y = PLATFORM_Y + WALL_THICKNESS / 2 + 0.84;
-        const targetY = TABLE_SURFACE_Y + 0.01; // 0.01 unit above surface
-
-        const ashtrayGroup = new THREE.Group();
-        ashtrayGroup.add(model);
-        
-        // Adjust model position so its base (modelMinY) aligns with targetY
-        model.position.y -= modelMinY;
-        
-        tablePositions.forEach((pos, index) => {
-          const table = tables[index]; 
-          
-          const ashtrayInstance = ashtrayGroup.clone();
-          
-          // Use the table's final position and rotation, but adjust Y
-          ashtrayInstance.position.copy(table.position);
-          ashtrayInstance.rotation.copy(table.rotation);
-          
-          // Apply the lateral shift (translateX(0.9))
-          ashtrayInstance.translateX(0.9);
-          
-          // Set the final absolute Y position
-          ashtrayInstance.position.y = targetY;
-          
-          scene.add(ashtrayInstance);
-        });
-      }
-    }, undefined, (err) => {
-      console.warn("Failed to load ashtray model:", err);
-    });
+    // --- Wineglass Model Removed ---
 
     // Create Rugs beneath sofa/table pairs on the FIRST FLOOR PLATFORM
     const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
