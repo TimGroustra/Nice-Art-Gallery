@@ -401,42 +401,6 @@ const NftGalleryMobile: React.FC = () => {
       console.warn("Failed to load sofa model:", err);
     });
 
-    // Specific Table Loading with Error Handling
-    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
-      let tableMesh: THREE.Mesh | null = null;
-      gltf.scene.traverse((child) => {
-        if (child instanceof THREE.Mesh && !tableMesh) {
-          const box = new THREE.Box3().setFromObject(child);
-          const size = new THREE.Vector3(); box.getSize(size);
-          if (size.x < 15 && size.z < 15) {
-            tableMesh = child;
-          }
-        }
-      });
-
-      if (tableMesh) {
-        const mesh = tableMesh as THREE.Mesh;
-        mesh.geometry.computeBoundingBox();
-        const box = mesh.geometry.boundingBox!;
-        const size = new THREE.Vector3(); box.getSize(size);
-        const targetWidth = 2.0;
-        const scale = targetWidth / size.x;
-        const tableGroup = new THREE.Group();
-        tableGroup.add(mesh);
-        mesh.scale.set(scale, scale, scale);
-        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
-
-        const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
-        positions.forEach(pos => {
-          const instance = tableGroup.clone();
-          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-          scene.add(instance);
-        });
-      }
-    }, undefined, (err) => {
-      console.warn("Failed to load table model:", err);
-    });
-
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
