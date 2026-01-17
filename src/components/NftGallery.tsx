@@ -487,12 +487,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     groundVinyl.position.set(0, 0.01, 0);
     scene.add(groundVinyl);
 
-    // 2. First floor platform center vinyl
-    // REMOVED: const platformVinyl = new THREE.Mesh(vinylGeo, vinylMat);
-    // REMOVED: platformVinyl.rotation.x = -Math.PI / 2;
-    // REMOVED: platformVinyl.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.02, 0);
-    // REMOVED: scene.add(platformVinyl);
-
     // Create Diamond Teleporters
     const groundBtn = createDiamondTeleporter();
     groundBtn.position.set(0, 2.0, 0); 
@@ -668,6 +662,49 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       table.translateX(1.2);
       
       scene.add(table);
+    });
+    
+    // Load Ashtray Model and place on tables
+    gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
+      const ashtrayModel = gltf.scene;
+      
+      // Calculate model bounding box for relative positioning
+      const modelBox = new THREE.Box3().setFromObject(ashtrayModel);
+      const size = new THREE.Vector3(); modelBox.getSize(size);
+      const modelMinY = modelBox.min.y;
+      
+      // Target Y position: Table Top Y (PLATFORM_Y + WALL_THICKNESS / 2 + 0.8)
+      const targetY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.8;
+      
+      const ashtrayGroup = new THREE.Group();
+      ashtrayGroup.add(ashtrayModel);
+      
+      // Adjust model position so its base sits on the table top
+      ashtrayModel.position.y = -modelMinY; 
+      
+      const tablePositions = [
+        { x: 0, z: 4.8 },
+        { x: 0, z: -4.8 },
+        { x: 4.8, z: 0 },
+        { x: -4.8, z: 0 }
+      ];
+
+      tablePositions.forEach(pos => {
+        const instance = ashtrayGroup.clone();
+        
+        // 1. Set initial world position (center of table base)
+        instance.position.set(pos.x, targetY, pos.z);
+        
+        // 2. Apply rotation
+        instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+        
+        // 3. Apply lateral shift (1.2 units along local X)
+        instance.translateX(1.2);
+        
+        scene.add(instance);
+      });
+    }, undefined, (err) => {
+      console.warn("Failed to load ashtray model:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
