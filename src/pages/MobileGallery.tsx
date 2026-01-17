@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import NftGalleryMobile from '@/components/NftGalleryMobile';
 import BackgroundMusic from '@/components/BackgroundMusic';
 import LoadingSplash from '@/components/LoadingSplash';
@@ -9,6 +9,10 @@ import { User } from 'lucide-react';
 const MobileGallery: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
+
+  const handleLoadingComplete = useCallback(() => {
+    setIsLoading(false);
+  }, []);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black">
@@ -28,7 +32,7 @@ const MobileGallery: React.FC = () => {
 
       <NftGalleryMobile 
         onLoadingProgress={setLoadingProgress}
-        onLoadingComplete={() => setIsLoading(false)}
+        onLoadingComplete={handleLoadingComplete}
       />
     </div>
   );

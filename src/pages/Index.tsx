@@ -46,6 +46,11 @@ const Index = () => {
     }
     musicRef.current?.play();
   }, []);
+
+  // Memoize completion handler to prevent effect re-runs in NftGallery
+  const handleLoadingComplete = useCallback(() => {
+    setIsLoading(false);
+  }, []);
   
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -82,7 +87,7 @@ const Index = () => {
       <NftGallery 
         setInstructionsVisible={setInstructionsVisible}
         onLoadingProgress={setLoadingProgress}
-        onLoadingComplete={() => setIsLoading(false)}
+        onLoadingComplete={handleLoadingComplete}
       />
       
       <GalleryUI 
