@@ -555,15 +555,15 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     });
 
     // Create Rugs beneath sofa/table pairs (Mobile)
-    const rugTexture = textureLoader.load('/images.jpg');
+    const rugTexture = textureLoader.load('/textures/rug-pattern.jpg');
     rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
-    const rugGeo = new THREE.PlaneGeometry(7, 9); // Increased size from 6, 8 to 7, 9
+    const rugGeo = new THREE.PlaneGeometry(6, 8);
     const rugMat = new THREE.MeshStandardMaterial({ 
       map: rugTexture, 
       roughness: 1, 
       metalness: 0,
       transparent: true,
-      opacity: 1.0 // Increased opacity from 0.9 to 1.0
+      opacity: 0.9
     });
 
     const rugPositions = [
@@ -577,8 +577,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       const rug = new THREE.Mesh(rugGeo, rugMat);
       rug.rotation.x = -Math.PI / 2;
       rug.rotation.z = pos.rot;
-      // Increased vertical offset to 0.015 to prevent any flickering with platform
-      rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.015, pos.z);
+      rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.005, pos.z);
       scene.add(rug);
     });
 
