@@ -37,7 +37,7 @@ interface NftGalleryProps {
 
 let currentTargetedPanel: Panel | null = null;
 let currentTargetedArrow: THREE.Mesh | null = null;
-let currentTargetedButton: THREE.Mesh | null = null;
+let currentTargetedButton: THREE.Group | null = null;
 
 const rainbowVertexShader = `
   varying vec2 vUv;
@@ -121,6 +121,82 @@ function createProceduralTable() {
   return group;
 }
 
+/**
+ * Creates the upgraded Diamond Teleporter group.
+ */
+function createDiamondTeleporter() {
+  const group = new THREE.Group();
+
+  // 1. The Diamond (Octahedron)
+  const diamondGeo = new THREE.OctahedronGeometry(0.8, 0);
+  const diamondMat = new THREE.MeshPhysicalMaterial({
+    color: 0x00ccff,
+    transparent: true,
+    opacity: 0.5,
+    metalness: 0.1,
+    roughness: 0,
+    transmission: 0.8,
+    thickness: 1,
+    emissive: 0x0044ff,
+    emissiveIntensity: 0.2
+  });
+  const diamond = new THREE.Mesh(diamondGeo, diamondMat);
+  diamond.name = "diamondBody";
+  group.add(diamond);
+
+  // 2. Lightning Etchings (Wireframe Overlay)
+  const edges = new THREE.EdgesGeometry(diamondGeo);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+  const etchings = new THREE.LineSegments(edges, lineMat);
+  diamond.add(etchings);
+
+  // 3. Glowing Inner Light (Small Sphere)
+  const coreGeo = new THREE.SphereGeometry(0.15, 16, 16);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  group.add(core);
+
+  const light = new THREE.PointLight(0x00ffff, 5, 5);
+  group.add(light);
+
+  // 4. Electrons
+  const createElectron = (radius: number, color: number) => {
+    const eGroup = new THREE.Group();
+    const eGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const eMat = new THREE.MeshBasicMaterial({ color: color });
+    const electron = new THREE.Mesh(eGeo, eMat);
+    electron.position.x = radius;
+    eGroup.add(electron);
+
+    // Trail
+    const trailPoints = [];
+    for (let i = 0; i < 20; i++) trailPoints.push(new THREE.Vector3(radius, 0, 0));
+    const trailGeo = new THREE.BufferGeometry().setFromPoints(trailPoints);
+    const trailMat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.4 });
+    const trail = new THREE.Line(trailGeo, trailMat);
+    eGroup.add(trail);
+
+    return eGroup;
+  };
+
+  const electron1 = createElectron(1.3, 0x00ffff);
+  electron1.rotation.z = Math.PI / 4;
+  group.add(electron1);
+
+  const electron2 = createElectron(1.5, 0xff00ff);
+  electron2.rotation.x = Math.PI / 3;
+  group.add(electron2);
+
+  group.userData = { 
+    isTeleportButton: true,
+    electron1,
+    electron2,
+    diamond
+  };
+
+  return group;
+}
+
 const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
@@ -135,7 +211,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<PointerLockControls | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
+  const teleportButtonsRef = useRef<THREE.Group[]>([]);
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const raycasterRef = useRef<THREE.Raycaster | null>(null);
@@ -391,15 +467,15 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
     ceiling.rotation.x = Math.PI / 2; ceiling.position.set(0, WALL_HEIGHT + 0.01, 0); scene.add(ceiling);
 
-    const buttonGeo = new THREE.CylinderGeometry(1, 1, 0.2, 32);
-    const buttonMat = new THREE.MeshStandardMaterial({ color: 0x1a3f7c, emissive: 0x1a3f7c, emissiveIntensity: 0.5, roughness: 0.1, metalness: 0.9 });
-    
-    const groundBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    groundBtn.position.set(0, 0.1, 0); groundBtn.userData = { isTeleportButton: true, targetY: PLATFORM_Y + 1.6 + WALL_THICKNESS / 2 };
+    // Create Diamond Teleporters
+    const groundBtn = createDiamondTeleporter();
+    groundBtn.position.set(0, 2.0, 0); 
+    groundBtn.userData.targetY = PLATFORM_Y + 1.6 + WALL_THICKNESS / 2;
     scene.add(groundBtn);
 
-    const firstBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    firstBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.1, 0); firstBtn.userData = { isTeleportButton: true, targetY: 1.6 };
+    const firstBtn = createDiamondTeleporter();
+    firstBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 2.0, 0); 
+    firstBtn.userData.targetY = 1.6;
     scene.add(firstBtn);
     teleportButtonsRef.current = [groundBtn, firstBtn];
 
@@ -690,6 +766,18 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       }
 
       if (rainbowMaterialRef.current) rainbowMaterialRef.current.uniforms.time.value += delta;
+      
+      // Animate Teleporters
+      teleportButtonsRef.current.forEach(btn => {
+        const { electron1, electron2, diamond } = btn.userData;
+        if (diamond) {
+          diamond.rotation.y += delta * 0.5;
+          diamond.position.y = Math.sin(time * 0.002) * 0.1;
+        }
+        if (electron1) electron1.rotation.y += delta * 2;
+        if (electron2) electron2.rotation.y -= delta * 1.5;
+      });
+
       if (fadeScreenRef.current) { fadeScreenRef.current.position.copy(camera.position); fadeScreenRef.current.quaternion.copy(camera.quaternion); }
       if (isTeleportingRef.current && fadeMaterialRef.current) {
         const elapsed = (time - fadeStartTimeRef.current) / 1000;
@@ -702,20 +790,33 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
         
         // Raycast against all objects in the scene to check for occlusion.
-        // We filter out the fade screen as it always overlays the view.
         const allPotentialObjects = scene.children.filter(obj => obj !== fadeScreenRef.current);
         const hits = raycaster.intersectObjects(allPotentialObjects, true);
         
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
         panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
-        teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x1a3f7c); (b.material as any).emissive.setHex(0x1a3f7c); });
+        
+        // Reset diamond emissive
+        teleportButtonsRef.current.forEach(b => {
+           const diamond = b.userData.diamond as THREE.Mesh;
+           const mat = diamond.material as THREE.MeshPhysicalMaterial;
+           mat.emissiveIntensity = 0.2;
+        });
         
         if (hits.length > 0) {
           const hit = hits[0].object as THREE.Mesh;
           
-          // Only interact if the closest object is one of our interactable items.
-          if (hit.userData.isTeleportButton) {
-            currentTargetedButton = hit; (hit.material as any).color.setHex(0x00ffff); (hit.material as any).emissive.setHex(0x00ffff);
+          // Traverse up to find teleport button group
+          let parent = hit.parent;
+          let teleporter: THREE.Group | null = null;
+          if (hit.parent?.userData?.isTeleportButton) teleporter = hit.parent as THREE.Group;
+          else if (hit.parent?.parent?.userData?.isTeleportButton) teleporter = hit.parent.parent as THREE.Group;
+
+          if (teleporter) {
+            currentTargetedButton = teleporter;
+            const diamond = teleporter.userData.diamond as THREE.Mesh;
+            const mat = diamond.material as THREE.MeshPhysicalMaterial;
+            mat.emissiveIntensity = 1.0;
           } else {
             const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
             if (p) {

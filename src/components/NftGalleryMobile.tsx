@@ -88,10 +88,77 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
+/**
+ * Creates the upgraded Diamond Teleporter group.
+ */
+function createDiamondTeleporter() {
+  const group = new THREE.Group();
+
+  // 1. The Diamond (Octahedron)
+  const diamondGeo = new THREE.OctahedronGeometry(0.8, 0);
+  const diamondMat = new THREE.MeshPhysicalMaterial({
+    color: 0x00ccff,
+    transparent: true,
+    opacity: 0.5,
+    metalness: 0.1,
+    roughness: 0,
+    transmission: 0.8,
+    thickness: 1,
+    emissive: 0x0044ff,
+    emissiveIntensity: 0.2
+  });
+  const diamond = new THREE.Mesh(diamondGeo, diamondMat);
+  diamond.name = "diamondBody";
+  group.add(diamond);
+
+  // 2. Lightning Etchings (Wireframe Overlay)
+  const edges = new THREE.EdgesGeometry(diamondGeo);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
+  const etchings = new THREE.LineSegments(edges, lineMat);
+  diamond.add(etchings);
+
+  // 3. Glowing Inner Light
+  const coreGeo = new THREE.SphereGeometry(0.15, 16, 16);
+  const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const core = new THREE.Mesh(coreGeo, coreMat);
+  group.add(core);
+
+  const light = new THREE.PointLight(0x00ffff, 3, 5);
+  group.add(light);
+
+  // 4. Electrons
+  const createElectron = (radius: number, color: number) => {
+    const eGroup = new THREE.Group();
+    const eGeo = new THREE.SphereGeometry(0.06, 8, 8);
+    const eMat = new THREE.MeshBasicMaterial({ color: color });
+    const electron = new THREE.Mesh(eGeo, eMat);
+    electron.position.x = radius;
+    eGroup.add(electron);
+    return eGroup;
+  };
+
+  const electron1 = createElectron(1.3, 0x00ffff);
+  electron1.rotation.z = Math.PI / 4;
+  group.add(electron1);
+
+  const electron2 = createElectron(1.5, 0xff00ff);
+  electron2.rotation.x = Math.PI / 3;
+  group.add(electron2);
+
+  group.userData = { 
+    isTeleportButton: true,
+    electron1,
+    electron2,
+    diamond
+  };
+
+  return group;
+}
+
 const NftGalleryMobile: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
   const panelsRef = useRef<Panel[]>([]);
-  const teleportButtonsRef = useRef<THREE.Mesh[]>([]);
+  const teleportButtonsRef = useRef<THREE.Group[]>([]);
   const fadeMaterialRef = useRef<THREE.MeshBasicMaterial | null>(null);
   const fadeScreenRef = useRef<THREE.Mesh | null>(null);
   
@@ -329,24 +396,15 @@ const NftGalleryMobile: React.FC = () => {
     underPlatform.position.y = LOWER_WALL_HEIGHT;
     scene.add(underPlatform);
 
-    const TELEPORT_BUTTON_COLOR = 0x1a3f7c;
-    const buttonGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.2, 32);
-    const buttonMat = new THREE.MeshStandardMaterial({
-      color: TELEPORT_BUTTON_COLOR,
-      emissive: TELEPORT_BUTTON_COLOR,
-      emissiveIntensity: 0.5,
-      roughness: 0.1,
-      metalness: 0.9,
-    });
-
-    const gBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    gBtn.position.set(0, 0.2, 0);
-    gBtn.userData = { isTeleportButton: true, targetY: PLATFORM_Y + 1.6 + WALL_THICKNESS / 2 };
+    // Create Diamond Teleporters for Mobile
+    const gBtn = createDiamondTeleporter();
+    gBtn.position.set(0, 2.0, 0);
+    gBtn.userData.targetY = PLATFORM_Y + 1.6 + WALL_THICKNESS / 2;
     scene.add(gBtn);
 
-    const uBtn = new THREE.Mesh(buttonGeo, buttonMat.clone());
-    uBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 0.1, 0);
-    uBtn.userData = { isTeleportButton: true, targetY: 1.6 };
+    const uBtn = createDiamondTeleporter();
+    uBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 2.0, 0);
+    uBtn.userData.targetY = 1.6;
     scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
@@ -593,23 +651,30 @@ const NftGalleryMobile: React.FC = () => {
         const y = -(touch.clientY / window.innerHeight) * 2 + 1;
         raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), camera);
         
-        const interactive = [...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current];
+        // Collate targets
+        const interactiveTargets = [
+           ...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]),
+           ...teleportButtonsRef.current.flatMap(b => [b.userData.diamond]) // Intersect diamonds
+        ];
         
-        // Raycast against all objects to check for occlusion.
         const allPotentialObjects = sceneRef.current.children.filter(obj => obj !== fadeScreenRef.current);
         const intersects = raycasterRef.current.intersectObjects(allPotentialObjects, true);
         
         if (intersects.length > 0) {
           const hit = intersects[0].object as THREE.Mesh;
           
-          // Verify that the closest object is indeed an interactable one.
-          if (!interactive.includes(hit)) return;
-          
           setIsWalking(false);
-          if (hit.userData.isTeleportButton) {
-            performTeleport(hit.userData.targetY);
+
+          // Check if we hit a diamond teleporter
+          let parentTeleporter: THREE.Group | null = null;
+          if (hit.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent as THREE.Group;
+          else if (hit.parent?.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent.parent as THREE.Group;
+
+          if (parentTeleporter) {
+            performTeleport(parentTeleporter.userData.targetY);
             return;
           }
+
           const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
           if (p) {
             if (hit === p.prevArrow || hit === p.nextArrow) {
@@ -634,6 +699,18 @@ const NftGalleryMobile: React.FC = () => {
       const delta = (time - lastTime) * 0.001;
       lastTime = time;
       rainbowMaterial.uniforms.time.value = time * 0.001;
+
+      // Animate Teleporters
+      teleportButtonsRef.current.forEach(btn => {
+        const { electron1, electron2, diamond } = btn.userData;
+        if (diamond) {
+          diamond.rotation.y += delta * 0.5;
+          diamond.position.y = Math.sin(time * 0.002) * 0.1;
+        }
+        if (electron1) electron1.rotation.y += delta * 2;
+        if (electron2) electron2.rotation.y -= delta * 1.5;
+      });
+
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
         if (isWalkingRef.current && !isTeleportingRef.current) {
