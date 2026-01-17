@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 import * as THREE from 'three';
-import { PointerLockControls, RectAreaLightUniformsLib } from 'three-stdlib';
+import { PointerLockControls, RectAreaLightUniformsLib, GLTFLoader } from 'three-stdlib';
 import {
   initializeGalleryConfig,
   GALLERY_PANEL_CONFIG,
@@ -381,24 +381,84 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x000000, 0.5);
     hemiLight.position.set(0, WALL_HEIGHT, 0); scene.add(hemiLight);
 
-    // PLACEHOLDER FURNITURE (Replacing GLTF loaders that were failing)
-    const sofaGeo = new THREE.BoxGeometry(4.5, 1.2, 1.5);
-    const sofaMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
-    const sofaPositions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
-    sofaPositions.forEach(pos => {
-      const sofa = new THREE.Mesh(sofaGeo, sofaMat);
-      sofa.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.6, pos.z);
-      sofa.rotation.y = Math.atan2(-pos.x, -pos.z);
-      scene.add(sofa);
+    const gltfLoader = new GLTFLoader();
+
+    // Specific Sofa Loading with Error Handling
+    gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
+      let sofaMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !sofaMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            sofaMesh = child;
+          }
+        }
+      });
+
+      if (sofaMesh) {
+        const mesh = sofaMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 4.5;
+        const scale = targetWidth / size.x;
+        const sofaGroup = new THREE.Group();
+        sofaGroup.add(mesh);
+        
+        mesh.scale.set(scale, scale * 2, scale);
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale, 
+          - box.min.y * (scale * 2), 
+          - (box.min.z + size.z / 2) * scale
+        );
+
+        const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
+        positions.forEach(pos => {
+          const instance = sofaGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }
+    }, undefined, (err) => {
+      console.warn("Failed to load sofa model:", err);
     });
 
-    const tableGeo = new THREE.BoxGeometry(2, 0.8, 2);
-    const tableMat = new THREE.MeshStandardMaterial({ color: 0x3d2b1f });
-    const tablePositions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
-    tablePositions.forEach(pos => {
-      const table = new THREE.Mesh(tableGeo, tableMat);
-      table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.4, pos.z);
-      scene.add(table);
+    // Specific Table Loading with Error Handling
+    gltfLoader.load('/assets/models/Wood_Table.glb', (gltf) => {
+      let tableMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !tableMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            tableMesh = child;
+          }
+        }
+      });
+
+      if (tableMesh) {
+        const mesh = tableMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 2.0;
+        const scale = targetWidth / size.x;
+        const tableGroup = new THREE.Group();
+        tableGroup.add(mesh);
+        mesh.scale.set(scale, scale, scale);
+        mesh.position.set(- (box.min.x + size.x / 2) * scale, - box.min.y * scale, - (box.min.z + size.z / 2) * scale);
+
+        const positions = [{ x: 5, z: 5 }, { x: -5, z: 5 }, { x: 5, z: -5 }, { x: -5, z: -5 }];
+        positions.forEach(pos => {
+          const instance = tableGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          scene.add(instance);
+        });
+      }
+    }, undefined, (err) => {
+      console.warn("Failed to load table model:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
