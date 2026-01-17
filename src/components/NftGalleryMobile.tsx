@@ -522,10 +522,19 @@ const NftGalleryMobile: React.FC = () => {
         const x = (touch.clientX / window.innerWidth) * 2 - 1;
         const y = -(touch.clientY / window.innerHeight) * 2 + 1;
         raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), camera);
-        const objects = [...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current];
-        const intersects = raycasterRef.current.intersectObjects(objects);
+        
+        const interactive = [...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current];
+        
+        // Raycast against all objects to check for occlusion.
+        const allPotentialObjects = sceneRef.current.children.filter(obj => obj !== fadeScreenRef.current);
+        const intersects = raycasterRef.current.intersectObjects(allPotentialObjects, true);
+        
         if (intersects.length > 0) {
           const hit = intersects[0].object as THREE.Mesh;
+          
+          // Verify that the closest object is indeed an interactable one.
+          if (!interactive.includes(hit)) return;
+          
           setIsWalking(false);
           if (hit.userData.isTeleportButton) {
             performTeleport(hit.userData.targetY);

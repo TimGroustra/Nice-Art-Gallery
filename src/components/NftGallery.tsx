@@ -617,12 +617,20 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
       if (camera && raycaster) {
         raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
-        const hits = raycaster.intersectObjects([...panelsRef.current.flatMap(p => [p.mesh, p.prevArrow, p.nextArrow]), ...teleportButtonsRef.current]);
+        
+        // Raycast against all objects in the scene to check for occlusion.
+        // We filter out the fade screen as it always overlays the view.
+        const allPotentialObjects = scene.children.filter(obj => obj !== fadeScreenRef.current);
+        const hits = raycaster.intersectObjects(allPotentialObjects, true);
+        
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
         panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
         teleportButtonsRef.current.forEach(b => { (b.material as any).color.setHex(0x1a3f7c); (b.material as any).emissive.setHex(0x1a3f7c); });
+        
         if (hits.length > 0) {
           const hit = hits[0].object as THREE.Mesh;
+          
+          // Only interact if the closest object is one of our interactable items.
           if (hit.userData.isTeleportButton) {
             currentTargetedButton = hit; (hit.material as any).color.setHex(0x00ffff); (hit.material as any).emissive.setHex(0x00ffff);
           } else {
