@@ -401,6 +401,38 @@ const NftGalleryMobile: React.FC = () => {
       console.warn("Failed to load sofa model:", err);
     });
 
+    // Loading the table.glb model for mobile
+    gltfLoader.load('/assets/models/table.glb', (gltf) => {
+      let extractedTable: THREE.Object3D | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !extractedTable) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) extractedTable = child;
+        }
+      });
+
+      if (extractedTable) {
+        const tableModel = extractedTable as THREE.Object3D;
+        const box = new THREE.Box3().setFromObject(tableModel);
+        const size = new THREE.Vector3(); box.getSize(size);
+        const scale = 2.5 / size.x;
+        tableModel.scale.set(scale, scale, scale);
+        
+        const adjustedBox = new THREE.Box3().setFromObject(tableModel);
+        const bottomY = adjustedBox.min.y;
+
+        const tablePositions = [{ x: 8, z: 8 }, { x: -8, z: 8 }, { x: 8, z: -8 }, { x: -8, z: -8 }];
+        tablePositions.forEach(pos => {
+          const table = tableModel.clone();
+          table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 - bottomY, pos.z);
+          scene.add(table);
+        });
+      }
+    }, undefined, (err) => {
+      console.warn("Failed to load table model:", err);
+    });
+
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
