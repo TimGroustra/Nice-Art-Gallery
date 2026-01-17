@@ -554,6 +554,33 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       console.warn("Failed to load plant model:", err);
     });
 
+    // Create Rugs beneath sofa/table pairs (Mobile)
+    const rugTexture = textureLoader.load('/textures/rug-pattern.jpg');
+    rugTexture.wrapS = rugTexture.wrapT = THREE.RepeatWrapping;
+    const rugGeo = new THREE.PlaneGeometry(6, 8);
+    const rugMat = new THREE.MeshStandardMaterial({ 
+      map: rugTexture, 
+      roughness: 1, 
+      metalness: 0,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    const rugPositions = [
+      { x: 0, z: 10.4, rot: 0 },
+      { x: 0, z: -10.4, rot: Math.PI },
+      { x: 10.4, z: 0, rot: -Math.PI / 2 },
+      { x: -10.4, z: 0, rot: Math.PI / 2 }
+    ];
+
+    rugPositions.forEach(pos => {
+      const rug = new THREE.Mesh(rugGeo, rugMat);
+      rug.rotation.x = -Math.PI / 2;
+      rug.rotation.z = pos.rot;
+      rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.005, pos.z);
+      scene.add(rug);
+    });
+
     let stopLoad = false;
     const createPanels = async () => {
       await initializeGalleryConfig();
