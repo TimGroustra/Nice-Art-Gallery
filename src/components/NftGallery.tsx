@@ -524,6 +524,14 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
 
     const gltfLoader = new GLTFLoader();
 
+    // Table positions are defined here for use by both table and ashtray placement
+    const tablePositions = [
+      { x: 0, z: 4.8 },  // Sofa at (0, 6)
+      { x: 0, z: -4.8 }, // Sofa at (0, -6)
+      { x: 4.8, z: 0 },  // Sofa at (6, 0)
+      { x: -4.8, z: 0 }  // Sofa at (-6, 0)
+    ];
+
     // Load Sofa Model
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
       let sofaMesh: THREE.Mesh | null = null;
@@ -554,8 +562,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
           - (box.min.z + size.z / 2) * scale
         );
 
-        const positions = [{ x: 0, z: 6 }, { x: 0, z: -6 }, { x: 6, z: 0 }, { x: -6, z: 0 }];
-        positions.forEach(pos => {
+        tablePositions.forEach(pos => {
           const instance = sofaGroup.clone();
           instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
           instance.rotation.y = Math.atan2(-pos.x, -pos.z);
@@ -650,13 +657,6 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     // Create and position Rectangular Tables within the L-shape sofa open space
-    const tablePositions = [
-      { x: 0, z: 4.8 },  // Sofa at (0, 6)
-      { x: 0, z: -4.8 }, // Sofa at (0, -6)
-      { x: 4.8, z: 0 },  // Sofa at (6, 0)
-      { x: -4.8, z: 0 }  // Sofa at (-6, 0)
-    ];
-
     tablePositions.forEach(pos => {
       const table = createProceduralTable();
       table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
@@ -668,6 +668,51 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
       table.translateX(1.2);
       
       scene.add(table);
+    });
+    
+    // Load Ashtray Model and place on tables
+    gltfLoader.load('/assets/models/ashtray.glb', (gltf) => {
+      let ashtrayMesh: THREE.Object3D | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !ashtrayMesh) {
+          ashtrayMesh = child;
+        }
+      });
+
+      if (ashtrayMesh) {
+        const mesh = ashtrayMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        
+        // Determine scale: Ashtray should be small, target size 0.5 units wide/deep.
+        const targetSize = 0.5;
+        const maxDim = Math.max(size.x, size.z);
+        const scale = targetSize / maxDim;
+        
+        const ashtrayGroup = new THREE.Group();
+        ashtrayGroup.add(mesh);
+        
+        // Adjust position so the bottom of the ashtray is at Y=0 in the group's local space
+        mesh.scale.set(scale, scale, scale);
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale, 
+          - box.min.y * scale, 
+          - (box.min.z + size.z / 2) * scale
+        );
+
+        const tableTopY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.8 + 0.01; // Tabletop height (0.8) + small offset
+        
+        tablePositions.forEach(pos => {
+          const instance = ashtrayGroup.clone();
+          instance.position.set(pos.x, tableTopY, pos.z);
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          instance.translateX(1.2); // Match table lateral shift
+          scene.add(instance);
+        });
+      }
+    }, undefined, (err) => {
+      console.warn("Failed to load ashtray model:", err);
     });
 
     const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
@@ -728,6 +773,7 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
     });
 
     const raycaster = new THREE.Raycaster();
+    raycasterRef.current = raycaster;
     const onClick = () => {
       if (!controls.isLocked) return;
       if (currentTargetedButton?.userData?.isTeleportButton) return performTeleport(currentTargetedButton.userData.targetY);
@@ -812,12 +858,12 @@ const NftGallery: React.FC<NftGalleryProps> = ({ setInstructionsVisible }) => {
         else { fadeMaterialRef.current.opacity = 0; isTeleportingRef.current = false; }
       }
 
-      if (camera && raycaster) {
-        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+      if (controls.isLocked && camera && raycasterRef.current) {
+        raycasterRef.current.setFromCamera(new THREE.Vector2(0, 0), camera);
         
         // Raycast against all objects in the scene to check for occlusion.
         const allPotentialObjects = scene.children.filter(obj => obj !== fadeScreenRef.current);
-        const hits = raycaster.intersectObjects(allPotentialObjects, true);
+        const hits = raycasterRef.current.intersectObjects(allPotentialObjects, true);
         
         currentTargetedPanel = null; currentTargetedArrow = null; currentTargetedButton = null;
         panelsRef.current.forEach(p => { (p.prevArrow.material as any).color.setHex(0xcccccc); (p.nextArrow.material as any).color.setHex(0xcccccc); });
