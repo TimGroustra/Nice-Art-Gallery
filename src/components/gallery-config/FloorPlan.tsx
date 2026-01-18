@@ -45,7 +45,7 @@ const FloorPlan: React.FC<FloorPlanProps> = ({
           {/* Main Floor Container */}
           <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
             
-            {/* Outer Walls: North at Top, South at Bottom */}
+            {/* Outer Walls: North at Top, South at Bottom (0% and 100% on Z axis) */}
             {['north', 'south'].map(w => (
               <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
                 {OUTER_INDICES.map(i => {
@@ -67,7 +67,7 @@ const FloorPlan: React.FC<FloorPlanProps> = ({
               </div>
             ))}
 
-            {/* Outer Walls: West at Left, East at Right */}
+            {/* Outer Walls: West at Left, East at Right (0% and 100% on X axis) */}
             {['west', 'east'].map(w => (
               <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
                 {OUTER_INDICES.map(i => {
@@ -94,63 +94,62 @@ const FloorPlan: React.FC<FloorPlanProps> = ({
             {outerFloor === 'ground' && (
               <div className="absolute inset-0">
                 {/* 
-                  Inner wall layout logic:
-                  - 40% and 60% mark the +/- 5 unit walls relative to center (50%).
-                  - 20-38% and 62-80% span the +/- 10 unit segments relative to center.
-                  - Horizontal walls are North/South.
-                  - Vertical walls are East/West.
+                  Inner wall layout logic (Precise Scale):
+                  - ROOM_SIZE is 50. Center is 25,25.
+                  - Inner wall boundaries are at +/- 5 units from center -> 40% and 60%.
+                  - Inner wall segments are at +/- 10 units on the cross-axis -> 30% and 70%.
                 */}
 
-                {/* North Inner Walls (Horizontal segments at top: 38%) */}
-                <div className="absolute top-[38%] left-[20%] w-[18%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                {/* North Inner Walls (Z = -5 units -> 40%) */}
+                <div className="absolute top-[40%] left-[22%] w-[16%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['north-inner-wall-outer-0', 'north-inner-wall-inner-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
-                <div className="absolute top-[38%] left-[62%] w-[18%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                <div className="absolute top-[40%] left-[62%] w-[16%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['north-inner-wall-outer-1', 'north-inner-wall-inner-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
 
-                {/* South Inner Walls (Horizontal segments at top: 62%) */}
-                <div className="absolute top-[62%] left-[20%] w-[18%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                {/* South Inner Walls (Z = +5 units -> 60%) */}
+                <div className="absolute top-[60%] left-[22%] w-[16%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['south-inner-wall-inner-0', 'south-inner-wall-outer-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
-                <div className="absolute top-[62%] left-[62%] w-[18%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                <div className="absolute top-[60%] left-[62%] w-[16%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['south-inner-wall-inner-1', 'south-inner-wall-outer-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
                 
-                {/* West Inner Walls (Vertical segments at left: 38%) */}
-                <div className="absolute left-[38%] top-[20%] h-[18%] w-12 -translate-x-1/2 flex gap-1">
+                {/* West Inner Walls (X = -5 units -> 40%) */}
+                <div className="absolute left-[40%] top-[22%] h-[16%] w-12 -translate-x-1/2 flex gap-1">
                   {['west-inner-wall-outer-0', 'west-inner-wall-inner-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
-                <div className="absolute left-[38%] top-[62%] h-[18%] w-12 -translate-x-1/2 flex gap-1">
+                <div className="absolute left-[40%] top-[62%] h-[16%] w-12 -translate-x-1/2 flex gap-1">
                   {['west-inner-wall-outer-1', 'west-inner-wall-inner-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
 
-                {/* East Inner Walls (Vertical segments at left: 62%) */}
-                <div className="absolute left-[62%] top-[20%] h-[18%] w-12 -translate-x-1/2 flex gap-1">
+                {/* East Inner Walls (X = +5 units -> 60%) */}
+                <div className="absolute left-[60%] top-[22%] h-[16%] w-12 -translate-x-1/2 flex gap-1">
                   {['east-inner-wall-inner-0', 'east-inner-wall-outer-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
-                <div className="absolute left-[62%] top-[62%] h-[18%] w-12 -translate-x-1/2 flex gap-1">
+                <div className="absolute left-[60%] top-[62%] h-[16%] w-12 -translate-x-1/2 flex gap-1">
                   {['east-inner-wall-inner-1', 'east-inner-wall-outer-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
