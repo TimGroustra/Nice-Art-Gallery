@@ -42,7 +42,10 @@ const FloorPlan: React.FC<FloorPlanProps> = ({
 
       <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center overflow-hidden">
         <div className="w-full max-w-[480px] aspect-square relative p-12">
+          {/* Main Floor Container */}
           <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
+            
+            {/* Outer Walls: North at Top, South at Bottom */}
             {['north', 'south'].map(w => (
               <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
                 {OUTER_INDICES.map(i => {
@@ -63,7 +66,9 @@ const FloorPlan: React.FC<FloorPlanProps> = ({
                 })}
               </div>
             ))}
-            {['east', 'west'].map(w => (
+
+            {/* Outer Walls: West at Left, East at Right */}
+            {['west', 'east'].map(w => (
               <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
                 {OUTER_INDICES.map(i => {
                   const key = `${w}-wall-${i}-${outerFloor}`;
@@ -85,57 +90,66 @@ const FloorPlan: React.FC<FloorPlanProps> = ({
               </div>
             ))}
             
+            {/* Inner Walls (Only show on ground floor for simplicity) */}
             {outerFloor === 'ground' && (
               <div className="absolute inset-0">
-                <div className="absolute top-[40%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                {/* North Inner Walls (Top-Left and Top-Right clusters) */}
+                <div className="absolute top-[35%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['north-inner-wall-outer-0', 'north-inner-wall-inner-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
-                <div className="absolute top-[40%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                <div className="absolute top-[35%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['north-inner-wall-outer-1', 'north-inner-wall-inner-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
-                <div className="absolute top-[60%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+
+                {/* South Inner Walls (Bottom-Left and Bottom-Right clusters) */}
+                <div className="absolute top-[65%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['south-inner-wall-inner-0', 'south-inner-wall-outer-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
-                <div className="absolute top-[60%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
+                <div className="absolute top-[65%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
                   {['south-inner-wall-inner-1', 'south-inner-wall-outer-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="h-1/2" />;
                   })}
                 </div>
                 
-                <div className="absolute left-[40%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                {/* West Inner Walls (Left-Top and Left-Bottom clusters) */}
+                <div className="absolute left-[35%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
                   {['west-inner-wall-outer-0', 'west-inner-wall-inner-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
-                <div className="absolute left-[40%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                <div className="absolute left-[35%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
                   {['west-inner-wall-outer-1', 'west-inner-wall-inner-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
-                <div className="absolute left-[60%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+
+                {/* East Inner Walls (Right-Top and Right-Bottom clusters) */}
+                <div className="absolute left-[65%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
                   {['east-inner-wall-inner-0', 'east-inner-wall-outer-0'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
-                <div className="absolute left-[60%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
+                <div className="absolute left-[65%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
                   {['east-inner-wall-inner-1', 'east-inner-wall-outer-1'].map(key => {
                     const lock = getLockStatus(key);
                     return <WallButton key={key} panelKey={key} isSelected={selectedPanelKey === key} isLocked={lock.isLocked} isLockedByMe={lock.isLockedByMe} label={getFriendlyLabel(key)} onClick={setSelectedPanelKey} className="w-1/2" orientation="vertical" />;
                   })}
                 </div>
+
+                {/* Central Point */}
                 <div className="absolute inset-[48%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
                    <div className="w-1 h-1 bg-white/40 rounded-full" />
                 </div>
