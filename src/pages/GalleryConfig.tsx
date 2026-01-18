@@ -2,18 +2,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { Loader2, Gem, ArrowLeft, Info, Map as MapIcon, Settings, Eye } from 'lucide-react';
+import { Loader2, Gem, ArrowLeft, Map as MapIcon, Settings, Eye } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn } from '@/lib/utils';
+import FloorPlan from '@/components/gallery-config/FloorPlan';
+import SettingsPanel from '@/components/gallery-config/SettingsPanel';
 
 interface GalleryConfigRow {
   panel_key: string;
@@ -33,7 +30,6 @@ interface PanelLock {
 }
 
 const REQUIRED_GEM_BALANCE = 5;
-const OUTER_INDICES = [0, 1, 2, 3, 4] as const;
 type OuterFloor = 'ground' | 'first';
 type OuterWall = 'north' | 'south' | 'east' | 'west';
 
@@ -185,7 +181,7 @@ const GalleryConfig = () => {
     setIsLoading(false);
   };
 
-  const getFriendlyLabel = (key: string) => {
+  const getFriendlyLabel = useCallback((key: string) => {
     const match = key.match(/^(north|south|east|west)-wall-(\d+)-(ground|first)$/);
     if (match) return outerLabel(match[1] as OuterWall, parseInt(match[2]), match[3] as OuterFloor);
     
@@ -198,185 +194,9 @@ const GalleryConfig = () => {
     }
     
     return key;
-  };
+  }, []);
 
-  const WallButton = ({ panelKey, className, orientation = "horizontal" }: { panelKey: string, className?: string, orientation?: "horizontal" | "vertical" }) => {
-    const isSelected = selectedPanelKey === panelKey;
-    const lock = getLockStatus(panelKey);
-    const label = getFriendlyLabel(panelKey);
-    
-    return (
-      <button 
-        onClick={() => setSelectedPanelKey(panelKey)} 
-        title={label}
-        className={cn(
-          "relative flex items-center justify-center transition-all group p-1",
-          orientation === "horizontal" ? "flex-col" : "flex-row",
-          className
-        )}
-      >
-        <div className={cn(
-          "rounded-full transition-all",
-          orientation === "horizontal" ? "w-full h-[3px]" : "h-full w-[3px]",
-          isSelected ? "bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.8)] scale-y-125" : 
-          (lock.isLocked && !lock.isLockedByMe) ? "bg-red-500/60" : "bg-slate-700 group-hover:bg-slate-500"
-        )} />
-        {isSelected && (
-           <div className="absolute inset-0 border border-cyan-400/30 rounded-sm pointer-events-none" />
-        )}
-      </button>
-    );
-  };
-
-  const FloorPlan = () => (
-    <div className="rounded-xl border bg-slate-950 p-4 space-y-4">
-      <div className="flex justify-between items-center">
-        <Label className="text-white text-xs font-bold uppercase tracking-wider">Interactive Floor Plan</Label>
-        <div className="bg-white/10 p-0.5 rounded-full flex gap-1">
-          {['ground', 'first'].map(f => (
-            <button key={f} onClick={() => setOuterFloor(f as OuterFloor)} className={`px-3 py-1 rounded-full text-[10px] font-bold transition-all ${outerFloor === f ? 'bg-primary text-primary-foreground' : 'text-slate-400'}`}>{f === 'ground' ? 'GROUND' : 'FIRST'}</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="relative w-full border border-white/5 rounded-lg bg-slate-900 flex justify-center overflow-hidden">
-        <div className="w-full max-w-[480px] aspect-square relative p-12">
-          <div className="relative w-full h-full border border-dashed border-white/10 rounded-lg">
-            {['north', 'south'].map(w => (
-              <div key={w} className={`absolute ${w === 'north' ? '-top-10' : '-bottom-10'} left-0 right-0 flex h-10`}>
-                {OUTER_INDICES.map(i => (
-                  <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" />
-                ))}
-              </div>
-            ))}
-            {['east', 'west'].map(w => (
-              <div key={w} className={`absolute top-0 bottom-0 ${w === 'west' ? '-left-10' : '-right-10'} flex flex-col w-10`}>
-                {OUTER_INDICES.map(i => (
-                  <WallButton key={`${w}-${i}`} panelKey={`${w}-wall-${i}-${outerFloor}`} className="flex-1" orientation="vertical" />
-                ))}
-              </div>
-            ))}
-            {outerFloor === 'ground' && (
-              <div className="absolute inset-0">
-                <div className="absolute top-[40%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="north-inner-wall-outer-0" className="h-1/2" />
-                  <WallButton panelKey="north-inner-wall-inner-0" className="h-1/2" />
-                </div>
-                <div className="absolute top-[40%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="north-inner-wall-outer-1" className="h-1/2" />
-                  <WallButton panelKey="north-inner-wall-inner-1" className="h-1/2" />
-                </div>
-                <div className="absolute top-[60%] left-[20%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="south-inner-wall-inner-0" className="h-1/2" />
-                  <WallButton panelKey="south-inner-wall-outer-0" className="h-1/2" />
-                </div>
-                <div className="absolute top-[60%] left-[60%] w-[20%] h-12 -translate-y-1/2 flex flex-col gap-1">
-                  <WallButton panelKey="south-inner-wall-inner-1" className="h-1/2" />
-                  <WallButton panelKey="south-inner-wall-outer-1" className="h-1/2" />
-                </div>
-                <div className="absolute left-[40%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="west-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="west-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
-                </div>
-                <div className="absolute left-[40%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="west-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="west-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
-                </div>
-                <div className="absolute left-[60%] top-[20%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="east-inner-wall-inner-0" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="east-inner-wall-outer-0" className="w-1/2" orientation="vertical" />
-                </div>
-                <div className="absolute left-[60%] top-[60%] h-[20%] w-12 -translate-x-1/2 flex gap-1">
-                  <WallButton panelKey="east-inner-wall-inner-1" className="w-1/2" orientation="vertical" />
-                  <WallButton panelKey="east-inner-wall-outer-1" className="w-1/2" orientation="vertical" />
-                </div>
-                <div className="absolute inset-[48%] border border-white/20 rounded-full flex items-center justify-center pointer-events-none">
-                   <div className="w-1 h-1 bg-white/40 rounded-full" />
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-      <div className="text-[10px] text-slate-400 flex justify-between items-center px-1">
-        <span className="truncate">Selected: <span className="text-white font-bold">{selectedPanelKey ? getFriendlyLabel(selectedPanelKey) : 'Select a wall segment'}</span></span>
-      </div>
-    </div>
-  );
-
-  const SettingsPanel = () => (
-    <div className="space-y-4 pt-4">
-      {!selectedPanelKey ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center space-y-3 opacity-60 border-2 border-dashed rounded-xl">
-          <MapIcon className="h-10 w-10 text-muted-foreground" />
-          <p className="text-sm">Please select a wall panel on the floor plan first.</p>
-          {window.innerWidth < 1024 && (
-            <Button variant="outline" size="sm" onClick={() => setActiveTab("map")}>Open Floor Plan</Button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-6 animate-in fade-in slide-in-from-top-1 duration-300">
-          <div className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-muted-foreground uppercase tracking-tight">Active Selection</span>
-              <span className="text-sm font-bold">{getFriendlyLabel(selectedPanelKey)}</span>
-            </div>
-            {window.innerWidth < 1024 && (
-              <Button variant="ghost" size="sm" onClick={() => setActiveTab("map")}>Change Selection</Button>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Contract Address</Label>
-              <Input className="h-9 text-sm font-mono" value={currentConfig.contract_address || ''} onChange={e => setCurrentConfig(p => ({...p, contract_address: e.target.value}))} placeholder="0x..." />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Default Token ID</Label>
-                <Input className="h-9 text-sm" type="number" value={currentConfig.default_token_id || 1} onChange={e => setCurrentConfig(p => ({...p, default_token_id: parseInt(e.target.value) || 1}))} />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Label className="text-xs">Lock for (Days)</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent><p className="text-xs">Locking consumes 1 available ElectroGem. Set to 0 to unlock.</p></TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Input className="h-9 text-sm" type="number" min={0} max={30} value={lockDurationDays} onChange={e => setLockDurationDays(Number(e.target.value))} />
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10">
-            <div className="space-y-0.5">
-              <Label className="text-xs font-bold">Show Entire Collection</Label>
-              <p className="text-[10px] text-muted-foreground">Allows visitors to cycle through all tokens in this contract.</p>
-            </div>
-            <Switch checked={currentConfig.show_collection || false} onCheckedChange={v => setCurrentConfig(p => ({...p, show_collection: v}))} />
-          </div>
-
-          <Button className="w-full h-12 text-md font-bold" onClick={handleSave} disabled={isLoading || (selectedLock?.isLocked && !selectedLock?.isLockedByMe)}>
-            {isLoading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : 'Apply Configuration'}
-          </Button>
-          
-          {selectedLock?.isLocked && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center">
-              <p className="text-xs text-amber-500 font-medium">
-                {selectedLock.isLockedByMe ? `Locked by you until ${selectedLock.lockedUntil?.toLocaleDateString()}` : "Locked by another curator."}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  const friendlyLabel = useMemo(() => getFriendlyLabel(selectedPanelKey), [selectedPanelKey, getFriendlyLabel]);
 
   return (
     <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 overflow-y-auto z-[100] p-3 sm:p-6 lg:p-8">
@@ -416,10 +236,28 @@ const GalleryConfig = () => {
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="map">
-                    <FloorPlan />
+                    <FloorPlan 
+                      outerFloor={outerFloor}
+                      setOuterFloor={setOuterFloor}
+                      selectedPanelKey={selectedPanelKey}
+                      setSelectedPanelKey={setSelectedPanelKey}
+                      getLockStatus={getLockStatus}
+                      getFriendlyLabel={getFriendlyLabel}
+                    />
                   </TabsContent>
                   <TabsContent value="settings">
-                    <SettingsPanel />
+                    <SettingsPanel 
+                      selectedPanelKey={selectedPanelKey}
+                      friendlyLabel={friendlyLabel}
+                      currentConfig={currentConfig}
+                      setCurrentConfig={setCurrentConfig}
+                      lockDurationDays={lockDurationDays}
+                      setLockDurationDays={setLockDurationDays}
+                      handleSave={handleSave}
+                      isLoading={isLoading}
+                      selectedLock={selectedLock}
+                      onOpenMap={() => setActiveTab("map")}
+                    />
                   </TabsContent>
                   <TabsContent value="preview">
                     <div className="pt-4">
@@ -429,8 +267,25 @@ const GalleryConfig = () => {
                 </Tabs>
               </div>
               <div className="hidden lg:block space-y-6">
-                <FloorPlan />
-                <SettingsPanel />
+                <FloorPlan 
+                  outerFloor={outerFloor}
+                  setOuterFloor={setOuterFloor}
+                  selectedPanelKey={selectedPanelKey}
+                  setSelectedPanelKey={setSelectedPanelKey}
+                  getLockStatus={getLockStatus}
+                  getFriendlyLabel={getFriendlyLabel}
+                />
+                <SettingsPanel 
+                  selectedPanelKey={selectedPanelKey}
+                  friendlyLabel={friendlyLabel}
+                  currentConfig={currentConfig}
+                  setCurrentConfig={setCurrentConfig}
+                  lockDurationDays={lockDurationDays}
+                  setLockDurationDays={setLockDurationDays}
+                  handleSave={handleSave}
+                  isLoading={isLoading}
+                  selectedLock={selectedLock}
+                />
               </div>
             </CardContent>
           </Card>
