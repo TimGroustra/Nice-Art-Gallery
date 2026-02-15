@@ -11,22 +11,32 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-*.local
 .npm
 .eslintcache
 .stylelintcache
 
-# Environment variables
+# Environment variables - ignore actual keys
 .env
 .env.development
 .env.production
 .env.local
 .env.*.local
 
-# Editor and OS
+# But allow .env.example files
+!.env.example
+
+# Temporary/local files
+*.local
+config.local.*
+secrets.*
+*.key
+*.pem
+*.crt
+
+# IDE and Editor files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
@@ -35,13 +45,12 @@ dist-ssr
 *.sw?
 Thumbs.db
 
-# Large Assets (uncomment if you move assets to an external CDN)
-# public/assets/models/*.glb
-# public/audio/*.mp3
-
-# Supabase
+# Supabase local development files
 .supabase/
 supabase/.temp/
 supabase/functions/.env
 supabase/functions/.env.local
-supabase/functions/.env.example
+
+# Large Assets (uncomment if you move assets to an external CDN)
+# public/assets/models/*.glb
+# public/audio/*.mp3
