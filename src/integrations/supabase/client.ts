@@ -9,4 +9,4 @@ if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
   console.warn("Supabase credentials missing. Ensure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are set.");
 }
 
-export const supabase = createClient(SUPABASE_URL || "", SUPABASE_PUBLISHABLE_KEY || "");
+export const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);

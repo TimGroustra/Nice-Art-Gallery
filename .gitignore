@@ -43,3 +43,5 @@ Thumbs.db
 .supabase/
 supabase/.temp/
 supabase/functions/.env
+supabase/functions/.env.local
+supabase/functions/.env.example

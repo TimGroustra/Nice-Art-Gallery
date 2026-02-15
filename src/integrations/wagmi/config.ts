@@ -20,9 +20,14 @@ export const electroneum = defineChain({
 });
 
 // 2. Create Wagmi config
-// Note: You should set VITE_WALLETCONNECT_PROJECT_ID in your environment variables.
+// IMPORTANT: You MUST set VITE_WALLETCONNECT_PROJECT_ID in your environment variables.
 // Get yours from https://cloud.walletconnect.com
-const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID || '';
+// Without this environment variable, wallet connections WILL NOT work.
+const WALLETCONNECT_PROJECT_ID = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+
+if (!WALLETCONNECT_PROJECT_ID) {
+  console.error("WalletConnect Project ID missing. Ensure VITE_WALLETCONNECT_PROJECT_ID is set.");
+}
 
 export const wagmiConfig = createConfig({
 
