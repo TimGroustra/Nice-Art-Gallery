@@ -16,6 +16,13 @@ dist-ssr
 .eslintcache
 .stylelintcache
 
+# Environment variables
+.env
+.env.development
+.env.production
+.env.local
+.env.*.local
+
 # Editor and OS
 .vscode/*
 !.vscode/extensions.json
@@ -31,3 +38,8 @@ Thumbs.db
 # Large Assets (uncomment if you move assets to an external CDN)
 # public/assets/models/*.glb
 # public/audio/*.mp3
+
+# Supabase
+.supabase/
+supabase/.temp/
+supabase/functions/.env
