@@ -25,7 +25,7 @@ interface GalleryConfigRow {
 interface PanelLock {
   panel_id: string;
   locked_by_address: string;
-  locked_until: string; // ISO
+  locked_until: string;
   locking_gem_token_id: string | null;
 }
 
@@ -151,6 +151,9 @@ const GalleryConfig = () => {
     });
 
     if (cfgErr) { toast.error('Save failed.'); setIsLoading(false); return; }
+
+    // Trigger server-side metadata sync to ensure the gallery loads fast for everyone
+    supabase.functions.invoke('get-gallery-data').catch(e => console.warn("Background sync failed", e));
 
     const days = Math.max(0, Math.min(30, Number(lockDurationDays)));
     if (days === 0) {

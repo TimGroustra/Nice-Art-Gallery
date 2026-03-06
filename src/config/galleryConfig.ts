@@ -1,5 +1,5 @@
-import { fetchTotalSupply } from '@/utils/nftFetcher';
 import { supabase } from '@/integrations/supabase/client';
+import { primeMetadataCache } from '@/utils/metadataCache';
 
 export interface NftCollection {
   name: string;
@@ -15,14 +15,9 @@ export interface PanelConfig {
   [wallName: string]: NftCollection;
 }
 
-const ETN_VIDEO_NFT_ADDRESS = "0x7F41080A13f5154Bcf9f72991AFEEd645b13B75C";
-
-// Default colors for the new theme (Deep Purple and Bright Yellow)
 const DEFAULT_WALL_COLOR = '#4A235A';
 const DEFAULT_TEXT_COLOR = '#F4D03F';
 
-// This part creates the structure of the gallery with all panel keys.
-// We'll initialize them as blank, and they will be populated from the database.
 const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'];
 const NUM_SEGMENTS_TO_USE = 5;
 
@@ -38,159 +33,99 @@ const createBlankPanel = (): NftCollection => ({
   text_color: DEFAULT_TEXT_COLOR,
 });
 
-// Generate 40 panel configurations for the outer 50x50 walls (Ground and First Floor)
+// Initialize structure
 for (let i = 0; i < NUM_SEGMENTS_TO_USE; i++) {
   for (let j = 0; j < WALL_NAMES.length; j++) {
-    const wallNameBase = WALL_NAMES[j];
-    
-    // Ground floor panel key
-    const panelKeyGround = `${wallNameBase}-${i}-ground`;
-    galleryConfig[panelKeyGround] = createBlankPanel();
-    
-    // First floor panel key
-    const panelKeyFirst = `${wallNameBase}-${i}-first`;
-    galleryConfig[panelKeyFirst] = createBlankPanel();
+    galleryConfig[`${WALL_NAMES[j]}-${i}-ground`] = createBlankPanel();
+    galleryConfig[`${WALL_NAMES[j]}-${i}-first`] = createBlankPanel();
   }
 }
 
-// Generate 16 panel configurations for inner 30x30 walls
 const INNER_WALL_NAMES = ['north-inner-wall', 'south-inner-wall', 'east-inner-wall', 'west-inner-wall'];
-const NUM_INNER_SEGMENTS_TO_USE = 2;
-
-for (let i = 0; i < NUM_INNER_SEGMENTS_TO_USE; i++) {
+for (let i = 0; i < 2; i++) {
   for (let j = 0; j < INNER_WALL_NAMES.length; j++) {
-    const wallNameBase = INNER_WALL_NAMES[j];
-    const panelKeyInner = `${wallNameBase}-inner-${i}`;
-    const panelKeyOuter = `${wallNameBase}-outer-${i}`;
-    galleryConfig[panelKeyInner] = createBlankPanel();
-    galleryConfig[panelKeyOuter] = createBlankPanel();
+    galleryConfig[`${INNER_WALL_NAMES[j]}-inner-${i}`] = createBlankPanel();
+    galleryConfig[`${INNER_WALL_NAMES[j]}-outer-${i}`] = createBlankPanel();
   }
 }
 
-// Generate 4 panel configurations for the central 10x10 walls
-const CENTER_WALL_NAMES = ['north-center-wall', 'south-center-wall', 'east-center-wall', 'west-center-wall'];
-for (let i = 0; i < CENTER_WALL_NAMES.length; i++) {
-  const wallNameBase = CENTER_WALL_NAMES[i];
-  const panelKey = `${wallNameBase}-0`;
-  galleryConfig[panelKey] = createBlankPanel();
+for (let i = 0; i < 4; i++) {
+  galleryConfig[`${['north', 'south', 'east', 'west'][i]}-center-wall-0`] = createBlankPanel();
 }
 
-// Function to initialize the gallery configuration from Supabase
+/**
+ * Initializes the gallery configuration by calling a single Edge Function 
+ * that returns all configs, metadata, and supplies in one go.
+ */
 export async function initializeGalleryConfig() {
-  const { data: dbConfigs, error } = await supabase.from('gallery_config').select('*');
+  try {
+    const { data, error } = await supabase.functions.invoke('get-gallery-data');
 
-  if (error) {
-    if (import.meta.env.DEV) console.error("Failed to fetch gallery config from Supabase:", error);
-    for (const wallName in galleryConfig) {
-      galleryConfig[wallName] = {
-        name: 'Error Loading',
-        contractAddress: '',
-        tokenIds: [],
-        currentIndex: 0,
-        show_collection: true,
-        wall_color: DEFAULT_WALL_COLOR,
-        text_color: DEFAULT_TEXT_COLOR
-      };
-    }
-    return;
-  }
+    if (error) throw error;
 
-  const dbConfigMap = new Map<string, any>();
-  dbConfigs.forEach(item => dbConfigMap.set(item.panel_key, item));
+    const { configs, metadata, supplies } = data as { 
+      configs: any[], 
+      metadata: any[], 
+      supplies: Record<string, number> 
+    };
 
-  const uniqueContracts = Array.from(
-    new Set(
-      dbConfigs
-        .map(c => c.contract_address)
-        .filter((addr): addr is string => !!addr && addr.trim() !== '')
-    )
-  );
+    // 1. Prime the metadata cache so panels load instantly
+    primeMetadataCache(metadata);
 
-  const tokenMap: { [contractAddress: string]: number[] } = {};
-  for (const address of uniqueContracts) {
-    if (address === ETN_VIDEO_NFT_ADDRESS) {
-      tokenMap[address] = [1];
-      continue;
-    }
-    
-    // Safer fallback if fetching total supply fails
-    const SAFE_DEFAULT_SUPPLY = 5;
-    let total = SAFE_DEFAULT_SUPPLY;
-    
-    try {
-      const totalSupply = await fetchTotalSupply(address);
-      total = totalSupply ?? SAFE_DEFAULT_SUPPLY;
-    } catch (e) {
-      if (import.meta.env.DEV) console.warn(`Failed to get total supply for ${address}. Using fallback ${SAFE_DEFAULT_SUPPLY}.`, e);
-    }
-    
-    total = Math.max(1, total);
-    tokenMap[address] = Array.from({ length: total }, (_, i) => i + 1);
-  }
+    // 2. Map configs to the gallery structure
+    const dbConfigMap = new Map(configs.map(c => [c.panel_key, c]));
 
-  for (const panelKey in galleryConfig) {
-    const configFromDb = dbConfigMap.get(panelKey);
+    for (const panelKey in galleryConfig) {
+      const dbCfg = dbConfigMap.get(panelKey);
 
-    if (configFromDb && configFromDb.contract_address) {
-      const contractAddress = configFromDb.contract_address;
-      const defaultTokenId = configFromDb.default_token_id || 1;
-      const showCollection = configFromDb.show_collection ?? true;
+      if (dbCfg && dbCfg.contract_address) {
+        const addr = dbCfg.contract_address.toLowerCase();
+        const supply = supplies[dbCfg.contract_address] || 1;
+        const defaultId = dbCfg.default_token_id || 1;
+        
+        // Build token list
+        const tokens = dbCfg.show_collection 
+          ? Array.from({ length: Math.min(supply, 100) }, (_, i) => i + 1)
+          : [defaultId];
 
-      let tokens: number[];
-      
-      if (showCollection) {
-        tokens = tokenMap[contractAddress] || [defaultTokenId];
+        const startIndex = Math.max(0, tokens.indexOf(defaultId));
+
+        galleryConfig[panelKey] = {
+          name: dbCfg.collection_name || 'Unnamed Collection',
+          contractAddress: dbCfg.contract_address,
+          tokenIds: tokens,
+          currentIndex: startIndex,
+          show_collection: !!dbCfg.show_collection,
+          wall_color: dbCfg.wall_color || DEFAULT_WALL_COLOR,
+          text_color: dbCfg.text_color || DEFAULT_TEXT_COLOR,
+        };
       } else {
-        tokens = [defaultTokenId];
+        galleryConfig[panelKey] = {
+          name: 'Blank Panel',
+          contractAddress: '',
+          tokenIds: [],
+          currentIndex: 0,
+          show_collection: true,
+          wall_color: DEFAULT_WALL_COLOR,
+          text_color: DEFAULT_TEXT_COLOR,
+        };
       }
-      
-      const validTokens = tokens.filter(tokenId => {
-        const maxToken = tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId;
-        return tokenId >= 1 && tokenId <= maxToken;
-      });
-      
-      if (validTokens.length === 0 && defaultTokenId >= 1 && defaultTokenId <= (tokenMap[contractAddress] ? Math.max(...tokenMap[contractAddress]) : defaultTokenId)) {
-        validTokens.push(defaultTokenId);
-      }
-      
-      const tokensToUse = validTokens.length > 0 ? validTokens : [defaultTokenId];
-      const startIndex = Math.max(0, tokensToUse.indexOf(defaultTokenId));
-
-      galleryConfig[panelKey] = {
-        name: configFromDb.collection_name || 'Unnamed Collection',
-        contractAddress,
-        tokenIds: tokensToUse,
-        currentIndex: startIndex,
-        show_collection: showCollection,
-        wall_color: configFromDb.wall_color || DEFAULT_WALL_COLOR,
-        text_color: configFromDb.text_color || DEFAULT_TEXT_COLOR,
-      };
-    } else {
-      galleryConfig[panelKey] = {
-        name: 'Blank Panel',
-        contractAddress: '',
-        tokenIds: [],
-        currentIndex: 0,
-        show_collection: true,
-        wall_color: DEFAULT_WALL_COLOR,
-        text_color: DEFAULT_TEXT_COLOR,
-      };
     }
-  }
 
-  if (import.meta.env.DEV) console.log(`Gallery configuration fully initialized from Supabase.`);
+    console.log(`[Gallery Config] Initialized with ${metadata.length} cached metadata entries.`);
+  } catch (e) {
+    console.error("[Gallery Config] Failed to initialize via Edge Function:", e);
+  }
 }
 
-// Exported constants stay the same
 export const GALLERY_PANEL_CONFIG = galleryConfig;
 
 export const getCurrentNftSource = (wallName: keyof PanelConfig) => {
   const config = GALLERY_PANEL_CONFIG[wallName];
   if (!config || !config.contractAddress || config.tokenIds.length === 0) return null;
-  const tokenId = config.tokenIds[config.currentIndex];
   return {
     contractAddress: config.contractAddress,
-    tokenId,
+    tokenId: config.tokenIds[config.currentIndex],
   };
 };
 
