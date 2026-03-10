@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import NftPreviewPane from '@/components/NftPreviewPane';
-import { Loader2, Gem, ArrowLeft, Settings } from 'lucide-react';
+import { Loader2, Gem, ArrowLeft } from 'lucide-react';
 import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 import SettingsPanel from '@/components/gallery-config/SettingsPanel';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-import { GALLERY_PANEL_CONFIG } from '@/config/gallery-config';
+// Use a relative import to ensure the file resolves correctly
+import { GALLERY_PANEL_CONFIG } from '../config/gallery-config';
 
 interface GalleryConfigRow {
   panel_key: string;
@@ -65,7 +66,7 @@ const GalleryConfig = () => {
         k.includes('inner-wall-inner')
       );
       inwardKeys.forEach((key) => {
-        map.set(String(LUMIVANE_TOKEN_ID), key); // each inner panel points to the same token for UI purposes
+        map.set(String(LUMIVANE_TOKEN_ID), key);
       });
     }
 
@@ -83,7 +84,6 @@ const GalleryConfig = () => {
       }
     });
 
-    // Ensure unique panel keys (Lumivane may map to multiple inner panels)
     return options;
   }, [ownedTokens, gemToPanelMap]);
 
