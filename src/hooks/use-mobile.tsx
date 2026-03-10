@@ -24,9 +24,10 @@ export function useIsMobile() {
     
     const handleResize = () => {
       checkTouch();
-      // Debounce resize events
-      clearTimeout(window.resizeTimeout);
-      window.resizeTimeout = setTimeout(checkTouch, 100);
+      // Use local variable instead of window property
+      let resizeTimeout: NodeJS.Timeout;
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(checkTouch, 100);
     };
 
     mql.addEventListener("change", checkTouch);
