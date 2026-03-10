@@ -1,14 +1,16 @@
+"use client";
+
 import * as React from "react";
-import { cn } from "@/lib/utils";
 
 interface ChartProps {
+  children: React.ReactNode;
   className?: string;
 }
 
-export function Chart({ className }: ChartProps) {
+export function Chart({ children, className }: ChartProps) {
   return (
-    <div className={cn("p-4", className)}>
-      Chart Component
+    <div className={className}>
+      {children}
     </div>
   );
 }
