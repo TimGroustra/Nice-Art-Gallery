@@ -10,8 +10,7 @@ import { useAccount } from 'wagmi';
 import { useAvailableGems } from '@/hooks/use-available-gems';
 import SettingsPanel from '@/components/gallery-config/SettingsPanel';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
-// Use a relative import to ensure the file resolves correctly
-import { GALLERY_PANEL_CONFIG } from '../config/gallery-config';
+import { GALLERY_PANEL_CONFIG } from '@/config/gallery-config';
 
 interface GalleryConfigRow {
   panel_key: string;
