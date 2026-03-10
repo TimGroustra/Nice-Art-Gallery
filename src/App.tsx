@@ -8,7 +8,6 @@ import NotFound from "./pages/NotFound";
 import GalleryConfig from "./pages/GalleryConfig";
 import UserPortal from "./pages/UserPortal";
 import AvatarConfig from "./pages/AvatarConfig";
-import MobileGallery from "./pages/MobileGallery";
 import { WagmiProvider } from 'wagmi';
 import { wagmiConfig } from '@/integrations/wagmi/config';
 
@@ -23,9 +22,9 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/mobile" element={<MobileGallery />} />
+            {/* Mobile route removed - handled by unified component */}
             <Route path="/portal" element={<UserPortal />} />
-            <Route path="/login" element={<UserPortal />} /> {/* Aliasing login to portal for compatibility */}
+            <Route path="/login" element={<UserPortal />} />
             <Route path="/gallery-config" element={<GalleryConfig />} />
             <Route path="/avatar-config" element={<AvatarConfig />} />
             <Route path="*" element={<NotFound />} />

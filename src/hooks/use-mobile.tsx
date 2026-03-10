@@ -12,13 +12,31 @@ export function useIsMobile() {
     const checkTouch = () => {
       const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
       const isNarrow = window.innerWidth < MOBILE_BREAKPOINT;
-      setIsMobile(isNarrow || isTouch);
+      
+      // More comprehensive mobile detection including tablets
+      const isMobileDevice = 
+        isNarrow || 
+        isTouch ||
+        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      setIsMobile(isMobileDevice);
     };
     
+    const handleResize = () => {
+      checkTouch();
+      // Debounce resize events
+      clearTimeout(window.resizeTimeout);
+      window.resizeTimeout = setTimeout(checkTouch, 100);
+    };
+
     mql.addEventListener("change", checkTouch);
+    window.addEventListener("resize", handleResize);
     checkTouch();
     
-    return () => mql.removeEventListener("change", checkTouch);
+    return () => {
+      mql.removeEventListener("change", checkTouch);
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   return !!isMobile;
