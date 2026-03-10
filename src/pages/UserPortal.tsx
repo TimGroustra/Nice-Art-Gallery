@@ -5,12 +5,12 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
-import { Loader2, Wallet, LogIn, X, ArrowLeft, Settings, Gem, AlertTriangle, Smartphone } from 'lucide-react';
+import { Loader2, Wallet, X, ArrowLeft, Settings, Gem, AlertTriangle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
-import { useGemBalance } from '@/hooks/use-gem-balance';
+import { useAvailableGems } from '@/hooks/use-available-gems';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
-const REQUIRED_GEMS = 5;
+const REQUIRED_GEMS = 1;
 
 const UserPortal: React.FC = () => {
   const navigate = useNavigate();
@@ -18,23 +18,23 @@ const UserPortal: React.FC = () => {
   const { connect, connectors } = useConnect();
   const { disconnect } = useDisconnect();
 
-  const { balance, isLoading: isBalanceLoading, error: balanceError } = useGemBalance(address);
+  const { ownedTokens, isLoading: isGemsLoading, error: gemsError } = useAvailableGems(address);
 
   const handleConnect = (connector: any) => {
     connect({ connector });
   };
 
-  const hasEnoughGems = (balance ?? 0) >= REQUIRED_GEMS;
+  const gemCount = ownedTokens.length;
+  const hasEnoughGems = gemCount >= REQUIRED_GEMS;
 
   const handleGalleryConfigClick = () => {
     if (!hasEnoughGems) {
-      toast.error(`Access Denied: You need at least ${REQUIRED_GEMS} ElectroGems to configure the gallery. You currently have ${balance ?? 0}.`);
+      toast.error(`Access Denied: You need at least ${REQUIRED_GEMS} ElectroGem to configure the gallery. You currently have ${gemCount}.`);
       return;
     }
     navigate('/gallery-config');
   };
 
-  // Filter connectors to ensure only one 'injected' type is shown, and map for display
   const uniqueConnectors = React.useMemo(() => {
     type ConnectorWithUI = typeof connectors[number] & { 
       displayName: string; 
@@ -138,17 +138,17 @@ const UserPortal: React.FC = () => {
                   onClick={handleGalleryConfigClick} 
                   variant={hasEnoughGems ? "default" : "secondary"}
                   className="w-full h-16 justify-start px-6 relative overflow-hidden group border shadow-sm"
-                  disabled={isBalanceLoading}
+                  disabled={isGemsLoading}
                 >
                   <Settings className="mr-4 h-6 w-6 text-primary group-hover:rotate-45 transition-transform" />
                   <div className="flex flex-col items-start">
                     <span className="font-black text-lg">Gallery Configuration</span>
                     <span className="text-xs opacity-70">
-                      {isBalanceLoading ? "Checking balance..." : `Owned: ${balance ?? 0} / Need: ${REQUIRED_GEMS} Gems`}
+                      {isGemsLoading ? "Retrieving token IDs..." : `Owned: ${gemCount} / Need: ${REQUIRED_GEMS} Gem`}
                     </span>
                   </div>
-                  {isBalanceLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
-                  {!isBalanceLoading && !hasEnoughGems && <AlertTriangle className="ml-auto h-5 w-5 text-amber-500" />}
+                  {isGemsLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
+                  {!isGemsLoading && !hasEnoughGems && <AlertTriangle className="ml-auto h-5 w-5 text-amber-500" />}
                 </Button>
 
                 <Button 
@@ -161,24 +161,40 @@ const UserPortal: React.FC = () => {
                 </Button>
               </div>
 
-              {balanceError && (
+              {gemsError && (
                 <Alert variant="destructive">
                   <AlertTriangle className="h-4 w-4" />
-                  <AlertTitle>Balance Check Failed</AlertTitle>
+                  <AlertTitle>Gem Check Failed</AlertTitle>
                   <AlertDescription className="text-xs">
                     Could not verify ElectroGems. Please check your connection or try again.
                   </AlertDescription>
                 </Alert>
               )}
 
-              {isConnected && !isBalanceLoading && !hasEnoughGems && !balanceError && (
+              {isConnected && !isGemsLoading && !hasEnoughGems && !gemsError && (
                 <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-900">
                   <Gem className="h-4 w-4 text-amber-600" />
-                  <AlertTitle className="text-amber-800 dark:text-amber-400">Gems Required</AlertTitle>
+                  <AlertTitle className="text-amber-800 dark:text-amber-400">Gem Required</AlertTitle>
                   <AlertDescription className="text-amber-700 dark:text-amber-500 text-xs">
-                    You currently have {balance ?? 0} ElectroGems. You need {REQUIRED_GEMS} to edit the gallery panels.
+                    You currently have {gemCount} ElectroGems. You need at least {REQUIRED_GEMS} to edit the gallery panels.
                   </AlertDescription>
                 </Alert>
+              )}
+
+              {isConnected && !isGemsLoading && gemCount > 0 && (
+                <div className="p-4 border rounded-xl bg-primary/5 space-y-2">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Gem className="h-4 w-4 text-primary" />
+                    <span className="text-xs font-bold uppercase tracking-tight">Owned Token IDs</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {ownedTokens.map(id => (
+                      <span key={id} className="px-2 py-1 bg-primary/10 rounded text-[10px] font-mono font-bold">
+                        #{id}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}

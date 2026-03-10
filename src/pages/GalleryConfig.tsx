@@ -29,7 +29,7 @@ interface PanelLock {
   locking_gem_token_id: string | null;
 }
 
-const REQUIRED_GEM_BALANCE = 5;
+const REQUIRED_GEM_BALANCE = 1;
 type OuterFloor = 'ground' | 'first';
 type OuterWall = 'north' | 'south' | 'east' | 'west';
 
