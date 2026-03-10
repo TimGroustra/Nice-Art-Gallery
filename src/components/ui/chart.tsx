@@ -1,11 +1,17 @@
 "use client";
 
 import * as React from "react";
-import * as RechartsPrimitive from "recharts";
 import { cn } from "@/lib/utils";
 
-const Chart = RechartsPrimitive.ResponsiveContainer;
+interface ChartProps {
+  children: React.ReactNode;
+  className?: string;
+}
 
-Chart.displayName = "Chart";
-
-export { Chart };
+export function Chart({ children, className }: ChartProps) {
+  return (
+    <div className={cn("w-full h-64 bg-muted rounded-lg flex items-center justify-center", className)}>
+      <div className="text-muted-foreground text-sm">Chart Component</div>
+    </div>
+  );
+}
