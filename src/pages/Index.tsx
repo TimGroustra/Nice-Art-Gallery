@@ -2,6 +2,7 @@ import UnifiedGallery from "@/components/UnifiedGallery";
 import GalleryUI from "@/components/GalleryUI";
 import BackgroundMusic from "@/components/BackgroundMusic";
 import LoadingSplash from "@/components/LoadingSplash";
+import ConfigWarning from "@/components/ConfigWarning";
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,8 @@ const Index = () => {
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       {isLoading && <LoadingSplash progress={loadingProgress} />}
+      
+      <ConfigWarning />
       
       <BackgroundMusic ref={musicRef} />
 
