@@ -58,14 +58,8 @@ for (let i = 0; i < 4; i++) {
  */
 export async function initializeGalleryConfig() {
   try {
-    // Check if Supabase is properly configured
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    if (!supabaseUrl || supabaseUrl.includes('your-project-ref')) {
-      console.warn("Supabase not configured. Using default gallery configuration.");
-      primeDefaultConfig();
-      return;
-    }
-
+    console.log("[Gallery Config] Initializing gallery configuration...");
+    
     const { data, error } = await supabase.functions.invoke('get-gallery-data');
 
     if (error) {
