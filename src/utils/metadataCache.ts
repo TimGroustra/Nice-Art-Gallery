@@ -15,18 +15,14 @@ function getCacheKey(contractAddress: string, tokenId: number): NftCacheKey {
  * Primes the cache with a list of metadata objects (e.g. from a bulk server fetch).
  */
 export function primeMetadataCache(items: any[]) {
-  if (!items || items.length === 0) return;
-  
   items.forEach(item => {
-    if (!item || !item.contract_address || item.token_id === undefined) return;
-    
     const key = getCacheKey(item.contract_address, item.token_id);
     metadataCache.set(key, {
-      title: item.title || '(No Title)',
-      description: item.description || '(No description)',
-      contentUrl: item.image || item.contentUrl || '',
+      title: item.title,
+      description: item.description,
+      contentUrl: item.image, // Map DB 'image' to 'contentUrl'
       contentType: item.image?.match(/\.(mp4|webm|ogg|mov)$/i) ? 'video/mp4' : 'image/jpeg',
-      source: item.source || '',
+      source: item.source,
       attributes: item.attributes || []
     });
   });
@@ -53,15 +49,7 @@ export async function getCachedNftMetadata(contractAddress: string, tokenId: num
       metadataCache.set(key, result.metadata);
       return result.metadata;
     } else {
-      // Return default metadata on failure
-      return {
-        title: `Token ${tokenId}`,
-        description: 'Could not load metadata',
-        contentUrl: '',
-        contentType: 'image/jpeg',
-        source: '',
-        attributes: []
-      };
+      return null;
     }
   })();
   

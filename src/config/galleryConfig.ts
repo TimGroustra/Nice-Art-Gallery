@@ -54,19 +54,14 @@ for (let i = 0; i < 4; i++) {
 }
 
 /**
- * Initializes the gallery configuration with fallback when Supabase is not available
+ * Initializes the gallery configuration by calling a single Edge Function 
+ * that returns all configs, metadata, and supplies in one go.
  */
 export async function initializeGalleryConfig() {
   try {
-    console.log("[Gallery Config] Initializing gallery configuration...");
-    
     const { data, error } = await supabase.functions.invoke('get-gallery-data');
 
-    if (error) {
-      console.warn("Supabase Edge Function failed, using default configuration:", error);
-      primeDefaultConfig();
-      return;
-    }
+    if (error) throw error;
 
     const { configs, metadata, supplies } = data as { 
       configs: any[], 
@@ -105,41 +100,22 @@ export async function initializeGalleryConfig() {
           text_color: dbCfg.text_color || DEFAULT_TEXT_COLOR,
         };
       } else {
-        galleryConfig[panelKey] = createBlankPanel();
+        galleryConfig[panelKey] = {
+          name: 'Blank Panel',
+          contractAddress: '',
+          tokenIds: [],
+          currentIndex: 0,
+          show_collection: true,
+          wall_color: DEFAULT_WALL_COLOR,
+          text_color: DEFAULT_TEXT_COLOR,
+        };
       }
     }
 
     console.log(`[Gallery Config] Initialized with ${metadata.length} cached metadata entries.`);
   } catch (e) {
     console.error("[Gallery Config] Failed to initialize via Edge Function:", e);
-    primeDefaultConfig();
   }
-}
-
-function primeDefaultConfig() {
-  // Set up some demo content for when Supabase isn't available
-  const demoCollections = [
-    {
-      contractAddress: '0xcff0d88Ed5311bAB09178b6ec19A464100880984',
-      tokenIds: [1, 2, 3, 4, 5],
-      name: 'ElectroGems',
-    }
-  ];
-
-  // Apply demo content to a few panels
-  Object.keys(galleryConfig).forEach((panelKey, index) => {
-    const demoCollection = demoCollections[index % demoCollections.length];
-    if (demoCollection) {
-      galleryConfig[panelKey] = {
-        ...galleryConfig[panelKey],
-        contractAddress: demoCollection.contractAddress,
-        tokenIds: demoCollection.tokenIds,
-        name: demoCollection.name,
-      };
-    }
-  });
-
-  console.log("[Gallery Config] Using default demo configuration");
 }
 
 export const GALLERY_PANEL_CONFIG = galleryConfig;

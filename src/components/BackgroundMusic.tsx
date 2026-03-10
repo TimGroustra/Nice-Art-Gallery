@@ -16,19 +16,11 @@ const BackgroundMusic = forwardRef<BackgroundMusicHandles, {}>((props, ref) => {
     const audio = new Audio(MUSIC_URL);
     audio.loop = true;
     audio.volume = 0.3; // Reasonable background volume
-    audio.muted = true; // Start muted by default for better UX
+    audio.muted = true; // Start muted
     audioRef.current = audio;
 
-    // Start automatically for mobile devices in unified mode
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      // Mobile starts automatically after user interaction is detected
-      const startOnInteraction = () => {
-        audio.play().catch(e => console.error("Mobile autoplay failed:", e));
-        document.removeEventListener('touchstart', startOnInteraction);
-      };
-      document.addEventListener('touchstart', startOnInteraction);
-    }
+    // Removed auto‑play on mount to avoid NotAllowedError on mobile.
+    // Playback can now be triggered after a user interaction via the exposed play() method.
 
     return () => {
       audio.pause();

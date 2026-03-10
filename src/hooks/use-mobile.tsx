@@ -12,32 +12,13 @@ export function useIsMobile() {
     const checkTouch = () => {
       const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
       const isNarrow = window.innerWidth < MOBILE_BREAKPOINT;
-      
-      // More comprehensive mobile detection including tablets
-      const isMobileDevice = 
-        isNarrow || 
-        isTouch ||
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      setIsMobile(isMobileDevice);
+      setIsMobile(isNarrow || isTouch);
     };
     
-    const handleResize = () => {
-      checkTouch();
-      // Use local variable instead of window property
-      let resizeTimeout: NodeJS.Timeout;
-      clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(checkTouch, 100);
-    };
-
     mql.addEventListener("change", checkTouch);
-    window.addEventListener("resize", handleResize);
     checkTouch();
     
-    return () => {
-      mql.removeEventListener("change", checkTouch);
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => mql.removeEventListener("change", checkTouch);
   }, []);
 
   return !!isMobile;
