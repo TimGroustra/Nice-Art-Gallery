@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 
 interface DrawerProps {
   children: React.ReactNode;
@@ -9,8 +10,8 @@ interface DrawerProps {
 
 export function Drawer({ children, className }: DrawerProps) {
   return (
-    <div className={className}>
-      {children}
+    <div className={cn(className)}>
+      Drawer Component
     </div>
   );
 }

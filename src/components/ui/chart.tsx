@@ -1,16 +1,11 @@
 "use client";
 
 import * as React from "react";
+import * as RechartsPrimitive from "recharts";
+import { cn } from "@/lib/utils";
 
-interface ChartProps {
-  children: React.ReactNode;
-  className?: string;
-}
+const Chart = RechartsPrimitive.ResponsiveContainer;
 
-export function Chart({ children, className }: ChartProps) {
-  return (
-    <div className={className}>
-      {children}
-    </div>
-  );
-}
+Chart.displayName = "Chart";
+
+export { Chart };

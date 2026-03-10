@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { Dot } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface InputOTPProps {
   children: React.ReactNode;
@@ -9,8 +11,8 @@ interface InputOTPProps {
 
 export function InputOTP({ children, className }: InputOTPProps) {
   return (
-    <div className={className}>
-      {children}
+    <div className={cn("flex items-center gap-2", className)}>
+      OTP Input
     </div>
   );
 }
