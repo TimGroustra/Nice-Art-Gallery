@@ -17,7 +17,7 @@ serve(async (req) => {
   try {
     if (!BOT_TOKEN) throw new Error("TG_TOKEN_GALLERY secret is missing.");
 
-    // 1. Set Webhook to handle the mandatory /start command
+    // 1. Set Webhook
     await fetch(`${BASE_URL}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -28,7 +28,25 @@ serve(async (req) => {
       })
     });
 
-    // 2. Restore the Menu Button as a Web App (This button works directly)
+    // 2. Set Bot Description (Shown before the user clicks Start)
+    await fetch(`${BASE_URL}/setMyDescription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        description: "Step inside a fully immersive 3D digital museum. Explore curated NFT collections from the Electroneum blockchain in a high-fidelity virtual environment."
+      })
+    });
+
+    // 3. Set Short Description (Shown on the bot's profile)
+    await fetch(`${BASE_URL}/setMyShortDescription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        short_description: "Experience the future of digital art in a 3D NFT gallery."
+      })
+    });
+
+    // 4. Set the Menu Button as a Web App
     await fetch(`${BASE_URL}/setChatMenuButton`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -41,7 +59,7 @@ serve(async (req) => {
       })
     });
 
-    // 3. Ensure no command list is present
+    // 5. Clear Commands
     await fetch(`${BASE_URL}/deleteMyCommands`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
@@ -49,7 +67,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: "Bot configured with Web App menu button and catch-all webhook." 
+      message: "Bot fully configured with descriptions, menu button, and webhook." 
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
