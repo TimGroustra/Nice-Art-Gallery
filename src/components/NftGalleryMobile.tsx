@@ -12,7 +12,6 @@ import {
 } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
-import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 import { Footprints } from 'lucide-react';
@@ -31,7 +30,7 @@ const LOWER_PANEL_Y = 5.0;
 const INNER_LOWER_PANEL_Y = 4.0;
 const UPPER_PANEL_Y = 12.0;
 const WALL_THICKNESS = 0.5;
-const BOUNDARY = ROOM_SIZE / 2 - 1.0; // Padding from outer walls
+const BOUNDARY = ROOM_SIZE / 2 - 1.0; 
 
 interface Panel {
   mesh: THREE.Mesh;
@@ -208,12 +207,12 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
     disposeTextureSafely(panel.mesh);
-    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x222222 });
+    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.8 });
     panel.metadataUrl = '';
     if (!source || source.contractAddress === '') return;
-    const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-    if (!metadata) return;
     try {
+      const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+      if (!metadata) return;
       const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       panel.metadataUrl = metadata.source;
@@ -314,8 +313,6 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
     const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
     platform.position.set(0, PLATFORM_Y, 0); scene.add(platform);
-    const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
-    underPlatform.rotation.x = -Math.PI / 2; underPlatform.position.y = LOWER_WALL_HEIGHT; scene.add(underPlatform);
 
     const textureLoader = new THREE.TextureLoader();
     const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
@@ -339,13 +336,27 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
         [{ x: 0, z: 11 }, { x: 0, z: -11 }, { x: 11, z: 0 }, { x: -11, z: 0 }].forEach(p => { const i = g.clone(); i.position.set(p.x, PLATFORM_Y + WALL_THICKNESS / 2, p.z); i.rotation.y = Math.atan2(-p.x, -p.z); scene.add(i); });
       }
     });
+    
+    // Decoration Loaders (Plant, Mug, etc) - mirrors desktop logic
+    gltfLoader.load('/assets/models/plant.glb', (gltf) => {
+      const plant = gltf.scene; const box = new THREE.Box3().setFromObject(plant); const size = new THREE.Vector3(); box.getSize(size);
+      const scale = 2.5 / size.y; plant.scale.set(scale, scale, scale);
+      [{ x: 14.2, z: 14.2 }, { x: -14.2, z: 14.2 }, { x: 14.2, z: -14.2 }, { x: -14.2, z: -14.2 }].forEach(pos => {
+        const i = plant.clone(); i.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z); scene.add(i);
+      });
+    });
+
+    const tablePositions = [{ x: 0, z: 9.8 }, { x: 0, z: -9.8 }, { x: 9.8, z: 0 }, { x: -9.8, z: 0 }];
+    tablePositions.forEach(pos => {
+      const t = createProceduralTable(); t.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+      t.rotation.y = Math.atan2(-pos.x, -pos.z); t.translateX(0.9); scene.add(t);
+    });
 
     const fadeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false });
     fadeMaterialRef.current = fadeMaterial;
     const fadeScreen = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), fadeMaterial);
     fadeScreen.renderOrder = 999; fadeScreenRef.current = fadeScreen; scene.add(fadeScreen);
 
-    // Pointer Events for Dragging (Supports Touch + Mouse)
     const handlePointerDown = (e: PointerEvent) => {
       isDraggingRef.current = false;
       dragStartRef.current = { x: e.clientX, y: e.clientY };
@@ -355,7 +366,8 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       if (!dragStartRef.current.x && !dragStartRef.current.y) return;
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
-      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) isDraggingRef.current = true;
+      // Increased threshold for dragging to prevent accidental cancels on taps
+      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) isDraggingRef.current = true;
       rotationRef.current.yaw += dx * 0.005;
       rotationRef.current.pitch += dy * 0.005;
       rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
@@ -430,6 +442,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
       const ARROW_PANEL_OFFSET = 3.2;
 
+      // Outer Walls
       for (let i = 0; i <= 4; i++) {
         ['north-wall', 'south-wall', 'east-wall', 'west-wall'].forEach(base => {
           const sc = (i - 2) * ROOM_SEGMENT_SIZE;
@@ -440,7 +453,7 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
             if (base === 'south-wall') { x = sc; z = halfRoomSize; ry = Math.PI; dz = -ARROW_DEPTH_OFFSET; }
             if (base === 'east-wall') { x = halfRoomSize; z = sc; ry = -Math.PI / 2; dx = -ARROW_DEPTH_OFFSET; }
             if (base === 'west-wall') { x = -halfRoomSize; z = sc; ry = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
-            const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
+            const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
             mesh.position.set(x + dx, tier.y, z + dz); mesh.rotation.y = ry; scene.add(mesh);
             const rVec = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, ry, 0));
             const pArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); pArr.rotation.y = ry + Math.PI; pArr.position.copy(mesh.position).addScaledVector(rVec, -ARROW_PANEL_OFFSET); scene.add(pArr);
@@ -451,6 +464,33 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
           });
         });
       }
+
+      // Inner Walls
+      [-10, 10].forEach((seg, i) => {
+        const d_off = ARROW_DEPTH_OFFSET;
+        const inner_configs = [
+          { k: `north-inner-wall-outer-${i}`, p: [seg, INNER_LOWER_PANEL_Y, -5 - d_off], r: Math.PI },
+          { k: `north-inner-wall-inner-${i}`, p: [seg, INNER_LOWER_PANEL_Y, -5 + d_off], r: 0 },
+          { k: `south-inner-wall-outer-${i}`, p: [seg, INNER_LOWER_PANEL_Y, 5 + d_off], r: 0 },
+          { k: `south-inner-wall-inner-${i}`, p: [seg, INNER_LOWER_PANEL_Y, 5 - d_off], r: Math.PI },
+          { k: `east-inner-wall-outer-${i}`, p: [5 + d_off, INNER_LOWER_PANEL_Y, seg], r: Math.PI / 2 },
+          { k: `east-inner-wall-inner-${i}`, p: [5 - d_off, INNER_LOWER_PANEL_Y, seg], r: -Math.PI / 2 },
+          { k: `west-inner-wall-outer-${i}`, p: [-5 - d_off, INNER_LOWER_PANEL_Y, seg], r: -Math.PI / 2 },
+          { k: `west-inner-wall-inner-${i}`, p: [-5 + d_off, INNER_LOWER_PANEL_Y, seg], r: Math.PI / 2 }
+        ];
+
+        inner_configs.forEach(cfg => {
+          const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
+          mesh.position.set(cfg.p[0], cfg.p[1], cfg.p[2]); mesh.rotation.y = cfg.r; scene.add(mesh);
+          const rVec = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, cfg.r, 0));
+          const pArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); pArr.rotation.y = cfg.r + Math.PI; pArr.position.copy(mesh.position).addScaledVector(rVec, -ARROW_PANEL_OFFSET); scene.add(pArr);
+          const nArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); nArr.rotation.y = cfg.r; nArr.position.copy(mesh.position).addScaledVector(rVec, ARROW_PANEL_OFFSET); scene.add(nArr);
+          const p: Panel = { mesh, wallName: cfg.k as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow: pArr, nextArrow: nArr, videoElement: null, gifStopFunction: null };
+          panelsRef.current.push(p);
+          updatePanelContent(p, getCurrentNftSource(cfg.k as keyof PanelConfig));
+        });
+      });
+
       if (onLoadingComplete) onLoadingComplete();
     };
     panelsInit();
