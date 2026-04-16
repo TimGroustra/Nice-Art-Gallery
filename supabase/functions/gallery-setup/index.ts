@@ -2,14 +2,19 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const BOT_TOKEN = Deno.env.get("TG_TOKEN_GALLERY");
 const BASE_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
-// Using your actual project ref: yvigiirlsdbhmmcqvznk
 const PROJECT_REF = "yvigiirlsdbhmmcqvznk"; 
 const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/gallery-bot`;
 const APP_URL = "https://nice-art-gallery.vercel.app/"; 
 
 serve(async (req) => {
   try {
-    console.log("[gallery-setup] Configuring NiceArtGalleryBot...");
+    console.log("[gallery-setup] Initializing configuration...");
+    
+    if (!BOT_TOKEN) {
+      console.error("[gallery-setup] ERROR: TG_TOKEN_GALLERY secret is missing!");
+      return new Response(JSON.stringify({ error: "TG_TOKEN_GALLERY secret is not set in Supabase." }), { status: 500 });
+    }
+
     console.log("[gallery-setup] Webhook URL:", WEBHOOK_URL);
 
     // 1. Set the Webhook
@@ -23,6 +28,7 @@ serve(async (req) => {
       })
     });
     const webhookData = await webhookRes.json();
+    console.log("[gallery-setup] Webhook result:", webhookData);
 
     // 2. Set the Menu Button
     const menuRes = await fetch(`${BASE_URL}/setChatMenuButton`, {
@@ -55,12 +61,13 @@ serve(async (req) => {
       success: true, 
       webhook: webhookData,
       menu: menuData,
-      commands: commandsData
+      commands: commandsData,
+      message: "Bot configuration updated successfully."
     }), {
       headers: { "Content-Type": "application/json" }
     });
   } catch (e) {
-    console.error("[gallery-setup] Setup failed:", e);
+    console.error("[gallery-setup] Setup failed:", e.message);
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 })
