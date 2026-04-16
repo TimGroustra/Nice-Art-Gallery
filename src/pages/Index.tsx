@@ -7,6 +7,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { User } from "lucide-react";
+import { useTelegram } from "@/hooks/useTelegram";
 
 interface BackgroundMusicHandles {
   play: () => void;
@@ -22,6 +23,7 @@ const Index = () => {
   const musicRef = useRef<BackgroundMusicHandles>(null);
   const isMobile = useIsMobile();
   const navigate = useNavigate();
+  const { user, tg } = useTelegram();
 
   useEffect(() => {
     if (isMobile) {
@@ -45,9 +47,13 @@ const Index = () => {
       galleryControls.lockControls();
     }
     musicRef.current?.play();
-  }, []);
+    
+    // Provide haptic feedback if in Telegram
+    if (tg?.HapticFeedback) {
+      tg.HapticFeedback.impactOccurred('medium');
+    }
+  }, [tg]);
 
-  // Memoize completion handler to prevent effect re-runs in NftGallery
   const handleLoadingComplete = useCallback(() => {
     setIsLoading(false);
   }, []);
@@ -76,7 +82,15 @@ const Index = () => {
       
       <BackgroundMusic ref={musicRef} />
 
-      <div className="fixed top-4 right-4 z-20">
+      <div className="fixed top-4 right-4 z-20 flex gap-2">
+        {user && (
+          <div className="bg-black/50 backdrop-blur-sm border border-white/10 px-4 py-2 rounded-full flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-white uppercase">
+              {user.first_name?.[0]}
+            </div>
+            <span className="text-xs font-bold text-white uppercase tracking-tighter">@{user.username || user.first_name}</span>
+          </div>
+        )}
         <Button asChild className="rounded-full shadow-lg">
           <Link to="/portal">
             <User className="mr-2 h-4 w-4" /> User Portal
