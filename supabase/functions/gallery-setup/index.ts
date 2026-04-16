@@ -1,4 +1,4 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts"
 
 const BOT_TOKEN = Deno.env.get("TG_TOKEN_GALLERY");
 const BASE_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
@@ -6,16 +6,20 @@ const PROJECT_REF = "yvigiirlsdbhmmcqvznk";
 const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/gallery-bot`;
 const APP_URL = "https://nice-art-gallery.vercel.app/"; 
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
+
   try {
-    console.log("[gallery-setup] Initializing configuration...");
+    console.log("[gallery-setup] Starting configuration...");
     
     if (!BOT_TOKEN) {
-      console.error("[gallery-setup] ERROR: TG_TOKEN_GALLERY secret is missing!");
-      return new Response(JSON.stringify({ error: "TG_TOKEN_GALLERY secret is not set in Supabase." }), { status: 500 });
+      throw new Error("TG_TOKEN_GALLERY secret is missing from Supabase.");
     }
-
-    console.log("[gallery-setup] Webhook URL:", WEBHOOK_URL);
 
     // 1. Set the Webhook
     const webhookRes = await fetch(`${BASE_URL}/setWebhook`, {
@@ -28,7 +32,6 @@ serve(async (req) => {
       })
     });
     const webhookData = await webhookRes.json();
-    console.log("[gallery-setup] Webhook result:", webhookData);
 
     // 2. Set the Menu Button
     const menuRes = await fetch(`${BASE_URL}/setChatMenuButton`, {
@@ -37,7 +40,7 @@ serve(async (req) => {
       body: JSON.stringify({
         menu_button: {
           type: "web_app",
-          text: "🎨 Gallery",
+          text: "🖼️ Gallery",
           web_app: { url: APP_URL }
         }
       })
@@ -57,17 +60,29 @@ serve(async (req) => {
     });
     const commandsData = await commandsRes.json();
 
+    // 4. Set Short Description
+    await fetch(`${BASE_URL}/setMyShortDescription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        short_description: "Step inside the most immersive 3D NFT Gallery on Electroneum. 🖼️"
+      })
+    });
+
     return new Response(JSON.stringify({ 
       success: true, 
       webhook: webhookData,
       menu: menuData,
       commands: commandsData,
-      message: "Bot configuration updated successfully."
+      message: "Bot configuration successfully pushed to Telegram."
     }), {
-      headers: { "Content-Type": "application/json" }
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
   } catch (e) {
     console.error("[gallery-setup] Setup failed:", e.message);
-    return new Response(JSON.stringify({ error: e.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: e.message }), { 
+      status: 200, // Return 200 to show error in UI
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
   }
 })
