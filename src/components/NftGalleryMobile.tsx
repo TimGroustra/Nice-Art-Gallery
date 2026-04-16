@@ -12,6 +12,7 @@ import {
 } from '@/config/galleryConfig';
 import { getCachedNftMetadata } from '@/utils/metadataCache';
 import { NftMetadata, NftSource } from '@/utils/nftFetcher';
+import { showSuccess, showError } from '@/utils/toast';
 import { createGifTexture } from '@/utils/gifTexture';
 import { MarketBrowserRefined } from '@/components/MarketBrowserRefined';
 import { Footprints } from 'lucide-react';
@@ -30,7 +31,7 @@ const LOWER_PANEL_Y = 5.0;
 const INNER_LOWER_PANEL_Y = 4.0;
 const UPPER_PANEL_Y = 12.0;
 const WALL_THICKNESS = 0.5;
-const BOUNDARY = ROOM_SIZE / 2 - 1.0; 
+const BOUNDARY = ROOM_SIZE / 2 - 1.0; // Padding from outer walls
 
 interface Panel {
   mesh: THREE.Mesh;
@@ -92,49 +93,84 @@ const disposeTextureSafely = (mesh: THREE.Mesh) => {
   }
 };
 
+/**
+ * Creates a minimalist rectangular gallery table using Three.js primitives.
+ */
 function createProceduralTable() {
   const group = new THREE.Group();
+  
+  // Mahogany Brown Material
   const mahoganyMat = new THREE.MeshStandardMaterial({ 
-    color: 0x4A1C1C, roughness: 0.6, metalness: 0.1 
+    color: 0x4A1C1C, // Deep reddish-brown
+    roughness: 0.6, 
+    metalness: 0.1 
   });
   const chromeMat = new THREE.MeshStandardMaterial({ 
-    color: 0x888888, metalness: 1.0, roughness: 0.1 
+    color: 0x888888, 
+    metalness: 1.0, 
+    roughness: 0.1 
   });
+
+  // 1. Tabletop (Rectangular)
   const topGeo = new THREE.BoxGeometry(2.4, 0.08, 1.4);
   const top = new THREE.Mesh(topGeo, mahoganyMat);
   top.position.y = 0.8;
   group.add(top);
+
+  // 2. Central Support (Rectangular Chrome Column)
   const supportGeo = new THREE.BoxGeometry(0.2, 0.75, 0.2);
   const support = new THREE.Mesh(supportGeo, chromeMat);
   support.position.y = 0.4;
   group.add(support);
+
+  // 3. Base (Rectangular)
   const baseGeo = new THREE.BoxGeometry(1.6, 0.05, 1.0);
   const base = new THREE.Mesh(baseGeo, mahoganyMat);
   base.position.y = 0.025;
   group.add(base);
+
   return group;
 }
 
+/**
+ * Creates the upgraded Diamond Teleporter group.
+ */
 function createDiamondTeleporter() {
   const group = new THREE.Group();
+
+  // 1. The Diamond (Octahedron)
   const diamondGeo = new THREE.OctahedronGeometry(0.8, 0);
   const diamondMat = new THREE.MeshPhysicalMaterial({
-    color: 0x00ccff, transparent: true, opacity: 0.5, metalness: 0.1, roughness: 0,
-    transmission: 0.8, thickness: 1, emissive: 0x0044ff, emissiveIntensity: 0.2
+    color: 0x00ccff,
+    transparent: true,
+    opacity: 0.5,
+    metalness: 0.1,
+    roughness: 0,
+    transmission: 0.8,
+    thickness: 1,
+    emissive: 0x0044ff,
+    emissiveIntensity: 0.2
   });
   const diamond = new THREE.Mesh(diamondGeo, diamondMat);
   diamond.name = "diamondBody";
   group.add(diamond);
+
+  // 2. Lightning Etchings (Wireframe Overlay)
   const edges = new THREE.EdgesGeometry(diamondGeo);
   const lineMat = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 });
   const etchings = new THREE.LineSegments(edges, lineMat);
   diamond.add(etchings);
+
+  // 3. Glowing Inner Light
   const coreGeo = new THREE.SphereGeometry(0.15, 16, 16);
   const coreMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const core = new THREE.Mesh(coreGeo, coreMat);
   group.add(core);
+
   const light = new THREE.PointLight(0x00ffff, 3, 5);
   group.add(light);
+
+  // 4. Electrons
   const createElectron = (radius: number, color: number) => {
     const eGroup = new THREE.Group();
     const eGeo = new THREE.SphereGeometry(0.06, 8, 8);
@@ -144,13 +180,22 @@ function createDiamondTeleporter() {
     eGroup.add(electron);
     return eGroup;
   };
+
   const electron1 = createElectron(1.3, 0x00ffff);
   electron1.rotation.z = Math.PI / 4;
   group.add(electron1);
+
   const electron2 = createElectron(1.5, 0xff00ff);
   electron2.rotation.x = Math.PI / 3;
   group.add(electron2);
-  group.userData = { isTeleportButton: true, electron1, electron2, diamond };
+
+  group.userData = { 
+    isTeleportButton: true,
+    electron1,
+    electron2,
+    diamond
+  };
+
   return group;
 }
 
@@ -178,8 +223,9 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
   const fadeStartTimeRef = useRef(0);
   const FADE_DURATION = 0.5;
 
+  // Rotation state for touch dragging
   const rotationRef = useRef({ yaw: 0, pitch: 0 });
-  const dragStartRef = useRef({ x: 0, y: 0 });
+  const touchStartRef = useRef({ x: 0, y: 0 });
   const isDraggingRef = useRef(false);
   const isWalkingRef = useRef(false);
 
@@ -190,16 +236,37 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
   const loadTexture = useCallback(async (url: string, panel: Panel, contentType: string): Promise<THREE.Texture | THREE.VideoTexture> => {
     const isVideo = isVideoContent(contentType, url);
     const isGif = isGifContent(contentType, url);
-    if (panel.videoElement) { panel.videoElement.pause(); panel.videoElement.src = ''; panel.videoElement = null; }
-    if (panel.gifStopFunction) { panel.gifStopFunction(); panel.gifStopFunction = null; }
-    if (isGif) { const { texture, stop } = await createGifTexture(url); panel.gifStopFunction = stop; return texture; }
+
+    if (panel.videoElement) {
+      panel.videoElement.pause();
+      panel.videoElement.src = '';
+      panel.videoElement = null;
+    }
+
+    if (panel.gifStopFunction) {
+      panel.gifStopFunction();
+      panel.gifStopFunction = null;
+    }
+
+    if (isGif) {
+      const { texture, stop } = await createGifTexture(url);
+      panel.gifStopFunction = stop;
+      return texture;
+    }
+
     if (isVideo) {
       const videoEl = document.createElement('video');
-      videoEl.playsInline = true; videoEl.autoplay = true; videoEl.loop = true; videoEl.muted = true;
-      videoEl.crossOrigin = 'anonymous'; videoEl.src = url;
+      videoEl.playsInline = true;
+      videoEl.autoplay = true;
+      videoEl.loop = true;
+      videoEl.muted = true;
+      videoEl.crossOrigin = 'anonymous';
+      videoEl.src = url;
       panel.videoElement = videoEl;
-      return new THREE.VideoTexture(videoEl);
+      const videoTexture = new THREE.VideoTexture(videoEl);
+      return videoTexture;
     }
+
     return new Promise((resolve, reject) => {
       new THREE.TextureLoader().setCrossOrigin('anonymous').load(url, resolve, null, reject);
     });
@@ -207,47 +274,72 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
 
   const updatePanelContent = useCallback(async (panel: Panel, source: NftSource | null) => {
     disposeTextureSafely(panel.mesh);
-    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.8 });
+    panel.mesh.material = new THREE.MeshBasicMaterial({ color: 0x222222 });
     panel.metadataUrl = '';
+    
     if (!source || source.contractAddress === '') return;
+
+    const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
+    if (!metadata) return;
+
     try {
-      const metadata = await getCachedNftMetadata(source.contractAddress, source.tokenId);
-      if (!metadata) return;
       const texture = await loadTexture(metadata.contentUrl, panel, metadata.contentType || '');
       panel.mesh.material = new THREE.MeshBasicMaterial({ map: texture });
       panel.metadataUrl = metadata.source;
       panel.isVideo = isVideoContent(metadata.contentType || '', metadata.contentUrl);
       panel.isGif = isGifContent(metadata.contentType || '', metadata.contentUrl);
+      
       const config = GALLERY_PANEL_CONFIG[panel.wallName];
       const showArrows = config && config.tokenIds.length > 1;
-      panel.prevArrow.visible = showArrows; panel.nextArrow.visible = showArrows;
-    } catch (e) { console.error(e); }
+      panel.prevArrow.visible = showArrows;
+      panel.nextArrow.visible = showArrows;
+    } catch (e) {
+      console.error(e);
+    }
   }, [loadTexture]);
 
   const performTeleport = (targetY: number) => {
     if (isTeleportingRef.current) return;
     isTeleportingRef.current = true;
     fadeStartTimeRef.current = performance.now();
-    setTimeout(() => { if (cameraRef.current) cameraRef.current.position.y = targetY; }, FADE_DURATION * 1000);
+
+    setTimeout(() => {
+      if (cameraRef.current) {
+        cameraRef.current.position.y = targetY;
+      }
+    }, FADE_DURATION * 1000);
   };
 
   const checkCollision = useCallback((pos: THREE.Vector3) => {
+    // Outer boundaries
     if (Math.abs(pos.x) > BOUNDARY || Math.abs(pos.z) > BOUNDARY) return true;
+
+    // Inner walls (only ground floor)
     if (pos.y < 5) {
       const padding = 0.8;
       const wallThick = 0.25 + padding;
       const wallHalfLen = 5.0 + padding;
+      
       const crossPoints = [-10, 10];
       const innerBoundary = 5.0;
+
+      // Check N/S inner walls
       for (const cp of crossPoints) {
+        // North segments
         if (Math.abs(pos.z - (-innerBoundary)) < wallThick && Math.abs(pos.x - cp) < wallHalfLen) return true;
+        // South segments
         if (Math.abs(pos.z - innerBoundary) < wallThick && Math.abs(pos.x - cp) < wallHalfLen) return true;
       }
+
+      // Check E/W inner walls
       for (const cp of crossPoints) {
+        // East segments
         if (Math.abs(pos.x - innerBoundary) < wallThick && Math.abs(pos.z - cp) < wallHalfLen) return true;
+        // West segments
         if (Math.abs(pos.x - (-innerBoundary)) < wallThick && Math.abs(pos.z - cp) < wallHalfLen) return true;
       }
     }
+    
     return false;
   }, []);
 
@@ -274,7 +366,12 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
     hemiLight.position.set(0, WALL_HEIGHT, 0);
     scene.add(hemiLight);
 
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.8, metalness: 0.1 });
+    const wallMaterial = new THREE.MeshStandardMaterial({
+      color: 0x666666,
+      roughness: 0.8,
+      metalness: 0.1,
+    });
+
     const halfRoomSize = ROOM_SIZE / 2;
     const outerWallGeometry = new THREE.BoxGeometry(ROOM_SIZE + WALL_THICKNESS, WALL_HEIGHT, WALL_THICKNESS);
     const halfWallHeight = WALL_HEIGHT / 2;
@@ -283,19 +380,36 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       const wall = new THREE.Mesh(outerWallGeometry, wallMaterial.clone());
       if (dir === 'north') wall.position.set(0, halfWallHeight, -halfRoomSize);
       if (dir === 'south') wall.position.set(0, halfWallHeight, halfRoomSize);
-      if (dir === 'east') { wall.rotation.y = Math.PI / 2; wall.position.set(halfRoomSize, halfWallHeight, 0); }
-      if (dir === 'west') { wall.rotation.y = Math.PI / 2; wall.position.set(-halfRoomSize, halfWallHeight, 0); }
+      if (dir === 'east') {
+        wall.rotation.y = Math.PI / 2;
+        wall.position.set(halfRoomSize, halfWallHeight, 0);
+      }
+      if (dir === 'west') {
+        wall.rotation.y = Math.PI / 2;
+        wall.position.set(-halfRoomSize, halfWallHeight, 0);
+      }
       scene.add(wall);
     });
 
     const crossWallGeometry = new THREE.BoxGeometry(ROOM_SEGMENT_SIZE, LOWER_WALL_HEIGHT, WALL_THICKNESS);
     const CROSS_WALL_BOUNDARY = 5;
     const crossWallSegments = [-10, 10];
-    crossWallSegments.forEach((sc) => {
-      const w1 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w1.position.set(sc, LOWER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY); scene.add(w1);
-      const w2 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w2.position.set(sc, LOWER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY); scene.add(w2);
-      const w3 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w3.rotation.y = Math.PI / 2; w3.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_HEIGHT / 2, sc); scene.add(w3);
-      const w4 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone()); w4.rotation.y = Math.PI / 2; w4.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_HEIGHT / 2, sc); scene.add(w4);
+
+    crossWallSegments.forEach((segmentCenter) => {
+      const w1 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
+      w1.position.set(segmentCenter, LOWER_WALL_HEIGHT / 2, -CROSS_WALL_BOUNDARY);
+      scene.add(w1);
+      const w2 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
+      w2.position.set(segmentCenter, LOWER_WALL_HEIGHT / 2, CROSS_WALL_BOUNDARY);
+      scene.add(w2);
+      const w3 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
+      w3.rotation.y = Math.PI / 2;
+      w3.position.set(-CROSS_WALL_BOUNDARY, LOWER_WALL_HEIGHT / 2, segmentCenter);
+      scene.add(w3);
+      const w4 = new THREE.Mesh(crossWallGeometry, wallMaterial.clone());
+      w4.rotation.y = Math.PI / 2;
+      w4.position.set(CROSS_WALL_BOUNDARY, LOWER_WALL_HEIGHT / 2, segmentCenter);
+      scene.add(w4);
     });
 
     const rainbowMaterial = new THREE.ShaderMaterial({
@@ -305,203 +419,487 @@ const NftGalleryMobile: React.FC<NftGalleryMobileProps> = ({ onLoadingProgress, 
       side: THREE.DoubleSide
     });
 
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.1 }));
-    floor.rotation.x = -Math.PI / 2; scene.add(floor);
-    const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE), rainbowMaterial);
-    ceiling.rotation.x = Math.PI / 2; ceiling.position.y = WALL_HEIGHT; scene.add(ceiling);
+    const floorGeo = new THREE.PlaneGeometry(ROOM_SIZE, ROOM_SIZE);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.2, metalness: 0.1 });
+    const floor = new THREE.Mesh(floorGeo, floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    scene.add(floor);
+
+    const ceiling = new THREE.Mesh(floorGeo, rainbowMaterial);
+    ceiling.rotation.x = Math.PI / 2;
+    ceiling.position.y = WALL_HEIGHT;
+    scene.add(ceiling);
 
     const PLATFORM_Y = LOWER_WALL_HEIGHT + WALL_THICKNESS / 2 + 0.01;
     const platform = new THREE.Mesh(new THREE.BoxGeometry(30, WALL_THICKNESS, 30), wallMaterial.clone());
-    platform.position.set(0, PLATFORM_Y, 0); scene.add(platform);
+    platform.position.set(0, PLATFORM_Y, 0);
+    scene.add(platform);
 
+    const underPlatform = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), rainbowMaterial);
+    underPlatform.rotation.x = -Math.PI / 2;
+    underPlatform.position.y = LOWER_WALL_HEIGHT;
+    scene.add(underPlatform);
+
+    // Electroneum Logo Vinyls for Centers (Mobile)
     const textureLoader = new THREE.TextureLoader();
     const logoTexture = textureLoader.load('/electroneum-logo-symbol.svg');
     logoTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const vinylMat = new THREE.MeshBasicMaterial({ map: logoTexture, transparent: true, opacity: 0.8, side: THREE.DoubleSide });
-    const groundVinyl = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), vinylMat);
-    groundVinyl.rotation.x = -Math.PI / 2; groundVinyl.position.set(0, 0.01, 0); scene.add(groundVinyl);
+    
+    const vinylGeo = new THREE.PlaneGeometry(10, 10);
+    const vinylMat = new THREE.MeshBasicMaterial({ 
+      map: logoTexture, 
+      transparent: true, 
+      opacity: 0.8,
+      side: THREE.DoubleSide 
+    });
 
-    const gBtn = createDiamondTeleporter(); gBtn.position.set(0, 2.0, 0); gBtn.userData.targetY = PLATFORM_Y + 1.6 + WALL_THICKNESS / 2; scene.add(gBtn);
-    const uBtn = createDiamondTeleporter(); uBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 2.0, 0); uBtn.userData.targetY = 1.6; scene.add(uBtn);
+    // 1. Ground floor center
+    const groundVinyl = new THREE.Mesh(vinylGeo, vinylMat);
+    groundVinyl.rotation.x = -Math.PI / 2;
+    groundVinyl.position.set(0, 0.01, 0);
+    scene.add(groundVinyl);
+
+    // Create Diamond Teleporters for Mobile
+    const gBtn = createDiamondTeleporter();
+    gBtn.position.set(0, 2.0, 0);
+    gBtn.userData.targetY = PLATFORM_Y + 1.6 + WALL_THICKNESS / 2;
+    scene.add(gBtn);
+
+    const uBtn = createDiamondTeleporter();
+    uBtn.position.set(0, PLATFORM_Y + WALL_THICKNESS / 2 + 2.0, 0);
+    uBtn.userData.targetY = 1.6;
+    scene.add(uBtn);
     teleportButtonsRef.current = [gBtn, uBtn];
 
+    // Furniture loading: Sofa and Plants
     const gltfLoader = new GLTFLoader();
     gltfLoader.load('/assets/models/sofa.glb', (gltf) => {
-      let sm: THREE.Mesh | null = null;
-      gltf.scene.traverse((c) => { if (c instanceof THREE.Mesh && !sm) { const b = new THREE.Box3().setFromObject(c); const s = new THREE.Vector3(); b.getSize(s); if (s.x < 15) sm = c; } });
-      if (sm) {
-        const m = sm as THREE.Mesh; m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox!; const s = new THREE.Vector3(); b.getSize(s);
-        const scale = 4.5 / s.x; const g = new THREE.Group(); g.add(m);
-        m.scale.set(scale, scale * 2, scale); m.position.set(-(b.min.x + s.x / 2) * scale, -b.min.y * (scale * 2), -(b.min.z + s.z / 2) * scale);
-        [{ x: 0, z: 11 }, { x: 0, z: -11 }, { x: 11, z: 0 }, { x: -11, z: 0 }].forEach(p => { const i = g.clone(); i.position.set(p.x, PLATFORM_Y + WALL_THICKNESS / 2, p.z); i.rotation.y = Math.atan2(-p.x, -p.z); scene.add(i); });
-      }
-    });
-    
-    // Decoration Loaders (Plant, Mug, etc) - mirrors desktop logic
-    gltfLoader.load('/assets/models/plant.glb', (gltf) => {
-      const plant = gltf.scene; const box = new THREE.Box3().setFromObject(plant); const size = new THREE.Vector3(); box.getSize(size);
-      const scale = 2.5 / size.y; plant.scale.set(scale, scale, scale);
-      [{ x: 14.2, z: 14.2 }, { x: -14.2, z: 14.2 }, { x: 14.2, z: -14.2 }, { x: -14.2, z: -14.2 }].forEach(pos => {
-        const i = plant.clone(); i.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z); scene.add(i);
+      let sofaMesh: THREE.Mesh | null = null;
+      gltf.scene.traverse((child) => {
+        if (child instanceof THREE.Mesh && !sofaMesh) {
+          const box = new THREE.Box3().setFromObject(child);
+          const size = new THREE.Vector3(); box.getSize(size);
+          if (size.x < 15 && size.z < 15) {
+            sofaMesh = child;
+          }
+        }
       });
+
+      if (sofaMesh) {
+        const mesh = sofaMesh as THREE.Mesh;
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        const size = new THREE.Vector3(); box.getSize(size);
+        const targetWidth = 4.5;
+        const scale = targetWidth / size.x;
+        const sofaGroup = new THREE.Group();
+        sofaGroup.add(mesh);
+        
+        mesh.scale.set(scale, scale * 2, scale);
+        mesh.position.set(
+          - (box.min.x + size.x / 2) * scale, 
+          - box.min.y * (scale * 2), 
+          - (box.min.z + size.z / 2) * scale
+        );
+
+        // Aligning positions with desktop (11 units from center)
+        const sofaPositions = [{ x: 0, z: 11 }, { x: 0, z: -11 }, { x: 11, z: 0 }, { x: -11, z: 0 }];
+        sofaPositions.forEach(pos => {
+          const instance = sofaGroup.clone();
+          instance.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+          instance.rotation.y = Math.atan2(-pos.x, -pos.z);
+          scene.add(instance);
+        });
+      }
+    }, null, (err) => {
+      console.warn("Failed to load sofa model:", err);
     });
 
-    const tablePositions = [{ x: 0, z: 9.8 }, { x: 0, z: -9.8 }, { x: 9.8, z: 0 }, { x: -9.8, z: 0 }];
-    tablePositions.forEach(pos => {
-      const t = createProceduralTable(); t.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
-      t.rotation.y = Math.atan2(-pos.x, -pos.z); t.translateX(0.9); scene.add(t);
+    // Load and place Plants at corners
+    gltfLoader.load('/assets/models/plant.glb', (gltf) => {
+      const plantModel = gltf.scene;
+      
+      const modelBox = new THREE.Box3().setFromObject(plantModel);
+      const modelMinY = modelBox.min.y;
+      const modelMaxY = modelBox.max.y;
+      const modelHeight = modelMaxY - modelMinY;
+
+      const terracottaColor = 0xe2725b;
+      const soilColor = 0x5d4037;
+      const stemColor = 0x3d2b1f;
+      const leafColor = 0x2e7d32;
+
+      plantModel.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const mesh = child as THREE.Mesh;
+          mesh.geometry.computeBoundingBox();
+          const box = mesh.geometry.boundingBox!;
+          
+          const meshMinY = box.min.y;
+          const meshMaxY = box.max.y;
+          const meshHeight = meshMaxY - meshMinY;
+          const normalizedMinY = (meshMinY - modelMinY) / modelHeight;
+          const normalizedMaxY = (meshMaxY - modelMinY) / modelHeight;
+
+          if (normalizedMinY < 0.05 && meshHeight < 0.05) {
+            mesh.visible = false;
+            return;
+          }
+
+          if (normalizedMinY < 0.1 && normalizedMaxY < 0.4) {
+             mesh.material = new THREE.MeshStandardMaterial({ color: terracottaColor, roughness: 0.9 });
+          } 
+          else if (normalizedMinY > 0.1 && normalizedMinY < 0.3 && meshHeight < 0.1) {
+             mesh.material = new THREE.MeshStandardMaterial({ color: soilColor, roughness: 1.0 });
+          }
+          else {
+            const meshSize = new THREE.Vector3(); box.getSize(meshSize);
+            const aspect = meshSize.y / Math.max(meshSize.x, meshSize.z);
+            if (aspect > 2.0) {
+              mesh.material = new THREE.MeshStandardMaterial({ color: stemColor, roughness: 0.8 });
+            } else {
+              mesh.material = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.6 });
+            }
+          }
+        }
+      });
+
+      const size = new THREE.Vector3(); modelBox.getSize(size);
+      const targetHeight = 2.5;
+      const scale = targetHeight / size.y;
+      plantModel.scale.set(scale, scale, scale);
+      
+      const corners = [
+        { x: 14.2, z: 14.2 },
+        { x: -14.2, z: 14.2 },
+        { x: 14.2, z: -14.2 },
+        { x: -14.2, z: -14.2 }
+      ];
+
+      corners.forEach(pos => {
+        const plant = plantModel.clone();
+        plant.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+        scene.add(plant);
+      });
+    }, null, (err) => {
+      console.warn("Failed to load plant model:", err);
     });
+
+    // Create and position Rectangular Tables
+    const tablePositions = [
+      { x: 0, z: 9.8 },  
+      { x: 0, z: -9.8 }, 
+      { x: 9.8, z: 0 },  
+      { x: -9.8, z: 0 }  
+    ];
+
+    const tables: THREE.Group[] = [];
+
+    tablePositions.forEach(pos => {
+      const table = createProceduralTable();
+      table.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2, pos.z);
+      table.rotation.y = Math.atan2(-pos.x, -pos.z);
+      table.translateX(0.9);
+      scene.add(table);
+      tables.push(table);
+    });
+    
+    // Porcelain Material for the mugs and saucers (Mobile)
+    const porcelainMat = new THREE.MeshPhysicalMaterial({
+      color: 0xffffff,
+      roughness: 0.05,
+      metalness: 0,
+      clearcoat: 1.0,
+      clearcoatRoughness: 0.05,
+      reflectivity: 0.5
+    });
+
+    // Load Cappuccino Mug model and place on tables (Mobile)
+    gltfLoader.load('/assets/models/Cappuccino_Mug.glb', (gltf) => {
+      const mugModel = gltf.scene;
+
+      // Apply porcelain material
+      mugModel.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.material = porcelainMat;
+        }
+      });
+
+      const box = new THREE.Box3().setFromObject(mugModel);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const targetWidth = 0.28;
+      const scale = targetWidth / size.x;
+      mugModel.scale.set(scale, scale, scale);
+      const bottomY = box.min.y * scale;
+
+      tablePositions.forEach((pos, idx) => {
+        const mug = mugModel.clone();
+        const tableSurfaceY = PLATFORM_Y + WALL_THICKNESS / 2 + 0.84;
+        mug.position.set(pos.x, tableSurfaceY - bottomY, pos.z);
+        mug.rotation.y = Math.atan2(-pos.x, -pos.z);
+        mug.translateX(1.1); 
+        mug.translateZ(0.25 * (idx % 2 === 0 ? 1 : -1));
+        scene.add(mug);
+      });
+    }, null, (err) => {
+      console.warn("Failed to load mug model:", err);
+    });
+
+    // Create Rugs beneath sofa/table pairs (Mobile)
+    const rugTexture = textureLoader.load('/textures/rug-pattern-2.jpg');
+    const rugGeo = new THREE.PlaneGeometry(6, 8);
+    const rugMat = new THREE.MeshStandardMaterial({ 
+      map: rugTexture, 
+      roughness: 1, 
+      metalness: 0,
+      transparent: true,
+      opacity: 0.9
+    });
+
+    const rugPositions = [
+      { x: 0, z: 10.4, rot: 0 },
+      { x: 0, z: -10.4, rot: Math.PI },
+      { x: 10.4, z: 0, rot: -Math.PI / 2 },
+      { x: -10.4, z: 0, rot: Math.PI / 2 }
+    ];
+
+    rugPositions.forEach(pos => {
+      const rug = new THREE.Mesh(rugGeo, rugMat);
+      rug.rotation.x = -Math.PI / 2;
+      rug.rotation.z = pos.rot;
+      rug.position.set(pos.x, PLATFORM_Y + WALL_THICKNESS / 2 + 0.005, pos.z);
+      scene.add(rug);
+    });
+
+    let stopLoad = false;
+    const createPanels = async () => {
+      await initializeGalleryConfig();
+      const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
+      const arrowShape = new THREE.Shape();
+      arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
+      const arrowGeo = new THREE.ShapeGeometry(arrowShape);
+      const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
+      const ARROW_PANEL_OFFSET = 3.2;
+
+      const WALL_NAMES = ['north-wall', 'south-wall', 'east-wall', 'west-wall'] as const;
+      const tempPanels: Panel[] = [];
+
+      for (let i = 0; i <= 4; i++) {
+        for (const wallNameBase of WALL_NAMES) {
+          const segmentCenter = (i - 2) * ROOM_SEGMENT_SIZE;
+          const tiers: { y: number; suffix: '-ground' | '-first' }[] = [
+            { y: LOWER_PANEL_Y, suffix: '-ground' },
+            { y: UPPER_PANEL_Y, suffix: '-first' },
+          ];
+
+          for (const tier of tiers) {
+            const key = `${wallNameBase}-${i}${tier.suffix}` as keyof PanelConfig;
+            let x = 0, z = 0, rotY = 0, dx = 0, dz = 0;
+            if (wallNameBase === 'north-wall') { x = segmentCenter; z = -halfRoomSize; rotY = 0; dz = ARROW_DEPTH_OFFSET; }
+            if (wallNameBase === 'south-wall') { x = segmentCenter; z = halfRoomSize; rotY = Math.PI; dz = -ARROW_DEPTH_OFFSET; }
+            if (wallNameBase === 'east-wall') { x = halfRoomSize; z = segmentCenter; rotY = -Math.PI / 2; dx = -ARROW_DEPTH_OFFSET; }
+            if (wallNameBase === 'west-wall') { x = -halfRoomSize; z = segmentCenter; rotY = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
+
+            const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
+            mesh.position.set(x + dx, tier.y, z + dz);
+            mesh.rotation.y = rotY;
+            scene.add(mesh);
+
+            const wallRotation = new THREE.Euler(0, rotY, 0, 'XYZ');
+            const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+
+            const prevArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            prevArrow.rotation.y = rotY + Math.PI;
+            prevArrow.position.copy(mesh.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+            scene.add(prevArrow);
+
+            const nextArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+            nextArrow.rotation.y = rotY;
+            nextArrow.position.copy(mesh.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+            scene.add(nextArrow);
+
+            const p: Panel = { mesh, wallName: key, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
+            tempPanels.push(p);
+            panelsRef.current.push(p);
+          }
+        }
+      }
+
+      crossWallSegments.forEach((sc, idx) => {
+        const configs = [
+          { key: `north-inner-wall-outer-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET], rot: Math.PI },
+          { key: `north-inner-wall-inner-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, -CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET], rot: 0 },
+          { key: `south-inner-wall-outer-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET], rot: 0 },
+          { key: `south-inner-wall-inner-${idx}`, pos: [sc, INNER_LOWER_PANEL_Y, CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET], rot: Math.PI },
+          { key: `east-inner-wall-outer-${idx}`, pos: [CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: Math.PI / 2 },
+          { key: `east-inner-wall-inner-${idx}`, pos: [CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: -Math.PI / 2 },
+          { key: `west-inner-wall-outer-${idx}`, pos: [-CROSS_WALL_BOUNDARY - ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: -Math.PI / 2 },
+          { key: `west-inner-wall-inner-${idx}`, pos: [-CROSS_WALL_BOUNDARY + ARROW_DEPTH_OFFSET, INNER_LOWER_PANEL_Y, sc], rot: Math.PI / 2 },
+        ];
+        configs.forEach(cfg => {
+          const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide }));
+          mesh.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+          mesh.rotation.y = cfg.rot;
+          scene.add(mesh);
+          const wallRotation = new THREE.Euler(0, cfg.rot, 0, 'XYZ');
+          const rightVector = new THREE.Vector3(1, 0, 0).applyEuler(wallRotation);
+          const prevArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+          prevArrow.rotation.y = cfg.rot + Math.PI;
+          prevArrow.position.copy(mesh.position).addScaledVector(rightVector, -ARROW_PANEL_OFFSET);
+          scene.add(prevArrow);
+          const nextArrow = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide }));
+          nextArrow.rotation.y = cfg.rot;
+          nextArrow.position.copy(mesh.position).addScaledVector(rightVector, ARROW_PANEL_OFFSET);
+          scene.add(nextArrow);
+          const p: Panel = { mesh, wallName: cfg.key as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow, nextArrow, videoElement: null, gifStopFunction: null };
+          tempPanels.push(p);
+          panelsRef.current.push(p);
+        });
+      });
+
+      const total = tempPanels.length;
+      for (let i = 0; i < total; i++) {
+        if (stopLoad) break;
+        const p = tempPanels[i];
+        await updatePanelContent(p, getCurrentNftSource(p.wallName));
+        
+        // Report progress
+        if (onLoadingProgress) {
+          onLoadingProgress((i + 1) / total * 100);
+        }
+
+        if (i % 3 === 0) await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      if (!stopLoad && onLoadingComplete) {
+        onLoadingComplete();
+      }
+    };
+    createPanels();
 
     const fadeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, depthTest: false });
     fadeMaterialRef.current = fadeMaterial;
     const fadeScreen = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), fadeMaterial);
-    fadeScreen.renderOrder = 999; fadeScreenRef.current = fadeScreen; scene.add(fadeScreen);
+    fadeScreen.renderOrder = 999;
+    fadeScreenRef.current = fadeScreen;
+    scene.add(fadeScreen);
 
-    const handlePointerDown = (e: PointerEvent) => {
+    const handleTouchStart = (e: TouchEvent) => {
       isDraggingRef.current = false;
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
-      if (mountRef.current) mountRef.current.setPointerCapture(e.pointerId);
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
-    const handlePointerMove = (e: PointerEvent) => {
-      if (!dragStartRef.current.x && !dragStartRef.current.y) return;
-      const dx = e.clientX - dragStartRef.current.x;
-      const dy = e.clientY - dragStartRef.current.y;
-      // Increased threshold for dragging to prevent accidental cancels on taps
-      if (Math.abs(dx) > 10 || Math.abs(dy) > 10) isDraggingRef.current = true;
-      rotationRef.current.yaw += dx * 0.005;
-      rotationRef.current.pitch += dy * 0.005;
+    const handleTouchMove = (e: TouchEvent) => {
+      isDraggingRef.current = true;
+      const deltaX = e.touches[0].clientX - touchStartRef.current.x;
+      const deltaY = e.touches[0].clientY - touchStartRef.current.y;
+      rotationRef.current.yaw += deltaX * 0.005;
+      rotationRef.current.pitch += deltaY * 0.005;
       rotationRef.current.pitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, rotationRef.current.pitch));
-      dragStartRef.current = { x: e.clientX, y: e.clientY };
+      touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     };
-    const handlePointerUp = (e: PointerEvent) => {
-      if (mountRef.current) mountRef.current.releasePointerCapture(e.pointerId);
+    const handleTouchEnd = (e: TouchEvent) => {
       if (!isDraggingRef.current) {
-        const x = (e.clientX / window.innerWidth) * 2 - 1;
-        const y = -(e.clientY / window.innerHeight) * 2 + 1;
+        const touch = e.changedTouches[0];
+        const x = (touch.clientX / window.innerWidth) * 2 - 1;
+        const y = -(touch.clientY / window.innerHeight) * 2 + 1;
         raycasterRef.current.setFromCamera(new THREE.Vector2(x, y), camera);
-        const all = sceneRef.current.children.filter(obj => obj !== fadeScreenRef.current);
-        const hits = raycasterRef.current.intersectObjects(all, true);
-        if (hits.length > 0) {
-          const hit = hits[0].object as THREE.Mesh;
-          let tp: THREE.Group | null = null;
-          if (hit.parent?.userData?.isTeleportButton) tp = hit.parent as THREE.Group;
-          else if (hit.parent?.parent?.userData?.isTeleportButton) tp = hit.parent.parent as THREE.Group;
-          if (tp) { performTeleport(tp.userData.targetY); return; }
+        
+        // Collate targets
+        const allPotentialObjects = sceneRef.current.children.filter(obj => obj !== fadeScreenRef.current);
+        const intersects = raycasterRef.current.intersectObjects(allPotentialObjects, true);
+        
+        if (intersects.length > 0) {
+          const hit = intersects[0].object as THREE.Mesh;
+          
+          setIsWalking(false);
+
+          // Check if we hit a diamond teleporter
+          let parentTeleporter: THREE.Group | null = null;
+          if (hit.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent as THREE.Group;
+          else if (hit.parent?.parent?.userData?.isTeleportButton) parentTeleporter = hit.parent.parent as THREE.Group;
+
+          if (parentTeleporter) {
+            performTeleport(parentTeleporter.userData.targetY);
+            return;
+          }
+
           const p = panelsRef.current.find(p => p.mesh === hit || p.prevArrow === hit || p.nextArrow === hit);
           if (p) {
-            if (hit === p.prevArrow || hit === p.nextArrow) { if (updatePanelIndex(p.wallName, hit === p.nextArrow ? 'next' : 'prev')) updatePanelContent(p, getCurrentNftSource(p.wallName)); }
-            else if (p.metadataUrl) { const cfg = GALLERY_PANEL_CONFIG[p.wallName]; setMarketBrowserState({ open: true, collection: cfg.contractAddress, tokenId: cfg.tokenIds[cfg.currentIndex] }); }
+            if (hit === p.prevArrow || hit === p.nextArrow) {
+              if (updatePanelIndex(p.wallName, hit === p.nextArrow ? 'next' : 'prev')) updatePanelContent(p, getCurrentNftSource(p.wallName));
+            } else if (p.metadataUrl) {
+              const cfg = GALLERY_PANEL_CONFIG[p.wallName];
+              setMarketBrowserState({ open: true, collection: cfg.contractAddress, tokenId: cfg.tokenIds[cfg.currentIndex] });
+            }
           }
         }
       }
-      dragStartRef.current = { x: 0, y: 0 };
     };
 
     const container = mountRef.current;
-    container.addEventListener('pointerdown', handlePointerDown);
-    container.addEventListener('pointermove', handlePointerMove);
-    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+    container.addEventListener('touchend', handleTouchEnd);
 
     let lastTime = performance.now();
     const animate = () => {
-      const time = performance.now(); const delta = (time - lastTime) * 0.001; lastTime = time;
+      const time = performance.now();
+      const delta = (time - lastTime) * 0.001;
+      lastTime = time;
       rainbowMaterial.uniforms.time.value = time * 0.001;
+
+      // Animate Teleporters
       teleportButtonsRef.current.forEach(btn => {
         const { electron1, electron2, diamond } = btn.userData;
-        if (diamond) { diamond.rotation.y += delta * 0.5; diamond.position.y = Math.sin(time * 0.002) * 0.1; }
+        if (diamond) {
+          diamond.rotation.y += delta * 0.5;
+          diamond.position.y = Math.sin(time * 0.002) * 0.1;
+        }
         if (electron1) electron1.rotation.y += delta * 2;
         if (electron2) electron2.rotation.y -= delta * 1.5;
       });
+
       if (camera) {
         camera.rotation.set(rotationRef.current.pitch, rotationRef.current.yaw, 0);
         if (isWalkingRef.current && !isTeleportingRef.current) {
-          const moveSpeed = 3.4; const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); forward.y = 0; forward.normalize();
+          const moveSpeed = 3.4; // Reduced from 4.0 (15% slower)
+          const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+          forward.y = 0;
+          forward.normalize();
           const nextX = new THREE.Vector3(camera.position.x + forward.x * moveSpeed * delta, camera.position.y, camera.position.z);
           if (!checkCollision(nextX)) camera.position.x = nextX.x;
           const nextZ = new THREE.Vector3(camera.position.x, camera.position.y, camera.position.z + forward.z * moveSpeed * delta);
           if (!checkCollision(nextZ)) camera.position.z = nextZ.z;
         }
-        if (fadeScreenRef.current) { fadeScreenRef.current.position.copy(camera.position); fadeScreenRef.current.quaternion.copy(camera.quaternion); }
+        if (fadeScreenRef.current) {
+          fadeScreenRef.current.position.copy(camera.position);
+          fadeScreenRef.current.quaternion.copy(camera.quaternion);
+        }
       }
       if (isTeleportingRef.current && fadeMaterialRef.current) {
-        const e = (time - fadeStartTimeRef.current) / 1000;
-        if (e < FADE_DURATION) fadeMaterialRef.current.opacity = e / FADE_DURATION;
-        else if (e < 2 * FADE_DURATION) fadeMaterialRef.current.opacity = 1 - (e - FADE_DURATION) / FADE_DURATION;
+        const elapsed = (time - fadeStartTimeRef.current) / 1000;
+        const half = FADE_DURATION;
+        if (elapsed < half) fadeMaterialRef.current.opacity = elapsed / half;
+        else if (elapsed < 2 * half) fadeMaterialRef.current.opacity = 1 - (elapsed - half) / half;
         else { fadeMaterialRef.current.opacity = 0; isTeleportingRef.current = false; }
       }
       renderer.render(scene, camera);
       requestAnimationFrame(animate);
     };
     animate();
-
-    const panelsInit = async () => {
-      await initializeGalleryConfig();
-      const panelGeo = new THREE.PlaneGeometry(PANEL_WIDTH, PANEL_HEIGHT);
-      const arrowShape = new THREE.Shape(); arrowShape.moveTo(0, 0.15); arrowShape.lineTo(0.3, 0); arrowShape.lineTo(0, -0.15);
-      const arrowGeo = new THREE.ShapeGeometry(arrowShape);
-      const ARROW_DEPTH_OFFSET = 0.15 + WALL_THICKNESS / 2;
-      const ARROW_PANEL_OFFSET = 3.2;
-
-      // Outer Walls
-      for (let i = 0; i <= 4; i++) {
-        ['north-wall', 'south-wall', 'east-wall', 'west-wall'].forEach(base => {
-          const sc = (i - 2) * ROOM_SEGMENT_SIZE;
-          [{ y: LOWER_PANEL_Y, s: '-ground' }, { y: UPPER_PANEL_Y, s: '-first' }].forEach(tier => {
-            const key = `${base}-${i}${tier.s}` as keyof PanelConfig;
-            let x = 0, z = 0, ry = 0, dx = 0, dz = 0;
-            if (base === 'north-wall') { x = sc; z = -halfRoomSize; ry = 0; dz = ARROW_DEPTH_OFFSET; }
-            if (base === 'south-wall') { x = sc; z = halfRoomSize; ry = Math.PI; dz = -ARROW_DEPTH_OFFSET; }
-            if (base === 'east-wall') { x = halfRoomSize; z = sc; ry = -Math.PI / 2; dx = -ARROW_DEPTH_OFFSET; }
-            if (base === 'west-wall') { x = -halfRoomSize; z = sc; ry = Math.PI / 2; dx = ARROW_DEPTH_OFFSET; }
-            const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
-            mesh.position.set(x + dx, tier.y, z + dz); mesh.rotation.y = ry; scene.add(mesh);
-            const rVec = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, ry, 0));
-            const pArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); pArr.rotation.y = ry + Math.PI; pArr.position.copy(mesh.position).addScaledVector(rVec, -ARROW_PANEL_OFFSET); scene.add(pArr);
-            const nArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); nArr.rotation.y = ry; nArr.position.copy(mesh.position).addScaledVector(rVec, ARROW_PANEL_OFFSET); scene.add(nArr);
-            const p: Panel = { mesh, wallName: key, metadataUrl: '', isVideo: false, isGif: false, prevArrow: pArr, nextArrow: nArr, videoElement: null, gifStopFunction: null };
-            panelsRef.current.push(p);
-            updatePanelContent(p, getCurrentNftSource(key));
-          });
-        });
+    const onResize = () => {
+      if (camera && renderer) {
+        camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
       }
-
-      // Inner Walls
-      [-10, 10].forEach((seg, i) => {
-        const d_off = ARROW_DEPTH_OFFSET;
-        const inner_configs = [
-          { k: `north-inner-wall-outer-${i}`, p: [seg, INNER_LOWER_PANEL_Y, -5 - d_off], r: Math.PI },
-          { k: `north-inner-wall-inner-${i}`, p: [seg, INNER_LOWER_PANEL_Y, -5 + d_off], r: 0 },
-          { k: `south-inner-wall-outer-${i}`, p: [seg, INNER_LOWER_PANEL_Y, 5 + d_off], r: 0 },
-          { k: `south-inner-wall-inner-${i}`, p: [seg, INNER_LOWER_PANEL_Y, 5 - d_off], r: Math.PI },
-          { k: `east-inner-wall-outer-${i}`, p: [5 + d_off, INNER_LOWER_PANEL_Y, seg], r: Math.PI / 2 },
-          { k: `east-inner-wall-inner-${i}`, p: [5 - d_off, INNER_LOWER_PANEL_Y, seg], r: -Math.PI / 2 },
-          { k: `west-inner-wall-outer-${i}`, p: [-5 - d_off, INNER_LOWER_PANEL_Y, seg], r: -Math.PI / 2 },
-          { k: `west-inner-wall-inner-${i}`, p: [-5 + d_off, INNER_LOWER_PANEL_Y, seg], r: Math.PI / 2 }
-        ];
-
-        inner_configs.forEach(cfg => {
-          const mesh = new THREE.Mesh(panelGeo, new THREE.MeshBasicMaterial({ color: 0x222222, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
-          mesh.position.set(cfg.p[0], cfg.p[1], cfg.p[2]); mesh.rotation.y = cfg.r; scene.add(mesh);
-          const rVec = new THREE.Vector3(1, 0, 0).applyEuler(new THREE.Euler(0, cfg.r, 0));
-          const pArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); pArr.rotation.y = cfg.r + Math.PI; pArr.position.copy(mesh.position).addScaledVector(rVec, -ARROW_PANEL_OFFSET); scene.add(pArr);
-          const nArr = new THREE.Mesh(arrowGeo, new THREE.MeshBasicMaterial({ color: 0xcccccc, side: THREE.DoubleSide })); nArr.rotation.y = cfg.r; nArr.position.copy(mesh.position).addScaledVector(rVec, ARROW_PANEL_OFFSET); scene.add(nArr);
-          const p: Panel = { mesh, wallName: cfg.k as keyof PanelConfig, metadataUrl: '', isVideo: false, isGif: false, prevArrow: pArr, nextArrow: nArr, videoElement: null, gifStopFunction: null };
-          panelsRef.current.push(p);
-          updatePanelContent(p, getCurrentNftSource(cfg.k as keyof PanelConfig));
-        });
-      });
-
-      if (onLoadingComplete) onLoadingComplete();
     };
-    panelsInit();
-
-    const onResize = () => { if (camera && renderer) { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); } };
     window.addEventListener('resize', onResize);
     return () => {
+      stopLoad = true;
       renderer.dispose();
-      container.removeEventListener('pointerdown', handlePointerDown);
-      container.removeEventListener('pointermove', handlePointerMove);
-      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('resize', onResize);
       mountRef.current?.removeChild(renderer.domElement);
     };
