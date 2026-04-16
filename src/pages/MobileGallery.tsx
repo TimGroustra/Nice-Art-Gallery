@@ -1,14 +1,23 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import NftGalleryMobile from '@/components/NftGalleryMobile';
 import BackgroundMusic from '@/components/BackgroundMusic';
 import LoadingSplash from '@/components/LoadingSplash';
 import { Button } from '@/components/ui/button';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { User } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 const MobileGallery: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const isMobile = useIsMobile();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!isMobile) {
+      navigate('/');
+    }
+  }, [isMobile, navigate]);
 
   const handleLoadingComplete = useCallback(() => {
     setIsLoading(false);
