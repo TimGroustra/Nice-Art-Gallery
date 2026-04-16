@@ -26,14 +26,16 @@ serve(async (req) => {
     const text = message.text.trim();
     const firstName = message.from?.first_name || "Artist";
 
-    // When user clicks the mandatory Start button, send the inline button
+    // When user clicks the mandatory Start button, send the description and launch button
     if (text.startsWith("/start")) {
+      const description = "Step inside a fully immersive 3D digital museum. Explore curated NFT collections from the Electroneum blockchain in a high-fidelity virtual environment.";
+      
       await fetch(`${BASE_URL}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: `Welcome to the Nice Art Gallery, ${firstName}! 🎨\n\nClick below to enter the 3D experience.`,
+          text: `Welcome to the Nice Art Gallery, ${firstName}! 🎨\n\n${description}\n\nClick below to enter the 3D experience.`,
           reply_markup: {
             inline_keyboard: [[
               { text: "🖼️ Launch Gallery", web_app: { url: APP_URL } }
