@@ -2,17 +2,18 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const BOT_TOKEN = Deno.env.get("TG_TOKEN_GALLERY");
 const BASE_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
-// You'll need to provide your Supabase Project Ref here or use env var
-const PROJECT_REF = "your-project-ref"; 
+// Using your actual project ref: yvigiirlsdbhmmcqvznk
+const PROJECT_REF = "yvigiirlsdbhmmcqvznk"; 
 const WEBHOOK_URL = `https://${PROJECT_REF}.supabase.co/functions/v1/gallery-bot`;
 const APP_URL = "https://nice-art-gallery.vercel.app/"; 
 
 serve(async (req) => {
   try {
     console.log("[gallery-setup] Configuring NiceArtGalleryBot...");
+    console.log("[gallery-setup] Webhook URL:", WEBHOOK_URL);
 
     // 1. Set the Webhook
-    await fetch(`${BASE_URL}/setWebhook`, {
+    const webhookRes = await fetch(`${BASE_URL}/setWebhook`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
@@ -21,9 +22,10 @@ serve(async (req) => {
         allowed_updates: ["message"]
       })
     });
+    const webhookData = await webhookRes.json();
 
     // 2. Set the Menu Button
-    await fetch(`${BASE_URL}/setChatMenuButton`, {
+    const menuRes = await fetch(`${BASE_URL}/setChatMenuButton`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -34,9 +36,10 @@ serve(async (req) => {
         }
       })
     });
+    const menuData = await menuRes.json();
 
     // 3. Set Bot Commands
-    await fetch(`${BASE_URL}/setMyCommands`, {
+    const commandsRes = await fetch(`${BASE_URL}/setMyCommands`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -46,24 +49,18 @@ serve(async (req) => {
         ]
       })
     });
-
-    // 4. Set Description
-    await fetch(`${BASE_URL}/setMyDescription`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        description: "Welcome to the Nice Art Gallery. Step inside a fully immersive 3D digital museum where you can view and interact with unique NFT collections from the Electroneum blockchain."
-      })
-    });
+    const commandsData = await commandsRes.json();
 
     return new Response(JSON.stringify({ 
       success: true, 
-      message: "Nice Art Gallery Bot configured successfully" 
+      webhook: webhookData,
+      menu: menuData,
+      commands: commandsData
     }), {
       headers: { "Content-Type": "application/json" }
     });
   } catch (e) {
-    console.error("[gallery-setup] Setup failed", e);
+    console.error("[gallery-setup] Setup failed:", e);
     return new Response(JSON.stringify({ error: e.message }), { status: 500 });
   }
 })
